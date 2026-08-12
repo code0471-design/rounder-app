@@ -1,0 +1,410 @@
+import 'package:flutter/material.dart';
+import 'package:shared_preferences/shared_preferences.dart';
+import '../models/user_model.dart';
+import '../services/firebase_auth_bridge.dart';
+import '../di/app_dependencies.dart';
+import '../data/repositories/mock/mock_data_store.dart';
+import 'package:cloud_firestore/cloud_firestore.dart';
+import '../core/firebase/firestore_paths.dart';
+
+// ════════════════════════════════════════════════════════════
+//  AuthProvider — 로그인 / 자동로그인 / 세션 관리
+// ════════════════════════════════════════════════════════════
+class AuthProvider extends ChangeNotifier {
+
+  // ── SharedPreferences 키 ─────────────────────────────────
+  static const _kSavedPhone    = 'saved_phone';
+  static const _kAutoLogin     = 'auto_login';
+  static const _kLastLoginId   = 'last_login_id';
+
+  // ── 현재 로그인 사용자 ───────────────────────────────────
+  AppUser? _currentUser;
+  AppUser? get currentUser  => _currentUser;
+  bool     get isLoggedIn   => _currentUser != null;
+
+  /// 현재 유저 역할 (관리자 여부)
+  bool get isAdmin => _currentUser?.isAdmin ?? false;
+
+  // ── 자동로그인 설정 ──────────────────────────────────────
+  bool _autoLogin = false;
+  bool get autoLogin => _autoLogin;
+
+  // ── SMS/PASS 인증 상태 ───────────────────────────────────
+  bool    _isVerifying    = false;
+  bool    get isVerifying => _isVerifying;
+  String? _pendingPhone;
+  String? get pendingPhone => _pendingPhone;
+  String  _smsCode        = '';
+  bool    _smsCodeSent    = false;
+  bool    get smsCodeSent => _smsCodeSent;
+  bool    _passRequested  = false;
+  bool    get passRequested => _passRequested;
+  bool    _verifySuccess  = false;
+  bool    get verifySuccess => _verifySuccess;
+
+  // ── 회원가입 임시 데이터 ─────────────────────────────────
+  String?       _signupName;
+  String?       _signupPhone;
+  double?       _signupHandicap;
+  VerifyMethod? _signupVerifyMethod;
+
+  // ── 초대 토큰 목록 ───────────────────────────────────────
+  final List<InviteToken> _inviteTokens = [];
+  List<InviteToken> get inviteTokens => List.unmodifiable(_inviteTokens);
+
+  // ════════════════════════════════════════════════════════
+  //  Mock 사용자 DB
+  //
+  //  ┌──────────────────────────────────────────────────────┐
+  //  │  테스트 계정 (클린 슬레이트)                          │
+  //  │  홍길동 : 010-1234-5678  (user_me / m1)               │
+  //  │  이민준 : 010-9999-0000  (user_guest / mg1)          │
+  //  └──────────────────────────────────────────────────────┘
+  // ════════════════════════════════════════════════════════
+  final List<AppUser> _registeredUsers = [
+    AppUser(
+      id:           'user_me',
+      name:         '홍길동',
+      phone:        '010-1234-5678',
+      handicap:     12.0,
+      isVerified:   true,
+      isAdmin:      true,
+      role:         '총무',
+      verifyMethod: VerifyMethod.sms,
+    ),
+    AppUser(
+      id:           'user_guest',
+      name:         '이민준',
+      phone:        '010-9999-0000',
+      handicap:     18.0,
+      isVerified:   true,
+      isAdmin:      false,
+      role:         '일반',
+      verifyMethod: VerifyMethod.sms,
+    ),
+  ];
+
+  // ════════════════════════════════════════════════════════
+  //  자동로그인 초기화 (앱 시작 시 호출)
+  // ════════════════════════════════════════════════════════
+
+  /// SharedPreferences에서 저장된 로그인 세션 복원
+  /// 반환값: true = 자동로그인 성공, false = 로그인 필요
+  Future<bool> tryAutoLogin() async {
+    final prefs = await SharedPreferences.getInstance();
+    _autoLogin = prefs.getBool(_kAutoLogin) ?? false;
+
+    if (!_autoLogin) return false;
+
+    final savedId = prefs.getString(_kLastLoginId);
+    if (savedId == null) return false;
+
+    final user = _registeredUsers.where((u) => u.id == savedId).firstOrNull;
+    if (user == null) return false;
+
+    _currentUser = user;
+    await FirebaseAuthBridge.ensureSignedIn(user);
+    notifyListeners();
+    return true;
+  }
+
+  /// 자동로그인 설정 토글
+  Future<void> setAutoLogin(bool value) async {
+    _autoLogin = value;
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.setBool(_kAutoLogin, value);
+    if (!value) {
+      // 자동로그인 끄면 저장된 세션 삭제
+      await prefs.remove(_kLastLoginId);
+      await prefs.remove(_kSavedPhone);
+    }
+    notifyListeners();
+  }
+
+  // ════════════════════════════════════════════════════════
+  //  로그인
+  // ════════════════════════════════════════════════════════
+
+  /// 전화번호로 사용자 조회
+  AppUser? findUserByPhone(String phone) {
+    final normalized = _normalizePhone(phone);
+    try {
+      return _registeredUsers.firstWhere(
+        (u) => _normalizePhone(u.phone) == normalized,
+      );
+    } catch (_) {
+      return null;
+    }
+  }
+
+  /// 로그인 처리 — saveSession: 자동로그인 저장 여부
+  Future<bool> loginAsync(String phone, {bool saveSession = false}) async {
+    final user = findUserByPhone(phone);
+    if (user == null) return false;
+
+    _currentUser = user;
+
+    // Staging/Firebase — Firestore rules용 Auth 세션 확보
+    await FirebaseAuthBridge.ensureSignedIn(user);
+
+    // 자동로그인 저장
+    if (saveSession) {
+      final prefs = await SharedPreferences.getInstance();
+      await prefs.setBool(_kAutoLogin, true);
+      await prefs.setString(_kLastLoginId, user.id);
+      await prefs.setString(_kSavedPhone, user.phone);
+      _autoLogin = true;
+    }
+
+    notifyListeners();
+    return true;
+  }
+
+  /// 기존 동기 login (하위 호환)
+  bool login(String phone) {
+    final user = findUserByPhone(phone);
+    if (user != null) {
+      _currentUser = user;
+      notifyListeners();
+      return true;
+    }
+    return false;
+  }
+
+  /// 로그아웃 — 자동로그인 세션 삭제
+  Future<void> logoutAsync() async {
+    _currentUser = null;
+    _autoLogin   = false;
+    _clearVerifyState();
+
+    await FirebaseAuthBridge.signOut();
+
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.remove(_kAutoLogin);
+    await prefs.remove(_kLastLoginId);
+    await prefs.remove(_kSavedPhone);
+
+    notifyListeners();
+  }
+
+  void logout() {
+    _currentUser = null;
+    _clearVerifyState();
+    notifyListeners();
+  }
+
+  // ════════════════════════════════════════════════════════
+  //  SMS 인증
+  // ════════════════════════════════════════════════════════
+
+  Future<void> sendSmsCode(String phone) async {
+    _isVerifying  = true;
+    _pendingPhone = phone;
+    _smsCode      = '1234';
+    notifyListeners();
+    await Future.delayed(const Duration(seconds: 1));
+    _smsCodeSent = true;
+    _isVerifying = false;
+    notifyListeners();
+  }
+
+  bool verifySmsCode(String inputCode) {
+    final ok = inputCode.trim() == _smsCode;
+    _verifySuccess = ok;
+    notifyListeners();
+    return ok;
+  }
+
+  // ════════════════════════════════════════════════════════
+  //  PASS 앱 인증
+  // ════════════════════════════════════════════════════════
+
+  Future<bool> requestPassVerify(String name, String phone) async {
+    _passRequested = true;
+    _isVerifying   = true;
+    _pendingPhone  = phone;
+    notifyListeners();
+    await Future.delayed(const Duration(seconds: 2));
+    _verifySuccess = true;
+    _isVerifying   = false;
+    notifyListeners();
+    return true;
+  }
+
+  /// 포트원/개발용 본인인증 화면에서 이미 성공한 뒤 상태만 반영
+  bool confirmPassVerified({String? phone}) {
+    _passRequested = true;
+    _pendingPhone = phone ?? _pendingPhone;
+    _verifySuccess = true;
+    _isVerifying = false;
+    notifyListeners();
+    return true;
+  }
+
+  // ════════════════════════════════════════════════════════
+  //  회원가입
+  // ════════════════════════════════════════════════════════
+
+  void setSignupData({
+    required String name,
+    required String phone,
+    double? handicap,
+    required VerifyMethod verifyMethod,
+  }) {
+    _signupName         = name;
+    _signupPhone        = phone;
+    _signupHandicap     = handicap;
+    _signupVerifyMethod = verifyMethod;
+  }
+
+  AppUser completeSignup() {
+    final newUser = AppUser(
+      id:           'user_${DateTime.now().millisecondsSinceEpoch}',
+      name:         _signupName!,
+      phone:        _signupPhone!,
+      handicap:     _signupHandicap,
+      isVerified:   true,
+      isAdmin:      false,
+      role:         '일반',
+      verifyMethod: _signupVerifyMethod,
+    );
+    _registeredUsers.add(newUser);
+    _currentUser = newUser;
+    // ignore: unawaited_futures
+    FirebaseAuthBridge.ensureSignedIn(newUser);
+    // 어드민 회원 수: 모임 미가입 신규 유저도 카운트
+    // ignore: unawaited_futures
+    _persistPlatformUser(newUser);
+    _clearVerifyState();
+    notifyListeners();
+    return newUser;
+  }
+
+  // ════════════════════════════════════════════════════════
+  //  초대 토큰
+  // ════════════════════════════════════════════════════════
+
+  InviteToken createInviteToken({
+    required String clubId,
+    required String clubName,
+    InviteMemberType inviteType = InviteMemberType.regular,
+    String? guestName,
+    String? referrerId,
+    String? referrerName,
+  }) {
+    final token = InviteToken(
+      token:       'inv_${DateTime.now().millisecondsSinceEpoch}',
+      clubId:      clubId,
+      clubName:    clubName,
+      inviterName: _currentUser?.name ?? '알 수 없음',
+      inviterId:   _currentUser?.id   ?? '',
+      inviteType:  inviteType,
+      guestName:   guestName,
+      referrerId:  referrerId,
+      referrerName: referrerName,
+    );
+    _inviteTokens.add(token);
+    notifyListeners();
+    return token;
+  }
+
+  InviteToken? findToken(String token) {
+    try {
+      return _inviteTokens.firstWhere((t) => t.token == token);
+    } catch (_) {
+      return null;
+    }
+  }
+
+  void markTokenUsed(String token) {
+    final idx = _inviteTokens.indexWhere((t) => t.token == token);
+    if (idx >= 0) {
+      final old = _inviteTokens[idx];
+      _inviteTokens[idx] = InviteToken(
+        token:       old.token,
+        clubId:      old.clubId,
+        clubName:    old.clubName,
+        inviterName: old.inviterName,
+        inviterId:   old.inviterId,
+        createdAt:   old.createdAt,
+        expiresAt:   old.expiresAt,
+        isUsed:      true,
+      );
+      notifyListeners();
+    }
+  }
+
+  // ════════════════════════════════════════════════════════
+  //  헬퍼
+  // ════════════════════════════════════════════════════════
+
+  void _clearVerifyState() {
+    _isVerifying        = false;
+    _smsCodeSent        = false;
+    _passRequested      = false;
+    _verifySuccess      = false;
+    _pendingPhone       = null;
+    _smsCode            = '';
+    _signupName         = null;
+    _signupPhone        = null;
+    _signupHandicap     = null;
+    _signupVerifyMethod = null;
+  }
+
+  void resetVerify() {
+    _smsCodeSent   = false;
+    _passRequested = false;
+    _verifySuccess = false;
+    notifyListeners();
+  }
+
+  Future<void> _persistPlatformUser(AppUser user) async {
+    try {
+      final deps = AppDependencies.instance;
+      if (deps.isOfflineMockMode) {
+        final store = deps.mockDataStore;
+        if (store != null) {
+          store.upsertAppUser(
+            MockAppUser(
+              id: user.id,
+              name: user.name,
+              phone: user.phone,
+              gender: '남',
+              createdAt: DateTime.now(),
+            ),
+          );
+        }
+        return;
+      }
+      await FirebaseFirestore.instance
+          .collection(FirestorePaths.users)
+          .doc(user.id)
+          .set({
+        'name': user.name,
+        'phone': user.phone,
+        'nickname': user.name,
+        'gender': '남',
+        'account_status': 'normal',
+        'created_at': FieldValue.serverTimestamp(),
+        'updated_at': FieldValue.serverTimestamp(),
+      }, SetOptions(merge: true));
+    } catch (e) {
+      debugPrint('[AuthProvider] persist platform user failed: $e');
+    }
+  }
+
+  String _normalizePhone(String phone) =>
+      phone.replaceAll(RegExp(r'[^0-9]'), '');
+
+  static String formatPhone(String raw) {
+    final digits = raw.replaceAll(RegExp(r'[^0-9]'), '');
+    if (digits.length <= 3) return digits;
+    if (digits.length <= 7) {
+      return '${digits.substring(0, 3)}-${digits.substring(3)}';
+    }
+    if (digits.length <= 11) {
+      return '${digits.substring(0, 3)}-${digits.substring(3, 7)}-${digits.substring(7)}';
+    }
+    return '${digits.substring(0, 3)}-${digits.substring(3, 7)}-${digits.substring(7, 11)}';
+  }
+}

@@ -1,0 +1,7 @@
+{
+  "projects": {
+    "default": "rounder-staging",
+    "staging": "rounder-staging",
+    "prod": "rounder-f6019"
+  }
+}

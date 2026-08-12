@@ -1,0 +1,5007 @@
+import 'package:flutter/material.dart';
+import 'package:provider/provider.dart';
+import '../../models/club_model.dart';
+import '../../providers/club_provider.dart';
+import '../../theme/app_theme.dart';
+import '../../navigation/app_navigator.dart';
+import '../../utils/alimtalk_utils.dart';
+import '../group_assignment/group_assignment_screen.dart';
+import '../records/score_award_screen.dart';
+import '../../widgets/ad_banner.dart';
+
+// ════════════════════════════════════════════════════════════
+//  보험 관련 상수
+// ════════════════════════════════════════════════════════════
+const _kInsuranceUrl = 'https://www.google.com'; // TODO: 보험사 API 연동 후 교체
+const _kInsurancePrice = '3,900원~';
+const _kInsuranceName = '1일 홀인원보험';
+
+// ════════════════════════════════════════════════════════════
+//  ScheduleScreen — 일정 탭 (예정 / 지난 일정)
+// ════════════════════════════════════════════════════════════
+class ScheduleScreen extends StatefulWidget {
+  const ScheduleScreen({super.key});
+
+  @override
+  State<ScheduleScreen> createState() => _ScheduleScreenState();
+}
+
+class _ScheduleScreenState extends State<ScheduleScreen>
+    with SingleTickerProviderStateMixin {
+  late TabController _tab;
+
+  @override
+  void initState() {
+    super.initState();
+    _tab = TabController(length: 2, vsync: this);
+    // 일정 실시간 동기화 — 다른 기기의 추가·수정이 즉시 반영된다
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      final provider = context.read<ClubProvider>();
+      provider.startSchedulesRealtimeSync(provider.selectedClub.id);
+    });
+  }
+
+  @override
+  void dispose() {
+    _tab.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Consumer<ClubProvider>(
+      builder: (context, provider, _) {
+        final isAdmin = provider.canCreateSchedule;
+
+        return Scaffold(
+          backgroundColor: AppColors.cream,
+          body: Column(
+            children: [
+              // ── 탭바 (디자인: border-bottom 1px) ──
+              Container(
+                decoration: BoxDecoration(
+                  color: AppColors.cream,
+                  border: Border(
+                    bottom: BorderSide(color: Colors.black.withValues(alpha: 0.08)),
+                  ),
+                ),
+                child: TabBar(
+                  controller: _tab,
+                  labelColor: AppColors.sageDeep,
+                  unselectedLabelColor: AppColors.inkSoft,
+                  indicatorColor: AppColors.sageDeep,
+                  indicatorWeight: 2,
+                  indicatorSize: TabBarIndicatorSize.label,
+                  dividerColor: Colors.transparent,
+                  labelStyle: const TextStyle(
+                      fontFamily: 'NanumGothic', fontSize: 15,
+                      fontWeight: FontWeight.w700),
+                  unselectedLabelStyle: const TextStyle(
+                      fontSize: 12, fontWeight: FontWeight.w500),
+                  tabs: const [
+                    Tab(text: '예정 일정'),
+                    Tab(text: '지난 일정'),
+                  ],
+                ),
+              ),
+              // ── 탭 컨텐츠 ──
+              Expanded(
+                child: TabBarView(
+                  controller: _tab,
+                  children: [
+                    _ScheduleList(
+                        schedules: provider.upcomingSchedules,
+                        isPast: false,
+                        clubId: provider.selectedClub.id),
+                    _ScheduleList(
+                        schedules: provider.pastSchedules,
+                        isPast: true,
+                        clubId: provider.selectedClub.id),
+                  ],
+                ),
+              ),
+            ],
+          ),
+          // ── FAB (관리자만) ──
+          floatingActionButton: isAdmin
+              ? FloatingActionButton.extended(
+                  onPressed: () => showAddScheduleSheet(context, provider),
+                  backgroundColor: AppColors.sageDeep,
+                  foregroundColor: Colors.white,
+                  icon: const Icon(Icons.add),
+                  label: const Text('일정 등록',
+                      style: TextStyle(fontWeight: FontWeight.w600)),
+                )
+              : null,
+        );
+      },
+    );
+  }
+}
+
+// ════════════════════════════════════════════════════════════
+//  일정 등록 바텀시트 열기 — 다른 화면(홈 탭 등)에서도 재사용
+// ════════════════════════════════════════════════════════════
+void openAddScheduleSheet(BuildContext context, ClubProvider provider) {
+  showAddScheduleSheet(context, provider);
+}
+
+void showAddScheduleSheet(BuildContext context, ClubProvider provider) {
+  showModalBottomSheet(
+    context: context,
+    isScrollControlled: true,
+    backgroundColor: Colors.transparent,
+    builder: (_) => _ScheduleFormSheet(provider: provider),
+  );
+}
+
+// ════════════════════════════════════════════════════════════
+//  일정 목록
+// ════════════════════════════════════════════════════════════
+class _ScheduleList extends StatelessWidget {
+  final List<RoundSchedule> schedules;
+  final bool isPast;
+  final String? clubId;
+  const _ScheduleList({required this.schedules, required this.isPast, this.clubId});
+
+  @override
+  Widget build(BuildContext context) {
+    if (schedules.isEmpty) {
+      return Center(
+        child: Column(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            Icon(
+              isPast ? Icons.history : Icons.calendar_month_outlined,
+              size: 56,
+              color: AppColors.textSecondary.withValues(alpha: 0.4),
+            ),
+            const SizedBox(height: 12),
+            Text(
+              isPast ? '지난 일정이 없습니다' : '예정된 일정이 없습니다',
+              style: const TextStyle(
+                  color: AppColors.textSecondary, fontSize: 15),
+            ),
+          ],
+        ),
+      );
+    }
+
+    // 광고 배너 OFF (런칭) — AdBanner 복구 금지
+    return RefreshIndicator(
+      color: AppColors.primary,
+      onRefresh: () async =>
+          await Future.delayed(const Duration(milliseconds: 500)),
+      child: ListView.separated(
+        padding: const EdgeInsets.fromLTRB(16, 8, 16, 100),
+        itemCount: schedules.length,
+        separatorBuilder: (_, __) => const SizedBox(height: 14),
+        itemBuilder: (context, i) {
+          return _ScheduleCard(
+            schedule: schedules[i],
+            isPast: isPast,
+          );
+        },
+      ),
+    );
+  }
+}
+
+// ════════════════════════════════════════════════════════════
+//  일정 카드
+// ════════════════════════════════════════════════════════════
+class _ScheduleCard extends StatelessWidget {
+  final RoundSchedule schedule;
+  final bool isPast;
+  const _ScheduleCard({required this.schedule, required this.isPast});
+
+  @override
+  Widget build(BuildContext context) {
+    final daysUntil = schedule.daysUntil;
+    final isClose = !isPast && daysUntil >= 0 && daysUntil <= 7;
+
+    // sched-card: 흰 배경, 20px 라운드, 연한 border
+    return GestureDetector(
+      onTap: () => Navigator.push(context,
+          MaterialPageRoute(builder: (_) => ScheduleDetailScreen(schedule: schedule))),
+      child: Container(
+        margin: EdgeInsets.zero,
+        decoration: BoxDecoration(
+          color: Colors.white,
+          borderRadius: BorderRadius.circular(20),
+          border: Border.all(color: Colors.black.withValues(alpha: 0.06)),
+        ),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            // ── sc-head: 제목 + d-circle ──
+            Padding(
+              padding: const EdgeInsets.fromLTRB(16, 16, 16, 0),
+              child: Row(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        // 제목
+                        Text(
+                          schedule.title,
+                          style: TextStyle(
+                            fontFamily: 'NanumGothic',
+                            fontSize: 17, fontWeight: FontWeight.w800,
+                            color: isPast ? AppColors.inkSoft : AppColors.ink,
+                            height: 1.1, letterSpacing: -0.01 * 17,
+                          ),
+                        ),
+                        // 코스명
+                        const SizedBox(height: 6),
+                        Row(children: [
+                          Icon(Icons.golf_course, size: 12,
+                              color: isPast ? AppColors.inkSoft : AppColors.sage),
+                          const SizedBox(width: 5),
+                          Text(schedule.courseName,
+                              style: TextStyle(
+                                  fontSize: 11,
+                                  color: AppColors.inkSoft.withValues(alpha: 0.7))),
+                        ]),
+                        // 티오프 시간
+                        const SizedBox(height: 4),
+                        Row(children: [
+                          Icon(Icons.access_time, size: 12,
+                              color: AppColors.inkSoft.withValues(alpha: 0.7)),
+                          const SizedBox(width: 5),
+                          Text(
+                            '${_fmtDate(schedule.roundDate)}  ${schedule.teeTime} 티오프',
+                            style: TextStyle(
+                                fontSize: 11,
+                                color: AppColors.inkSoft.withValues(alpha: 0.7)),
+                          ),
+                        ]),
+                      ],
+                    ),
+                  ),
+                  const SizedBox(width: 12),
+                  // d-circle: 46×46 원형 D-day
+                  Container(
+                    width: 46, height: 46,
+                    decoration: BoxDecoration(
+                      shape: BoxShape.circle,
+                      color: isPast
+                          ? AppColors.inkSoft.withValues(alpha: 0.15)
+                          : isClose ? AppColors.sageDeep : AppColors.sage,
+                      boxShadow: isPast ? null : [
+                        BoxShadow(
+                          color: (isClose ? AppColors.sageDeep : AppColors.sage)
+                              .withValues(alpha: 0.5),
+                          blurRadius: 14, offset: const Offset(0, 6),
+                          spreadRadius: -6,
+                        ),
+                      ],
+                    ),
+                    child: Center(
+                      child: Text(
+                        isPast ? '완료' : schedule.dDayText,
+                        style: TextStyle(
+                          fontFamily: 'NanumGothic',
+                          color: isPast ? AppColors.inkSoft : Colors.white,
+                          fontSize: schedule.dDayText.length > 4 ? 10 : 15,
+                          fontWeight: FontWeight.w500,
+                        ),
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+            ),
+
+            // sc-divider
+            Container(
+              height: 1,
+              margin: const EdgeInsets.fromLTRB(16, 12, 16, 0),
+              color: Colors.black.withValues(alpha: 0.08),
+            ),
+
+            // ── sc-stats: 참석 칩 + 응답 버튼 ──
+            Padding(
+              padding: const EdgeInsets.fromLTRB(16, 12, 16, 14),
+              child: Row(
+                children: [
+                  // chips — Consumer로 실시간 반영
+                  Consumer<ClubProvider>(
+                    builder: (_, prov, __) {
+                      final latest = prov.schedules.firstWhere(
+                        (s) => s.id == schedule.id,
+                        orElse: () => schedule,
+                      );
+                      final regular = prov.regularMembers.length;
+                      final guestIds = {
+                        for (final m in prov.guestMembers) m.id
+                      };
+                      final memberIds = {
+                        for (final m in prov.activeMembers) m.id
+                      };
+                      final valid = latest.responses
+                          .where((r) => memberIds.contains(r.memberId))
+                          .toList();
+                      final attend =
+                          valid.where((r) => r.response == '참석').length;
+                      final decline = valid
+                          .where((r) =>
+                              r.response == '불참' &&
+                              !guestIds.contains(r.memberId))
+                          .length;
+                      final respondedRegular = valid
+                          .where((r) =>
+                              (r.response == '참석' || r.response == '불참') &&
+                              !guestIds.contains(r.memberId))
+                          .map((r) => r.memberId)
+                          .toSet();
+                      final noRes =
+                          (regular - respondedRegular.length).clamp(0, regular);
+                      return Row(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          _AttChip2('참석', attend, false, false),
+                          const SizedBox(width: 5),
+                          _AttChip2('미답변', noRes, true, false),
+                          const SizedBox(width: 5),
+                          _AttChip2('불참', decline, false, true),
+                        ],
+                      );
+                    },
+                  ),
+                  const Spacer(),
+                  // 응답 버튼
+                  if (!isPast)
+                    Consumer<ClubProvider>(
+                      builder: (ctx, prov, _) {
+                        final myRes = prov.myResponse(schedule.id);
+                        return _AttendButton(
+                          schedule: schedule,
+                          currentResponse: myRes?.response,
+                        );
+                      },
+                    ),
+                  if (isPast)
+                    Row(children: [
+                      const Icon(Icons.group_outlined, size: 13, color: AppColors.inkSoft),
+                      const SizedBox(width: 4),
+                      Text('${schedule.teamCount}팀',
+                          style: const TextStyle(fontSize: 11, color: AppColors.inkSoft)),
+                    ]),
+                ],
+              ),
+            ),
+
+            // 공지 띠 (sc-note 스타일: dashed top border)
+            if (schedule.notice != null && schedule.notice!.isNotEmpty)
+              Container(
+                width: double.infinity,
+                padding: const EdgeInsets.fromLTRB(16, 10, 16, 12),
+                decoration: BoxDecoration(
+                  border: Border(top: BorderSide(
+                      color: Colors.black.withValues(alpha: 0.15),
+                      style: BorderStyle.solid, width: 1)),
+                  borderRadius: const BorderRadius.only(
+                      bottomLeft: Radius.circular(20),
+                      bottomRight: Radius.circular(20)),
+                ),
+                child: Row(children: [
+                  const Icon(Icons.campaign_outlined, size: 13, color: AppColors.inkSoft),
+                  const SizedBox(width: 5),
+                  Expanded(
+                    child: Text(schedule.notice!,
+                        style: TextStyle(
+                            fontSize: 10,
+                            color: AppColors.inkSoft.withValues(alpha: 0.65))),
+                  ),
+                ]),
+              ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  String _fmtDate(DateTime d) =>
+      '${d.month}월 ${d.day}일 (${['월', '화', '수', '목', '금', '토', '일'][d.weekday - 1]})';
+}
+
+// chip 2 (디자인 사양: go=sage, maybe=amber, no=rose)
+class _AttChip2 extends StatelessWidget {
+  final String label;
+  final int count;
+  final bool isMaybe;
+  final bool isNo;
+  const _AttChip2(this.label, this.count, this.isMaybe, this.isNo);
+
+  @override
+  Widget build(BuildContext context) {
+    Color bg, fg;
+    if (isNo) {
+      bg = AppColors.roseSoft; fg = const Color(0xFF8F5555);
+    } else if (isMaybe) {
+      bg = AppColors.amberSoft; fg = const Color(0xFF7A5A35);
+    } else {
+      bg = AppColors.sageDeep.withValues(alpha: 0.15); fg = AppColors.sageDeep;
+    }
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 9, vertical: 4),
+      decoration: BoxDecoration(color: bg, borderRadius: BorderRadius.circular(20)),
+      child: Text('$label $count',
+          style: TextStyle(fontSize: 10, fontWeight: FontWeight.w700, color: fg)),
+    );
+  }
+}
+
+// 참석 요약 칩
+class _AttChip extends StatelessWidget {
+  final String label;
+  final int count;
+  final Color color;
+  final Color bgColor;
+  const _AttChip(this.label, this.count, this.color, this.bgColor);
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
+      decoration: BoxDecoration(
+        color: bgColor,
+        borderRadius: BorderRadius.circular(20),
+      ),
+      child: Text(
+        '$label $count',
+        style: TextStyle(
+            fontSize: 11, color: color, fontWeight: FontWeight.w600),
+      ),
+    );
+  }
+}
+
+// 참석 응답 버튼
+class _AttendButton extends StatelessWidget {
+  final RoundSchedule schedule;
+  final String? currentResponse;
+  const _AttendButton({required this.schedule, this.currentResponse});
+
+  @override
+  Widget build(BuildContext context) {
+    final responded = currentResponse != null;
+    final color = responded
+        ? (currentResponse == '참석'
+            ? AppColors.success
+            : currentResponse == '불참'
+                ? AppColors.danger
+                : AppColors.warning)
+        : AppColors.sageDeep;
+
+    return GestureDetector(
+      onTap: () => _showResponseSheet(context),
+      child: Container(
+        padding: EdgeInsets.symmetric(horizontal: responded ? 14 : 12, vertical: 7),
+        decoration: BoxDecoration(
+          color: responded ? color.withValues(alpha: 0.13) : AppColors.sageDeep,
+          borderRadius: BorderRadius.circular(20),
+          border: responded ? Border.all(color: color, width: 1.5) : null,
+          boxShadow: responded ? [
+            BoxShadow(color: color.withValues(alpha: 0.2), blurRadius: 4, offset: const Offset(0, 1))
+          ] : null,
+        ),
+        child: Text(
+          responded ? currentResponse! : '응답하기',
+          style: TextStyle(
+            fontSize: responded ? 18 : 12,
+            fontWeight: FontWeight.w700,
+            color: responded ? color : Colors.white,
+            letterSpacing: responded ? 0.3 : 0,
+          ),
+        ),
+      ),
+    );
+  }
+
+  void _showResponseSheet(BuildContext context) {
+    final provider = context.read<ClubProvider>();
+    showModalBottomSheet(
+      context: context,
+      backgroundColor: Colors.transparent,
+      builder: (_) => Container(
+        decoration: const BoxDecoration(
+          color: Colors.white,
+          borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
+        ),
+        padding: const EdgeInsets.fromLTRB(24, 20, 24, 36),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            // 핸들
+            Center(
+              child: Container(
+                width: 40,
+                height: 4,
+                decoration: BoxDecoration(
+                  color: AppColors.divider,
+                  borderRadius: BorderRadius.circular(2),
+                ),
+              ),
+            ),
+            const SizedBox(height: 20),
+            Text(
+              schedule.title,
+              style: const TextStyle(
+                  fontSize: 16, fontWeight: FontWeight.bold),
+            ),
+            Text(
+              '${schedule.courseName}  ${schedule.teeTime}',
+              style: const TextStyle(
+                  fontSize: 13, color: AppColors.textSecondary),
+            ),
+            const SizedBox(height: 20),
+            const Text('참석 여부를 선택해주세요',
+                style: TextStyle(
+                    fontSize: 14, fontWeight: FontWeight.w600)),
+            const SizedBox(height: 12),
+            Row(
+              children: [
+                _ResponseBtn(
+                  label: '참석',
+                  icon: Icons.check_circle_outline,
+                  color: AppColors.success,
+                  selected: currentResponse == '참석',
+                  onTap: () async {
+                    final sheetCtx = context;
+                    // 마감 여부 체크
+                    final cnt = schedule.responses
+                        .where((r) => r.response == '참석').length;
+                    final maxCap = schedule.maxCapacity ?? 9999;
+                    final isFull = cnt >= maxCap && currentResponse != '참석';
+
+                    Navigator.pop(sheetCtx);
+                    if (isFull) {
+                      _showAttendFullDialog(sheetCtx);
+                      return;
+                    }
+                    final confirmed = await _showAttendConfirmDialog(sheetCtx, '참석');
+                    if (confirmed == true) {
+                      provider.respondToSchedule(
+                          scheduleId: schedule.id, response: '참석');
+                      if (sheetCtx.mounted) {
+                        ScaffoldMessenger.of(sheetCtx).showSnackBar(
+                          _snack('참석이 확정되었습니다 ✅', AppColors.success),
+                        );
+                      }
+                    }
+                  },
+                ),
+                const SizedBox(width: 10),
+                _ResponseBtn(
+                  label: '미정',
+                  icon: Icons.help_outline,
+                  color: AppColors.warning,
+                  selected: currentResponse == '미정',
+                  onTap: () {
+                    provider.respondToSchedule(
+                        scheduleId: schedule.id, response: '미정');
+                    Navigator.pop(context);
+                    ScaffoldMessenger.of(context).showSnackBar(
+                      _snack('미정으로 응답했습니다', AppColors.warning),
+                    );
+                  },
+                ),
+                const SizedBox(width: 10),
+                _ResponseBtn(
+                  label: '불참',
+                  icon: Icons.cancel_outlined,
+                  color: AppColors.danger,
+                  selected: currentResponse == '불참',
+                  onTap: () async {
+                    final sheetCtx = context;
+                    Navigator.pop(sheetCtx);
+                    final confirmed = await _showAbsentConfirmDialog(sheetCtx);
+                    if (confirmed == true) {
+                      provider.respondToSchedule(
+                          scheduleId: schedule.id, response: '불참');
+                      if (sheetCtx.mounted) {
+                        ScaffoldMessenger.of(sheetCtx).showSnackBar(
+                          _snack('불참으로 확정되었습니다', AppColors.danger),
+                        );
+                      }
+                    }
+                  },
+                ),
+              ],
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  // ── 참석 확인 다이얼로그 ──
+  Future<bool?> _showAttendConfirmDialog(BuildContext context, String label) {
+    return showDialog<bool>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
+        title: Row(
+          children: [
+            Container(
+              width: 36, height: 36,
+              decoration: BoxDecoration(
+                color: AppColors.success.withValues(alpha: 0.12),
+                shape: BoxShape.circle,
+              ),
+              child: const Icon(Icons.check_circle_outline,
+                  color: AppColors.success, size: 20),
+            ),
+            const SizedBox(width: 10),
+            const Text('참석 확인',
+                style: TextStyle(fontSize: 17, fontWeight: FontWeight.w700)),
+          ],
+        ),
+        content: const Text(
+          '모임에 참석하시겠습니까?',
+          style: TextStyle(fontSize: 15, height: 1.5),
+        ),
+        actionsPadding: const EdgeInsets.fromLTRB(16, 0, 16, 16),
+        actions: [
+          Row(
+            children: [
+              Expanded(
+                child: OutlinedButton(
+                  onPressed: () => Navigator.pop(ctx, false),
+                  style: OutlinedButton.styleFrom(
+                    foregroundColor: AppColors.textSecondary,
+                    side: BorderSide(color: Colors.grey.withValues(alpha: 0.3)),
+                    shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(12)),
+                    padding: const EdgeInsets.symmetric(vertical: 12),
+                  ),
+                  child: const Text('취소'),
+                ),
+              ),
+              const SizedBox(width: 10),
+              Expanded(
+                child: ElevatedButton(
+                  onPressed: () => Navigator.pop(ctx, true),
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: AppColors.success,
+                    foregroundColor: Colors.white,
+                    elevation: 0,
+                    shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(12)),
+                    padding: const EdgeInsets.symmetric(vertical: 12),
+                  ),
+                  child: const Text('참석 확정',
+                      style: TextStyle(fontWeight: FontWeight.w700)),
+                ),
+              ),
+            ],
+          ),
+        ],
+      ),
+    );
+  }
+
+  // ── 불참 확인 다이얼로그 ──
+  Future<bool?> _showAbsentConfirmDialog(BuildContext context) {
+    return showDialog<bool>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
+        title: Row(
+          children: [
+            Container(
+              width: 36, height: 36,
+              decoration: BoxDecoration(
+                color: AppColors.danger.withValues(alpha: 0.12),
+                shape: BoxShape.circle,
+              ),
+              child: const Icon(Icons.cancel_outlined,
+                  color: AppColors.danger, size: 20),
+            ),
+            const SizedBox(width: 10),
+            const Text('불참 확인',
+                style: TextStyle(fontSize: 17, fontWeight: FontWeight.w700)),
+          ],
+        ),
+        content: const Text(
+          '이번 모임에 불참하시겠습니까?\n\n참석명단이 마감될 경우 참석으로 변경하면 대기 상태로 등록됩니다.',
+          style: TextStyle(fontSize: 14, height: 1.6),
+        ),
+        actionsPadding: const EdgeInsets.fromLTRB(16, 0, 16, 16),
+        actions: [
+          Row(
+            children: [
+              Expanded(
+                child: OutlinedButton(
+                  onPressed: () => Navigator.pop(ctx, false),
+                  style: OutlinedButton.styleFrom(
+                    foregroundColor: AppColors.textSecondary,
+                    side: BorderSide(color: Colors.grey.withValues(alpha: 0.3)),
+                    shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(12)),
+                    padding: const EdgeInsets.symmetric(vertical: 12),
+                  ),
+                  child: const Text('취소'),
+                ),
+              ),
+              const SizedBox(width: 10),
+              Expanded(
+                child: ElevatedButton(
+                  onPressed: () => Navigator.pop(ctx, true),
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: AppColors.danger,
+                    foregroundColor: Colors.white,
+                    elevation: 0,
+                    shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(12)),
+                    padding: const EdgeInsets.symmetric(vertical: 12),
+                  ),
+                  child: const Text('불참 확정',
+                      style: TextStyle(fontWeight: FontWeight.w700)),
+                ),
+              ),
+            ],
+          ),
+        ],
+      ),
+    );
+  }
+
+  // ── 정원 마감 다이얼로그 ──
+  void _showAttendFullDialog(BuildContext context) {
+    showDialog(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
+        title: Row(
+          children: [
+            Container(
+              width: 36, height: 36,
+              decoration: BoxDecoration(
+                color: AppColors.amber.withValues(alpha: 0.15),
+                shape: BoxShape.circle,
+              ),
+              child: const Icon(Icons.people_outline,
+                  color: AppColors.amber, size: 20),
+            ),
+            const SizedBox(width: 10),
+            const Text('정원 마감',
+                style: TextStyle(fontSize: 17, fontWeight: FontWeight.w700)),
+          ],
+        ),
+        content: const Text(
+          '이미 정원이 마감된 모임입니다.\n\n대기 상태로 등록되며, 결원 발생 시 자동으로 참석 확정됩니다.',
+          style: TextStyle(fontSize: 14, height: 1.6),
+        ),
+        actionsPadding: const EdgeInsets.fromLTRB(16, 0, 16, 16),
+        actions: [
+          SizedBox(
+            width: double.infinity,
+            child: ElevatedButton(
+              onPressed: () => Navigator.pop(ctx),
+              style: ElevatedButton.styleFrom(
+                backgroundColor: AppColors.sageDeep,
+                foregroundColor: Colors.white,
+                elevation: 0,
+                shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(12)),
+                padding: const EdgeInsets.symmetric(vertical: 12),
+              ),
+              child: const Text('확인',
+                  style: TextStyle(fontWeight: FontWeight.w700)),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  SnackBar _snack(String msg, Color color) => SnackBar(
+        content: Text(msg),
+        backgroundColor: color,
+        behavior: SnackBarBehavior.floating,
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+        duration: const Duration(seconds: 2),
+      );
+}
+
+class _ResponseBtn extends StatelessWidget {
+  final String label;
+  final IconData icon;
+  final Color color;
+  final bool selected;
+  final VoidCallback onTap;
+  const _ResponseBtn(
+      {required this.label,
+      required this.icon,
+      required this.color,
+      required this.selected,
+      required this.onTap});
+
+  @override
+  Widget build(BuildContext context) {
+    return Expanded(
+      child: GestureDetector(
+        onTap: onTap,
+        child: AnimatedContainer(
+          duration: const Duration(milliseconds: 200),
+          padding: const EdgeInsets.symmetric(vertical: 14),
+          decoration: BoxDecoration(
+            color: selected ? color : color.withValues(alpha: 0.08),
+            borderRadius: BorderRadius.circular(12),
+            border: Border.all(
+                color: selected ? color : color.withValues(alpha: 0.3),
+                width: 1.5),
+          ),
+          child: Column(
+            children: [
+              Icon(icon, color: selected ? Colors.white : color, size: 24),
+              const SizedBox(height: 4),
+              Text(
+                label,
+                style: TextStyle(
+                  color: selected ? Colors.white : color,
+                  fontWeight: FontWeight.w700,
+                  fontSize: 14,
+                ),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+// ════════════════════════════════════════════════════════════
+//  ScheduleDetailScreen — 일정 상세
+// ════════════════════════════════════════════════════════════
+class ScheduleDetailScreen extends StatelessWidget {
+  final RoundSchedule schedule;
+  const ScheduleDetailScreen({super.key, required this.schedule});
+
+  @override
+  Widget build(BuildContext context) {
+    return Consumer<ClubProvider>(
+      builder: (context, provider, _) {
+        final myRes = provider.myResponse(schedule.id);
+        // 날짜 기준 자동 판정 — 라운딩 당일 자정이 지나면 자동으로 지난 일정으로 표시됨
+        final isPast = schedule.isPast;
+        final isAdmin = provider.canCreateSchedule;
+
+        return Scaffold(
+          backgroundColor: AppColors.background,
+          // ── 슬림 AppBar 딥그린 카드형 (장소·시간 강조 — 상단 보완) ──
+          appBar: PreferredSize(
+            preferredSize: const Size.fromHeight(108),
+            child: ColoredBox(
+              color: AppColors.background,
+              child: Padding(
+                padding: const EdgeInsets.fromLTRB(12, 8, 12, 8),
+                child: Container(
+                  decoration: BoxDecoration(
+                    gradient: const LinearGradient(
+                      colors: [AppColors.primaryDark, AppColors.primary],
+                      begin: Alignment.topLeft,
+                      end: Alignment.bottomRight,
+                    ),
+                    borderRadius: BorderRadius.circular(16),
+                    boxShadow: [
+                      BoxShadow(
+                        color: AppColors.primaryDark.withValues(alpha: 0.28),
+                        blurRadius: 12,
+                        offset: const Offset(0, 4),
+                      ),
+                    ],
+                  ),
+                  child: Padding(
+                    padding: const EdgeInsets.fromLTRB(4, 8, 4, 8),
+                    child: Row(
+                      crossAxisAlignment: CrossAxisAlignment.center,
+                      children: [
+                        IconButton(
+                          visualDensity: VisualDensity.compact,
+                          padding: EdgeInsets.zero,
+                          constraints: const BoxConstraints(
+                            minWidth: 36,
+                            minHeight: 36,
+                          ),
+                          icon: const Icon(Icons.arrow_back_ios_new,
+                              color: Colors.white, size: 18),
+                          onPressed: () => Navigator.pop(context),
+                        ),
+                        Expanded(
+                          child: Column(
+                            mainAxisAlignment: MainAxisAlignment.center,
+                            mainAxisSize: MainAxisSize.min,
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              Text(
+                                schedule.displayTitle,
+                                style: TextStyle(
+                                  color: Colors.white.withValues(alpha: 0.88),
+                                  fontSize: 12,
+                                  fontWeight: FontWeight.w600,
+                                  height: 1.1,
+                                ),
+                                maxLines: 1,
+                                overflow: TextOverflow.ellipsis,
+                              ),
+                              const SizedBox(height: 4),
+                              Row(
+                                children: [
+                                  Container(
+                                    width: 24,
+                                    height: 24,
+                                    decoration: BoxDecoration(
+                                      color: Colors.white.withValues(alpha: 0.2),
+                                      borderRadius: BorderRadius.circular(7),
+                                    ),
+                                    child: const Icon(Icons.place_rounded,
+                                        color: Colors.white, size: 14),
+                                  ),
+                                  const SizedBox(width: 6),
+                                  Expanded(
+                                    child: Text(
+                                      schedule.courseName.isEmpty
+                                          ? '장소 미정'
+                                          : schedule.courseName,
+                                      style: const TextStyle(
+                                        color: Colors.white,
+                                        fontSize: 17,
+                                        fontWeight: FontWeight.w800,
+                                        height: 1.1,
+                                      ),
+                                      maxLines: 1,
+                                      overflow: TextOverflow.ellipsis,
+                                    ),
+                                  ),
+                                ],
+                              ),
+                              const SizedBox(height: 4),
+                              Row(
+                                children: [
+                                  Container(
+                                    width: 24,
+                                    height: 24,
+                                    decoration: BoxDecoration(
+                                      color: Colors.white.withValues(alpha: 0.2),
+                                      borderRadius: BorderRadius.circular(7),
+                                    ),
+                                    child: const Icon(Icons.schedule_rounded,
+                                        color: Colors.white, size: 14),
+                                  ),
+                                  const SizedBox(width: 6),
+                                  Expanded(
+                                    child: Text(
+                                      '${_fmtDate(schedule.roundDate)}  ${schedule.teeTime.isEmpty ? '--:--' : schedule.teeTime} 티오프',
+                                      style: const TextStyle(
+                                        color: Colors.white,
+                                        fontSize: 14,
+                                        fontWeight: FontWeight.w700,
+                                        height: 1.1,
+                                      ),
+                                      maxLines: 1,
+                                      overflow: TextOverflow.ellipsis,
+                                    ),
+                                  ),
+                                ],
+                              ),
+                            ],
+                          ),
+                        ),
+                        if (isAdmin && !isPast)
+                          IconButton(
+                            visualDensity: VisualDensity.compact,
+                            padding: EdgeInsets.zero,
+                            constraints: const BoxConstraints(
+                              minWidth: 36,
+                              minHeight: 36,
+                            ),
+                            icon: const Icon(Icons.more_vert,
+                                color: Colors.white),
+                            onPressed: () =>
+                                _showAdminMenu(context, provider),
+                          ),
+                      ],
+                    ),
+                  ),
+                ),
+              ),
+            ),
+          ),
+          body: SingleChildScrollView(
+            child: Padding(
+              padding: const EdgeInsets.all(16),
+              child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      // ── ① 내 응답 상태 카드 (최상단) ──
+                      if (!isPast) _buildMyResponseCard(context, provider, myRes),
+
+                      if (!isPast) const SizedBox(height: 16),
+
+                      // ── ② 홀인원보험 배너 (런칭 광고 OFF — 복구 금지)
+                      // if (!isPast) _InsuranceBannerCard(schedule: schedule),
+                      // if (!isPast) const SizedBox(height: 16),
+
+                      // ── ③ 조편성 보기 ──
+                      _GroupViewBannerCard(
+                        schedule: schedule,
+                        provider: provider,
+                        isAdmin: isAdmin,
+                      ),
+
+                      const SizedBox(height: 16),
+
+                      // ── ④ 스코어/시상 카드 ──
+                      _ScoreAwardBannerCard(schedule: schedule, isPast: isPast),
+
+                      const SizedBox(height: 16),
+
+                      // ── 일정 정보 카드 ──
+                      _InfoCard(schedule: schedule),
+
+                      const SizedBox(height: 16),
+
+                      // ── 사진 섹션 (항상 업로드 가능) ──
+                      _PhotoSection(schedule: schedule),
+
+                      const SizedBox(height: 16),
+
+                      // ── 라운딩 후기/메모 (지난 일정이 되어도 언제든 열람·수정 가능) ──
+                      _ReviewMemoCard(schedule: schedule),
+
+                      const SizedBox(height: 16),
+
+                      // ── 참석 현황 카드 ──
+                      _AttendanceCard(schedule: schedule),
+
+                      const SizedBox(height: 16),
+
+                      // ── RSVP 마감 안내 + 대기 명단 (정원 초과 자동 승격) ──
+                      _RsvpWaitingCard(schedule: schedule, isAdmin: isAdmin),
+
+                      const SizedBox(height: 80),
+                    ],
+                  ),
+                ),
+          ),
+        );
+      },
+    );
+  }
+
+  Widget _buildMyResponseCard(
+      BuildContext context, ClubProvider provider, AttendanceResponse? myRes) {
+    final responded = myRes != null;
+    final currentResponse = myRes?.response;
+    final statusColor = !responded
+        ? AppColors.success
+        : currentResponse == '참석'
+            ? AppColors.success
+            : currentResponse == '불참'
+                ? AppColors.danger
+                : AppColors.warning;
+
+    return Container(
+      padding: const EdgeInsets.fromLTRB(16, 14, 14, 14),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(16),
+        border: Border.all(color: AppColors.divider),
+        boxShadow: [
+          BoxShadow(
+            color: AppColors.primary.withValues(alpha: 0.06),
+            blurRadius: 8,
+            offset: const Offset(0, 2),
+          ),
+        ],
+      ),
+      child: Row(
+        children: [
+          Container(
+            width: 40,
+            height: 40,
+            decoration: BoxDecoration(
+              color: statusColor.withValues(alpha: 0.15),
+              shape: BoxShape.circle,
+            ),
+            child: Icon(
+              responded
+                  ? (currentResponse == '참석'
+                      ? Icons.check_circle
+                      : currentResponse == '불참'
+                          ? Icons.cancel
+                          : Icons.help)
+                  : Icons.check_circle_outline,
+              color: statusColor,
+              size: 22,
+            ),
+          ),
+          const SizedBox(width: 12),
+          Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              const Text(
+                '내 응답',
+                style: TextStyle(
+                  fontSize: 13,
+                  color: AppColors.textSecondary,
+                  fontWeight: FontWeight.w600,
+                ),
+              ),
+              const SizedBox(height: 2),
+              Text(
+                (!responded || currentResponse == '미정')
+                    ? '미응답'
+                    : currentResponse!,
+                style: TextStyle(
+                  fontSize: 18,
+                  fontWeight: FontWeight.w800,
+                  color: statusColor,
+                ),
+              ),
+            ],
+          ),
+          const Spacer(),
+          Row(
+            mainAxisSize: MainAxisSize.min,
+            children: ['참석', '불참'].map((label) {
+              final isSelected = currentResponse == label;
+              final btnColor =
+                  label == '참석' ? AppColors.primary : AppColors.danger;
+              return Padding(
+                padding: const EdgeInsets.only(left: 8),
+                child: GestureDetector(
+                  onTap: () async {
+                    if (label == '참석') {
+                      final cnt = schedule.responses
+                          .where((r) => r.response == '참석')
+                          .length;
+                      final maxCap = schedule.maxCapacity ?? 9999;
+                      if (cnt >= maxCap && currentResponse != '참석') {
+                        _showAttendFullDialogCard(context);
+                        return;
+                      }
+                      final ok = await _showAttendConfirmDialogCard(context);
+                      if (ok == true) {
+                        provider.respondToSchedule(
+                            scheduleId: schedule.id, response: label);
+                        if (context.mounted) {
+                          ScaffoldMessenger.of(context).showSnackBar(
+                            SnackBar(
+                              content: const Text('참석이 확정되었습니다'),
+                              backgroundColor: AppColors.success,
+                              behavior: SnackBarBehavior.floating,
+                            ),
+                          );
+                        }
+                      }
+                      return;
+                    } else if (label == '불참') {
+                      final ok = await _showAbsentConfirmDialogCard(context);
+                      if (ok == true) {
+                        provider.respondToSchedule(
+                            scheduleId: schedule.id, response: label);
+                        if (context.mounted) {
+                          ScaffoldMessenger.of(context).showSnackBar(
+                            SnackBar(
+                              content: const Text('불참으로 확정되었습니다'),
+                              backgroundColor: AppColors.danger,
+                              behavior: SnackBarBehavior.floating,
+                            ),
+                          );
+                        }
+                      }
+                      return;
+                    }
+                    provider.respondToSchedule(
+                        scheduleId: schedule.id, response: label);
+                  },
+                  child: AnimatedContainer(
+                    duration: const Duration(milliseconds: 150),
+                    padding: const EdgeInsets.symmetric(
+                        horizontal: 16, vertical: 10),
+                    decoration: BoxDecoration(
+                      color: isSelected ? btnColor : Colors.white,
+                      borderRadius: BorderRadius.circular(22),
+                      border: Border.all(
+                        color: isSelected ? btnColor : AppColors.divider,
+                        width: 1.5,
+                      ),
+                    ),
+                    child: Text(
+                      label,
+                      style: TextStyle(
+                        fontSize: 14,
+                        fontWeight: FontWeight.w800,
+                        color: isSelected
+                            ? Colors.white
+                            : AppColors.textPrimary,
+                      ),
+                    ),
+                  ),
+                ),
+              );
+            }).toList(),
+          ),
+        ],
+      ),
+    );
+  }
+
+  void _showResponseSheet(
+      BuildContext context, ClubProvider provider, String? current) {
+    showModalBottomSheet(
+      context: context,
+      backgroundColor: Colors.transparent,
+      builder: (_) => Container(
+        decoration: const BoxDecoration(
+          color: Colors.white,
+          borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
+        ),
+        padding: const EdgeInsets.fromLTRB(24, 20, 24, 36),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Container(
+              width: 40,
+              height: 4,
+              decoration: BoxDecoration(
+                color: AppColors.divider,
+                borderRadius: BorderRadius.circular(2),
+              ),
+            ),
+            const SizedBox(height: 20),
+            const Text('참석 여부를 선택해주세요',
+                style: TextStyle(
+                    fontSize: 16, fontWeight: FontWeight.bold)),
+            const SizedBox(height: 16),
+            Row(
+              children: [
+                _ResponseBtn(
+                  label: '참석',
+                  icon: Icons.check_circle_outline,
+                  color: AppColors.success,
+                  selected: current == '참석',
+                  onTap: () {
+                    // 정원 체크: 확정 참석자 수 vs 최대 정원
+                    final confirmed = schedule.responses
+                        .where((r) => r.response == '참석')
+                        .length;
+                    final maxCap = schedule.maxCapacity ?? 9999;
+                    if (confirmed >= maxCap && current != '참석') {
+                      // 이미 정원 초과 → 대기 등록 다이얼로그
+                      Navigator.pop(context);
+                      _showWaitingDialog(context, provider);
+                    } else {
+                      provider.respondToSchedule(
+                          scheduleId: schedule.id, response: '참석');
+                      Navigator.pop(context);
+                    }
+                  },
+                ),
+                const SizedBox(width: 10),
+                _ResponseBtn(
+                  label: '미정',
+                  icon: Icons.help_outline,
+                  color: AppColors.warning,
+                  selected: current == '미정',
+                  onTap: () {
+                    provider.respondToSchedule(
+                        scheduleId: schedule.id, response: '미정');
+                    Navigator.pop(context);
+                  },
+                ),
+                const SizedBox(width: 10),
+                _ResponseBtn(
+                  label: '불참',
+                  icon: Icons.cancel_outlined,
+                  color: AppColors.danger,
+                  selected: current == '불참',
+                  onTap: () {
+                    provider.respondToSchedule(
+                        scheduleId: schedule.id, response: '불참');
+                    Navigator.pop(context);
+                  },
+                ),
+              ],
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  // ── _AttendanceCard 전용 참석 확인 다이얼로그 ──
+  Future<bool?> _showAttendConfirmDialogCard(BuildContext context) {
+    return showDialog<bool>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
+        title: Row(
+          children: [
+            Container(
+              width: 36, height: 36,
+              decoration: BoxDecoration(
+                color: AppColors.success.withValues(alpha: 0.12),
+                shape: BoxShape.circle,
+              ),
+              child: const Icon(Icons.check_circle_outline,
+                  color: AppColors.success, size: 20),
+            ),
+            const SizedBox(width: 10),
+            const Text('참석 확인',
+                style: TextStyle(fontSize: 17, fontWeight: FontWeight.w700)),
+          ],
+        ),
+        content: const Text(
+          '모임에 참석하시겠습니까?',
+          style: TextStyle(fontSize: 15, height: 1.5),
+        ),
+        actionsPadding: const EdgeInsets.fromLTRB(16, 0, 16, 16),
+        actions: [
+          Row(children: [
+            Expanded(
+              child: OutlinedButton(
+                onPressed: () => Navigator.pop(ctx, false),
+                style: OutlinedButton.styleFrom(
+                  foregroundColor: AppColors.textSecondary,
+                  side: BorderSide(color: Colors.grey.withValues(alpha: 0.3)),
+                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                  padding: const EdgeInsets.symmetric(vertical: 12),
+                ),
+                child: const Text('취소'),
+              ),
+            ),
+            const SizedBox(width: 10),
+            Expanded(
+              child: ElevatedButton(
+                onPressed: () => Navigator.pop(ctx, true),
+                style: ElevatedButton.styleFrom(
+                  backgroundColor: AppColors.success,
+                  foregroundColor: Colors.white,
+                  elevation: 0,
+                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                  padding: const EdgeInsets.symmetric(vertical: 12),
+                ),
+                child: const Text('참석 확정',
+                    style: TextStyle(fontWeight: FontWeight.w700)),
+              ),
+            ),
+          ]),
+        ],
+      ),
+    );
+  }
+
+  // ── _AttendanceCard 전용 불참 확인 다이얼로그 ──
+  Future<bool?> _showAbsentConfirmDialogCard(BuildContext context) {
+    return showDialog<bool>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
+        title: Row(
+          children: [
+            Container(
+              width: 36, height: 36,
+              decoration: BoxDecoration(
+                color: AppColors.danger.withValues(alpha: 0.12),
+                shape: BoxShape.circle,
+              ),
+              child: const Icon(Icons.cancel_outlined,
+                  color: AppColors.danger, size: 20),
+            ),
+            const SizedBox(width: 10),
+            const Text('불참 확인',
+                style: TextStyle(fontSize: 17, fontWeight: FontWeight.w700)),
+          ],
+        ),
+        content: const Text(
+          '이번 모임에 불참하시겠습니까?\n\n참석명단이 마감될 경우 참석으로 변경하면 대기 상태로 등록됩니다.',
+          style: TextStyle(fontSize: 14, height: 1.6),
+        ),
+        actionsPadding: const EdgeInsets.fromLTRB(16, 0, 16, 16),
+        actions: [
+          Row(children: [
+            Expanded(
+              child: OutlinedButton(
+                onPressed: () => Navigator.pop(ctx, false),
+                style: OutlinedButton.styleFrom(
+                  foregroundColor: AppColors.textSecondary,
+                  side: BorderSide(color: Colors.grey.withValues(alpha: 0.3)),
+                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                  padding: const EdgeInsets.symmetric(vertical: 12),
+                ),
+                child: const Text('취소'),
+              ),
+            ),
+            const SizedBox(width: 10),
+            Expanded(
+              child: ElevatedButton(
+                onPressed: () => Navigator.pop(ctx, true),
+                style: ElevatedButton.styleFrom(
+                  backgroundColor: AppColors.danger,
+                  foregroundColor: Colors.white,
+                  elevation: 0,
+                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                  padding: const EdgeInsets.symmetric(vertical: 12),
+                ),
+                child: const Text('불참 확정',
+                    style: TextStyle(fontWeight: FontWeight.w700)),
+              ),
+            ),
+          ]),
+        ],
+      ),
+    );
+  }
+
+  // ── _AttendanceCard 전용 정원 마감 다이얼로그 ──
+  void _showAttendFullDialogCard(BuildContext context) {
+    showDialog(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
+        title: Row(
+          children: [
+            Container(
+              width: 36, height: 36,
+              decoration: BoxDecoration(
+                color: AppColors.amber.withValues(alpha: 0.15),
+                shape: BoxShape.circle,
+              ),
+              child: const Icon(Icons.people_outline,
+                  color: AppColors.amber, size: 20),
+            ),
+            const SizedBox(width: 10),
+            const Text('정원 마감',
+                style: TextStyle(fontSize: 17, fontWeight: FontWeight.w700)),
+          ],
+        ),
+        content: const Text(
+          '이미 정원이 마감된 모임입니다.\n\n대기 상태로 등록되며, 결원 발생 시 자동으로 참석 확정됩니다.',
+          style: TextStyle(fontSize: 14, height: 1.6),
+        ),
+        actionsPadding: const EdgeInsets.fromLTRB(16, 0, 16, 16),
+        actions: [
+          SizedBox(
+            width: double.infinity,
+            child: ElevatedButton(
+              onPressed: () => Navigator.pop(ctx),
+              style: ElevatedButton.styleFrom(
+                backgroundColor: AppColors.sageDeep,
+                foregroundColor: Colors.white,
+                elevation: 0,
+                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                padding: const EdgeInsets.symmetric(vertical: 12),
+              ),
+              child: const Text('확인',
+                  style: TextStyle(fontWeight: FontWeight.w700)),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  // ────────────────────────────────
+  // 대기 등록 다이얼로그
+  // ────────────────────────────────
+  void _showWaitingDialog(BuildContext context, ClubProvider provider) {
+    showDialog(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+        title: Row(
+          children: [
+            Container(
+              padding: const EdgeInsets.all(6),
+              decoration: BoxDecoration(
+                color: AppColors.warning.withValues(alpha: 0.15),
+                shape: BoxShape.circle,
+              ),
+              child: const Icon(Icons.hourglass_top_rounded,
+                  color: AppColors.warning, size: 20),
+            ),
+            const SizedBox(width: 10),
+            const Text('정원 마감', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 16)),
+          ],
+        ),
+        content: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            RichText(
+              text: TextSpan(
+                style: const TextStyle(fontSize: 14, color: AppColors.textPrimary, height: 1.6),
+                children: [
+                  const TextSpan(text: '이 라운딩은 '),
+                  TextSpan(
+                    text: '정원이 마감',
+                    style: TextStyle(
+                        fontWeight: FontWeight.bold,
+                        color: AppColors.danger),
+                  ),
+                  const TextSpan(text: '되었습니다.\n\n'),
+                  const TextSpan(text: '대기 명단에 등록하면 자리가 생길 때 알림을 드립니다. '),
+                  TextSpan(
+                    text: '(12시간 내 수락 필요)',
+                    style: TextStyle(
+                        fontSize: 12,
+                        color: AppColors.textSecondary),
+                  ),
+                ],
+              ),
+            ),
+            const SizedBox(height: 12),
+            Container(
+              padding: const EdgeInsets.all(10),
+              decoration: BoxDecoration(
+                color: AppColors.warning.withValues(alpha: 0.08),
+                borderRadius: BorderRadius.circular(8),
+                border: Border.all(color: AppColors.warning.withValues(alpha: 0.3)),
+              ),
+              child: Row(
+                children: [
+                  const Icon(Icons.info_outline, size: 14, color: AppColors.warning),
+                  const SizedBox(width: 6),
+                  const Expanded(
+                    child: Text(
+                      '취소자 발생 시 대기 순서대로 알림이 발송됩니다',
+                      style: TextStyle(fontSize: 12, color: AppColors.textSecondary),
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ],
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(ctx),
+            child: const Text('취소', style: TextStyle(color: AppColors.textSecondary)),
+          ),
+          ElevatedButton(
+            onPressed: () {
+              final currentMember = provider.currentMember;
+              if (currentMember != null) {
+                provider.addToWaitingList(
+                  scheduleId: schedule.id,
+                  memberId: currentMember.id,
+                  memberName: currentMember.name,
+                );
+                Navigator.pop(ctx);
+                ScaffoldMessenger.of(context).showSnackBar(
+                  SnackBar(
+                    content: const Row(
+                      children: [
+                        Icon(Icons.check_circle, color: Colors.white, size: 16),
+                        SizedBox(width: 8),
+                        Text('대기 명단에 등록되었습니다!'),
+                      ],
+                    ),
+                    backgroundColor: AppColors.warning,
+                    behavior: SnackBarBehavior.floating,
+                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+                  ),
+                );
+              }
+            },
+            style: ElevatedButton.styleFrom(
+              backgroundColor: AppColors.warning,
+              foregroundColor: Colors.white,
+              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+            ),
+            child: const Text('대기 등록', style: TextStyle(fontWeight: FontWeight.bold)),
+          ),
+        ],
+      ),
+    );
+  }
+
+  void _showAdminMenu(BuildContext context, ClubProvider provider) {
+    showModalBottomSheet(
+      context: context,
+      backgroundColor: Colors.transparent,
+      builder: (_) => Container(
+        decoration: const BoxDecoration(
+          color: Colors.white,
+          borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
+        ),
+        padding: const EdgeInsets.fromLTRB(0, 12, 0, 32),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Container(
+              width: 40,
+              height: 4,
+              decoration: BoxDecoration(
+                  color: AppColors.divider,
+                  borderRadius: BorderRadius.circular(2)),
+            ),
+            const SizedBox(height: 8),
+            ListTile(
+              leading: const Icon(Icons.edit_calendar_outlined,
+                  color: AppColors.primary),
+              title: const Text('일정 변경'),
+              subtitle: const Text('날짜·시간·장소 등 수정',
+                  style: TextStyle(fontSize: 12, color: AppColors.textSecondary)),
+              onTap: () {
+                Navigator.pop(context);
+                _openEditSchedule(context, provider);
+              },
+            ),
+            ListTile(
+              leading: const Icon(Icons.cancel_outlined, color: AppColors.danger),
+              title: const Text('일정 취소',
+                  style: TextStyle(color: AppColors.danger)),
+              onTap: () {
+                Navigator.pop(context);
+                _confirmCancel(context, provider);
+              },
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  void _openEditSchedule(BuildContext context, ClubProvider provider) {
+    showModalBottomSheet(
+      context: context,
+      isScrollControlled: true,
+      backgroundColor: Colors.transparent,
+      builder: (_) => _ScheduleFormSheet(
+        provider: provider,
+        editTarget: schedule,
+      ),
+    );
+  }
+
+  void _confirmCancel(BuildContext context, ClubProvider provider) {
+    showDialog(
+      context: context,
+      builder: (_) => AlertDialog(
+        shape:
+            RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+        title: const Text('일정 취소'),
+        content: Text('${schedule.title} 일정을 취소하시겠습니까?'),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context),
+            child: const Text('닫기'),
+          ),
+          ElevatedButton(
+            onPressed: () {
+              provider.cancelSchedule(schedule.id);
+              Navigator.pop(context);
+              Navigator.pop(context);
+            },
+            style: ElevatedButton.styleFrom(
+                backgroundColor: AppColors.danger,
+                foregroundColor: Colors.white),
+            child: const Text('취소 확정'),
+          ),
+        ],
+      ),
+    );
+  }
+
+  String _fmtDate(DateTime d) =>
+      '${d.month}월 ${d.day}일 (${['월', '화', '수', '목', '금', '토', '일'][d.weekday - 1]})';
+}
+
+// ── 일정 정보 카드 ──
+class _InfoCard extends StatelessWidget {
+  final RoundSchedule schedule;
+  const _InfoCard({required this.schedule});
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      padding: const EdgeInsets.all(16),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(14),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withValues(alpha: 0.05),
+            blurRadius: 6,
+            offset: const Offset(0, 2),
+          ),
+        ],
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          const Text('일정 정보',
+              style: TextStyle(
+                  fontSize: 14,
+                  fontWeight: FontWeight.bold,
+                  color: AppColors.textPrimary)),
+          const SizedBox(height: 12),
+          _InfoRow(Icons.golf_course, '골프장', schedule.courseName),
+          if (schedule.courseAddress != null)
+            _InfoRow(Icons.location_on_outlined, '주소',
+                schedule.courseAddress!),
+          _InfoRow(Icons.access_time, '티오프', schedule.teeTime),
+          _InfoRow(Icons.group_outlined, '팀 수', '${schedule.teamCount}팀'),
+          if (schedule.companionIds.isNotEmpty)
+            _InfoRow(Icons.people_alt_outlined, '동반자',
+                _companionNames(context, schedule.companionIds)),
+          if (schedule.notice != null && schedule.notice!.isNotEmpty)
+            _InfoRow(Icons.campaign_outlined, '메모', schedule.notice!),
+          _InfoRow(Icons.person_outline, '등록자', schedule.createdBy),
+        ],
+      ),
+    );
+  }
+
+  String _companionNames(BuildContext context, List<String> ids) {
+    final provider = context.read<ClubProvider>();
+    return ids
+        .map((id) => provider.members
+            .cast<Member?>()
+            .firstWhere((m) => m?.id == id, orElse: () => null)
+            ?.name ?? id)
+        .join(', ');
+  }
+}
+
+class _InfoRow extends StatelessWidget {
+  final IconData icon;
+  final String label;
+  final String value;
+  const _InfoRow(this.icon, this.label, this.value);
+
+  @override
+  Widget build(BuildContext context) {
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 10),
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Icon(icon, size: 16, color: AppColors.primary),
+          const SizedBox(width: 8),
+          SizedBox(
+            width: 52,
+            child: Text(label,
+                style: const TextStyle(
+                    fontSize: 12, color: AppColors.textSecondary)),
+          ),
+          Expanded(
+            child: Text(value,
+                style: const TextStyle(
+                    fontSize: 13, color: AppColors.textPrimary)),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+// ════════════════════════════════════════════════════════════
+//  라운딩 후기 · 메모 카드
+//  · 지난 일정으로 넘어간 뒤에도 언제든 열람·수정 가능 (제한 없음)
+//  · 저장 즉시 Firestore에 반영되어 다른 회원도 실시간으로 확인 가능
+// ════════════════════════════════════════════════════════════
+class _ReviewMemoCard extends StatefulWidget {
+  final RoundSchedule schedule;
+  const _ReviewMemoCard({required this.schedule});
+
+  @override
+  State<_ReviewMemoCard> createState() => _ReviewMemoCardState();
+}
+
+class _ReviewMemoCardState extends State<_ReviewMemoCard> {
+  late TextEditingController _ctrl;
+  bool _editing = false;
+  bool _saving = false;
+
+  @override
+  void initState() {
+    super.initState();
+    _ctrl = TextEditingController(text: widget.schedule.reviewMemo ?? '');
+  }
+
+  @override
+  void dispose() {
+    _ctrl.dispose();
+    super.dispose();
+  }
+
+  Future<void> _save(ClubProvider provider) async {
+    setState(() => _saving = true);
+    provider.saveReviewMemo(widget.schedule.id, _ctrl.text.trim());
+    await Future.delayed(const Duration(milliseconds: 200));
+    if (mounted) {
+      setState(() {
+        _saving = false;
+        _editing = false;
+      });
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: const Text('후기가 저장되었습니다 📝'),
+          backgroundColor: AppColors.primary,
+          behavior: SnackBarBehavior.floating,
+          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+        ),
+      );
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Consumer<ClubProvider>(
+      builder: (context, provider, _) {
+        final latest = provider.schedules.firstWhere(
+          (s) => s.id == widget.schedule.id,
+          orElse: () => widget.schedule,
+        );
+        if (!_editing && _ctrl.text != (latest.reviewMemo ?? '') && !_saving) {
+          _ctrl.text = latest.reviewMemo ?? '';
+        }
+
+        return Container(
+          padding: const EdgeInsets.all(16),
+          decoration: BoxDecoration(
+            color: Colors.white,
+            borderRadius: BorderRadius.circular(14),
+            boxShadow: [
+              BoxShadow(
+                color: Colors.black.withValues(alpha: 0.05),
+                blurRadius: 6,
+                offset: const Offset(0, 2),
+              ),
+            ],
+          ),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Row(
+                children: [
+                  const Icon(Icons.edit_note, size: 18, color: AppColors.primary),
+                  const SizedBox(width: 6),
+                  const Text('라운딩 후기 · 메모',
+                      style: TextStyle(
+                          fontSize: 14,
+                          fontWeight: FontWeight.bold,
+                          color: AppColors.textPrimary)),
+                  const Spacer(),
+                  if (!_editing)
+                    TextButton(
+                      onPressed: () => setState(() => _editing = true),
+                      style: TextButton.styleFrom(
+                          padding: const EdgeInsets.symmetric(horizontal: 4)),
+                      child: Text(
+                        latest.reviewMemo == null || latest.reviewMemo!.isEmpty
+                            ? '작성하기'
+                            : '수정',
+                        style: const TextStyle(
+                            fontSize: 12,
+                            fontWeight: FontWeight.w600,
+                            color: AppColors.primary),
+                      ),
+                    ),
+                ],
+              ),
+              const SizedBox(height: 10),
+              if (_editing) ...[
+                TextField(
+                  controller: _ctrl,
+                  maxLines: 4,
+                  minLines: 3,
+                  autofocus: true,
+                  decoration: InputDecoration(
+                    hintText: '오늘 라운딩은 어땠나요? 후기나 메모를 남겨보세요',
+                    hintStyle: const TextStyle(
+                        fontSize: 13, color: AppColors.textSecondary),
+                    filled: true,
+                    fillColor: AppColors.background,
+                    contentPadding: const EdgeInsets.all(12),
+                    border: OutlineInputBorder(
+                      borderRadius: BorderRadius.circular(10),
+                      borderSide: BorderSide(color: AppColors.divider),
+                    ),
+                    enabledBorder: OutlineInputBorder(
+                      borderRadius: BorderRadius.circular(10),
+                      borderSide: BorderSide(color: AppColors.divider),
+                    ),
+                    focusedBorder: OutlineInputBorder(
+                      borderRadius: BorderRadius.circular(10),
+                      borderSide:
+                          const BorderSide(color: AppColors.primary, width: 1.5),
+                    ),
+                  ),
+                  style: const TextStyle(fontSize: 13, height: 1.4),
+                ),
+                const SizedBox(height: 10),
+                Row(
+                  children: [
+                    Expanded(
+                      child: TextButton(
+                        onPressed: _saving
+                            ? null
+                            : () => setState(() {
+                                  _editing = false;
+                                  _ctrl.text = latest.reviewMemo ?? '';
+                                }),
+                        child: const Text('취소'),
+                      ),
+                    ),
+                    const SizedBox(width: 8),
+                    Expanded(
+                      child: ElevatedButton(
+                        onPressed: _saving ? null : () => _save(provider),
+                        style: ElevatedButton.styleFrom(
+                          backgroundColor: AppColors.primary,
+                          foregroundColor: Colors.white,
+                          shape: RoundedRectangleBorder(
+                              borderRadius: BorderRadius.circular(10)),
+                        ),
+                        child: _saving
+                            ? const SizedBox(
+                                width: 16,
+                                height: 16,
+                                child: CircularProgressIndicator(
+                                    color: Colors.white, strokeWidth: 2))
+                            : const Text('저장'),
+                      ),
+                    ),
+                  ],
+                ),
+              ] else
+                Text(
+                  latest.reviewMemo == null || latest.reviewMemo!.isEmpty
+                      ? '아직 작성된 후기가 없습니다. 스코어와 함께 그날의 기억을 남겨보세요.'
+                      : latest.reviewMemo!,
+                  style: TextStyle(
+                    fontSize: 13,
+                    height: 1.5,
+                    color: latest.reviewMemo == null || latest.reviewMemo!.isEmpty
+                        ? AppColors.textSecondary
+                        : AppColors.textPrimary,
+                    fontStyle:
+                        latest.reviewMemo == null || latest.reviewMemo!.isEmpty
+                            ? FontStyle.italic
+                            : FontStyle.normal,
+                  ),
+                ),
+            ],
+          ),
+        );
+      },
+    );
+  }
+}
+
+// ════════════════════════════════════════════════════════════
+//  RSVP 마감 안내 + 대기 명단(정원 초과 자동 승격) 카드
+//  · 마감시간이 지나면 미응답자 알림이 자동 발송된다 (관리자는 즉시 재발송 가능)
+//  · 정원 초과로 대기 등록된 인원은 자리가 나면 순서대로 자동 알림을 받고,
+//    12시간 내 수락하지 않으면 자동으로 다음 대기자에게 순번이 넘어간다
+// ════════════════════════════════════════════════════════════
+class _RsvpWaitingCard extends StatefulWidget {
+  final RoundSchedule schedule;
+  final bool isAdmin;
+  const _RsvpWaitingCard({required this.schedule, required this.isAdmin});
+
+  @override
+  State<_RsvpWaitingCard> createState() => _RsvpWaitingCardState();
+}
+
+class _RsvpWaitingCardState extends State<_RsvpWaitingCard> {
+  @override
+  void initState() {
+    super.initState();
+    final provider = context.read<ClubProvider>();
+    provider.syncWaitingListFromFirestore(widget.schedule.id);
+    provider.startWaitingListRealtimeSync(widget.schedule.id);
+  }
+
+  @override
+  void dispose() {
+    context.read<ClubProvider>().stopWaitingListRealtimeSync(widget.schedule.id);
+    super.dispose();
+  }
+
+  Color _waitingStatusColor(WaitingStatus s) {
+    switch (s) {
+      case WaitingStatus.waiting:   return AppColors.textSecondary;
+      case WaitingStatus.notified:  return AppColors.warning;
+      case WaitingStatus.accepted:  return AppColors.success;
+      case WaitingStatus.expired:   return AppColors.danger;
+      case WaitingStatus.cancelled: return AppColors.textSecondary;
+    }
+  }
+
+  String _fmtDate(DateTime d) =>
+      '${d.month}월 ${d.day}일 (${['월', '화', '수', '목', '금', '토', '일'][d.weekday - 1]})';
+
+  SnackBar _snack(String message, Color color) {
+    return SnackBar(
+      content: Text(message),
+      backgroundColor: color,
+      behavior: SnackBarBehavior.floating,
+    );
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Consumer<ClubProvider>(
+      builder: (context, provider, _) {
+        final schedule = provider.scheduleById(widget.schedule.id) ?? widget.schedule;
+        final hasDeadline = schedule.rsvpDeadline != null;
+        final hasCapacity = schedule.maxCapacity != null;
+        if (!hasDeadline && !hasCapacity) return const SizedBox.shrink();
+
+        final nonResponders = provider.nonRespondersFor(schedule.id);
+        final waitList = provider.waitingListForSchedule(schedule.id)
+            .where((w) => w.status != WaitingStatus.cancelled)
+            .toList();
+        final myEntry = provider.myWaitingEntry(schedule.id);
+
+        return Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            // ── RSVP 마감시간 안내 ──
+            if (hasDeadline)
+              Container(
+                margin: const EdgeInsets.only(bottom: 16),
+                padding: const EdgeInsets.all(16),
+                decoration: BoxDecoration(
+                  color: Colors.white,
+                  borderRadius: BorderRadius.circular(14),
+                  boxShadow: [
+                    BoxShadow(
+                        color: Colors.black.withValues(alpha: 0.05),
+                        blurRadius: 6,
+                        offset: const Offset(0, 2)),
+                  ],
+                ),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Row(
+                      children: [
+                        Icon(
+                            schedule.isRsvpClosed
+                                ? Icons.lock_clock_outlined
+                                : Icons.timer_outlined,
+                            size: 18,
+                            color: schedule.isRsvpClosed
+                                ? AppColors.danger
+                                : AppColors.sageDeep),
+                        const SizedBox(width: 6),
+                        Text('참석 응답 마감',
+                            style: const TextStyle(
+                                fontSize: 14,
+                                fontWeight: FontWeight.bold,
+                                color: AppColors.textPrimary)),
+                        const Spacer(),
+                        Text(
+                          schedule.isRsvpClosed ? '마감됨' : '진행중',
+                          style: TextStyle(
+                              fontSize: 12,
+                              fontWeight: FontWeight.w600,
+                              color: schedule.isRsvpClosed
+                                  ? AppColors.danger
+                                  : AppColors.success),
+                        ),
+                      ],
+                    ),
+                    const SizedBox(height: 8),
+                    Text(
+                      '${_fmtDate(schedule.rsvpDeadline!)} '
+                      '${schedule.rsvpDeadline!.hour.toString().padLeft(2, '0')}:'
+                      '${schedule.rsvpDeadline!.minute.toString().padLeft(2, '0')}까지',
+                      style: const TextStyle(fontSize: 13, color: AppColors.textSecondary),
+                    ),
+                    if (widget.isAdmin && nonResponders.isNotEmpty) ...[
+                      const SizedBox(height: 10),
+                      Row(
+                        children: [
+                          Expanded(
+                            child: Text(
+                              '미응답 ${nonResponders.length}명',
+                              style: const TextStyle(
+                                  fontSize: 12, color: AppColors.warning,
+                                  fontWeight: FontWeight.w600),
+                            ),
+                          ),
+                          TextButton.icon(
+                            onPressed: () {
+                              final sent = provider.notifyNonResponders(schedule.id);
+                              ScaffoldMessenger.of(context).showSnackBar(
+                                SnackBar(
+                                  content: Text('미응답자 $sent명에게 알림을 보냈습니다 🔔'),
+                                  backgroundColor: AppColors.primary,
+                                  behavior: SnackBarBehavior.floating,
+                                  shape: RoundedRectangleBorder(
+                                      borderRadius: BorderRadius.circular(10)),
+                                ),
+                              );
+                            },
+                            icon: const Icon(Icons.notifications_active_outlined, size: 16),
+                            label: const Text('알림 보내기',
+                                style: TextStyle(fontSize: 12, fontWeight: FontWeight.w600)),
+                            style: TextButton.styleFrom(
+                                foregroundColor: AppColors.primary,
+                                padding: const EdgeInsets.symmetric(horizontal: 4)),
+                          ),
+                        ],
+                      ),
+                    ],
+                  ],
+                ),
+              ),
+
+            // ── 대기 명단 (정원 설정된 일정만 표시) ──
+            if (hasCapacity)
+              Container(
+                padding: const EdgeInsets.all(16),
+                decoration: BoxDecoration(
+                  color: Colors.white,
+                  borderRadius: BorderRadius.circular(14),
+                  boxShadow: [
+                    BoxShadow(
+                        color: Colors.black.withValues(alpha: 0.05),
+                        blurRadius: 6,
+                        offset: const Offset(0, 2)),
+                  ],
+                ),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Row(
+                      children: [
+                        const Icon(Icons.hourglass_top_rounded,
+                            size: 18, color: AppColors.warning),
+                        const SizedBox(width: 6),
+                        Text('대기 명단 (정원 ${schedule.maxCapacity}명)',
+                            style: const TextStyle(
+                                fontSize: 14,
+                                fontWeight: FontWeight.bold,
+                                color: AppColors.textPrimary)),
+                        const Spacer(),
+                        Text('${waitList.length}명',
+                            style: const TextStyle(
+                                fontSize: 12, color: AppColors.textSecondary)),
+                      ],
+                    ),
+                    // ── 내가 자리 제안(알림)을 받은 경우 — 수락/거절 배너 ──
+                    if (myEntry != null && myEntry.status == WaitingStatus.notified) ...[
+                      const SizedBox(height: 12),
+                      Container(
+                        padding: const EdgeInsets.all(12),
+                        decoration: BoxDecoration(
+                          color: AppColors.warning.withValues(alpha: 0.1),
+                          borderRadius: BorderRadius.circular(10),
+                          border: Border.all(color: AppColors.warning.withValues(alpha: 0.35)),
+                        ),
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            const Text('🎉 자리가 났습니다! 지금 수락하시겠어요?',
+                                style: TextStyle(
+                                    fontSize: 13, fontWeight: FontWeight.w700,
+                                    color: AppColors.textPrimary)),
+                            const SizedBox(height: 4),
+                            Text(
+                              '${kWaitingAcceptWindow.inHours}시간 내 수락하지 않으면 다음 대기자에게 순번이 넘어갑니다',
+                              style: const TextStyle(fontSize: 11, color: AppColors.textSecondary),
+                            ),
+                            const SizedBox(height: 10),
+                            Row(
+                              children: [
+                                Expanded(
+                                  child: OutlinedButton(
+                                    onPressed: () {
+                                      provider.respondToWaitingOffer(myEntry.id, accept: false);
+                                      ScaffoldMessenger.of(context).showSnackBar(
+                                        _snack('대기를 거절했습니다', AppColors.textSecondary),
+                                      );
+                                    },
+                                    style: OutlinedButton.styleFrom(
+                                        foregroundColor: AppColors.textSecondary),
+                                    child: const Text('거절'),
+                                  ),
+                                ),
+                                const SizedBox(width: 10),
+                                Expanded(
+                                  child: ElevatedButton(
+                                    onPressed: () {
+                                      provider.respondToWaitingOffer(myEntry.id, accept: true);
+                                      ScaffoldMessenger.of(context).showSnackBar(
+                                        _snack('참석이 확정되었습니다 ✅', AppColors.success),
+                                      );
+                                    },
+                                    style: ElevatedButton.styleFrom(
+                                        backgroundColor: AppColors.success,
+                                        foregroundColor: Colors.white),
+                                    child: const Text('수락'),
+                                  ),
+                                ),
+                              ],
+                            ),
+                          ],
+                        ),
+                      ),
+                    ],
+                    if (waitList.isEmpty) ...[
+                      const SizedBox(height: 10),
+                      const Text('대기 등록된 회원이 없습니다',
+                          style: TextStyle(fontSize: 12, color: AppColors.textSecondary)),
+                    ] else ...[
+                      const SizedBox(height: 10),
+                      ...waitList.asMap().entries.map((entry) {
+                        final i = entry.key;
+                        final w = entry.value;
+                        return Padding(
+                          padding: const EdgeInsets.symmetric(vertical: 4),
+                          child: Row(
+                            children: [
+                              Container(
+                                width: 22, height: 22,
+                                alignment: Alignment.center,
+                                decoration: BoxDecoration(
+                                  color: AppColors.background,
+                                  shape: BoxShape.circle,
+                                ),
+                                child: Text('${i + 1}',
+                                    style: const TextStyle(
+                                        fontSize: 11, fontWeight: FontWeight.w700,
+                                        color: AppColors.textSecondary)),
+                              ),
+                              const SizedBox(width: 8),
+                              Expanded(
+                                child: Text(w.memberName,
+                                    style: const TextStyle(fontSize: 13, color: AppColors.textPrimary)),
+                              ),
+                              Text(w.statusLabel,
+                                  style: TextStyle(
+                                      fontSize: 11,
+                                      fontWeight: FontWeight.w600,
+                                      color: _waitingStatusColor(w.status))),
+                            ],
+                          ),
+                        );
+                      }),
+                    ],
+                  ],
+                ),
+              ),
+          ],
+        );
+      },
+    );
+  }
+}
+
+// ── 참석 현황 카드 (Consumer로 실시간 반영) ──
+class _AttendanceCard extends StatelessWidget {
+  final RoundSchedule schedule;
+  const _AttendanceCard({required this.schedule});
+
+  @override
+  Widget build(BuildContext context) {
+    return Consumer<ClubProvider>(
+      builder: (context, provider, _) {
+        // provider에서 최신 schedule 가져오기
+        final latest = provider.schedules.firstWhere(
+          (s) => s.id == schedule.id,
+          orElse: () => schedule,
+        );
+        final memberIds = {for (final m in provider.activeMembers) m.id};
+        final guestIds = {for (final m in provider.guestMembers) m.id};
+        final responses = latest.responses
+            .where((r) => memberIds.contains(r.memberId))
+            .toList();
+        final confirmed = responses.where((r) => r.response == '참석').toList();
+        final declined  = responses
+            .where((r) => r.response == '불참' && !guestIds.contains(r.memberId))
+            .toList();
+        final respondedRegular = {
+          ...confirmed.where((r) => !guestIds.contains(r.memberId)).map((r) => r.memberId),
+          ...declined.map((r) => r.memberId),
+        };
+        final noResponse = provider.regularMembers
+            .where((m) => !respondedRegular.contains(m.id))
+            .length;
+        final total = provider.regularMembers.length;
+
+        return Container(
+          decoration: BoxDecoration(
+            color: Colors.white,
+            borderRadius: BorderRadius.circular(16),
+            boxShadow: [
+              BoxShadow(
+                color: Colors.black.withValues(alpha: 0.06),
+                blurRadius: 8,
+                offset: const Offset(0, 2),
+              ),
+            ],
+          ),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              // 헤더
+              Padding(
+                padding: const EdgeInsets.fromLTRB(16, 14, 16, 10),
+                child: Row(
+                  children: [
+                    Container(
+                      width: 4, height: 16,
+                      decoration: BoxDecoration(
+                        color: AppColors.success,
+                        borderRadius: BorderRadius.circular(2),
+                      ),
+                    ),
+                    const SizedBox(width: 8),
+                    const Text('참석 현황',
+                        style: TextStyle(
+                            fontSize: 14,
+                            fontWeight: FontWeight.bold,
+                            color: AppColors.textPrimary)),
+                    const Spacer(),
+                    Text('정회원 $total명',
+                        style: const TextStyle(
+                            fontSize: 12, color: AppColors.textSecondary)),
+                  ],
+                ),
+              ),
+              // 3개 통계
+              Padding(
+                padding: const EdgeInsets.fromLTRB(16, 0, 16, 12),
+                child: Row(
+                  children: [
+                    _StatItem(count: confirmed.length, label: '참석', color: AppColors.success),
+                    _Divider(),
+                    _StatItem(count: noResponse, label: '미답변', color: AppColors.textSecondary),
+                    _Divider(),
+                    _StatItem(count: declined.length,  label: '불참', color: AppColors.danger),
+                  ],
+                ),
+              ),
+              // 구분선
+              if (total > 0)
+                Divider(height: 1, color: Colors.black.withValues(alpha: 0.06)),
+              // ── 참석 명단 직접 표시 ──
+              if (confirmed.isNotEmpty) ...[
+                _MemberListSection(label: '참석', color: AppColors.success, members: confirmed),
+              ],
+
+              if (declined.isNotEmpty) ...[
+                _MemberListSection(label: '불참', color: AppColors.danger, members: declined),
+              ],
+              if (total == 0)
+                const Padding(
+                  padding: EdgeInsets.fromLTRB(16, 4, 16, 16),
+                  child: Text('아직 응답한 멤버가 없습니다.',
+                      style: TextStyle(fontSize: 13, color: AppColors.textSecondary)),
+                ),
+              const SizedBox(height: 8),
+            ],
+          ),
+        );
+      },
+    );
+  }
+}
+
+// ── 명단 섹션 ──
+class _MemberListSection extends StatelessWidget {
+  final String label;
+  final Color color;
+  final List<AttendanceResponse> members;
+  const _MemberListSection({
+    required this.label,
+    required this.color,
+    required this.members,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(16, 10, 16, 4),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          // 섹션 라벨
+          Row(
+            children: [
+              Container(
+                width: 6, height: 6,
+                decoration: BoxDecoration(color: color, shape: BoxShape.circle),
+              ),
+              const SizedBox(width: 6),
+              Text(label,
+                  style: TextStyle(
+                      fontSize: 12,
+                      fontWeight: FontWeight.w600,
+                      color: color)),
+              const SizedBox(width: 4),
+              Text('${members.length}명',
+                  style: TextStyle(fontSize: 11, color: color.withValues(alpha: 0.7))),
+            ],
+          ),
+          const SizedBox(height: 8),
+          // 멤버 아바타 + 이름 리스트
+          Wrap(
+            spacing: 10,
+            runSpacing: 8,
+            children: members.map((m) => _MemberChip(member: m, color: color)).toList(),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+// ── 멤버 칩 ──
+class _MemberChip extends StatelessWidget {
+  final AttendanceResponse member;
+  final Color color;
+  const _MemberChip({required this.member, required this.color});
+
+  @override
+  Widget build(BuildContext context) {
+    final initials = member.memberName.isNotEmpty
+        ? member.memberName.substring(0, 1)
+        : '?';
+    return Row(
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        Container(
+          width: 26, height: 26,
+          decoration: BoxDecoration(
+            color: color.withValues(alpha: 0.15),
+            shape: BoxShape.circle,
+          ),
+          child: Center(
+            child: Text(initials,
+                style: TextStyle(
+                    fontSize: 11,
+                    fontWeight: FontWeight.w700,
+                    color: color)),
+          ),
+        ),
+        const SizedBox(width: 5),
+        Text(member.memberName,
+            style: const TextStyle(
+                fontSize: 13,
+                color: AppColors.textPrimary)),
+      ],
+    );
+  }
+}
+
+// 세련된 통계 아이템 (배경색 없이 숫자+라벨)
+class _StatItem extends StatelessWidget {
+  final int count;
+  final String label;
+  final Color color;
+  const _StatItem({
+    required this.count,
+    required this.label,
+    required this.color,
+  });
+  @override
+  Widget build(BuildContext context) {
+    return Expanded(
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Text(
+            '$count명',
+            style: TextStyle(
+              fontSize: 20,
+              fontWeight: FontWeight.w800,
+              color: color,
+            ),
+          ),
+          const SizedBox(height: 4),
+          Text(
+            label,
+            style: const TextStyle(
+              fontSize: 12,
+              color: Color(0xFF999999),
+              fontWeight: FontWeight.w500,
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _Divider extends StatelessWidget {
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      width: 1,
+      height: 32,
+      color: const Color(0xFFEEEEEE),
+    );
+  }
+}
+
+class _SummaryBadge extends StatelessWidget {
+  final String label;
+  final int count;
+  final Color color;
+  const _SummaryBadge(this.label, this.count, this.color);
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 3),
+      decoration: BoxDecoration(
+        color: color.withValues(alpha: 0.1),
+        borderRadius: BorderRadius.circular(10),
+      ),
+      child: Text('$label $count',
+          style: TextStyle(
+              fontSize: 11, color: color, fontWeight: FontWeight.w600)),
+    );
+  }
+}
+
+class _ResponseSection extends StatelessWidget {
+  final String title;
+  final List<AttendanceResponse> items;
+  final Color color;
+  const _ResponseSection(this.title, this.items, this.color);
+
+  @override
+  Widget build(BuildContext context) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Padding(
+          padding: const EdgeInsets.fromLTRB(16, 10, 16, 4),
+          child: Text(title,
+              style: TextStyle(
+                  fontSize: 12,
+                  fontWeight: FontWeight.w600,
+                  color: color)),
+        ),
+        ...items.map((r) => ListTile(
+              dense: true,
+              contentPadding: const EdgeInsets.symmetric(horizontal: 16),
+              leading: CircleAvatar(
+                radius: 16,
+                backgroundColor: color.withValues(alpha: 0.15),
+                child: Text(
+                  r.memberName.isNotEmpty ? r.memberName[0] : '?',
+                  style: TextStyle(
+                      fontSize: 13,
+                      fontWeight: FontWeight.bold,
+                      color: color),
+                ),
+              ),
+              title: Text(r.memberName,
+                  style: const TextStyle(fontSize: 13)),
+              subtitle: r.memo != null && r.memo!.isNotEmpty
+                  ? Text(r.memo!,
+                      style: const TextStyle(
+                          fontSize: 11,
+                          color: AppColors.textSecondary))
+                  : null,
+            )),
+      ],
+    );
+  }
+}
+
+// ════════════════════════════════════════════════════════════
+//  일정 등록 폼 (바텀시트)
+// ════════════════════════════════════════════════════════════
+class _ScheduleFormSheet extends StatefulWidget {
+  final ClubProvider provider;
+  final RoundSchedule? editTarget;
+  const _ScheduleFormSheet({required this.provider, this.editTarget});
+
+  @override
+  State<_ScheduleFormSheet> createState() => _ScheduleFormSheetState();
+}
+
+class _ScheduleFormSheetState extends State<_ScheduleFormSheet> {
+  final _formKey = GlobalKey<FormState>();
+  final _titleCtrl = TextEditingController();
+  final _courseCtrl = TextEditingController();
+  final _addressCtrl = TextEditingController();
+  final _noticeCtrl = TextEditingController();
+  final _capacityCtrl = TextEditingController();
+  DateTime? _selectedDate;
+  TimeOfDay _teeTime = const TimeOfDay(hour: 7, minute: 30);
+  late int _teamCount;
+  bool _saving = false;
+
+  bool get _isEdit => widget.editTarget != null;
+
+  @override
+  void initState() {
+    super.initState();
+    final edit = widget.editTarget;
+    if (edit != null) {
+      _titleCtrl.text = edit.title;
+      _courseCtrl.text = edit.courseName;
+      _addressCtrl.text = edit.courseAddress ?? '';
+      _noticeCtrl.text = edit.notice ?? '';
+      _selectedDate = edit.roundDate;
+      final parts = edit.teeTime.split(':');
+      final h = int.tryParse(parts.isNotEmpty ? parts[0] : '') ?? 7;
+      final m = int.tryParse(parts.length > 1 ? parts[1] : '') ?? 30;
+      _teeTime = TimeOfDay(hour: h, minute: m);
+      _teamCount = edit.teamCount.clamp(1, 30);
+      _capacityCtrl.text = '${_teamCount * 4}';
+    } else {
+      final clubTeams = widget.provider.selectedClub.teamCount;
+      _teamCount = clubTeams > 0 ? clubTeams : 1;
+      _capacityCtrl.text = '${_teamCount * 4}';
+    }
+  }
+
+  void _setTeamCount(int next) {
+    if (next < 1 || next > 30) return;
+    setState(() {
+      _teamCount = next;
+      _capacityCtrl.text = '${next * 4}';
+    });
+  }
+
+  @override
+  void dispose() {
+    _titleCtrl.dispose();
+    _courseCtrl.dispose();
+    _addressCtrl.dispose();
+    _noticeCtrl.dispose();
+    _capacityCtrl.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return DraggableScrollableSheet(
+      initialChildSize: 0.9,
+      maxChildSize: 0.95,
+      minChildSize: 0.5,
+      builder: (_, ctrl) => Container(
+        decoration: const BoxDecoration(
+          color: Colors.white,
+          borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
+        ),
+        child: Form(
+          key: _formKey,
+          child: Column(
+            children: [
+              // 핸들 + 헤더
+              Container(
+                padding: const EdgeInsets.fromLTRB(20, 12, 20, 12),
+                decoration: const BoxDecoration(
+                  border: Border(
+                      bottom: BorderSide(color: AppColors.divider)),
+                ),
+                child: Column(
+                  children: [
+                    Container(
+                      width: 40,
+                      height: 4,
+                      decoration: BoxDecoration(
+                        color: AppColors.divider,
+                        borderRadius: BorderRadius.circular(2),
+                      ),
+                    ),
+                    const SizedBox(height: 14),
+                    Row(
+                      children: [
+                        Text(_isEdit ? '일정 변경' : '일정 등록',
+                            style: const TextStyle(
+                                fontSize: 17,
+                                fontWeight: FontWeight.bold)),
+                        const Spacer(),
+                        TextButton(
+                          onPressed: () => Navigator.pop(context),
+                          child: const Text('취소'),
+                        ),
+                      ],
+                    ),
+                  ],
+                ),
+              ),
+              // 폼 내용
+              Expanded(
+                child: ListView(
+                  controller: ctrl,
+                  padding: const EdgeInsets.all(20),
+                  children: [
+                    // 일정 제목
+                    _FormField(
+                      label: '일정 제목 *',
+                      child: TextFormField(
+                        controller: _titleCtrl,
+                        decoration: _deco('예: 7월 월례회'),
+                        validator: (v) =>
+                            v == null || v.trim().isEmpty ? '제목을 입력하세요' : null,
+                      ),
+                    ),
+                    const SizedBox(height: 16),
+
+                    // 날짜 선택
+                    _FormField(
+                      label: '라운딩 날짜 *',
+                      child: GestureDetector(
+                        onTap: _pickDate,
+                        child: Container(
+                          padding: const EdgeInsets.symmetric(
+                              horizontal: 14, vertical: 14),
+                          decoration: BoxDecoration(
+                            border: Border.all(color: const Color(0xFFDDDDDD)),
+                            borderRadius: BorderRadius.circular(10),
+                          ),
+                          child: Row(
+                            children: [
+                              const Icon(Icons.calendar_month_outlined,
+                                  size: 18, color: AppColors.primary),
+                              const SizedBox(width: 8),
+                              Text(
+                                _selectedDate == null
+                                    ? '날짜를 선택하세요'
+                                    : _fmtDate(_selectedDate!),
+                                style: TextStyle(
+                                  color: _selectedDate == null
+                                      ? AppColors.textSecondary
+                                      : AppColors.textPrimary,
+                                  fontSize: 14,
+                                ),
+                              ),
+                            ],
+                          ),
+                        ),
+                      ),
+                    ),
+                    const SizedBox(height: 16),
+
+                    // 티오프 시간
+                    _FormField(
+                      label: '티오프 시간 *',
+                      child: GestureDetector(
+                        onTap: _pickTime,
+                        child: Container(
+                          padding: const EdgeInsets.symmetric(
+                              horizontal: 14, vertical: 14),
+                          decoration: BoxDecoration(
+                            border: Border.all(color: const Color(0xFFDDDDDD)),
+                            borderRadius: BorderRadius.circular(10),
+                          ),
+                          child: Row(
+                            children: [
+                              const Icon(Icons.access_time,
+                                  size: 18, color: AppColors.primary),
+                              const SizedBox(width: 8),
+                              Text(
+                                _teeTime.format(context),
+                                style: const TextStyle(
+                                    fontSize: 14,
+                                    color: AppColors.textPrimary),
+                              ),
+                            ],
+                          ),
+                        ),
+                      ),
+                    ),
+                    const SizedBox(height: 16),
+
+                    // 골프장 이름
+                    _FormField(
+                      label: '골프장 이름 *',
+                      child: TextFormField(
+                        controller: _courseCtrl,
+                        decoration: _deco('예: 레이크사이드CC'),
+                        validator: (v) =>
+                            v == null || v.trim().isEmpty ? '골프장을 입력하세요' : null,
+                      ),
+                    ),
+                    const SizedBox(height: 16),
+
+                    // 주소 (선택)
+                    _FormField(
+                      label: '주소 (선택)',
+                      child: TextFormField(
+                        controller: _addressCtrl,
+                        decoration: _deco('예: 경기도 용인시 처인구'),
+                      ),
+                    ),
+                    const SizedBox(height: 16),
+
+                    // 팀 수
+                    _FormField(
+                      label: '팀 수',
+                      child: Row(
+                        children: [
+                          IconButton(
+                            onPressed: _teamCount > 1
+                                ? () => _setTeamCount(_teamCount - 1)
+                                : null,
+                            icon: const Icon(Icons.remove_circle_outline,
+                                color: AppColors.primary),
+                          ),
+                          Container(
+                            padding: const EdgeInsets.symmetric(
+                                horizontal: 20, vertical: 8),
+                            decoration: BoxDecoration(
+                              border: Border.all(color: AppColors.divider),
+                              borderRadius: BorderRadius.circular(8),
+                            ),
+                            child: Text(
+                              '$_teamCount팀',
+                              style: const TextStyle(
+                                  fontSize: 16,
+                                  fontWeight: FontWeight.bold,
+                                  color: AppColors.primary),
+                            ),
+                          ),
+                          IconButton(
+                            onPressed: () => _setTeamCount(_teamCount + 1),
+                            icon: const Icon(Icons.add_circle_outline,
+                                color: AppColors.primary),
+                          ),
+                        ],
+                      ),
+                    ),
+                    const SizedBox(height: 16),
+
+                    // 정원 = 팀수×4 (자동). 초과 시 대기 등록
+                    _FormField(
+                      label: '정원 (팀수 × 4 · 초과 시 자동 대기등록)',
+                      child: TextFormField(
+                        controller: _capacityCtrl,
+                        keyboardType: TextInputType.number,
+                        readOnly: true,
+                        decoration: _deco('팀수 × 4'),
+                      ),
+                    ),
+                    const SizedBox(height: 16),
+
+                    // 공지 · 메모 (선택)
+                    _FormField(
+                      label: '메모 (선택)',
+                      child: TextFormField(
+                        controller: _noticeCtrl,
+                        decoration: _deco('복장 규정, 준비물 등'),
+                        maxLines: 3,
+                        minLines: 2,
+                      ),
+                    ),
+                    const SizedBox(height: 32),
+
+                    // 저장 버튼
+                    SizedBox(
+                      width: double.infinity,
+                      height: 52,
+                      child: ElevatedButton(
+                        onPressed: _saving ? null : _save,
+                        style: ElevatedButton.styleFrom(
+                          backgroundColor: AppColors.primary,
+                          foregroundColor: Colors.white,
+                          shape: RoundedRectangleBorder(
+                              borderRadius: BorderRadius.circular(14)),
+                        ),
+                        child: _saving
+                            ? const SizedBox(
+                                width: 22,
+                                height: 22,
+                                child: CircularProgressIndicator(
+                                    color: Colors.white, strokeWidth: 2),
+                              )
+                            : Text(_isEdit ? '변경 저장' : '일정 등록',
+                                style: const TextStyle(
+                                    fontSize: 16,
+                                    fontWeight: FontWeight.bold)),
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+
+  Future<void> _pickDate() async {
+    final initial = _selectedDate ?? DateTime.now().add(const Duration(days: 7));
+    final picked = await showDatePicker(
+      context: context,
+      initialDate: initial.isBefore(DateTime.now()) ? DateTime.now() : initial,
+      firstDate: DateTime.now().subtract(const Duration(days: 1)),
+      lastDate: DateTime.now().add(const Duration(days: 365)),
+      locale: const Locale('ko', 'KR'),
+      builder: (ctx, child) => Theme(
+        data: Theme.of(ctx).copyWith(
+          colorScheme: const ColorScheme.light(primary: AppColors.primary),
+        ),
+        child: child!,
+      ),
+    );
+    if (picked != null) setState(() => _selectedDate = picked);
+  }
+
+  Future<void> _pickTime() async {
+    final picked = await showTimePicker(
+      context: context,
+      initialTime: _teeTime,
+      builder: (ctx, child) => Theme(
+        data: Theme.of(ctx).copyWith(
+          colorScheme: const ColorScheme.light(primary: AppColors.primary),
+        ),
+        child: child!,
+      ),
+    );
+    if (picked != null) setState(() => _teeTime = picked);
+  }
+
+  Future<void> _save() async {
+    if (!_formKey.currentState!.validate()) return;
+    if (_selectedDate == null) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('날짜를 선택해주세요')),
+      );
+      return;
+    }
+
+    setState(() => _saving = true);
+    await Future.delayed(const Duration(milliseconds: 400));
+
+    final teeStr =
+        '${_teeTime.hour.toString().padLeft(2, '0')}:${_teeTime.minute.toString().padLeft(2, '0')}';
+
+    final notice = _noticeCtrl.text.trim().isEmpty
+        ? null
+        : _noticeCtrl.text.trim();
+    final address = _addressCtrl.text.trim().isEmpty
+        ? null
+        : _addressCtrl.text.trim();
+
+    if (_isEdit) {
+      final original = widget.editTarget!;
+      final updated = original.copyWith(
+        title: _titleCtrl.text.trim(),
+        roundDate: _selectedDate!,
+        teeTime: teeStr,
+        courseName: _courseCtrl.text.trim(),
+        courseAddress: address,
+        teamCount: _teamCount,
+        maxCapacity: _teamCount * 4,
+        notice: notice,
+      );
+      final provider = widget.provider;
+      provider.updateSchedule(updated);
+      setState(() => _saving = false);
+      if (mounted) Navigator.pop(context);
+      final messenger = AppNavigator.context != null
+          ? ScaffoldMessenger.maybeOf(AppNavigator.context!)
+          : null;
+      messenger?.showSnackBar(
+        SnackBar(
+          content: Text('${updated.title} 일정이 변경되었습니다'),
+          backgroundColor: AppColors.primary,
+          behavior: SnackBarBehavior.floating,
+          shape: RoundedRectangleBorder(
+              borderRadius: BorderRadius.circular(10)),
+        ),
+      );
+      final settings =
+          provider.alimtalkSettingsOf(provider.selectedClub.id);
+      if (settings.promptOnScheduleChange) {
+        await Future.delayed(const Duration(milliseconds: 300));
+        await AlimtalkUtils.runScheduleChangeFlow(
+          provider: provider,
+          schedule: updated,
+        );
+      }
+      return;
+    }
+
+    // 일정 등록 시 자동 참석 금지 — 전원 미답변으로 시작
+    final schedule = RoundSchedule(
+      id: 'sched_${DateTime.now().millisecondsSinceEpoch}',
+      clubId: widget.provider.selectedClub.id,
+      title: _titleCtrl.text.trim(),
+      roundDate: _selectedDate!,
+      teeTime: teeStr,
+      courseName: _courseCtrl.text.trim(),
+      courseAddress: address,
+      teamCount: _teamCount,
+      maxCapacity: _teamCount * 4,
+      notice: notice,
+      createdBy: widget.provider.currentUserName,
+      responses: const [],
+      companionIds: const [],
+    );
+
+    final provider = widget.provider;
+    provider.addSchedule(schedule);
+
+    if (mounted) Navigator.pop(context);
+    final messenger = AppNavigator.context != null
+        ? ScaffoldMessenger.maybeOf(AppNavigator.context!)
+        : null;
+    messenger?.showSnackBar(
+      SnackBar(
+        content: Text('${schedule.title} 일정이 등록되었습니다 🗓️'),
+        backgroundColor: AppColors.primary,
+        behavior: SnackBarBehavior.floating,
+        shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(10)),
+      ),
+    );
+    await Future.delayed(const Duration(milliseconds: 400));
+    await AlimtalkUtils.runAttendanceFlow(
+      provider: provider,
+      schedule: schedule,
+    );
+  }
+
+  /// 일정 등록 후 알림톡 발송 다이얼로그
+  void _showAlimtalkDialog({
+    required BuildContext context,
+    required ClubProvider provider,
+    required String scheduleId,
+    required String scheduleTitle,
+    required DateTime roundDate,
+  }) {
+    final dateStr =
+        '${roundDate.month}월 ${roundDate.day}일 (${['월','화','수','목','금','토','일'][roundDate.weekday-1]})';
+    final memberCount = provider.members.where((m) =>
+        m.status == '활성' && m.id != provider.currentUserId).length;
+
+    showDialog(
+      context: context,
+      builder: (_) => AlertDialog(
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(18)),
+        title: Row(children: [
+          Container(
+            padding: const EdgeInsets.all(8),
+            decoration: BoxDecoration(
+              color: AppColors.sageDeep.withValues(alpha: 0.12),
+              shape: BoxShape.circle,
+            ),
+            child: const Icon(Icons.send_rounded, color: AppColors.sageDeep, size: 20),
+          ),
+          const SizedBox(width: 10),
+          const Text('알림톡 보내기', style: TextStyle(fontSize: 16, fontWeight: FontWeight.w700)),
+        ]),
+        content: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text('회원 $memberCount명에게 참석여부 요청을 보낼까요?',
+                style: const TextStyle(fontSize: 14)),
+            const SizedBox(height: 14),
+            Container(
+              padding: const EdgeInsets.all(14),
+              decoration: BoxDecoration(
+                color: const Color(0xFFF5F9F5),
+                borderRadius: BorderRadius.circular(12),
+                border: Border.all(color: AppColors.sageDeep.withValues(alpha: 0.2)),
+              ),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Row(children: [
+                    Icon(Icons.golf_course_rounded, size: 14, color: AppColors.sageDeep),
+                    const SizedBox(width: 6),
+                    Text(provider.selectedClub.name,
+                        style: TextStyle(fontSize: 11, color: AppColors.sageDeep,
+                            fontWeight: FontWeight.w600)),
+                  ]),
+                  const SizedBox(height: 8),
+                  Text(
+                    '[$dateStr]\n$scheduleTitle 일정이 등록됐습니다.\n참석여부를 앱에서 알려주세요!',
+                    style: const TextStyle(fontSize: 13, height: 1.55, color: Color(0xFF333333)),
+                  ),
+                ],
+              ),
+            ),
+          ],
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context),
+            child: const Text('나중에', style: TextStyle(color: AppColors.textSecondary)),
+          ),
+          ElevatedButton.icon(
+            onPressed: () {
+              final memberIds = provider.members
+                  .where((m) =>
+                      m.status == '활성' && m.id != provider.currentUserId)
+                  .map((m) => m.id)
+                  .toList();
+              final sent = provider.sendScheduleAlimtalk(
+                scheduleId: scheduleId,
+                memberIds: memberIds,
+              );
+              Navigator.pop(context);
+              ScaffoldMessenger.of(context).showSnackBar(
+                SnackBar(
+                  content: Row(children: [
+                    const Icon(Icons.check_circle_outline, color: Colors.white, size: 18),
+                    const SizedBox(width: 8),
+                    Text('$sent명에게 알림톡을 보냈습니다 ✉️'),
+                  ]),
+                  backgroundColor: AppColors.sageDeep,
+                  behavior: SnackBarBehavior.floating,
+                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+                ),
+              );
+            },
+            icon: const Icon(Icons.send_rounded, size: 16),
+            label: const Text('보내기'),
+            style: ElevatedButton.styleFrom(
+              backgroundColor: AppColors.sageDeep,
+              foregroundColor: Colors.white,
+              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  InputDecoration _deco(String hint) => InputDecoration(
+        hintText: hint,
+        hintStyle: const TextStyle(
+            color: AppColors.textSecondary, fontSize: 13),
+        filled: true,
+        fillColor: const Color(0xFFF8F8F8),
+        border: OutlineInputBorder(
+          borderRadius: BorderRadius.circular(10),
+          borderSide: const BorderSide(color: Color(0xFFDDDDDD)),
+        ),
+        enabledBorder: OutlineInputBorder(
+          borderRadius: BorderRadius.circular(10),
+          borderSide: const BorderSide(color: Color(0xFFDDDDDD)),
+        ),
+        focusedBorder: OutlineInputBorder(
+          borderRadius: BorderRadius.circular(10),
+          borderSide: const BorderSide(color: AppColors.primary, width: 1.5),
+        ),
+        contentPadding:
+            const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+      );
+
+  String _fmtDate(DateTime d) =>
+      '${d.year}년 ${d.month}월 ${d.day}일 (${['월', '화', '수', '목', '금', '토', '일'][d.weekday - 1]})';
+}
+
+class _FormField extends StatelessWidget {
+  final String label;
+  final Widget child;
+  const _FormField({required this.label, required this.child});
+
+  @override
+  Widget build(BuildContext context) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Text(label,
+            style: const TextStyle(
+                fontSize: 13,
+                fontWeight: FontWeight.w600,
+                color: AppColors.textPrimary)),
+        const SizedBox(height: 6),
+        child,
+      ],
+    );
+  }
+}
+
+// ════════════════════════════════════════════════════════════
+//  보험 배너 카드 (일정 상세 화면용)
+// ════════════════════════════════════════════════════════════
+class _InsuranceBannerCard extends StatelessWidget {
+  final RoundSchedule schedule;
+  const _InsuranceBannerCard({required this.schedule});
+
+  @override
+  Widget build(BuildContext context) {
+    final days = schedule.daysUntil;
+    final isUrgent = days <= 1; // D-1 또는 D-Day
+
+    return GestureDetector(
+      onTap: () => _InsuranceSheet.show(context, schedule),
+      child: Container(
+        decoration: BoxDecoration(
+          gradient: const LinearGradient(
+            colors: [AppColors.primaryDark, AppColors.primary, AppColors.primaryLight],
+            begin: Alignment.topLeft,
+            end: Alignment.bottomRight,
+          ),
+          borderRadius: BorderRadius.circular(16),
+          boxShadow: [
+            BoxShadow(
+              color: AppColors.primary.withValues(alpha: 0.3),
+              blurRadius: 12,
+              offset: const Offset(0, 4),
+            ),
+          ],
+        ),
+        child: Stack(
+          children: [
+            // 배경 장식 원
+            Positioned(
+              right: -20,
+              top: -20,
+              child: Container(
+                width: 100,
+                height: 100,
+                decoration: BoxDecoration(
+                  shape: BoxShape.circle,
+                  color: Colors.white.withValues(alpha: 0.06),
+                ),
+              ),
+            ),
+            Positioned(
+              right: 30,
+              bottom: -30,
+              child: Container(
+                width: 80,
+                height: 80,
+                decoration: BoxDecoration(
+                  shape: BoxShape.circle,
+                  color: Colors.white.withValues(alpha: 0.04),
+                ),
+              ),
+            ),
+            // 컨텐츠
+            Padding(
+              padding: const EdgeInsets.all(16),
+              child: Row(
+                children: [
+                  // 아이콘
+                  Container(
+                    width: 52,
+                    height: 52,
+                    decoration: BoxDecoration(
+                      color: Colors.white.withValues(alpha: 0.15),
+                      borderRadius: BorderRadius.circular(14),
+                    ),
+                    child: const Center(
+                      child: Text('⛳', style: TextStyle(fontSize: 26)),
+                    ),
+                  ),
+                  const SizedBox(width: 14),
+                  // 텍스트
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        if (isUrgent)
+                          Container(
+                            padding: const EdgeInsets.symmetric(
+                                horizontal: 7, vertical: 2),
+                            margin: const EdgeInsets.only(bottom: 5),
+                            decoration: BoxDecoration(
+                              color: Colors.orange,
+                              borderRadius: BorderRadius.circular(6),
+                            ),
+                            child: Text(
+                              days == 0 ? '🔔 오늘 라운딩!' : '🔔 내일 라운딩!',
+                              style: const TextStyle(
+                                color: Colors.white,
+                                fontSize: 10,
+                                fontWeight: FontWeight.bold,
+                              ),
+                            ),
+                          ),
+                        const Text(
+                          '1일 홀인원보험',
+                          style: TextStyle(
+                            color: Colors.white,
+                            fontSize: 16,
+                            fontWeight: FontWeight.bold,
+                          ),
+                        ),
+                        const SizedBox(height: 2),
+                        const Text(
+                          '홀인원 발생 시 최대 300만원 보장',
+                          style: TextStyle(
+                              color: Colors.white70, fontSize: 12),
+                        ),
+                        const SizedBox(height: 6),
+                        Row(
+                          children: [
+                            Container(
+                              padding: const EdgeInsets.symmetric(
+                                  horizontal: 7, vertical: 2),
+                              decoration: BoxDecoration(
+                                color: Colors.white.withValues(alpha: 0.2),
+                                borderRadius: BorderRadius.circular(6),
+                              ),
+                              child: const Text(
+                                '$_kInsurancePrice / 1일',
+                                style: TextStyle(
+                                  color: Colors.white,
+                                  fontSize: 11,
+                                  fontWeight: FontWeight.w600,
+                                ),
+                              ),
+                            ),
+                            const SizedBox(width: 6),
+                            Container(
+                              padding: const EdgeInsets.symmetric(
+                                  horizontal: 7, vertical: 2),
+                              decoration: BoxDecoration(
+                                color: Colors.white.withValues(alpha: 0.2),
+                                borderRadius: BorderRadius.circular(6),
+                              ),
+                              child: const Text(
+                                '2분 내 가입 완료',
+                                style: TextStyle(
+                                    color: Colors.white, fontSize: 11),
+                              ),
+                            ),
+                          ],
+                        ),
+                      ],
+                    ),
+                  ),
+                  // 화살표
+                  Container(
+                    padding: const EdgeInsets.all(8),
+                    decoration: BoxDecoration(
+                      color: Colors.white.withValues(alpha: 0.2),
+                      shape: BoxShape.circle,
+                    ),
+                    child: const Icon(Icons.arrow_forward_ios,
+                        color: Colors.white, size: 14),
+                  ),
+                ],
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+// ════════════════════════════════════════════════════════════
+//  보험 안내 바텀시트
+// ════════════════════════════════════════════════════════════
+class _InsuranceSheet {
+  static void show(BuildContext context, RoundSchedule schedule) {
+    showModalBottomSheet(
+      context: context,
+      isScrollControlled: true,
+      backgroundColor: Colors.transparent,
+      builder: (_) => _InsuranceSheetBody(schedule: schedule),
+    );
+  }
+}
+
+class _InsuranceSheetBody extends StatelessWidget {
+  final RoundSchedule schedule;
+  const _InsuranceSheetBody({required this.schedule});
+
+  @override
+  Widget build(BuildContext context) {
+    return DraggableScrollableSheet(
+      initialChildSize: 0.75,
+      maxChildSize: 0.92,
+      minChildSize: 0.5,
+      builder: (_, ctrl) => Container(
+        decoration: const BoxDecoration(
+          color: Colors.white,
+          borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
+        ),
+        child: ListView(
+          controller: ctrl,
+          padding: EdgeInsets.zero,
+          children: [
+            // ── 헤더 ──
+            Container(
+              decoration: const BoxDecoration(
+                gradient: LinearGradient(
+                  colors: [AppColors.primaryDark, AppColors.primaryLight],
+                  begin: Alignment.topLeft,
+                  end: Alignment.bottomRight,
+                ),
+                borderRadius:
+                    BorderRadius.vertical(top: Radius.circular(24)),
+              ),
+              padding: const EdgeInsets.fromLTRB(24, 16, 24, 28),
+              child: Column(
+                children: [
+                  // 핸들
+                  Container(
+                    width: 40,
+                    height: 4,
+                    decoration: BoxDecoration(
+                      color: Colors.white.withValues(alpha: 0.4),
+                      borderRadius: BorderRadius.circular(2),
+                    ),
+                  ),
+                  const SizedBox(height: 20),
+                  const Text('⛳',
+                      style: TextStyle(fontSize: 40)),
+                  const SizedBox(height: 8),
+                  const Text(
+                    '1일 홀인원보험',
+                    style: TextStyle(
+                      color: Colors.white,
+                      fontSize: 22,
+                      fontWeight: FontWeight.bold,
+                    ),
+                  ),
+                  const SizedBox(height: 4),
+                  Text(
+                    '${schedule.courseName} · ${_fmtDate(schedule.roundDate)}',
+                    style: const TextStyle(
+                        color: Colors.white70, fontSize: 13),
+                  ),
+                ],
+              ),
+            ),
+
+            Padding(
+              padding: const EdgeInsets.all(20),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  // ── 왜 필요한가 ──
+                  const Text('홀인원이 나면?',
+                      style: TextStyle(
+                          fontSize: 15, fontWeight: FontWeight.bold)),
+                  const SizedBox(height: 8),
+                  _InsurancePoint(
+                      icon: '🍽️',
+                      text: '동반자 식사·음료 비용 (평균 50~100만원)'),
+                  _InsurancePoint(
+                      icon: '🏆',
+                      text: '기념품·트로피 구매 (평균 30~50만원)'),
+                  _InsurancePoint(
+                      icon: '🎁',
+                      text: '캐디피·그린피 부담 (클럽 관례)'),
+                  _InsurancePoint(
+                      icon: '💸',
+                      text: '총 지출 100~300만원 이상 예상'),
+
+                  const SizedBox(height: 20),
+
+                  // ── 보험 혜택 ──
+                  Container(
+                    padding: const EdgeInsets.all(16),
+                    decoration: BoxDecoration(
+                      color: const Color(0xFFE3F2FD),
+                      borderRadius: BorderRadius.circular(14),
+                      border: Border.all(
+                          color: AppColors.primaryLight
+                              .withValues(alpha: 0.3)),
+                    ),
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        const Row(
+                          children: [
+                            Icon(Icons.shield_outlined,
+                                color: AppColors.primary, size: 18),
+                            SizedBox(width: 6),
+                            Text('보장 내용',
+                                style: TextStyle(
+                                  fontWeight: FontWeight.bold,
+                                  fontSize: 14,
+                                  color: AppColors.primary,
+                                )),
+                          ],
+                        ),
+                        const SizedBox(height: 12),
+                        _CoverageRow('홀인원 축하 비용', '최대 200만원'),
+                        _CoverageRow('동반자 그린피', '최대 50만원'),
+                        _CoverageRow('기념품 구입비', '최대 30만원'),
+                        _CoverageRow('기타 부대비용', '최대 20만원'),
+                        const Divider(height: 20),
+                        const Row(
+                          mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                          children: [
+                            Text('보험료',
+                                style: TextStyle(
+                                    fontWeight: FontWeight.w600)),
+                            Text(
+                              '$_kInsurancePrice / 1일',
+                              style: TextStyle(
+                                fontWeight: FontWeight.bold,
+                                fontSize: 16,
+                                color: AppColors.primary,
+                              ),
+                            ),
+                          ],
+                        ),
+                      ],
+                    ),
+                  ),
+
+                  const SizedBox(height: 16),
+
+                  // ── 가입 안내 ──
+                  Container(
+                    padding: const EdgeInsets.all(14),
+                    decoration: BoxDecoration(
+                      color: Colors.amber.withValues(alpha: 0.1),
+                      borderRadius: BorderRadius.circular(12),
+                      border: Border.all(
+                          color: Colors.amber.withValues(alpha: 0.4)),
+                    ),
+                    child: const Column(
+                      children: [
+                        Row(
+                          children: [
+                            Icon(Icons.info_outline,
+                                size: 15, color: Colors.amber),
+                            SizedBox(width: 6),
+                            Text('가입 안내',
+                                style: TextStyle(
+                                    fontWeight: FontWeight.bold,
+                                    fontSize: 13)),
+                          ],
+                        ),
+                        SizedBox(height: 8),
+                        _InsuranceNote('라운딩 당일 00:00 이전까지 가입 가능'),
+                        _InsuranceNote('본인 인증 후 2분 내 가입 완료'),
+                        _InsuranceNote('보험사 API 연동 준비 중 (곧 자동화 예정)'),
+                      ],
+                    ),
+                  ),
+
+                  const SizedBox(height: 24),
+
+                  // ── 가입하기 버튼 ──
+                  SizedBox(
+                    width: double.infinity,
+                    height: 54,
+                    child: ElevatedButton(
+                      onPressed: () {
+                        Navigator.pop(context);
+                        // TODO: 보험사 API 연동 후 실제 가입 페이지로 이동
+                        ScaffoldMessenger.of(context).showSnackBar(
+                          SnackBar(
+                            content: const Row(
+                              children: [
+                                Text('⛳ '),
+                                Expanded(
+                                  child: Text(
+                                    '보험사 API 연동 후 바로 가입 가능합니다!',
+                                    style: TextStyle(fontSize: 13),
+                                  ),
+                                ),
+                              ],
+                            ),
+                            backgroundColor: AppColors.primary,
+                            behavior: SnackBarBehavior.floating,
+                            shape: RoundedRectangleBorder(
+                                borderRadius: BorderRadius.circular(10)),
+                            duration: const Duration(seconds: 3),
+                          ),
+                        );
+                      },
+                      style: ElevatedButton.styleFrom(
+                        backgroundColor: AppColors.primary,
+                        foregroundColor: Colors.white,
+                        shape: RoundedRectangleBorder(
+                            borderRadius: BorderRadius.circular(14)),
+                        elevation: 0,
+                      ),
+                      child: const Row(
+                        mainAxisAlignment: MainAxisAlignment.center,
+                        children: [
+                          Icon(Icons.security, size: 20),
+                          SizedBox(width: 8),
+                          Text(
+                            '1일 홀인원보험 가입하기',
+                            style: TextStyle(
+                              fontSize: 16,
+                              fontWeight: FontWeight.bold,
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                  ),
+
+                  const SizedBox(height: 12),
+
+                  // 닫기
+                  SizedBox(
+                    width: double.infinity,
+                    height: 46,
+                    child: OutlinedButton(
+                      onPressed: () => Navigator.pop(context),
+                      style: OutlinedButton.styleFrom(
+                        foregroundColor: AppColors.textSecondary,
+                        side: const BorderSide(color: AppColors.divider),
+                        shape: RoundedRectangleBorder(
+                            borderRadius: BorderRadius.circular(14)),
+                      ),
+                      child: const Text('나중에'),
+                    ),
+                  ),
+
+                  const SizedBox(height: 8),
+                  const Center(
+                    child: Text(
+                      '* 보험사 연동 준비 중 · 곧 자동 가입 지원 예정',
+                      style: TextStyle(
+                          fontSize: 10,
+                          color: AppColors.textSecondary),
+                    ),
+                  ),
+                  const SizedBox(height: 20),
+                ],
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  String _fmtDate(DateTime d) =>
+      '${d.month}월 ${d.day}일 (${['월', '화', '수', '목', '금', '토', '일'][d.weekday - 1]})';
+}
+
+// 보험 설명 포인트
+class _InsurancePoint extends StatelessWidget {
+  final String icon;
+  final String text;
+  const _InsurancePoint({required this.icon, required this.text});
+
+  @override
+  Widget build(BuildContext context) {
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 6),
+      child: Row(
+        children: [
+          Text(icon, style: const TextStyle(fontSize: 15)),
+          const SizedBox(width: 8),
+          Expanded(
+            child: Text(text,
+                style: const TextStyle(
+                    fontSize: 13, color: AppColors.textPrimary)),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+// 보장 항목 행
+class _CoverageRow extends StatelessWidget {
+  final String label;
+  final String value;
+  const _CoverageRow(this.label, this.value);
+
+  @override
+  Widget build(BuildContext context) {
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 8),
+      child: Row(
+        mainAxisAlignment: MainAxisAlignment.spaceBetween,
+        children: [
+          Text(label,
+              style: const TextStyle(
+                  fontSize: 13, color: AppColors.textPrimary)),
+          Text(value,
+              style: const TextStyle(
+                fontSize: 13,
+                fontWeight: FontWeight.w600,
+                color: AppColors.primary,
+              )),
+        ],
+      ),
+    );
+  }
+}
+
+// 가입 안내 노트
+class _InsuranceNote extends StatelessWidget {
+  final String text;
+  const _InsuranceNote(this.text);
+
+  @override
+  Widget build(BuildContext context) {
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 4),
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          const Text('• ',
+              style: TextStyle(
+                  color: Colors.amber, fontWeight: FontWeight.bold)),
+          Expanded(
+            child: Text(text,
+                style: const TextStyle(
+                    fontSize: 12, color: AppColors.textPrimary)),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+// ════════════════════════════════════════════════════════════
+//  _PhotoSection — 일정별 사진 업로드/보기
+// ════════════════════════════════════════════════════════════
+class _PhotoSection extends StatelessWidget {
+  final RoundSchedule schedule;
+
+  const _PhotoSection({required this.schedule});
+
+  @override
+  Widget build(BuildContext context) {
+    return Consumer<ClubProvider>(
+      builder: (context, provider, _) {
+        final photos = provider.photosOf(schedule.id);
+
+        return Container(
+          padding: const EdgeInsets.all(16),
+          decoration: BoxDecoration(
+            color: Colors.white,
+            borderRadius: BorderRadius.circular(16),
+            boxShadow: [
+              BoxShadow(
+                color: Colors.black.withValues(alpha: 0.05),
+                blurRadius: 8,
+                offset: const Offset(0, 2),
+              ),
+            ],
+          ),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              // ── 헤더 ──
+              Row(
+                children: [
+                  Container(
+                    width: 32,
+                    height: 32,
+                    decoration: BoxDecoration(
+                      gradient: const LinearGradient(
+                        colors: [AppColors.primary, AppColors.mintBright],
+                      ),
+                      borderRadius: BorderRadius.circular(10),
+                    ),
+                    child: const Icon(Icons.photo_camera_rounded,
+                        color: Colors.white, size: 17),
+                  ),
+                  const SizedBox(width: 10),
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Row(
+                          children: [
+                            const Text('라운딩 사진',
+                                style: TextStyle(
+                                    fontSize: 14,
+                                    fontWeight: FontWeight.w700,
+                                    color: AppColors.textPrimary)),
+                            if (photos.isNotEmpty) ...[
+                              const SizedBox(width: 6),
+                              Container(
+                                padding: const EdgeInsets.symmetric(
+                                    horizontal: 6, vertical: 1),
+                                decoration: BoxDecoration(
+                                  color: AppColors.primary.withValues(alpha: 0.12),
+                                  borderRadius: BorderRadius.circular(10),
+                                ),
+                                child: Text(
+                                  '${photos.length}장',
+                                  style: const TextStyle(
+                                      fontSize: 10,
+                                      fontWeight: FontWeight.w700,
+                                      color: AppColors.primary),
+                                ),
+                              ),
+                            ],
+                          ],
+                        ),
+                        const Text(
+                          '라운딩 사진을 올려 추억을 남기세요',
+                          style: TextStyle(
+                              fontSize: 11,
+                              color: AppColors.textSecondary),
+                        ),
+                      ],
+                    ),
+                  ),
+                  // 사진 추가 버튼 (항상 표시)
+                  GestureDetector(
+                    onTap: () => _showUploadDialog(context, provider),
+                    child: Container(
+                      padding: const EdgeInsets.symmetric(
+                          horizontal: 10, vertical: 6),
+                      decoration: BoxDecoration(
+                        gradient: const LinearGradient(
+                          colors: [AppColors.primary, AppColors.mintBright],
+                        ),
+                        borderRadius: BorderRadius.circular(20),
+                        boxShadow: [
+                          BoxShadow(
+                            color: AppColors.primary.withValues(alpha: 0.35),
+                            blurRadius: 6,
+                            offset: const Offset(0, 2),
+                          ),
+                        ],
+                      ),
+                      child: const Row(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          Icon(Icons.add_photo_alternate_rounded,
+                              color: Colors.white, size: 14),
+                          SizedBox(width: 4),
+                          Text('사진 추가',
+                              style: TextStyle(
+                                  fontSize: 11,
+                                  fontWeight: FontWeight.w700,
+                                  color: Colors.white)),
+                        ],
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+
+              // ── 사진 그리드 미리보기 ──
+              if (photos.isNotEmpty) ...[
+                const SizedBox(height: 12),
+                GridView.builder(
+                  shrinkWrap: true,
+                  physics: const NeverScrollableScrollPhysics(),
+                  gridDelegate:
+                      const SliverGridDelegateWithFixedCrossAxisCount(
+                    crossAxisCount: 3,
+                    crossAxisSpacing: 4,
+                    mainAxisSpacing: 4,
+                  ),
+                  itemCount: photos.length.clamp(0, 6),
+                  itemBuilder: (context, index) {
+                    final photo = photos[index];
+                    final isLast =
+                        index == 5 && photos.length > 6;
+                    return GestureDetector(
+                      onTap: () => _openViewer(context, photos, index),
+                      child: ClipRRect(
+                        borderRadius: BorderRadius.circular(8),
+                        child: Stack(
+                          fit: StackFit.expand,
+                          children: [
+                            Image.network(
+                              photo.imageUrl,
+                              fit: BoxFit.cover,
+                              errorBuilder: (_, __, ___) => Container(
+                                color: AppColors.divider,
+                                child: const Icon(Icons.broken_image_outlined,
+                                    color: AppColors.textSecondary),
+                              ),
+                            ),
+                            if (isLast)
+                              Container(
+                                color: Colors.black.withValues(alpha: 0.6),
+                                child: Center(
+                                  child: Text(
+                                    '+${photos.length - 6}',
+                                    style: const TextStyle(
+                                        color: Colors.white,
+                                        fontSize: 18,
+                                        fontWeight: FontWeight.w800),
+                                  ),
+                                ),
+                              ),
+                          ],
+                        ),
+                      ),
+                    );
+                  },
+                ),
+                if (photos.length > 6) ...[
+                  const SizedBox(height: 8),
+                  GestureDetector(
+                    onTap: () => _openViewer(context, photos, 0),
+                    child: Container(
+                      width: double.infinity,
+                      padding: const EdgeInsets.symmetric(vertical: 8),
+                      decoration: BoxDecoration(
+                        color: AppColors.primary.withValues(alpha: 0.06),
+                        borderRadius: BorderRadius.circular(8),
+                        border: Border.all(
+                            color: AppColors.primary.withValues(alpha: 0.2)),
+                      ),
+                      child: const Text(
+                        '전체 사진 보기',
+                        textAlign: TextAlign.center,
+                        style: TextStyle(
+                            fontSize: 12,
+                            fontWeight: FontWeight.w600,
+                            color: AppColors.primary),
+                      ),
+                    ),
+                  ),
+                ],
+              ] else ...[
+                const SizedBox(height: 16),
+                Container(
+                  width: double.infinity,
+                  padding: const EdgeInsets.symmetric(vertical: 24),
+                  decoration: BoxDecoration(
+                    color: const Color(0xFFF8F9FA),
+                    borderRadius: BorderRadius.circular(10),
+                    border: Border.all(
+                      color: AppColors.divider,
+                      style: BorderStyle.solid,
+                    ),
+                  ),
+                  child: Column(
+                    children: [
+                      Icon(Icons.add_photo_alternate_outlined,
+                          size: 36,
+                          color: AppColors.textSecondary
+                              .withValues(alpha: 0.5)),
+                      const SizedBox(height: 8),
+                      const Text('아직 사진이 없습니다',
+                          style: TextStyle(
+                              fontSize: 12,
+                              color: AppColors.textSecondary)),
+                      const SizedBox(height: 4),
+                      GestureDetector(
+                        onTap: () => _showUploadDialog(context, provider),
+                        child: const Text(
+                          '+ 첫 번째 사진 올리기',
+                          style: TextStyle(
+                              fontSize: 12,
+                              fontWeight: FontWeight.w600,
+                              color: AppColors.primary),
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              ],
+            ],
+          ),
+        );
+      },
+    );
+  }
+
+  void _openViewer(
+      BuildContext context, List<RoundPhoto> photos, int index) {
+    Navigator.push(
+      context,
+      MaterialPageRoute(
+        builder: (_) => _SchedulePhotoViewer(photos: photos, initialIndex: index),
+      ),
+    );
+  }
+
+  void _showUploadDialog(BuildContext context, ClubProvider provider) {
+    final captionController = TextEditingController();
+    showModalBottomSheet(
+      context: context,
+      isScrollControlled: true,
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
+      ),
+      builder: (ctx) {
+        return Padding(
+          padding: EdgeInsets.fromLTRB(
+            20, 20, 20, MediaQuery.of(ctx).viewInsets.bottom + 20),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Row(
+                children: [
+                  Container(
+                    width: 36,
+                    height: 36,
+                    decoration: BoxDecoration(
+                      gradient: const LinearGradient(
+                        colors: [AppColors.primary, AppColors.mintBright],
+                      ),
+                      borderRadius: BorderRadius.circular(10),
+                    ),
+                    child: const Icon(Icons.add_photo_alternate_rounded,
+                        color: Colors.white, size: 18),
+                  ),
+                  const SizedBox(width: 10),
+                  const Text('사진 업로드',
+                      style: TextStyle(
+                          fontSize: 16, fontWeight: FontWeight.w800)),
+                ],
+              ),
+              const SizedBox(height: 16),
+              // 목업 갤러리 선택 UI
+              Container(
+                height: 90,
+                decoration: BoxDecoration(
+                  color: const Color(0xFFF8F9FA),
+                  borderRadius: BorderRadius.circular(12),
+                  border: Border.all(color: AppColors.divider),
+                ),
+                child: Center(
+                  child: Column(
+                    mainAxisAlignment: MainAxisAlignment.center,
+                    children: [
+                      Icon(Icons.photo_library_outlined,
+                          size: 32,
+                          color: AppColors.textSecondary
+                              .withValues(alpha: 0.5)),
+                      const SizedBox(height: 6),
+                      const Text(
+                        '갤러리에서 사진 선택\n(실제 앱에서 file_picker 연동)',
+                        textAlign: TextAlign.center,
+                        style: TextStyle(
+                            fontSize: 11,
+                            color: AppColors.textSecondary),
+                      ),
+                    ],
+                  ),
+                ),
+              ),
+              const SizedBox(height: 12),
+              TextField(
+                controller: captionController,
+                decoration: InputDecoration(
+                  hintText: '사진 설명을 입력하세요 (선택)',
+                  hintStyle: const TextStyle(
+                      fontSize: 13, color: AppColors.textSecondary),
+                  border: OutlineInputBorder(
+                      borderRadius: BorderRadius.circular(10)),
+                  contentPadding: const EdgeInsets.symmetric(
+                      horizontal: 12, vertical: 10),
+                ),
+                maxLines: 2,
+              ),
+              const SizedBox(height: 16),
+              SizedBox(
+                width: double.infinity,
+                child: ElevatedButton.icon(
+                  onPressed: () {
+                    provider.addPhoto(
+                      scheduleId: schedule.id,
+                      caption: captionController.text,
+                    );
+                    Navigator.pop(ctx);
+                    ScaffoldMessenger.of(context).showSnackBar(
+                      SnackBar(
+                        content: const Text('📸 사진이 업로드되었습니다!'),
+                        backgroundColor: AppColors.primary,
+                        behavior: SnackBarBehavior.floating,
+                        shape: RoundedRectangleBorder(
+                            borderRadius: BorderRadius.circular(10)),
+                      ),
+                    );
+                  },
+                  icon: const Icon(Icons.cloud_upload_rounded, size: 18),
+                  label: const Text('업로드',
+                      style: TextStyle(fontWeight: FontWeight.w700)),
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: AppColors.primary,
+                    foregroundColor: Colors.white,
+                    padding: const EdgeInsets.symmetric(vertical: 13),
+                    shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(12)),
+                    elevation: 2,
+                  ),
+                ),
+              ),
+            ],
+          ),
+        );
+      },
+    );
+  }
+}
+
+// ── 일정 내 사진 뷰어 ──
+class _SchedulePhotoViewer extends StatefulWidget {
+  final List<RoundPhoto> photos;
+  final int initialIndex;
+  const _SchedulePhotoViewer(
+      {required this.photos, required this.initialIndex});
+
+  @override
+  State<_SchedulePhotoViewer> createState() => _SchedulePhotoViewerState();
+}
+
+class _SchedulePhotoViewerState extends State<_SchedulePhotoViewer> {
+  late PageController _controller;
+  late int _current;
+
+  @override
+  void initState() {
+    super.initState();
+    _current = widget.initialIndex;
+    _controller = PageController(initialPage: _current);
+  }
+
+  @override
+  void dispose() {
+    _controller.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final photo = widget.photos[_current];
+    return Scaffold(
+      backgroundColor: Colors.black,
+      appBar: AppBar(
+        backgroundColor: Colors.black,
+        iconTheme: const IconThemeData(color: Colors.white),
+        title: Text(
+          '${_current + 1} / ${widget.photos.length}',
+          style: const TextStyle(color: Colors.white, fontSize: 14),
+        ),
+        centerTitle: true,
+      ),
+      body: Stack(
+        children: [
+          PageView.builder(
+            controller: _controller,
+            itemCount: widget.photos.length,
+            onPageChanged: (i) => setState(() => _current = i),
+            itemBuilder: (_, i) => InteractiveViewer(
+              child: Image.network(
+                widget.photos[i].imageUrl,
+                fit: BoxFit.contain,
+                errorBuilder: (_, __, ___) => const Center(
+                  child: Icon(Icons.broken_image_outlined,
+                      color: Colors.white30, size: 60),
+                ),
+              ),
+            ),
+          ),
+          if (photo.caption != null || photo.uploaderName.isNotEmpty)
+            Positioned(
+              left: 0, right: 0, bottom: 0,
+              child: Container(
+                decoration: BoxDecoration(
+                  gradient: LinearGradient(
+                    begin: Alignment.bottomCenter,
+                    end: Alignment.topCenter,
+                    colors: [
+                      Colors.black.withValues(alpha: 0.8),
+                      Colors.transparent,
+                    ],
+                  ),
+                ),
+                padding: const EdgeInsets.fromLTRB(20, 30, 20, 24),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    if (photo.caption != null)
+                      Text(photo.caption!,
+                          style: const TextStyle(
+                              color: Colors.white, fontSize: 14,
+                              fontWeight: FontWeight.w500)),
+                    const SizedBox(height: 4),
+                    Text(
+                      '${photo.uploaderName} · ${photo.takenAt.month}/${photo.takenAt.day}',
+                      style: const TextStyle(
+                          color: Colors.white60, fontSize: 12),
+                    ),
+                  ],
+                ),
+              ),
+            ),
+        ],
+      ),
+    );
+  }
+}
+
+// ────────────────────────────────────────────────────────────
+//  조편성 진입 카드 (일정 상세 → 조편성 화면 연결)
+// ────────────────────────────────────────────────────────────
+// ════════════════════════════════════════════════════════════
+//  _GroupViewBannerCard — 모든 회원용 조편성 보기 (최상단 강조 배너)
+//  · 확정된 경우: 조편성 화면으로 이동
+//  · 미확정:     얼럿 표시
+// ════════════════════════════════════════════════════════════
+class _GroupViewBannerCard extends StatelessWidget {
+  final RoundSchedule schedule;
+  final ClubProvider provider;
+  final bool isAdmin;
+
+  const _GroupViewBannerCard({
+    required this.schedule,
+    required this.provider,
+    required this.isAdmin,
+  });
+
+  // 조편성 미리보기 팔레트 (주황 헤더 레퍼런스)
+  static const Color _orange = Color(0xFFFF8F00);
+  static const Color _orangeDeep = Color(0xFFF57C00);
+  static const List<Color> _groupColors = [
+    AppColors.primary,
+    Color(0xFF00897B),
+    Color(0xFFE65100),
+    Color(0xFF5A8F7B),
+    Color(0xFFEF6C00),
+    Color(0xFF2F5C4C),
+  ];
+
+  @override
+  Widget build(BuildContext context) {
+    final assignment = provider.groupAssignment(schedule.id);
+    final isFinalized = assignment?.isFinalized ?? false;
+
+    return GestureDetector(
+      onTap: () {
+        if (!isFinalized && !isAdmin) {
+          // 일반 회원 + 미확정 → 얼럿 (dialogCtx pop — 회귀 금지)
+          showDialog(
+            context: context,
+            barrierDismissible: true,
+            builder: (dialogCtx) => AlertDialog(
+              shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(16)),
+              title: Row(
+                children: [
+                  Container(
+                    padding: const EdgeInsets.all(6),
+                    decoration: BoxDecoration(
+                      color: AppColors.sageLighter,
+                      shape: BoxShape.circle,
+                    ),
+                    child: const Icon(Icons.groups_rounded,
+                        color: AppColors.primary, size: 22),
+                  ),
+                  const SizedBox(width: 10),
+                  const Text('조편성',
+                      style: TextStyle(
+                          fontWeight: FontWeight.bold, fontSize: 16)),
+                ],
+              ),
+              content: Column(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Container(
+                    padding: const EdgeInsets.all(14),
+                    decoration: BoxDecoration(
+                      color: AppColors.sageLighter,
+                      borderRadius: BorderRadius.circular(10),
+                    ),
+                    child: const Row(
+                      children: [
+                        Icon(Icons.schedule_rounded,
+                            size: 18, color: AppColors.primary),
+                        SizedBox(width: 8),
+                        Expanded(
+                          child: Text(
+                            '아직 조편성이 확정되지 않았습니다.\n총무가 확정하면 이곳에서 확인할 수 있습니다.',
+                            style: TextStyle(
+                                fontSize: 14,
+                                color: AppColors.textSecondary,
+                                height: 1.5),
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                ],
+              ),
+              actions: [
+                ElevatedButton(
+                  onPressed: () => Navigator.of(dialogCtx).pop(),
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: AppColors.primary,
+                    foregroundColor: Colors.white,
+                    shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(8)),
+                  ),
+                  child: const Text('확인'),
+                ),
+              ],
+            ),
+          );
+        } else {
+          // 총무이거나 확정된 경우 → 조편성 화면
+          Navigator.push(
+            context,
+            MaterialPageRoute(
+              builder: (_) => GroupAssignmentScreen(schedule: schedule),
+            ),
+          );
+        }
+      },
+      child: Container(
+        decoration: BoxDecoration(
+          color: Colors.white,
+          borderRadius: BorderRadius.circular(16),
+          border: Border.all(
+            color: isFinalized
+                ? _orange.withValues(alpha: 0.55)
+                : _orange.withValues(alpha: 0.28),
+            width: isFinalized ? 1.5 : 1,
+          ),
+          boxShadow: [
+            BoxShadow(
+              color: isFinalized
+                  ? _orange.withValues(alpha: 0.22)
+                  : _orange.withValues(alpha: 0.1),
+              blurRadius: 8,
+              offset: const Offset(0, 2),
+            ),
+          ],
+        ),
+        child: Column(
+          children: [
+            // ── 헤더 ──
+            Container(
+              padding: const EdgeInsets.fromLTRB(16, 14, 12, 14),
+              decoration: BoxDecoration(
+                gradient: isFinalized
+                    ? const LinearGradient(
+                        colors: [_orange, Color(0xFFFFB300)],
+                        begin: Alignment.topLeft,
+                        end: Alignment.bottomRight,
+                      )
+                    : const LinearGradient(
+                        colors: [Color(0xFFFFF3E0), Color(0xFFFFF8E1)],
+                        begin: Alignment.topLeft,
+                        end: Alignment.bottomRight,
+                      ),
+                color: null,
+                borderRadius: const BorderRadius.vertical(
+                    top: Radius.circular(15)),
+              ),
+              child: Row(
+                children: [
+                  // 아이콘
+                  Container(
+                    width: 42,
+                    height: 42,
+                    decoration: BoxDecoration(
+                      color: isFinalized
+                          ? Colors.white.withValues(alpha: 0.25)
+                          : _orange.withValues(alpha: 0.18),
+                      borderRadius: BorderRadius.circular(12),
+                    ),
+                    child: Icon(
+                      Icons.groups_rounded,
+                      color: isFinalized
+                          ? Colors.white
+                          : _orangeDeep,
+                      size: 24,
+                    ),
+                  ),
+                  const SizedBox(width: 12),
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(
+                          '조편성 보기',
+                          style: TextStyle(
+                            fontSize: 16,
+                            fontWeight: FontWeight.bold,
+                            color: isFinalized
+                                ? Colors.white
+                                : _orangeDeep,
+                          ),
+                        ),
+                        const SizedBox(height: 2),
+                        Text(
+                          isFinalized
+                              ? '${schedule.teamCount}개 조 확정 완료 — 탭해서 확인'
+                              : isAdmin
+                                  ? '탭해서 조편성 시작하기'
+                                  : '총무가 확정하면 여기서 확인할 수 있어요',
+                          style: TextStyle(
+                            fontSize: 12,
+                            color: isFinalized
+                                ? Colors.white.withValues(alpha: 0.9)
+                                : _orangeDeep.withValues(alpha: 0.85),
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                  // 상태 뱃지
+                  Container(
+                    padding: const EdgeInsets.symmetric(
+                        horizontal: 10, vertical: 5),
+                    decoration: BoxDecoration(
+                      color: isFinalized
+                          ? Colors.white.withValues(alpha: 0.28)
+                          : _orange.withValues(alpha: 0.16),
+                      borderRadius: BorderRadius.circular(20),
+                    ),
+                    child: Text(
+                      isFinalized ? '확정 ✓' : '미확정',
+                      style: TextStyle(
+                        fontSize: 11,
+                        fontWeight: FontWeight.w700,
+                        color: isFinalized
+                            ? Colors.white
+                            : _orangeDeep,
+                      ),
+                    ),
+                  ),
+                  const SizedBox(width: 4),
+                  // 총무: 편집 버튼 표시
+                  if (isAdmin) ...
+                    [
+                      Container(
+                        padding: const EdgeInsets.symmetric(
+                            horizontal: 8, vertical: 4),
+                        decoration: BoxDecoration(
+                          color: isFinalized
+                              ? Colors.white.withValues(alpha: 0.28)
+                              : _orange.withValues(alpha: 0.16),
+                          borderRadius: BorderRadius.circular(8),
+                        ),
+                        child: Row(
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            Icon(
+                              Icons.edit_rounded,
+                              size: 13,
+                              color: isFinalized
+                                  ? Colors.white
+                                  : _orangeDeep,
+                            ),
+                            const SizedBox(width: 3),
+                            Text(
+                              '편집',
+                              style: TextStyle(
+                                fontSize: 11,
+                                fontWeight: FontWeight.w700,
+                                color: isFinalized
+                                    ? Colors.white
+                                    : _orangeDeep,
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                    ]
+                  else ...
+                    [
+                      Icon(
+                        Icons.chevron_right_rounded,
+                        color: isFinalized
+                            ? Colors.white.withValues(alpha: 0.7)
+                            : const Color(0xFF90A4AE),
+                      ),
+                    ],
+                ],
+              ),
+            ),
+
+            // ── 확정된 경우: 조 미리보기 ──
+            if (isFinalized && assignment != null) ...[
+              Padding(
+                padding: const EdgeInsets.fromLTRB(14, 10, 14, 12),
+                child: Column(
+                  children: [
+                    for (int gi = 0;
+                        gi < assignment.groups.length;
+                        gi++) ...[
+                      if (gi > 0) const SizedBox(height: 6),
+                      _GroupRow(
+                        group: assignment.groups[gi],
+                        color: _groupColors[gi % _groupColors.length],
+                      ),
+                    ],
+                  ],
+                ),
+              ),
+            ],
+
+            // ── 미확정: 안내 ──
+            if (!isFinalized) ...[
+              Padding(
+                padding: const EdgeInsets.fromLTRB(14, 0, 14, 12),
+                child: Container(
+                  width: double.infinity,
+                  padding: const EdgeInsets.symmetric(
+                      horizontal: 12, vertical: 10),
+                  decoration: BoxDecoration(
+                    color: const Color(0xFFF5F7FA),
+                    borderRadius: BorderRadius.circular(10),
+                  ),
+                  child: const Row(
+                    children: [
+                      Icon(Icons.lock_clock_rounded,
+                          size: 15, color: Color(0xFF90A4AE)),
+                      SizedBox(width: 8),
+                      Expanded(
+                        child: Text(
+                          '조편성이 확정되면 이름, 배정 조를 확인할 수 있습니다',
+                          style: TextStyle(
+                              fontSize: 12,
+                              color: Color(0xFF78909C),
+                              height: 1.4),
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              ),
+            ],
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+// 조 한 행 미리보기
+class _GroupRow extends StatelessWidget {
+  final AssignGroup group;
+  final Color color;
+  const _GroupRow({required this.group, required this.color});
+
+  @override
+  Widget build(BuildContext context) {
+    final names = group.slots
+        .where((s) => s.isFilled)
+        .map((s) => s.memberName!)
+        .toList();
+
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 7),
+      decoration: BoxDecoration(
+        color: color.withValues(alpha: 0.07),
+        borderRadius: BorderRadius.circular(9),
+        border: Border.all(color: color.withValues(alpha: 0.2)),
+      ),
+      child: Row(
+        children: [
+          Container(
+            width: 28,
+            height: 28,
+            decoration: BoxDecoration(
+              color: color.withValues(alpha: 0.15),
+              borderRadius: BorderRadius.circular(7),
+            ),
+            child: Center(
+              child: Text(
+                '${group.groupNumber}조',
+                style: TextStyle(
+                    fontSize: 10,
+                    fontWeight: FontWeight.w800,
+                    color: color),
+              ),
+            ),
+          ),
+          const SizedBox(width: 10),
+          Expanded(
+            child: Text(
+              names.isEmpty ? '(미배정)' : names.join('  ·  '),
+              style: TextStyle(
+                  fontSize: 13,
+                  fontWeight: FontWeight.w600,
+                  color: color.withValues(alpha: 0.85)),
+            ),
+          ),
+          Text(
+            '${names.length}명',
+            style: TextStyle(
+                fontSize: 11,
+                color: color.withValues(alpha: 0.6)),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+// ════════════════════════════════════════════════════════════
+//  _ScoreAwardBannerCard — 예정/완료 라운딩 스코어/시상 진입 배너
+//  · 모든 회원이 접근 가능 (isAdmin 조건 없음)
+//  · 예정 일정: 미리 스코어 입력 가능 안내
+//  · 완료 일정: 스코어 & 시상 내역 확인
+// ════════════════════════════════════════════════════════════
+class _ScoreAwardBannerCard extends StatelessWidget {
+  final RoundSchedule schedule;
+  final bool isPast;
+  const _ScoreAwardBannerCard({
+    required this.schedule,
+    this.isPast = false,
+  });
+
+  // 조 선택 바텀시트 → 해당 조 멤버로 ScoreAwardScreen 진입
+  void _showGroupSelectSheet(BuildContext context) {
+    final provider = context.read<ClubProvider>();
+    final assignment = provider.groupAssignment(schedule.id);
+    final isFinalized = assignment?.isFinalized ?? false;
+
+    if (!isFinalized || assignment == null) {
+      // 조편성 미확정 → 전체 멤버로 바로 진입
+      Navigator.push(
+        context,
+        MaterialPageRoute(
+          builder: (_) => ScoreAwardScreen(schedule: schedule, initialTab: 0),
+        ),
+      );
+      return;
+    }
+
+    // 조편성 확정 → 조 선택 바텀시트
+    showModalBottomSheet(
+      context: context,
+      backgroundColor: Colors.transparent,
+      isScrollControlled: true,
+      builder: (_) => _GroupSelectSheet(
+        schedule: schedule,
+        assignment: assignment,
+      ),
+    );
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(16),
+        border: Border.all(color: AppColors.divider),
+        boxShadow: [
+          BoxShadow(
+            color: AppColors.primary.withValues(alpha: 0.06),
+            blurRadius: 8,
+            offset: const Offset(0, 2),
+          ),
+        ],
+      ),
+      child: Padding(
+        padding: const EdgeInsets.all(16),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Row(
+              children: [
+                const Icon(Icons.emoji_events_outlined,
+                    color: AppColors.primary, size: 18),
+                const SizedBox(width: 6),
+                Text(
+                  isPast ? '라운딩 기록' : '스코어 & 시상',
+                  style: const TextStyle(
+                    color: Color(0xFF999999),
+                    fontSize: 12,
+                    fontWeight: FontWeight.w500,
+                  ),
+                ),
+                if (!isPast) ...[
+                  const SizedBox(width: 6),
+                  Container(
+                    padding: const EdgeInsets.symmetric(
+                        horizontal: 7, vertical: 2),
+                    decoration: BoxDecoration(
+                      color: AppColors.primary.withValues(alpha: 0.10),
+                      borderRadius: BorderRadius.circular(8),
+                    ),
+                    child: const Text('조별로 입력',
+                        style: TextStyle(
+                            color: AppColors.primary,
+                            fontSize: 10,
+                            fontWeight: FontWeight.w600)),
+                  ),
+                ],
+              ],
+            ),
+            const SizedBox(height: 6),
+            Text(
+              isPast ? '스코어 & 시상 내역' : '스코어 & 시상 입력',
+              style: const TextStyle(
+                color: Color(0xFF222222),
+                fontSize: 18,
+                fontWeight: FontWeight.bold,
+              ),
+            ),
+            const SizedBox(height: 4),
+            Text(
+              isPast
+                  ? '모든 회원이 스코어를 확인하고 시상 내역을 볼 수 있어요'
+                  : '조를 선택하면 해당 조 멤버의 스코어를 입력할 수 있어요',
+              style: const TextStyle(
+                color: Color(0xFF999999),
+                fontSize: 12,
+              ),
+            ),
+            const SizedBox(height: 14),
+            Row(
+              children: [
+                // 스코어 입력 버튼
+                Expanded(
+                  child: GestureDetector(
+                    onTap: () => _showGroupSelectSheet(context),
+                    child: Container(
+                      padding: const EdgeInsets.symmetric(vertical: 14),
+                      decoration: BoxDecoration(
+                        color: AppColors.primary.withValues(alpha: 0.07),
+                        borderRadius: BorderRadius.circular(12),
+                        border: Border.all(
+                            color: AppColors.primary.withValues(alpha: 0.25)),
+                      ),
+                      child: const Column(
+                        children: [
+                          Text('📊', style: TextStyle(fontSize: 24)),
+                          SizedBox(height: 6),
+                          Text(
+                            '스코어 입력',
+                            style: TextStyle(
+                              fontSize: 13,
+                              fontWeight: FontWeight.bold,
+                              color: AppColors.primaryDark,
+                            ),
+                          ),
+                          SizedBox(height: 2),
+                          Text(
+                            '조 선택 후 입력',
+                            style: TextStyle(
+                              fontSize: 11,
+                              color: AppColors.primary,
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                  ),
+                ),
+                const SizedBox(width: 10),
+                // 시상 내역 버튼
+                Expanded(
+                  child: GestureDetector(
+                    onTap: () => Navigator.push(
+                      context,
+                      MaterialPageRoute(
+                        builder: (_) => ScoreAwardScreen(
+                          schedule: schedule,
+                          initialTab: 1,
+                        ),
+                      ),
+                    ),
+                    child: Container(
+                      padding: const EdgeInsets.symmetric(vertical: 14),
+                      decoration: BoxDecoration(
+                        color: AppColors.primary.withValues(alpha: 0.07),
+                        borderRadius: BorderRadius.circular(12),
+                        border: Border.all(
+                            color: AppColors.primary.withValues(alpha: 0.25)),
+                      ),
+                      child: const Column(
+                        children: [
+                          Text('🏆', style: TextStyle(fontSize: 24)),
+                          SizedBox(height: 6),
+                          Text(
+                            '시상 내역',
+                            style: TextStyle(
+                              fontSize: 13,
+                              fontWeight: FontWeight.bold,
+                              color: AppColors.primaryDark,
+                            ),
+                          ),
+                          SizedBox(height: 2),
+                          Text(
+                            '수상자 보기/등록',
+                            style: TextStyle(
+                              fontSize: 11,
+                              color: AppColors.primary,
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                  ),
+                ),
+              ],
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+// ════════════════════════════════════════════════════════════
+//  _GroupSelectSheet — 조 선택 바텀시트
+//  · 각 조 카드를 탭하면 해당 조 멤버 필터로 ScoreAwardScreen 진입
+// ════════════════════════════════════════════════════════════
+class _GroupSelectSheet extends StatelessWidget {
+  final RoundSchedule schedule;
+  final GroupAssignment assignment;
+
+  const _GroupSelectSheet({
+    required this.schedule,
+    required this.assignment,
+  });
+
+  static const List<Color> _groupColors = [
+    AppColors.primary, AppColors.primaryLight, Color(0xFFE65100),
+    Color(0xFF6A1B9A), Color(0xFF00838F), Color(0xFFC62828),
+  ];
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      decoration: const BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
+      ),
+      padding: const EdgeInsets.fromLTRB(20, 16, 20, 32),
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          // 핸들
+          Container(
+            width: 40, height: 4,
+            decoration: BoxDecoration(
+              color: AppColors.divider,
+              borderRadius: BorderRadius.circular(2),
+            ),
+          ),
+          const SizedBox(height: 20),
+
+          // 헤더
+          Row(
+            children: [
+              Container(
+                width: 40, height: 40,
+                decoration: BoxDecoration(
+                  color: AppColors.primary.withValues(alpha: 0.12),
+                  borderRadius: BorderRadius.circular(12),
+                ),
+                child: const Icon(Icons.groups_rounded,
+                    color: AppColors.primary, size: 22),
+              ),
+              const SizedBox(width: 12),
+              Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  const Text('몇 조 스코어카드인가요?',
+                      style: TextStyle(
+                          fontSize: 16, fontWeight: FontWeight.bold,
+                          color: Color(0xFF1E1B4B))),
+                  Text('${assignment.groups.length}개 조',
+                      style: const TextStyle(
+                          fontSize: 12, color: AppColors.textSecondary)),
+                ],
+              ),
+            ],
+          ),
+          const SizedBox(height: 16),
+          const Divider(height: 1),
+          const SizedBox(height: 12),
+
+          // 조 목록
+          ...assignment.groups.map((group) {
+            final idx = group.groupNumber - 1;
+            final color = _groupColors[idx % _groupColors.length];
+            final names = group.slots
+                .where((s) => s.isFilled)
+                .map((s) => s.memberName!)
+                .toList();
+            final memberIds = group.slots
+                .where((s) => s.isFilled && s.memberId != null)
+                .map((s) => GroupSlot(
+                      memberId: s.memberId,
+                      memberName: s.memberName,
+                      gender: s.gender,
+                      handicap: s.handicap,
+                    ))
+                .toList();
+
+            return Padding(
+              padding: const EdgeInsets.only(bottom: 8),
+              child: GestureDetector(
+                onTap: () {
+                  Navigator.pop(context); // 바텀시트 닫기
+                  // 해당 조 멤버 필터 정보를 schedule에 담아 ScoreAwardScreen 진입
+                  Navigator.push(
+                    context,
+                    MaterialPageRoute(
+                      builder: (_) => ScoreAwardScreen(
+                        schedule: schedule,
+                        initialTab: 0,
+                        groupFilter: group,       // ← 조 필터
+                        groupNumber: group.groupNumber,
+                      ),
+                    ),
+                  );
+                },
+                child: Container(
+                  padding: const EdgeInsets.fromLTRB(14, 12, 10, 12),
+                  decoration: BoxDecoration(
+                    color: color.withValues(alpha: 0.06),
+                    borderRadius: BorderRadius.circular(12),
+                    border: Border.all(color: color.withValues(alpha: 0.25)),
+                  ),
+                  child: Row(
+                    children: [
+                      // 조 번호 뱃지
+                      Container(
+                        width: 40, height: 40,
+                        decoration: BoxDecoration(
+                          color: color.withValues(alpha: 0.15),
+                          borderRadius: BorderRadius.circular(10),
+                        ),
+                        child: Center(
+                          child: Text(
+                            '${group.groupNumber}조',
+                            style: TextStyle(
+                                fontSize: 13,
+                                fontWeight: FontWeight.w800,
+                                color: color),
+                          ),
+                        ),
+                      ),
+                      const SizedBox(width: 12),
+                      // 멤버 이름
+                      Expanded(
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Text(
+                              names.isEmpty ? '(멤버 없음)' : names.join('  ·  '),
+                              style: TextStyle(
+                                  fontSize: 14,
+                                  fontWeight: FontWeight.w600,
+                                  color: color),
+                            ),
+                            Text('${names.length}명',
+                                style: const TextStyle(
+                                    fontSize: 11,
+                                    color: AppColors.textSecondary)),
+                          ],
+                        ),
+                      ),
+                      Icon(Icons.arrow_forward_ios_rounded,
+                          size: 15, color: color.withValues(alpha: 0.6)),
+                    ],
+                  ),
+                ),
+              ),
+            );
+          }),
+
+          const SizedBox(height: 4),
+          // 전체 보기 옵션
+          TextButton(
+            onPressed: () {
+              Navigator.pop(context);
+              Navigator.push(
+                context,
+                MaterialPageRoute(
+                  builder: (_) => ScoreAwardScreen(
+                    schedule: schedule,
+                    initialTab: 0,
+                  ),
+                ),
+              );
+            },
+            child: const Text('전체 참석자 스코어 보기',
+                style: TextStyle(
+                    color: AppColors.textSecondary, fontSize: 13)),
+          ),
+        ],
+      ),
+    );
+  }
+}

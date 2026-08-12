@@ -1,0 +1,61 @@
+name: golf_rounder
+description: ROUNDER - 골프 모임 관리 앱
+publish_to: 'none'
+version: 1.0.0+1
+
+environment:
+  sdk: '>=3.0.0 <4.0.0'
+
+dependencies:
+  flutter:
+    sdk: flutter
+  flutter_localizations:
+    sdk: flutter
+  provider: 6.1.5+1
+  shared_preferences: 2.5.3
+  hive: 2.2.3
+  hive_flutter: 1.1.0
+  http: 1.5.0
+  crypto: ^3.0.6
+  intl: ^0.20.2
+  cached_network_image: 3.4.1
+  cupertino_icons: ^1.0.2
+  image_picker: 1.1.2
+  firebase_core: ^4.12.1
+  firebase_auth: ^6.5.6
+  cloud_firestore: ^6.7.1
+  # SDK 3.7 호환 (V1 본인인증). Flutter/SDK 업그레이드 후 ^1.0.4(V2)로 교체 가능
+  portone_flutter: 0.12.0
+
+dev_dependencies:
+  flutter_test:
+    sdk: flutter
+  flutter_lints: ^3.0.0
+  hive_generator: 2.0.1
+  build_runner: 2.4.6
+  flutter_launcher_icons: ^0.14.3
+
+flutter_launcher_icons:
+  android: true
+  ios: true
+  web:
+    generate: true
+  image_path: assets/icons/app_icon.png
+  adaptive_icon_background: "#1B4D3E"
+  adaptive_icon_foreground: assets/icons/app_icon.png
+
+flutter:
+  uses-material-design: true
+  assets:
+    - assets/images/
+    - assets/images/KakaoTalk_20260724_132326103.png
+    - assets/images/KakaoTalk_20260724_131658153.png
+    - assets/images/rounder_logo.png
+    - assets/images/rounder_logo_header.png
+    - assets/images/rounder_logo_transparent.png
+    - assets/images/rounder_logo_vertical_transparent.png
+    - assets/images/rounder_intro_logo.png
+    - assets/icons/
+    - assets/icons/rounder_emblem_nobg.png
+    - assets/icons/rounder_ball_crop.png
+    - assets/icons/rounder_emblem_final.png

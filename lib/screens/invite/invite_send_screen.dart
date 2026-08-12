@@ -1,0 +1,517 @@
+import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
+import 'package:provider/provider.dart';
+import '../../models/club_model.dart';
+import '../../models/user_model.dart';
+import '../../providers/auth_provider.dart';
+import '../../theme/app_theme.dart';
+
+// ════════════════════════════════════════════════════════════
+//  InviteSendScreen — 회원에게 초대 알림톡 보내기
+//  · 링크 생성 단계 제거 → 바로 알림톡 발송 화면 표시
+//  · 화면 진입 시 자동으로 초대 링크 생성
+// ════════════════════════════════════════════════════════════
+class InviteSendScreen extends StatefulWidget {
+  final Club club;
+  const InviteSendScreen({super.key, required this.club});
+
+  @override
+  State<InviteSendScreen> createState() => _InviteSendScreenState();
+}
+
+class _InviteSendScreenState extends State<InviteSendScreen> {
+  InviteToken? _token;
+  bool _generating = true;
+  bool _sent = false;
+
+  @override
+  void initState() {
+    super.initState();
+    // 화면 진입 즉시 자동으로 초대 링크 생성
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      _generateToken();
+    });
+  }
+
+  // ── 초대 토큰 자동 생성 ───────────────────────────────────
+  Future<void> _generateToken() async {
+    if (!mounted) return;
+    setState(() => _generating = true);
+    await Future.delayed(const Duration(milliseconds: 400));
+    if (!mounted) return;
+
+    final auth = context.read<AuthProvider>();
+    final token = auth.createInviteToken(
+      clubId: widget.club.id,
+      clubName: widget.club.name,
+    );
+    setState(() {
+      _token = token;
+      _generating = false;
+    });
+  }
+
+  // ── 카카오 알림톡 공유 (mock) ─────────────────────────────
+  Future<void> _shareKakao() async {
+    if (_token == null) return;
+    final msg = _token!.kakaoMessage(widget.club.name);
+    await Clipboard.setData(ClipboardData(text: msg));
+    if (!mounted) return;
+    setState(() => _sent = true);
+    _showKakaoSheet(msg);
+  }
+
+  // ── 링크만 복사 ───────────────────────────────────────────
+  Future<void> _copyLink() async {
+    if (_token == null) return;
+    await Clipboard.setData(ClipboardData(text: _token!.webUrl));
+    if (!mounted) return;
+    ScaffoldMessenger.of(context).showSnackBar(
+      const SnackBar(
+        content: Row(children: [
+          Icon(Icons.check_circle, color: Colors.white, size: 16),
+          SizedBox(width: 8),
+          Text('초대 링크가 클립보드에 복사되었습니다'),
+        ]),
+        backgroundColor: AppColors.primary,
+        behavior: SnackBarBehavior.floating,
+        duration: Duration(seconds: 2),
+      ),
+    );
+  }
+
+  // ── 카카오 메시지 시트 ────────────────────────────────────
+  void _showKakaoSheet(String message) {
+    showModalBottomSheet(
+      context: context,
+      isScrollControlled: true,
+      backgroundColor: Colors.white,
+      shape: const RoundedRectangleBorder(
+          borderRadius: BorderRadius.vertical(top: Radius.circular(20))),
+      builder: (_) => Padding(
+        padding: EdgeInsets.only(
+          left: 24,
+          right: 24,
+          top: 24,
+          bottom: MediaQuery.of(context).viewInsets.bottom + 32,
+        ),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            // 핸들
+            Center(
+              child: Container(
+                width: 40,
+                height: 4,
+                decoration: BoxDecoration(
+                  color: Colors.grey[300],
+                  borderRadius: BorderRadius.circular(2),
+                ),
+              ),
+            ),
+            const SizedBox(height: 20),
+
+            // 제목
+            Row(
+              children: [
+                Container(
+                  width: 40,
+                  height: 40,
+                  decoration: BoxDecoration(
+                    color: const Color(0xFFFEE500),
+                    borderRadius: BorderRadius.circular(10),
+                  ),
+                  child: const Center(
+                    child: Text('K', style: TextStyle(
+                      fontSize: 20, fontWeight: FontWeight.w900,
+                      color: Color(0xFF3A1C00),
+                    )),
+                  ),
+                ),
+                const SizedBox(width: 12),
+                const Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text('카카오 알림톡 미리보기',
+                        style: TextStyle(
+                            fontSize: 15,
+                            fontWeight: FontWeight.bold,
+                            color: AppColors.textPrimary)),
+                    Text('아래 메시지가 발송됩니다',
+                        style: TextStyle(
+                            fontSize: 12, color: AppColors.textSecondary)),
+                  ],
+                ),
+              ],
+            ),
+            const SizedBox(height: 16),
+
+            // 메시지 미리보기
+            Container(
+              width: double.infinity,
+              padding: const EdgeInsets.all(16),
+              decoration: BoxDecoration(
+                color: const Color(0xFFFEE500).withValues(alpha: 0.12),
+                borderRadius: BorderRadius.circular(12),
+                border: Border.all(
+                    color: const Color(0xFFFEE500).withValues(alpha: 0.5)),
+              ),
+              child: Text(
+                message,
+                style: const TextStyle(
+                    fontSize: 13,
+                    color: AppColors.textPrimary,
+                    height: 1.6),
+              ),
+            ),
+            const SizedBox(height: 6),
+            Text(
+              '* 메시지가 클립보드에 복사되었습니다. 카카오톡에서 붙여넣기하세요.',
+              style: TextStyle(fontSize: 11, color: Colors.grey[500]),
+            ),
+            const SizedBox(height: 20),
+
+            // 카카오톡 열기 버튼
+            SizedBox(
+              width: double.infinity,
+              height: 50,
+              child: ElevatedButton.icon(
+                onPressed: () {
+                  Navigator.pop(context);
+                  ScaffoldMessenger.of(context).showSnackBar(
+                    const SnackBar(
+                      content: Text('카카오톡을 열어 메시지를 붙여넣기 해주세요'),
+                      backgroundColor: Color(0xFF3A1C00),
+                      behavior: SnackBarBehavior.floating,
+                    ),
+                  );
+                },
+                icon: const Text('K',
+                    style: TextStyle(
+                        fontSize: 18,
+                        fontWeight: FontWeight.w900,
+                        color: Color(0xFF3A1C00))),
+                label: const Text('카카오톡 열기',
+                    style: TextStyle(
+                        fontSize: 15,
+                        fontWeight: FontWeight.bold,
+                        color: Color(0xFF3A1C00))),
+                style: ElevatedButton.styleFrom(
+                  backgroundColor: const Color(0xFFFEE500),
+                  elevation: 0,
+                  shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(14)),
+                ),
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Scaffold(
+      backgroundColor: Colors.white,
+      appBar: AppBar(
+        backgroundColor: Colors.white,
+        elevation: 0,
+        leading: IconButton(
+          icon: const Icon(Icons.arrow_back_ios_new,
+              size: 18, color: AppColors.textPrimary),
+          onPressed: () => Navigator.pop(context),
+        ),
+        title: const Text(
+          '초대 알림톡 보내기',
+          style: TextStyle(
+              color: AppColors.textPrimary,
+              fontSize: 17,
+              fontWeight: FontWeight.bold),
+        ),
+      ),
+      body: _generating
+          ? _buildLoadingView()
+          : _buildMainView(),
+    );
+  }
+
+  // ── 로딩 뷰 ─────────────────────────────────────────────
+  Widget _buildLoadingView() {
+    return const Center(
+      child: Column(
+        mainAxisAlignment: MainAxisAlignment.center,
+        children: [
+          CircularProgressIndicator(color: AppColors.primary),
+          SizedBox(height: 16),
+          Text('초대장 준비 중...', style: TextStyle(color: AppColors.textSecondary)),
+        ],
+      ),
+    );
+  }
+
+  // ── 메인 뷰 (알림톡 바로 발송) ──────────────────────────
+  Widget _buildMainView() {
+    if (_token == null) return const SizedBox.shrink();
+    final expiryDate = '${_token!.expiresAt.month}월 ${_token!.expiresAt.day}일';
+
+    return SingleChildScrollView(
+      padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 16),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          // ── 모임 정보 카드 ──
+          _ClubInfoCard(club: widget.club),
+          const SizedBox(height: 28),
+
+          // ── 안내 텍스트 ──
+          const Text(
+            '초대 알림톡 보내기',
+            style: TextStyle(
+                fontSize: 15,
+                fontWeight: FontWeight.bold,
+                color: AppColors.textPrimary),
+          ),
+          const SizedBox(height: 6),
+          Text(
+            '카카오 알림톡으로 지인을 ${widget.club.name}에 초대하세요.\n'
+            '초대장은 $expiryDate까지 유효합니다.',
+            style: const TextStyle(
+                fontSize: 13, color: AppColors.textSecondary, height: 1.5),
+          ),
+          const SizedBox(height: 24),
+
+          // ── 메시지 미리보기 박스 ──
+          Container(
+            width: double.infinity,
+            padding: const EdgeInsets.all(16),
+            decoration: BoxDecoration(
+              color: const Color(0xFFFEE500).withValues(alpha: 0.10),
+              borderRadius: BorderRadius.circular(14),
+              border: Border.all(
+                  color: const Color(0xFFFEE500).withValues(alpha: 0.6)),
+            ),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Row(
+                  children: [
+                    Container(
+                      width: 28,
+                      height: 28,
+                      decoration: BoxDecoration(
+                        color: const Color(0xFFFEE500),
+                        borderRadius: BorderRadius.circular(6),
+                      ),
+                      child: const Center(
+                        child: Text('K',
+                            style: TextStyle(
+                                fontSize: 15,
+                                fontWeight: FontWeight.w900,
+                                color: Color(0xFF3A1C00))),
+                      ),
+                    ),
+                    const SizedBox(width: 8),
+                    const Text('카카오 알림톡 메시지',
+                        style: TextStyle(
+                            fontSize: 12,
+                            fontWeight: FontWeight.bold,
+                            color: Color(0xFF92400E))),
+                  ],
+                ),
+                const SizedBox(height: 12),
+                Text(
+                  _token!.kakaoMessage(widget.club.name),
+                  style: const TextStyle(
+                      fontSize: 12,
+                      color: AppColors.textPrimary,
+                      height: 1.6),
+                ),
+              ],
+            ),
+          ),
+          const SizedBox(height: 24),
+
+          // ── 발송 상태 배지 (sent 후) ──
+          if (_sent) ...[
+            Container(
+              width: double.infinity,
+              padding: const EdgeInsets.symmetric(vertical: 10, horizontal: 14),
+              decoration: BoxDecoration(
+                color: AppColors.primary.withValues(alpha: 0.08),
+                borderRadius: BorderRadius.circular(10),
+                border: Border.all(color: AppColors.primary.withValues(alpha: 0.3)),
+              ),
+              child: const Row(
+                children: [
+                  Icon(Icons.check_circle, color: AppColors.primary, size: 16),
+                  SizedBox(width: 8),
+                  Text('알림톡 메시지가 클립보드에 복사되었습니다',
+                      style: TextStyle(fontSize: 12, color: AppColors.primary)),
+                ],
+              ),
+            ),
+            const SizedBox(height: 16),
+          ],
+
+          // ── 주 버튼: 초대 알림톡 보내기 ──
+          SizedBox(
+            width: double.infinity,
+            height: 54,
+            child: ElevatedButton.icon(
+              onPressed: _shareKakao,
+              icon: const Text('K',
+                  style: TextStyle(
+                      fontSize: 20,
+                      fontWeight: FontWeight.w900,
+                      color: Color(0xFF3A1C00))),
+              label: Text(
+                _sent ? '다시 보내기' : '초대 알림톡 보내기',
+                style: const TextStyle(
+                    fontSize: 16,
+                    fontWeight: FontWeight.bold,
+                    color: Color(0xFF3A1C00)),
+              ),
+              style: ElevatedButton.styleFrom(
+                backgroundColor: const Color(0xFFFEE500),
+                elevation: 0,
+                shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(14)),
+              ),
+            ),
+          ),
+          const SizedBox(height: 12),
+
+          // ── 보조 버튼: 링크 복사 ──
+          SizedBox(
+            width: double.infinity,
+            height: 48,
+            child: OutlinedButton.icon(
+              onPressed: _copyLink,
+              icon: const Icon(Icons.copy_outlined, size: 16),
+              label: const Text('초대 링크만 복사'),
+              style: OutlinedButton.styleFrom(
+                foregroundColor: AppColors.textPrimary,
+                side: const BorderSide(color: Color(0xFFD1D5DB)),
+                shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(14)),
+              ),
+            ),
+          ),
+          const SizedBox(height: 24),
+
+          // ── 안내 카드 ──
+          Container(
+            padding: const EdgeInsets.all(14),
+            decoration: BoxDecoration(
+              color: const Color(0xFFFFF8E1),
+              borderRadius: BorderRadius.circular(10),
+              border: Border.all(color: const Color(0xFFFFE082)),
+            ),
+            child: const Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Row(children: [
+                  Icon(Icons.info_outline,
+                      size: 14, color: Color(0xFFF59E0B)),
+                  SizedBox(width: 6),
+                  Text('초대 링크 안내',
+                      style: TextStyle(
+                          fontSize: 12,
+                          fontWeight: FontWeight.bold,
+                          color: Color(0xFFF59E0B))),
+                ]),
+                SizedBox(height: 6),
+                Text(
+                  '• 초대 링크는 발급 후 7일간 유효합니다\n'
+                  '• 가입 신청 시 총무에게 승인 알림이 발송됩니다\n'
+                  '• 링크 수신자는 정회원 또는 게스트로 가입 가능합니다\n'
+                  '• 정회원 누구나 초대장을 발송할 수 있습니다',
+                  style: TextStyle(
+                      fontSize: 11,
+                      color: Color(0xFF92400E),
+                      height: 1.7),
+                ),
+              ],
+            ),
+          ),
+          const SizedBox(height: 32),
+        ],
+      ),
+    );
+  }
+}
+
+// ────────────────────────────────────────────────────────────
+//  모임 정보 카드
+// ────────────────────────────────────────────────────────────
+class _ClubInfoCard extends StatelessWidget {
+  final Club club;
+  const _ClubInfoCard({required this.club});
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      padding: const EdgeInsets.all(16),
+      decoration: BoxDecoration(
+        gradient: LinearGradient(
+          colors: [
+            AppColors.primary.withValues(alpha: 0.08),
+            AppColors.primaryLight.withValues(alpha: 0.06),
+          ],
+          begin: Alignment.topLeft,
+          end: Alignment.bottomRight,
+        ),
+        borderRadius: BorderRadius.circular(16),
+        border: Border.all(color: AppColors.primary.withValues(alpha: 0.15)),
+      ),
+      child: Row(
+        children: [
+          Container(
+            width: 52,
+            height: 52,
+            decoration: BoxDecoration(
+              color: AppColors.primary.withValues(alpha: 0.12),
+              borderRadius: BorderRadius.circular(14),
+            ),
+            child: const Center(
+              child: Text('⛳', style: TextStyle(fontSize: 26)),
+            ),
+          ),
+          const SizedBox(width: 14),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(club.name,
+                    style: const TextStyle(
+                        fontSize: 16,
+                        fontWeight: FontWeight.bold,
+                        color: AppColors.textPrimary)),
+                const SizedBox(height: 4),
+                Text(
+                  '${club.region} · ${club.memberCount}명',
+                  style: const TextStyle(
+                      fontSize: 12, color: AppColors.textSecondary),
+                ),
+              ],
+            ),
+          ),
+          Container(
+            padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+            decoration: BoxDecoration(
+              color: AppColors.primary.withValues(alpha: 0.12),
+              borderRadius: BorderRadius.circular(8),
+            ),
+            child: const Text('초대 가능',
+                style: TextStyle(
+                    fontSize: 11,
+                    color: AppColors.primary,
+                    fontWeight: FontWeight.bold)),
+          ),
+        ],
+      ),
+    );
+  }
+}

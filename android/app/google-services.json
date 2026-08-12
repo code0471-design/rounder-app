@@ -1,0 +1,29 @@
+{
+  "project_info": {
+    "project_number": "909216389322",
+    "project_id": "rounder-staging",
+    "storage_bucket": "rounder-staging.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:909216389322:android:9abba6c9905236d5f0bc33",
+        "android_client_info": {
+          "package_name": "com.golfrounder.golf"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyABEhMGGKZ5CUMEvfrEo3hOsmo4Ps9s1LQ"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}
