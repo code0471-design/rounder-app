@@ -1,0 +1,34 @@
+# Codemagic: keep shipping iOS even if Android fails.
+# In Codemagic UI, select workflow "iOS first (Android optional)".
+workflows:
+  ios-first:
+    name: iOS first (Android optional)
+    instance_type: mac_mini_m2
+    max_build_duration: 90
+    environment:
+      flutter: stable
+      xcode: latest
+      cocoapods: default
+      ios_signing:
+        distribution_type: app_store
+        bundle_identifier: com.golfrounder.golfRounder
+    scripts:
+      - name: Get packages
+        script: flutter pub get
+      - name: Build Android (non-blocking)
+        ignore_failure: true
+        script: |
+          flutter build appbundle --debug --android-skip-build-dependency-validation
+      - name: Build iOS IPA
+        script: |
+          flutter build ipa --release \
+            --build-name=1.0.0 \
+            --build-number=$((CM_BUILD_ID % 10000 + 10))
+    artifacts:
+      - build/**/outputs/**/*.aab
+      - build/ios/ipa/*.ipa
+      - /tmp/xcodebuild_logs/*.log
+    publishing:
+      app_store_connect:
+        auth: integration
+        submit_to_testflight: true
