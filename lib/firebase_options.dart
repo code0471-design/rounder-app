@@ -61,23 +61,23 @@ class DefaultFirebaseOptions {
     storageBucket: 'rounder-staging.firebasestorage.app',
   );
 
-  // iOS — 아직 미등록 (필요 시 flutterfire configure)
+  // iOS — rounder-staging (com.golfrounder.golfRounder)
   static const FirebaseOptions ios = FirebaseOptions(
-    apiKey: 'REPLACE_ME',
-    appId: '1:000000000000:ios:0000000000000000000000',
-    messagingSenderId: '000000000000',
+    apiKey: 'AIzaSyDILdqtIdWIInN7QzDBa6VVX-pD7sd9LGQ',
+    appId: '1:909216389322:ios:449f12d1cd1a1b2df0bc33',
+    messagingSenderId: '909216389322',
     projectId: 'rounder-staging',
     storageBucket: 'rounder-staging.firebasestorage.app',
-    iosBundleId: 'com.golfrounder.golf',
+    iosBundleId: 'com.golfrounder.golfRounder',
   );
 
   static const FirebaseOptions macos = FirebaseOptions(
-    apiKey: 'REPLACE_ME',
-    appId: '1:000000000000:ios:0000000000000000000000',
-    messagingSenderId: '000000000000',
+    apiKey: 'AIzaSyDILdqtIdWIInN7QzDBa6VVX-pD7sd9LGQ',
+    appId: '1:909216389322:ios:449f12d1cd1a1b2df0bc33',
+    messagingSenderId: '909216389322',
     projectId: 'rounder-staging',
     storageBucket: 'rounder-staging.firebasestorage.app',
-    iosBundleId: 'com.golfrounder.golf',
+    iosBundleId: 'com.golfrounder.golfRounder',
   );
 
   static const FirebaseOptions windows = FirebaseOptions(

@@ -1,0 +1,3 @@
+// Social auth — Kakao native keys (platform-specific)
+// iOS URL scheme uses KAKAO_NATIVE_APP_KEY (= iOS key)
+KAKAO_NATIVE_APP_KEY=3f68f1701188818915ef76bcc764b687

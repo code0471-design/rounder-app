@@ -1,7 +1,7 @@
 name: golf_rounder
 description: ROUNDER - 골프 모임 관리 앱
 publish_to: 'none'
-version: 1.0.0+1
+version: 1.0.0+3
 
 environment:
   sdk: '>=3.0.0 <4.0.0'
@@ -16,7 +16,7 @@ dependencies:
   hive: 2.2.3
   hive_flutter: 1.1.0
   http: 1.5.0
-  crypto: ^3.0.6
+  crypto: ^3.0.7
   intl: ^0.20.2
   cached_network_image: 3.4.1
   cupertino_icons: ^1.0.2
@@ -26,6 +26,9 @@ dependencies:
   cloud_firestore: ^6.7.1
   # SDK 3.7 호환 (V1 본인인증). Flutter/SDK 업그레이드 후 ^1.0.4(V2)로 교체 가능
   portone_flutter: 0.12.0
+  google_sign_in: ^7.2.0
+  sign_in_with_apple: ^8.1.0
+  kakao_flutter_sdk_user: ^1.10.0
 
 dev_dependencies:
   flutter_test:

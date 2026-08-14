@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import '../models/user_model.dart';
 import '../services/firebase_auth_bridge.dart';
+import '../services/social_auth_service.dart';
 import '../di/app_dependencies.dart';
 import '../data/repositories/mock/mock_data_store.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
@@ -16,6 +17,7 @@ class AuthProvider extends ChangeNotifier {
   static const _kSavedPhone    = 'saved_phone';
   static const _kAutoLogin     = 'auto_login';
   static const _kLastLoginId   = 'last_login_id';
+  static const _kLastLoginName = 'last_login_name';
 
   // ── 현재 로그인 사용자 ───────────────────────────────────
   AppUser? _currentUser;
@@ -99,8 +101,20 @@ class AuthProvider extends ChangeNotifier {
     final savedId = prefs.getString(_kLastLoginId);
     if (savedId == null) return false;
 
-    final user = _registeredUsers.where((u) => u.id == savedId).firstOrNull;
-    if (user == null) return false;
+    var user = _registeredUsers.where((u) => u.id == savedId).firstOrNull;
+    if (user == null) {
+      // 소셜 로그인 등 메모리에 없는 세션 복원
+      final savedName = prefs.getString(_kLastLoginName) ?? '회원';
+      final savedPhone = prefs.getString(_kSavedPhone) ?? '';
+      user = AppUser(
+        id: savedId,
+        name: savedName,
+        phone: savedPhone,
+        isVerified: true,
+        role: '일반',
+      );
+      _registeredUsers.add(user);
+    }
 
     _currentUser = user;
     await FirebaseAuthBridge.ensureSignedIn(user);
@@ -152,12 +166,72 @@ class AuthProvider extends ChangeNotifier {
       final prefs = await SharedPreferences.getInstance();
       await prefs.setBool(_kAutoLogin, true);
       await prefs.setString(_kLastLoginId, user.id);
+      await prefs.setString(_kLastLoginName, user.name);
       await prefs.setString(_kSavedPhone, user.phone);
       _autoLogin = true;
     }
 
     notifyListeners();
     return true;
+  }
+
+  /// 카카오 / 구글 / Apple 로그인 (신규면 계정 생성)
+  Future<AppUser> loginWithSocial(
+    SocialProfile profile, {
+    bool saveSession = true,
+  }) async {
+    final existing =
+        _registeredUsers.where((u) => u.id == profile.appUserId).firstOrNull;
+
+    final user = existing ??
+        AppUser(
+          id: profile.appUserId,
+          name: profile.name,
+          phone: '',
+          isVerified: true,
+          isAdmin: false,
+          role: '일반',
+          profileImageUrl: profile.photoUrl,
+        );
+
+    if (existing == null) {
+      _registeredUsers.add(user);
+      // ignore: unawaited_futures
+      _persistPlatformUser(user);
+    } else if (existing.name != profile.name &&
+        profile.name.isNotEmpty &&
+        !profile.name.contains('회원')) {
+      final updated = existing.copyWith(name: profile.name);
+      final idx = _registeredUsers.indexWhere((u) => u.id == existing.id);
+      if (idx >= 0) _registeredUsers[idx] = updated;
+      _currentUser = updated;
+      await FirebaseAuthBridge.ensureSignedIn(updated);
+      if (saveSession) {
+        final prefs = await SharedPreferences.getInstance();
+        await prefs.setBool(_kAutoLogin, true);
+        await prefs.setString(_kLastLoginId, updated.id);
+        await prefs.setString(_kLastLoginName, updated.name);
+        await prefs.setString(_kSavedPhone, updated.phone);
+        _autoLogin = true;
+      }
+      notifyListeners();
+      return updated;
+    }
+
+    _currentUser = user;
+    await FirebaseAuthBridge.ensureSignedIn(user);
+
+    if (saveSession) {
+      final prefs = await SharedPreferences.getInstance();
+      await prefs.setBool(_kAutoLogin, true);
+      await prefs.setString(_kLastLoginId, user.id);
+      await prefs.setString(_kLastLoginName, user.name);
+      await prefs.setString(_kSavedPhone, user.phone);
+      _autoLogin = true;
+    }
+
+    notifyListeners();
+    return user;
   }
 
   /// 기존 동기 login (하위 호환)
@@ -177,11 +251,13 @@ class AuthProvider extends ChangeNotifier {
     _autoLogin   = false;
     _clearVerifyState();
 
+    await SocialAuthService.signOutProviders();
     await FirebaseAuthBridge.signOut();
 
     final prefs = await SharedPreferences.getInstance();
     await prefs.remove(_kAutoLogin);
     await prefs.remove(_kLastLoginId);
+    await prefs.remove(_kLastLoginName);
     await prefs.remove(_kSavedPhone);
 
     notifyListeners();

@@ -33,6 +33,19 @@ android {
         targetSdk = flutter.targetSdkVersion
         versionCode = flutter.versionCode
         versionName = flutter.versionName
+        // Kakao Login redirect scheme: kakao{NATIVE_APP_KEY}
+        val localProps = Properties()
+        val localFile = rootProject.file("local.properties")
+        if (localFile.exists()) {
+            localFile.inputStream().use { localProps.load(it) }
+        }
+        val kakaoKey = (
+            localProps.getProperty("KAKAO_NATIVE_APP_KEY")
+                ?: project.findProperty("KAKAO_NATIVE_APP_KEY") as String?
+                ?: System.getenv("KAKAO_NATIVE_APP_KEY")
+                ?: "a4b6744dd621da26f0cf3244e9ea8fb5"
+        ).trim()
+        manifestPlaceholders["KAKAO_NATIVE_APP_KEY"] = kakaoKey
     }
 
     buildTypes {

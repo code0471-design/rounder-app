@@ -1,4 +1,5 @@
 import 'dart:async';
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:provider/provider.dart';
@@ -81,7 +82,11 @@ class _VerifyScreenState extends State<VerifyScreen> {
     if (ok) {
       _completeSignup(VerifyMethod.sms);
     } else {
-      setState(() => _smsError = '인증번호가 올바르지 않습니다.\n테스트 코드: 1234');
+      setState(() {
+        _smsError = kDebugMode
+            ? '인증번호가 올바르지 않습니다.\n(디버그) 코드: 1234'
+            : '인증번호가 올바르지 않습니다';
+      });
     }
   }
 
@@ -112,7 +117,7 @@ class _VerifyScreenState extends State<VerifyScreen> {
     final auth = context.read<AuthProvider>();
     auth.confirmPassVerified(phone: result.phone ?? widget.phone);
     if (!mounted) return;
-    if (result.usedMock) {
+    if (kDebugMode && result.usedMock) {
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(
           content: Text('개발용 본인인증으로 가입을 완료합니다'),
@@ -216,10 +221,10 @@ class _VerifyScreenState extends State<VerifyScreen> {
                     color: const Color(0xFFF0F4FF),
                     borderRadius: BorderRadius.circular(10),
                   ),
-                  child: const Column(
+                  child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
-                      Row(
+                      const Row(
                         children: [
                           Icon(Icons.info_outline,
                               size: 14, color: AppColors.primary),
@@ -231,13 +236,17 @@ class _VerifyScreenState extends State<VerifyScreen> {
                                   color: AppColors.primary)),
                         ],
                       ),
-                      SizedBox(height: 6),
+                      const SizedBox(height: 6),
                       Text(
-                        '• 본인 명의 휴대폰으로만 인증 가능합니다\n'
-                        '• 인증 정보는 회원 관리 목적으로만 사용됩니다\n'
-                        '• SMS 인증번호 테스트 코드: 1234',
-                        style: TextStyle(
-                            fontSize: 11, color: AppColors.textSecondary,
+                        kDebugMode
+                            ? '• 본인 명의 휴대폰으로만 인증 가능합니다\n'
+                                '• 인증 정보는 회원 관리 목적으로만 사용됩니다\n'
+                                '• (디버그) SMS 인증번호: 1234'
+                            : '• 본인 명의 휴대폰으로만 인증 가능합니다\n'
+                                '• 인증 정보는 회원 관리 목적으로만 사용됩니다',
+                        style: const TextStyle(
+                            fontSize: 11,
+                            color: AppColors.textSecondary,
                             height: 1.7),
                       ),
                     ],
