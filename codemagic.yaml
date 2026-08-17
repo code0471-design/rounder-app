@@ -47,12 +47,13 @@ workflows:
       - name: Build release AAB
         script: |
           set +e
-          flutter build appbundle --release --android-skip-build-dependency-validation
-          status=$?
+          flutter build appbundle --release --android-skip-build-dependency-validation 2>&1 | tee /tmp/rounder_aab.log
+          status=${PIPESTATUS[0]}
           if [ $status -ne 0 ]; then
-            echo "===== Gradle failure excerpts ====="
-            rg -n "What went wrong|AAR metadata|error:|FAILURE:" -S build android .dart_tool 2>/dev/null | tail -n 80 || true
-            find . -name "*.txt" -path "*/reports/*" 2>/dev/null | head -n 20 || true
+            echo "===== What went wrong (excerpt) ====="
+            grep -n -A 25 "What went wrong" /tmp/rounder_aab.log || true
+            echo "===== FAILURE lines ====="
+            grep -n -E "FAILURE:|AAR metadata|Execution failed|error:" /tmp/rounder_aab.log | tail -n 40 || true
           fi
           exit $status
     artifacts:

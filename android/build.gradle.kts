@@ -19,28 +19,8 @@ subprojects {
     project.evaluationDependsOn(":app")
 }
 
-// Force Flutter plugin Android libraries to compileSdk 36 (app_links AAR metadata).
-// Use reflection so root project does not need AGP classes on the buildscript classpath.
-subprojects {
-    afterEvaluate {
-        val androidExt = extensions.findByName("android") ?: return@afterEvaluate
-        val setters = listOf("setCompileSdkVersion", "setCompileSdk")
-        for (name in setters) {
-            val method = androidExt.javaClass.methods.firstOrNull {
-                it.name == name && it.parameterTypes.size == 1
-            } ?: continue
-            try {
-                when (method.parameterTypes[0]) {
-                    Int::class.javaPrimitiveType, Int::class.javaObjectType -> method.invoke(androidExt, 36)
-                    else -> method.invoke(androidExt, 36)
-                }
-                break
-            } catch (_: Exception) {
-                // try next setter
-            }
-        }
-    }
-}
+// Groovy dynamic DSL works more reliably for Flutter plugin android {} blocks.
+apply(from = File(rootDir, "force_compile_sdk.gradle"))
 
 tasks.register<Delete>("clean") {
     delete(rootProject.layout.buildDirectory)

@@ -1,0 +1,22 @@
+// Applied from android/build.gradle.kts — forces plugin modules to API 36
+// so app_links AAR metadata checks pass (portone_flutter etc.).
+subprojects { subproject ->
+    subproject.afterEvaluate {
+        if (!subproject.plugins.hasPlugin("com.android.library")) {
+            return@afterEvaluate
+        }
+        def android = subproject.extensions.findByName("android")
+        if (android == null) {
+            return@afterEvaluate
+        }
+        try {
+            android.compileSdk = 36
+        } catch (Throwable ignored) {
+            try {
+                android.compileSdkVersion 36
+            } catch (Throwable ignored2) {
+                // leave plugin default
+            }
+        }
+    }
+}
