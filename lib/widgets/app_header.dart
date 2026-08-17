@@ -46,7 +46,7 @@ class AppHeader extends StatelessWidget {
       child: SafeArea(
         bottom: false,
         child: Padding(
-          padding: const EdgeInsets.fromLTRB(16, 10, 8, 12),
+          padding: const EdgeInsets.fromLTRB(16, 10, 4, 12),
           child: Row(
             crossAxisAlignment: CrossAxisAlignment.center,
             children: [
@@ -122,7 +122,7 @@ class _NotificationIcon extends StatelessWidget {
             onTap: onTap,
             borderRadius: BorderRadius.circular(12),
             child: const Padding(
-              padding: EdgeInsets.all(8),
+              padding: EdgeInsets.symmetric(horizontal: 4, vertical: 8),
               child: Icon(
                 Icons.notifications_outlined,
                 color: AppColors.primary,
@@ -172,10 +172,10 @@ class _HeaderProfileAvatar extends StatelessWidget {
         onTap: onTap,
         customBorder: const CircleBorder(),
         child: Padding(
-          padding: const EdgeInsets.all(6),
+          padding: const EdgeInsets.fromLTRB(2, 6, 6, 6),
           child: Container(
-            width: 38,
-            height: 38,
+            width: 34,
+            height: 34,
             decoration: BoxDecoration(
               color: AppColors.sageLighter,
               shape: BoxShape.circle,

@@ -425,7 +425,7 @@ class _ClubRoomScreenState extends State<ClubRoomScreen> {
             onTap: () => _onClubSettingsTap(context, provider),
             borderRadius: BorderRadius.circular(12),
             child: const Padding(
-              padding: EdgeInsets.all(8),
+              padding: EdgeInsets.symmetric(horizontal: 4, vertical: 8),
               child: Icon(
                 Icons.settings_outlined,
                 color: AppColors.primary,
@@ -1831,11 +1831,18 @@ class _AnnouncementDetailSheetState extends State<_AnnouncementDetailSheet> {
         );
         final comments = a.comments;
 
-        return DraggableScrollableSheet(
+        return Padding(
+          padding: EdgeInsets.only(
+            bottom: MediaQuery.of(context).viewInsets.bottom,
+          ),
+          child: DraggableScrollableSheet(
           expand: false,
-          initialChildSize: 0.65,
-          maxChildSize: 0.92,
-          builder: (_, ctrl) => Column(
+          initialChildSize: 0.88,
+          minChildSize: 0.55,
+          maxChildSize: 0.95,
+          builder: (_, ctrl) => SafeArea(
+            top: false,
+            child: Column(
             children: [
               // ── 스크롤 영역 ──
               Expanded(
@@ -1950,10 +1957,7 @@ class _AnnouncementDetailSheetState extends State<_AnnouncementDetailSheet> {
                   color: Colors.white,
                   border: Border(top: BorderSide(color: Colors.grey.shade200)),
                 ),
-                padding: EdgeInsets.only(
-                  left: 16, right: 8, top: 8,
-                  bottom: MediaQuery.of(context).viewInsets.bottom + 8,
-                ),
+                padding: const EdgeInsets.fromLTRB(16, 8, 8, 8),
                 child: Row(children: [
                   // 내 아바타
                   Container(
@@ -2009,7 +2013,9 @@ class _AnnouncementDetailSheetState extends State<_AnnouncementDetailSheet> {
                 ]),
               ),
             ],
+            ),
           ),
+        ),
         );
       },
     );

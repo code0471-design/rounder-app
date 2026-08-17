@@ -2852,6 +2852,12 @@ class ClubProvider extends ChangeNotifier {
     // 참석 → 불참으로 바뀌면 자리 생김 → 대기자 알림
     if (prev == '참석' && response == '불참') {
       notifyFirstWaiting(scheduleId);
+      _notifyTreasurerIfDroppedFromGroup(
+        scheduleId: scheduleId,
+        memberId: myId,
+        memberName: currentUserName,
+        scheduleTitle: schedule.displayTitle,
+      );
     }
 
     _syncAttendancePoints(
@@ -2874,6 +2880,56 @@ class ClubProvider extends ChangeNotifier {
     notifyListeners();
     _persistImmediately();
     return true;
+  }
+
+  /// 조편성에 들어 있던 회원이 불참으로 바꾸면 슬롯을 비우고 총무에게 알린다.
+  void _notifyTreasurerIfDroppedFromGroup({
+    required String scheduleId,
+    required String memberId,
+    required String memberName,
+    required String scheduleTitle,
+  }) {
+    final assignment = _groupAssignments[scheduleId];
+    if (assignment == null) return;
+    final groupNo = assignment.groupOf(memberId);
+    if (groupNo == null) return;
+
+    final groups = List<AssignGroup>.from(assignment.groups);
+    for (var gi = 0; gi < groups.length; gi++) {
+      final slots = List<GroupSlot>.from(groups[gi].slots);
+      var changed = false;
+      for (var si = 0; si < slots.length; si++) {
+        if (slots[si].memberId == memberId) {
+          slots[si] = const GroupSlot();
+          changed = true;
+        }
+      }
+      if (changed) {
+        groups[gi] = groups[gi].copyWithSlots(slots);
+      }
+    }
+    _groupAssignments[scheduleId] = assignment.copyWith(groups: groups);
+
+    final club = _myClubs.where((c) => c.id == selectedClub.id).firstOrNull ??
+        selectedClub;
+    final treasurerId = joinRequestNotifyTargetId(club.id);
+    if (treasurerId == null || _userIdsMatch(treasurerId, memberId)) return;
+
+    _appNotifications.insert(
+      0,
+      AppNotification(
+        id: 'noti_drop_${DateTime.now().millisecondsSinceEpoch}',
+        type: AppNotificationType.attendanceChanged,
+        clubId: club.id,
+        clubName: club.name,
+        title: '조편성 불참 변경',
+        body: '$memberName님이 $scheduleTitle 조편성 ${groupNo}조에서 불참으로 변경했습니다.',
+        isAdmin: true,
+        createdAt: DateTime.now(),
+        targetId: scheduleId,
+        targetUserId: treasurerId,
+      ),
+    );
   }
 
   /// 총무 권한 — 특정 회원의 참석 상태를 강제로 변경하고 즉시 앱 푸시 알림 발송
@@ -4419,10 +4475,11 @@ class ClubProvider extends ChangeNotifier {
     return list;
   }
 
-  /// 사진 추가 (목업: picsum 랜덤 URL 사용)
+  /// 사진 추가 (갤러리 선택 이미지 또는 목업 URL)
   void addPhoto({
     required String scheduleId,
     required String caption,
+    String? imageUrl,
   }) {
     final seed = DateTime.now().millisecondsSinceEpoch % 9999;
     _photos.add(RoundPhoto(
@@ -4431,7 +4488,9 @@ class ClubProvider extends ChangeNotifier {
       clubId: selectedClub.id,
       uploaderId: currentUserId,
       uploaderName: currentUserName,
-      imageUrl: 'https://picsum.photos/seed/user$seed/600/400',
+      imageUrl: (imageUrl != null && imageUrl.isNotEmpty)
+          ? imageUrl
+          : 'https://picsum.photos/seed/user$seed/600/400',
       caption: caption.isEmpty ? null : caption,
       takenAt: DateTime.now(),
     ));
