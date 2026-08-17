@@ -76,7 +76,6 @@ class _LoginScreenState extends State<LoginScreen> {
         SnackBar(
           content: Text(msg),
           behavior: SnackBarBehavior.floating,
-          duration: const Duration(seconds: 12),
         ),
       );
       setState(() {

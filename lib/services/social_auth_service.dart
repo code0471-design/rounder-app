@@ -106,12 +106,10 @@ abstract final class SocialAuthService {
           throw const SocialAuthException('카카오 로그인이 취소되었습니다.');
         }
         debugPrint(
-          '[SocialAuth] Kakao login failed (talk: $useKakaoTalk): $e',
+          '[SocialAuth] Kakao login failed (talk: $useKakaoTalk): $e / ${await _kakaoDebugInfo()}',
         );
         if (!useKakaoTalk) {
-          throw SocialAuthException(
-            '카카오 로그인 실패: ${_describe(e)} / ${await _kakaoDebugInfo()}',
-          );
+          throw SocialAuthException(_kakaoUserMessage(e));
         }
         // 카카오톡 연동 실패 → 계정 로그인으로 한 번만 폴백
         useKakaoTalk = false;
@@ -122,8 +120,8 @@ abstract final class SocialAuthService {
     try {
       user = await UserApi.instance.me();
     } catch (e) {
-      debugPrint('[SocialAuth] Kakao me() failed: $e');
-      throw SocialAuthException('카카오 사용자 정보 조회 실패: ${_describe(e)}');
+      debugPrint('[SocialAuth] Kakao me() failed: $e / ${await _kakaoDebugInfo()}');
+      throw const SocialAuthException('카카오 계정 정보를 가져오지 못했습니다.');
     }
 
     final name = user.kakaoAccount?.profile?.nickname?.trim();
@@ -164,16 +162,9 @@ abstract final class SocialAuthService {
     } on GoogleSignInException catch (e) {
       debugPrint('[SocialAuth] Google login failed: ${e.code} ${e.description}');
       if (e.code == GoogleSignInExceptionCode.canceled) {
-        // Android는 SHA-1/OAuth 클라이언트 설정 오류도 canceled로 내려주므로
-        // 사유가 있으면 함께 노출한다.
-        final detail = e.description?.trim();
-        throw SocialAuthException(
-          detail == null || detail.isEmpty
-              ? '구글 로그인이 취소되었습니다.'
-              : '구글 로그인이 취소되었습니다. ($detail)',
-        );
+        throw const SocialAuthException('구글 로그인이 취소되었습니다.');
       }
-      throw SocialAuthException('구글 로그인 실패: ${e.description ?? e.code.name}');
+      throw const SocialAuthException('구글 로그인에 실패했습니다. 잠시 후 다시 시도해 주세요.');
     }
   }
 
@@ -237,8 +228,7 @@ abstract final class SocialAuthService {
     } catch (_) {}
   }
 
-  /// 앱이 실제로 카카오에 보내는 키 해시와 사용 중인 앱 키.
-  /// 콘솔 등록값과 대조해야 keyHash 오류를 특정할 수 있다.
+  /// 로그용. 화면에는 올리지 않는다.
   static Future<String> _kakaoDebugInfo() async {
     final key = SocialAuthConfig.kakaoNativeAppKey.trim();
     final keyTail = key.length >= 6 ? key.substring(key.length - 6) : key;
@@ -249,15 +239,17 @@ abstract final class SocialAuthService {
     }
   }
 
+  static String _kakaoUserMessage(Object error) {
+    final text = error.toString().toLowerCase();
+    if (text.contains('keyhash') || text.contains('misconfigured')) {
+      return '카카오 로그인 설정에 문제가 있습니다. 잠시 후 다시 시도해 주세요.';
+    }
+    return '카카오 로그인에 실패했습니다. 잠시 후 다시 시도해 주세요.';
+  }
+
   static bool _isKakaoCancellation(Object error) {
     final text = error.toString().toLowerCase();
     return text.contains('cancel') || text.contains('취소');
-  }
-
-  /// 콘솔 설정 문제를 기기에서 바로 확인할 수 있도록 사유를 한 줄로 요약.
-  static String _describe(Object error) {
-    final text = error.toString().replaceAll(RegExp(r'\s+'), ' ').trim();
-    return text.length > 160 ? '${text.substring(0, 160)}…' : text;
   }
 
   static String _generateNonce([int length = 32]) {
