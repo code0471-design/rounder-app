@@ -46,6 +46,14 @@ workflows:
         script: flutter pub get
       - name: Build release AAB
         script: |
-          flutter build appbundle --release --android-skip-build-dependency-validation --verbose
+          set +e
+          flutter build appbundle --release --android-skip-build-dependency-validation
+          status=$?
+          if [ $status -ne 0 ]; then
+            echo "===== Gradle failure excerpts ====="
+            rg -n "What went wrong|AAR metadata|error:|FAILURE:" -S build android .dart_tool 2>/dev/null | tail -n 80 || true
+            find . -name "*.txt" -path "*/reports/*" 2>/dev/null | head -n 20 || true
+          fi
+          exit $status
     artifacts:
       - build/**/outputs/**/*.aab

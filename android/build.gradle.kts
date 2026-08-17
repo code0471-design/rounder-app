@@ -19,11 +19,25 @@ subprojects {
     project.evaluationDependsOn(":app")
 }
 
-// Force plugin modules (e.g. portone_flutter) to compileSdk 36 for app_links AAR metadata.
+// Force Flutter plugin Android libraries to compileSdk 36 (app_links AAR metadata).
+// Use reflection so root project does not need AGP classes on the buildscript classpath.
 subprojects {
     afterEvaluate {
-        extensions.findByType(com.android.build.gradle.LibraryExtension::class.java)?.apply {
-            compileSdk = 36
+        val androidExt = extensions.findByName("android") ?: return@afterEvaluate
+        val setters = listOf("setCompileSdkVersion", "setCompileSdk")
+        for (name in setters) {
+            val method = androidExt.javaClass.methods.firstOrNull {
+                it.name == name && it.parameterTypes.size == 1
+            } ?: continue
+            try {
+                when (method.parameterTypes[0]) {
+                    Int::class.javaPrimitiveType, Int::class.javaObjectType -> method.invoke(androidExt, 36)
+                    else -> method.invoke(androidExt, 36)
+                }
+                break
+            } catch (_: Exception) {
+                // try next setter
+            }
         }
     }
 }
