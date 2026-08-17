@@ -12,7 +12,28 @@
           "package_name": "com.golfrounder.golf"
         }
       },
-      "oauth_client": [],
+      "oauth_client": [
+        {
+          "client_id": "909216389322-b42dbv9nmht8f07ks3sh8k54n927fpb2.apps.googleusercontent.com",
+          "client_type": 1,
+          "android_info": {
+            "package_name": "com.golfrounder.golf",
+            "certificate_hash": "d6792523a143e2504f55a95a2490fef05ea5dc01"
+          }
+        },
+        {
+          "client_id": "909216389322-c7ni1v4ebou5iov91k7calt8if01a2dl.apps.googleusercontent.com",
+          "client_type": 1,
+          "android_info": {
+            "package_name": "com.golfrounder.golf",
+            "certificate_hash": "0697ebd4edfecc9213b2f796684b93b508be02f7"
+          }
+        },
+        {
+          "client_id": "909216389322-3jp0348rm4d575jpl3rv0ngaj8proea6.apps.googleusercontent.com",
+          "client_type": 3
+        }
+      ],
       "api_key": [
         {
           "current_key": "AIzaSyABEhMGGKZ5CUMEvfrEo3hOsmo4Ps9s1LQ"
@@ -20,7 +41,19 @@
       ],
       "services": {
         "appinvite_service": {
-          "other_platform_oauth_client": []
+          "other_platform_oauth_client": [
+            {
+              "client_id": "909216389322-3jp0348rm4d575jpl3rv0ngaj8proea6.apps.googleusercontent.com",
+              "client_type": 3
+            },
+            {
+              "client_id": "909216389322-jfgbktkrvk7ulhtdc8u63el6ubk2i7n3.apps.googleusercontent.com",
+              "client_type": 2,
+              "ios_info": {
+                "bundle_id": "com.golfrounder.golfRounder"
+              }
+            }
+          ]
         }
       }
     }
