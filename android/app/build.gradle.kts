@@ -17,7 +17,8 @@ if (keystorePropertiesFile.exists()) {
 
 android {
     namespace = "com.golfrounder.golf"
-    compileSdk = flutter.compileSdkVersion
+    // app_links (via portone_flutter) requires compileSdk >= 36
+    compileSdk = 36
     ndkVersion = flutter.ndkVersion
 
     compileOptions {
