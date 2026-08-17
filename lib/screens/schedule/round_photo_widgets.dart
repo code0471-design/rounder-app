@@ -9,6 +9,18 @@ import '../../models/club_model.dart';
 import '../../providers/club_provider.dart';
 import '../../theme/app_theme.dart';
 
+Future<String?> pickRoundPhotoDataUrl() async {
+  final picked = await ImagePicker().pickImage(
+    source: ImageSource.gallery,
+    maxWidth: 1600,
+    imageQuality: 85,
+    requestFullMetadata: false,
+  );
+  if (picked == null) return null;
+  final bytes = await picked.readAsBytes();
+  return 'data:image/jpeg;base64,${base64Encode(bytes)}';
+}
+
 class RoundPhotoView extends StatelessWidget {
   final String imageUrl;
   final BoxFit fit;
@@ -51,11 +63,13 @@ class RoundPhotoView extends StatelessWidget {
 class PhotoUploadSheet extends StatefulWidget {
   final RoundSchedule schedule;
   final ClubProvider provider;
+  final String? initialDataUrl;
 
   const PhotoUploadSheet({
     super.key,
     required this.schedule,
     required this.provider,
+    this.initialDataUrl,
   });
 
   @override
@@ -68,6 +82,12 @@ class _PhotoUploadSheetState extends State<PhotoUploadSheet> {
   bool _picking = false;
 
   @override
+  void initState() {
+    super.initState();
+    _pickedUrl = widget.initialDataUrl;
+  }
+
+  @override
   void dispose() {
     _captionCtrl.dispose();
     super.dispose();
@@ -77,16 +97,9 @@ class _PhotoUploadSheetState extends State<PhotoUploadSheet> {
     if (_picking) return;
     setState(() => _picking = true);
     try {
-      final picked = await ImagePicker().pickImage(
-        source: ImageSource.gallery,
-        maxWidth: 1600,
-        imageQuality: 85,
-      );
-      if (picked == null) return;
-      final bytes = await picked.readAsBytes();
-      setState(() {
-        _pickedUrl = 'data:image/jpeg;base64,${base64Encode(bytes)}';
-      });
+      final dataUrl = await pickRoundPhotoDataUrl();
+      if (!mounted || dataUrl == null) return;
+      setState(() => _pickedUrl = dataUrl);
     } catch (_) {
       if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
@@ -138,39 +151,55 @@ class _PhotoUploadSheetState extends State<PhotoUploadSheet> {
             ],
           ),
           const SizedBox(height: 16),
-          GestureDetector(
-            onTap: _pick,
-            child: Container(
-              height: 140,
-              width: double.infinity,
-              decoration: BoxDecoration(
-                color: const Color(0xFFF8F9FA),
-                borderRadius: BorderRadius.circular(12),
-                border: Border.all(color: AppColors.divider),
-              ),
-              clipBehavior: Clip.antiAlias,
-              child: _picking
-                  ? const Center(child: CircularProgressIndicator(strokeWidth: 2))
-                  : _pickedUrl != null
-                      ? RoundPhotoView(imageUrl: _pickedUrl!, fit: BoxFit.cover)
-                      : const Center(
-                          child: Column(
-                            mainAxisAlignment: MainAxisAlignment.center,
-                            children: [
-                              Icon(Icons.photo_library_outlined,
-                                  size: 32, color: AppColors.textSecondary),
-                              SizedBox(height: 6),
-                              Text(
-                                '갤러리에서 사진 선택',
-                                textAlign: TextAlign.center,
-                                style: TextStyle(
-                                    fontSize: 13,
-                                    fontWeight: FontWeight.w600,
-                                    color: AppColors.textPrimary),
-                              ),
-                            ],
+          Material(
+            color: const Color(0xFFF8F9FA),
+            borderRadius: BorderRadius.circular(12),
+            child: InkWell(
+              onTap: _picking ? null : _pick,
+              borderRadius: BorderRadius.circular(12),
+              child: Ink(
+                height: 140,
+                width: double.infinity,
+                decoration: BoxDecoration(
+                  borderRadius: BorderRadius.circular(12),
+                  border: Border.all(color: AppColors.divider),
+                ),
+                child: _picking
+                    ? const Center(child: CircularProgressIndicator(strokeWidth: 2))
+                    : _pickedUrl != null
+                        ? ClipRRect(
+                            borderRadius: BorderRadius.circular(12),
+                            child: RoundPhotoView(
+                                imageUrl: _pickedUrl!, fit: BoxFit.cover),
+                          )
+                        : const Center(
+                            child: Column(
+                              mainAxisAlignment: MainAxisAlignment.center,
+                              children: [
+                                Icon(Icons.photo_library_outlined,
+                                    size: 32, color: AppColors.textSecondary),
+                                SizedBox(height: 6),
+                                Text(
+                                  '갤러리에서 사진 선택',
+                                  textAlign: TextAlign.center,
+                                  style: TextStyle(
+                                      fontSize: 13,
+                                      fontWeight: FontWeight.w600,
+                                      color: AppColors.textPrimary),
+                                ),
+                              ],
+                            ),
                           ),
-                        ),
+              ),
+            ),
+          ),
+          const SizedBox(height: 10),
+          SizedBox(
+            width: double.infinity,
+            child: OutlinedButton.icon(
+              onPressed: _picking ? null : _pick,
+              icon: const Icon(Icons.photo_library_outlined, size: 18),
+              label: Text(_pickedUrl == null ? '갤러리에서 선택' : '다른 사진 선택'),
             ),
           ),
           const SizedBox(height: 12),

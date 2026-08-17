@@ -1,0 +1,13 @@
+---
+description: 작은 UI 수정도 끝나면 반드시 commit + push (codemagic-main)
+alwaysApply: true
+---
+
+# 작은 UI 수정도 즉시 업데이트
+
+Royce가 기기에서 확인한다. 에이전트가 “고쳤다”고만 말하고 커밋/푸시를 빼먹으면 수정이 안 된 것과 같다.
+
+1. **UI/버그 픽스를 코드에 반영한 뒤에는 사용자가 따로 말하지 않아도 `codemagic-main`에 commit하고 `git push`한다.** 아이콘 간격, 글자 가림, 탭 안 됨처럼 작은 수정도 예외 없음.
+2. 커밋 전에 `git status` / `git diff` / `git log`를 보고, 시크릿·`.cursor/`·스토어 스크린샷·빌드 캐시는 넣지 않는다. Play/App Store 버전(`pubspec.yaml` version)은 요청 없이 올리지 않는다.
+3. `lib/screens/schedule/schedule_screen.dart`는 Cursor `StrReplace`/PowerShell 치환 금지. UTF-8 Node/Dart 패치 후 `flutter test test/schedule_detail_ui_invariants_test.dart`.
+4. 푸시가 끝난 뒤에만 “고쳤다”고 말한다. 푸시 URL/브랜치를 남긴다.

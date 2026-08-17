@@ -3848,37 +3848,38 @@ class _PhotoSection extends StatelessWidget {
                       ],
                     ),
                   ),
-                ],
-              ),
-              const SizedBox(height: 10),
-              Align(
-                alignment: Alignment.centerRight,
-                child: GestureDetector(
-                  onTap: () => _showUploadDialog(context, provider),
-                  child: Container(
-                    padding: const EdgeInsets.symmetric(
-                        horizontal: 10, vertical: 6),
-                    decoration: BoxDecoration(
-                      gradient: const LinearGradient(
-                        colors: [AppColors.primary, AppColors.mintBright],
-                      ),
+                  const SizedBox(width: 8),
+                  Material(
+                    color: Colors.transparent,
+                    child: InkWell(
+                      onTap: () => _showUploadDialog(context, provider),
                       borderRadius: BorderRadius.circular(20),
-                    ),
-                    child: const Row(
-                      mainAxisSize: MainAxisSize.min,
-                      children: [
-                        Icon(Icons.add_photo_alternate_rounded,
-                            color: Colors.white, size: 14),
-                        SizedBox(width: 4),
-                        Text('사진 추가',
-                            style: TextStyle(
-                                fontSize: 11,
-                                fontWeight: FontWeight.w700,
-                                color: Colors.white)),
-                      ],
+                      child: Ink(
+                        padding: const EdgeInsets.symmetric(
+                            horizontal: 10, vertical: 6),
+                        decoration: BoxDecoration(
+                          gradient: const LinearGradient(
+                            colors: [AppColors.primary, AppColors.mintBright],
+                          ),
+                          borderRadius: BorderRadius.circular(20),
+                        ),
+                        child: const Row(
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            Icon(Icons.add_photo_alternate_rounded,
+                                color: Colors.white, size: 14),
+                            SizedBox(width: 4),
+                            Text('사진 추가',
+                                style: TextStyle(
+                                    fontSize: 11,
+                                    fontWeight: FontWeight.w700,
+                                    color: Colors.white)),
+                          ],
+                        ),
+                      ),
                     ),
                   ),
-                ),
+                ],
               ),
 
               // ── 사진 그리드 미리보기 ──
@@ -3951,40 +3952,44 @@ class _PhotoSection extends StatelessWidget {
                 ],
               ] else ...[
                 const SizedBox(height: 16),
-                Container(
-                  width: double.infinity,
-                  padding: const EdgeInsets.symmetric(vertical: 24),
-                  decoration: BoxDecoration(
-                    color: const Color(0xFFF8F9FA),
+                Material(
+                  color: const Color(0xFFF8F9FA),
+                  borderRadius: BorderRadius.circular(10),
+                  child: InkWell(
+                    onTap: () => _showUploadDialog(context, provider),
                     borderRadius: BorderRadius.circular(10),
-                    border: Border.all(
-                      color: AppColors.divider,
-                      style: BorderStyle.solid,
-                    ),
-                  ),
-                  child: Column(
-                    children: [
-                      Icon(Icons.add_photo_alternate_outlined,
-                          size: 36,
-                          color: AppColors.textSecondary
-                              .withValues(alpha: 0.5)),
-                      const SizedBox(height: 8),
-                      const Text('아직 사진이 없습니다',
-                          style: TextStyle(
-                              fontSize: 12,
-                              color: AppColors.textSecondary)),
-                      const SizedBox(height: 4),
-                      GestureDetector(
-                        onTap: () => _showUploadDialog(context, provider),
-                        child: const Text(
-                          '+ 첫 번째 사진 올리기',
-                          style: TextStyle(
-                              fontSize: 12,
-                              fontWeight: FontWeight.w600,
-                              color: AppColors.primary),
+                    child: Container(
+                      width: double.infinity,
+                      padding: const EdgeInsets.symmetric(vertical: 24),
+                      decoration: BoxDecoration(
+                        borderRadius: BorderRadius.circular(10),
+                        border: Border.all(
+                          color: AppColors.divider,
+                          style: BorderStyle.solid,
                         ),
                       ),
-                    ],
+                      child: Column(
+                        children: [
+                          Icon(Icons.add_photo_alternate_outlined,
+                              size: 36,
+                              color: AppColors.textSecondary
+                                  .withValues(alpha: 0.5)),
+                          const SizedBox(height: 8),
+                          const Text('아직 사진이 없습니다',
+                              style: TextStyle(
+                                  fontSize: 12,
+                                  color: AppColors.textSecondary)),
+                          const SizedBox(height: 4),
+                          const Text(
+                            '+ 첫 번째 사진 올리기',
+                            style: TextStyle(
+                                fontSize: 12,
+                                fontWeight: FontWeight.w600,
+                                color: AppColors.primary),
+                          ),
+                        ],
+                      ),
+                    ),
                   ),
                 ),
               ],
@@ -4005,7 +4010,19 @@ class _PhotoSection extends StatelessWidget {
     );
   }
 
-  void _showUploadDialog(BuildContext context, ClubProvider provider) {
+  Future<void> _showUploadDialog(
+      BuildContext context, ClubProvider provider) async {
+    String? dataUrl;
+    try {
+      dataUrl = await pickRoundPhotoDataUrl();
+    } catch (_) {
+      if (!context.mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('사진을 불러오지 못했습니다')),
+      );
+      return;
+    }
+    if (dataUrl == null || !context.mounted) return;
     showModalBottomSheet(
       context: context,
       isScrollControlled: true,
@@ -4015,6 +4032,7 @@ class _PhotoSection extends StatelessWidget {
       builder: (ctx) => PhotoUploadSheet(
         schedule: schedule,
         provider: provider,
+        initialDataUrl: dataUrl,
       ),
     );
   }

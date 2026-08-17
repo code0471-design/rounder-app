@@ -32,6 +32,23 @@ class AppHeader extends StatelessWidget {
     );
   }
 
+  static Widget compactIcon({
+    required VoidCallback onTap,
+    required Widget icon,
+  }) {
+    return IconButton(
+      onPressed: onTap,
+      icon: icon,
+      style: IconButton.styleFrom(
+        padding: EdgeInsets.zero,
+        tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+        minimumSize: const Size(32, 32),
+        visualDensity: const VisualDensity(horizontal: -4, vertical: -4),
+      ),
+      constraints: const BoxConstraints.tightFor(width: 32, height: 32),
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     final profileTap = onProfileTap ?? () => openMyPage(context);
@@ -46,13 +63,13 @@ class AppHeader extends StatelessWidget {
       child: SafeArea(
         bottom: false,
         child: Padding(
-          padding: const EdgeInsets.fromLTRB(16, 10, 4, 12),
+          padding: const EdgeInsets.fromLTRB(12, 6, 8, 8),
           child: Row(
             crossAxisAlignment: CrossAxisAlignment.center,
             children: [
               if (leading != null) ...[
                 leading!,
-                const SizedBox(width: 4),
+                const SizedBox(width: 2),
               ],
               Expanded(
                 child: Align(
@@ -116,28 +133,21 @@ class _NotificationIcon extends StatelessWidget {
     return Stack(
       clipBehavior: Clip.none,
       children: [
-        Material(
-          color: Colors.transparent,
-          child: InkWell(
-            onTap: onTap,
-            borderRadius: BorderRadius.circular(12),
-            child: const Padding(
-              padding: EdgeInsets.symmetric(horizontal: 4, vertical: 8),
-              child: Icon(
-                Icons.notifications_outlined,
-                color: AppColors.primary,
-                size: 24,
-              ),
-            ),
+        AppHeader.compactIcon(
+          onTap: onTap,
+          icon: const Icon(
+            Icons.notifications_outlined,
+            color: AppColors.primary,
+            size: 22,
           ),
         ),
         if (count > 0)
           Positioned(
-            right: 4,
-            top: 4,
+            right: 2,
+            top: 2,
             child: Container(
-              padding: const EdgeInsets.symmetric(horizontal: 5, vertical: 1),
-              constraints: const BoxConstraints(minWidth: 16),
+              padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 1),
+              constraints: const BoxConstraints(minWidth: 14),
               decoration: BoxDecoration(
                 color: AppColors.accent,
                 borderRadius: BorderRadius.circular(10),
@@ -166,30 +176,23 @@ class _HeaderProfileAvatar extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return Material(
-      color: Colors.transparent,
-      child: InkWell(
-        onTap: onTap,
-        customBorder: const CircleBorder(),
-        child: Padding(
-          padding: const EdgeInsets.fromLTRB(2, 6, 6, 6),
-          child: Container(
-            width: 34,
-            height: 34,
-            decoration: BoxDecoration(
-              color: AppColors.sageLighter,
-              shape: BoxShape.circle,
-              border: Border.all(
-                color: AppColors.accent.withValues(alpha: 0.45),
-                width: 1,
-              ),
-            ),
-            child: const Icon(
-              Icons.person_outline_rounded,
-              color: AppColors.primary,
-              size: 20,
-            ),
+    return AppHeader.compactIcon(
+      onTap: onTap,
+      icon: Container(
+        width: 28,
+        height: 28,
+        decoration: BoxDecoration(
+          color: AppColors.sageLighter,
+          shape: BoxShape.circle,
+          border: Border.all(
+            color: AppColors.accent.withValues(alpha: 0.45),
+            width: 1,
           ),
+        ),
+        child: const Icon(
+          Icons.person_outline_rounded,
+          color: AppColors.primary,
+          size: 16,
         ),
       ),
     );

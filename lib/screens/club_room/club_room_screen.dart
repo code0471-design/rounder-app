@@ -419,19 +419,12 @@ class _ClubRoomScreenState extends State<ClubRoomScreen> {
       ),
       onLogoTap: () => Navigator.pop(context),
       trailingActions: [
-        Material(
-          color: Colors.transparent,
-          child: InkWell(
-            onTap: () => _onClubSettingsTap(context, provider),
-            borderRadius: BorderRadius.circular(12),
-            child: const Padding(
-              padding: EdgeInsets.symmetric(horizontal: 4, vertical: 8),
-              child: Icon(
-                Icons.settings_outlined,
-                color: AppColors.primary,
-                size: 24,
-              ),
-            ),
+        AppHeader.compactIcon(
+          onTap: () => _onClubSettingsTap(context, provider),
+          icon: const Icon(
+            Icons.settings_outlined,
+            color: AppColors.primary,
+            size: 22,
           ),
         ),
       ],
@@ -1831,23 +1824,16 @@ class _AnnouncementDetailSheetState extends State<_AnnouncementDetailSheet> {
         );
         final comments = a.comments;
 
-        return Padding(
-          padding: EdgeInsets.only(
-            bottom: MediaQuery.of(context).viewInsets.bottom,
-          ),
-          child: DraggableScrollableSheet(
-          expand: false,
-          initialChildSize: 0.88,
-          minChildSize: 0.55,
-          maxChildSize: 0.95,
-          builder: (_, ctrl) => SafeArea(
-            top: false,
-            child: Column(
+        return SizedBox(
+          height: MediaQuery.of(context).size.height * 0.88,
+          child: Scaffold(
+            resizeToAvoidBottomInset: true,
+            backgroundColor: AppColors.surface,
+            body: Column(
             children: [
               // ── 스크롤 영역 ──
               Expanded(
                 child: ListView(
-                  controller: ctrl,
                   padding: const EdgeInsets.fromLTRB(20, 16, 20, 8),
                   children: [
                     // 핸들바
@@ -1951,8 +1937,10 @@ class _AnnouncementDetailSheetState extends State<_AnnouncementDetailSheet> {
                   ],
                 ),
               ),
-              // ── 댓글 입력 바 ──
-              Container(
+              // ── 댓글 입력 바 (시트 하단에 고정) ──
+              SafeArea(
+                top: false,
+                child: Container(
                 decoration: BoxDecoration(
                   color: Colors.white,
                   border: Border(top: BorderSide(color: Colors.grey.shade200)),
@@ -2012,10 +2000,10 @@ class _AnnouncementDetailSheetState extends State<_AnnouncementDetailSheet> {
                         ),
                 ]),
               ),
+              ),
             ],
             ),
           ),
-        ),
         );
       },
     );
