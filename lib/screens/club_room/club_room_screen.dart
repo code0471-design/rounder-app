@@ -3874,6 +3874,10 @@ class _PaymentReminderSheetState extends State<_PaymentReminderSheet> {
             height: 48,
             child: ElevatedButton.icon(
               onPressed: () {
+                pv.sendDuesNudge(
+                  memberIds: _selectedMemberIds.toList(),
+                  duesTitle: _selectedDues?.title ?? '',
+                );
                 Navigator.pop(context);
                 ScaffoldMessenger.of(context).showSnackBar(
                   SnackBar(

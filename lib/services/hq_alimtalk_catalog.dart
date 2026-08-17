@@ -3,9 +3,11 @@ import 'dart:convert';
 import 'package:flutter/foundation.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
+import '../core/firebase/firestore_paths.dart';
 import '../screens/admin/admin_models.dart';
 import 'hq_alimtalk_web_storage_stub.dart'
     if (dart.library.html) 'hq_alimtalk_web_storage.dart' as web_ls;
+import 'hq_remote_settings.dart';
 
 /// 본사(어드민) 알림톡 종류 카탈로그
 ///
@@ -90,8 +92,8 @@ class HqAlimtalkCatalog {
       final parsed = _decodeEnvelope(raw);
       if (parsed == null) return;
       final at = parsed.$1 ?? DateTime.fromMillisecondsSinceEpoch(0);
-      // updatedAt 없는 레거시보다, 타임스탬프 있는 최신 값을 우선
-      final score = parsed.$1 != null ? at : DateTime.fromMillisecondsSinceEpoch(1);
+      final score =
+          parsed.$1 != null ? at : DateTime.fromMillisecondsSinceEpoch(1);
       if (best == null || score.isAfter(bestAt)) {
         best = parsed.$2;
         bestAt = score;
@@ -102,12 +104,15 @@ class HqAlimtalkCatalog {
       }
     }
 
-    // 1) raw localStorage
+    final remote = await HqRemoteSettings.read(FirestorePaths.metaHqAlimtalk);
+    if (remote != null) {
+      consider(jsonEncode(remote), source: 'firestore');
+    }
+
     if (kIsWeb) {
       consider(web_ls.hqAlimtalkReadRaw(rawLsKey), source: 'rawLS');
     }
 
-    // 2) SharedPreferences
     try {
       final prefs = await SharedPreferences.getInstance();
       try {
@@ -115,7 +120,6 @@ class HqAlimtalkCatalog {
       } catch (_) {}
       consider(prefs.getString(prefsKey), source: 'prefs');
 
-      // 3) mock store 안 hqAlimtalk 필드 (앱↔어드민 공유 채널)
       final mockRaw = prefs.getString(mockStoreKey);
       if (mockRaw != null && mockRaw.isNotEmpty) {
         try {
@@ -169,6 +173,15 @@ class HqAlimtalkCatalog {
       } catch (e) {
         debugPrint('[HqAlimtalkCatalog] localStorage save failed: $e');
       }
+    }
+
+    try {
+      await HqRemoteSettings.write(
+        FirestorePaths.metaHqAlimtalk,
+        Map<String, dynamic>.from(jsonDecode(raw) as Map),
+      );
+    } catch (e) {
+      debugPrint('[HqAlimtalkCatalog] firestore save fail: $e');
     }
 
     revision.value++;

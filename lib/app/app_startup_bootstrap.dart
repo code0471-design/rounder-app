@@ -8,6 +8,8 @@ import '../core/config/runtime_mode.dart';
 import '../di/app_dependencies.dart';
 import '../firebase_options.dart';
 import '../services/firebase_auth_bridge.dart';
+import '../services/hq_alimtalk_catalog.dart';
+import '../services/hq_push_catalog.dart';
 import '../services/push_notification_service.dart';
 import 'app_startup_result.dart';
 
@@ -48,6 +50,8 @@ abstract final class AppStartupBootstrap {
       firebaseReady = true;
       debugPrint('[AppStartup] Firebase.initializeApp OK');
       try {
+        await HqPushCatalog.load();
+        await HqAlimtalkCatalog.load();
         await PushNotificationService.init();
       } catch (e) {
         debugPrint('[AppStartup] Push init skip: $e');

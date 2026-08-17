@@ -386,6 +386,29 @@ class HqBroadcastJob {
         sendNow: sendNow,
         status: status ?? this.status,
       );
+
+  Map<String, dynamic> toJson() => {
+        'id': id,
+        'title': title,
+        'body': body,
+        'when': when.toIso8601String(),
+        'sendNow': sendNow,
+        'status': status,
+      };
+
+  factory HqBroadcastJob.fromJson(Map<String, dynamic> j) {
+    DateTime when = DateTime.now();
+    final raw = j['when'];
+    if (raw is String) when = DateTime.tryParse(raw) ?? when;
+    return HqBroadcastJob(
+      id: j['id'] as String? ?? '',
+      title: j['title'] as String? ?? '',
+      body: j['body'] as String? ?? '',
+      when: when,
+      sendNow: j['sendNow'] as bool? ?? true,
+      status: j['status'] as String? ?? 'draft',
+    );
+  }
 }
 
 // ────────────────────────────────────────────────────────────

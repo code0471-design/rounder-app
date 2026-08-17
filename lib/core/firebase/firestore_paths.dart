@@ -11,6 +11,10 @@ abstract final class FirestorePaths {
   static const fcmTokens = 'fcm_tokens';
   static const pushInboxCol = 'push_inbox';
   static const metaClubCatalog = '_meta/club_catalog';
+  static const metaHqPush = '_meta/hq_push';
+  static const metaHqAlimtalk = '_meta/hq_alimtalk';
+  static const hqBroadcasts = 'hq_broadcasts';
+  static const d1Queue = 'd1_queue';
 
   static String clubDoc(String clubId) => '$clubs/$clubId';
 

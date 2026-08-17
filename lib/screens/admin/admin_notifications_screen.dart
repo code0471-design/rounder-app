@@ -3,11 +3,10 @@
 //  알림톡 템플릿 선택 + 푸시 알림 예약 발송
 // ════════════════════════════════════════════════════════════
 
-import 'dart:convert';
-
 import 'package:flutter/material.dart';
-import 'package:shared_preferences/shared_preferences.dart';
 
+import '../../services/hq_push_catalog.dart';
+import '../../services/push_notification_service.dart';
 import 'admin_alimtalk_management_tab.dart';
 import 'admin_models.dart';
 import 'admin_theme.dart';
@@ -229,8 +228,6 @@ class _PushNotificationTab extends StatefulWidget {
 }
 
 class _PushNotificationTabState extends State<_PushNotificationTab> {
-  static const _prefsKey = 'admin_hq_push_types_v1';
-
   int _mode = 0; // 0 club auto, 1 hq broadcast
   /// true = 사용중 목록, false = 사용중지 목록
   bool _showActiveClubTypes = true;
@@ -258,15 +255,9 @@ class _PushNotificationTabState extends State<_PushNotificationTab> {
 
   Future<void> _loadClubTypes() async {
     try {
-      final prefs = await SharedPreferences.getInstance();
-      final raw = prefs.getString(_prefsKey);
-      if (raw != null && raw.isNotEmpty) {
-        final list = (jsonDecode(raw) as List)
-            .map((e) => HqPushType.fromJson(Map<String, dynamic>.from(e as Map)))
-            .toList();
-        if (list.isNotEmpty) {
-          _clubTypes = list;
-        }
+      final list = await HqPushCatalog.load(forceDisk: true);
+      if (list.isNotEmpty) {
+        _clubTypes = list;
       }
     } catch (_) {}
     if (!mounted) return;
@@ -274,13 +265,7 @@ class _PushNotificationTabState extends State<_PushNotificationTab> {
   }
 
   Future<void> _persistClubTypes() async {
-    try {
-      final prefs = await SharedPreferences.getInstance();
-      await prefs.setString(
-        _prefsKey,
-        jsonEncode(_clubTypes.map((e) => e.toJson()).toList()),
-      );
-    } catch (_) {}
+    await HqPushCatalog.save(_clubTypes);
   }
 
   List<HqPushType> get _visibleClubTypes => _clubTypes
@@ -1349,8 +1334,16 @@ class _PushNotificationTabState extends State<_PushNotificationTab> {
     titleCtrl.dispose();
     bodyCtrl.dispose();
 
+    await PushNotificationService.submitHqBroadcast(
+      id: job.id,
+      title: job.title,
+      body: job.body,
+      sendNow: job.sendNow,
+      when: job.when,
+    );
+
     if (sendNow) {
-      await Future.delayed(const Duration(milliseconds: 700));
+      await Future.delayed(const Duration(milliseconds: 400));
       if (!mounted) return;
       setState(() {
         final i = _broadcasts.indexWhere((x) => x.id == job.id);

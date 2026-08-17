@@ -13,13 +13,15 @@ import '../models/member_role.dart';
 import '../services/club_data_codec.dart';
 import '../services/club_persistence.dart';
 import '../services/firebase_auth_bridge.dart';
+import '../services/hq_alimtalk_catalog.dart';
+import '../services/hq_push_catalog.dart';
 import '../services/push_notification_service.dart';
 import '../services/shared_join_request_store.dart';
 
 // ════════════════════════════════════════════════════════════
 //  ClubProvider
 // ════════════════════════════════════════════════════════════
-class ClubProvider extends ChangeNotifier {
+class ClubProvider extends ChangeNotifier with WidgetsBindingObserver {
   String? _persistAuthUserId;
   bool _suppressPersist = false;
   Timer? _persistTimer;
@@ -27,6 +29,22 @@ class ClubProvider extends ChangeNotifier {
   ClubProvider() {
     _normalizeScheduleTitles();
     _syncAllNextRounds();
+    WidgetsBinding.instance.addObserver(this);
+  }
+
+  @override
+  void dispose() {
+    WidgetsBinding.instance.removeObserver(this);
+    super.dispose();
+  }
+
+  @override
+  void didChangeAppLifecycleState(AppLifecycleState state) {
+    if (state != AppLifecycleState.resumed) return;
+    unawaited(HqPushCatalog.load());
+    unawaited(HqAlimtalkCatalog.load());
+    _syncAllNextRounds();
+    notifyListeners();
   }
 
   static String _monthlyTitle(DateTime date, String name) =>
@@ -343,6 +361,7 @@ class ClubProvider extends ChangeNotifier {
     await mergeSharedJoinRequests();
     await refreshJoinRequestInbox();
     _purgeDemoSeedNotifications();
+    await HqPushCatalog.load();
     unawaited(PushNotificationService.bindUserIds([authUserId, _currentUserId]));
     notifyListeners();
   }
@@ -919,6 +938,7 @@ class ClubProvider extends ChangeNotifier {
         targetUserId: notifyTarget ?? currentUserId,
         isRead: false,
       ),
+      hqPushTypeId: HqPushCatalog.joinRequest,
     );
   }
 
@@ -2388,6 +2408,44 @@ class ClubProvider extends ChangeNotifier {
     _duesSettings.add(setting);
     notifyListeners();
     _persistImmediately();
+    final due = setting.dueDate;
+    final dueText = due == null
+        ? ''
+        : '${due.year}.${due.month.toString().padLeft(2, '0')}.${due.day.toString().padLeft(2, '0')}';
+    _notifyHqPush(
+      typeId: HqPushCatalog.duesRequest,
+      userIds: regularMembers.map((m) => m.id).toList(),
+      appType: AppNotificationType.announcement,
+      clubId: selectedClub.id,
+      clubName: selectedClub.name,
+      vars: {
+        '모임명': selectedClub.name,
+        '기한': dueText,
+      },
+      targetId: setting.id,
+    );
+  }
+
+  /// 총무 수동 회비 독촉
+  void sendDuesNudge({
+    required List<String> memberIds,
+    required String duesTitle,
+  }) {
+    for (final id in memberIds) {
+      final name = activeMembers.where((m) => m.id == id).firstOrNull?.name ?? '';
+      _notifyHqPush(
+        typeId: HqPushCatalog.duesNudge,
+        userIds: [id],
+        appType: AppNotificationType.announcement,
+        clubId: selectedClub.id,
+        clubName: selectedClub.name,
+        vars: {
+          '이름': name,
+          '모임명': selectedClub.name,
+        },
+        targetId: duesTitle,
+      );
+    }
   }
 
   /// 회비 설정 수정 (기간 변경 등)
@@ -2520,6 +2578,16 @@ class ClubProvider extends ChangeNotifier {
     }
     notifyListeners();
     _persistImmediately();
+    final clubName = selectedClub.name;
+    _notifyHqPush(
+      typeId: HqPushCatalog.scheduleConfirm,
+      userIds: regularMembers.map((m) => m.id).toList(),
+      appType: AppNotificationType.announcement,
+      clubId: schedule.clubId,
+      clubName: clubName,
+      vars: {'모임명': clubName},
+      targetId: schedule.id,
+    );
   }
 
   /// 라운딩 후기/메모 저장
@@ -2771,8 +2839,11 @@ class ClubProvider extends ChangeNotifier {
   void cancelSchedule(String scheduleId) {
     final idx = _schedules.indexWhere((s) => s.id == scheduleId);
     if (idx != -1) {
-      _schedules[idx] = _schedules[idx].copyWith(status: ScheduleStatus.cancelled);
-      _syncNextRound(_schedules[idx].clubId);
+      final schedule = _schedules[idx];
+      notifyScheduleCancelled(schedule);
+      unawaited(PushNotificationService.clearD1ForSchedule(scheduleId));
+      _schedules[idx] = schedule.copyWith(status: ScheduleStatus.cancelled);
+      _syncNextRound(schedule.clubId);
       notifyListeners();
       _persistImmediately();
     }
@@ -2784,20 +2855,23 @@ class ClubProvider extends ChangeNotifier {
         _allClubs.where((c) => c.id == schedule.clubId).firstOrNull;
     final clubName = club?.name ?? '';
     final recipients =
-        schedule.responses.where((r) => r.response == '참석' || r.response == '불참');
+        schedule.responses.where((r) => r.response == '참석');
     var count = 0;
     for (final r in recipients) {
-      addAppNotification(AppNotification(
-        id: 'noti_cancel_${schedule.id}_${r.memberId}_${DateTime.now().millisecondsSinceEpoch}',
-        type: AppNotificationType.scheduleCancelled,
-        clubId: schedule.clubId,
-        clubName: clubName,
-        title: '일정이 취소되었습니다',
-        body: '${schedule.displayTitle} 일정이 총무에 의해 취소되었습니다.',
-        createdAt: DateTime.now(),
-        targetId: schedule.id,
-        targetUserId: r.memberId,
-      ));
+      addAppNotification(
+        AppNotification(
+          id: 'noti_cancel_${schedule.id}_${r.memberId}_${DateTime.now().millisecondsSinceEpoch}',
+          type: AppNotificationType.scheduleCancelled,
+          clubId: schedule.clubId,
+          clubName: clubName,
+          title: '일정이 취소되었습니다',
+          body: '${schedule.displayTitle} 일정이 총무에 의해 취소되었습니다.',
+          createdAt: DateTime.now(),
+          targetId: schedule.id,
+          targetUserId: r.memberId,
+        ),
+        hqPushTypeId: HqPushCatalog.scheduleCancel,
+      );
       count++;
     }
     return count;
@@ -2880,6 +2954,15 @@ class ClubProvider extends ChangeNotifier {
     ));
     notifyListeners();
     _persistImmediately();
+    unawaited(PushNotificationService.syncD1Reminder(
+      scheduleId: scheduleId,
+      userId: myId,
+      roundDate: schedule.roundDate,
+      clubId: schedule.clubId,
+      clubName: selectedClub.name,
+      scheduleTitle: schedule.displayTitle,
+      attending: response == '참석',
+    ));
     return true;
   }
 
@@ -2990,6 +3073,16 @@ class ClubProvider extends ChangeNotifier {
       activityType: 'attendance',
       description: '${schedule.title} $response (총무 변경)',
       timestamp: DateTime.now(),
+    ));
+
+    unawaited(PushNotificationService.syncD1Reminder(
+      scheduleId: scheduleId,
+      userId: memberId,
+      roundDate: schedule.roundDate,
+      clubId: schedule.clubId,
+      clubName: club?.name ?? selectedClub.name,
+      scheduleTitle: schedule.displayTitle,
+      attending: response == '참석',
     ));
 
     notifyListeners();
@@ -3274,7 +3367,11 @@ class ClubProvider extends ChangeNotifier {
     notifyListeners();
   }
 
-  void addAppNotification(AppNotification n) {
+  void addAppNotification(AppNotification n, {String? hqPushTypeId}) {
+    if (hqPushTypeId != null && !HqPushCatalog.isEnabledSync(hqPushTypeId)) {
+      debugPrint('[Push] skipped disabled $hqPushTypeId');
+      return;
+    }
     _appNotifications.insert(0, n);
     final target = n.targetUserId;
     if (target != null &&
@@ -3285,11 +3382,47 @@ class ClubProvider extends ChangeNotifier {
         targetUserId: target,
         title: n.title,
         body: n.body,
-        type: n.type.name,
+        type: hqPushTypeId ?? n.type.name,
         clubId: n.clubId,
       ));
     }
     notifyListeners();
+  }
+
+  void _notifyHqPush({
+    required String typeId,
+    required List<String> userIds,
+    required AppNotificationType appType,
+    required String clubId,
+    required String clubName,
+    Map<String, String> vars = const {},
+    String? targetId,
+    bool isAdmin = false,
+  }) {
+    if (!HqPushCatalog.isEnabledSync(typeId)) return;
+    final spec = HqPushCatalog.byIdSync(typeId);
+    final title = HqPushCatalog.applyVars(spec?.defaultTitle ?? spec?.name ?? '라운더', vars);
+    final body = HqPushCatalog.applyVars(spec?.defaultBody ?? '', vars);
+    final now = DateTime.now().millisecondsSinceEpoch;
+    for (final id in userIds) {
+      if (id.trim().isEmpty) continue;
+      addAppNotification(
+        AppNotification(
+          id: 'noti_${typeId}_${id}_$now',
+          type: appType,
+          clubId: clubId,
+          clubName: clubName,
+          title: title,
+          body: body,
+          isAdmin: isAdmin,
+          createdAt: DateTime.now(),
+          targetId: targetId,
+          targetUserId: id,
+          isRead: false,
+        ),
+        hqPushTypeId: typeId,
+      );
+    }
   }
 
   /// 알림 1개 삭제
@@ -3748,7 +3881,7 @@ class ClubProvider extends ChangeNotifier {
       targetUserId: notifyTarget,
       isRead: false,
     );
-    addAppNotification(noti);
+    addAppNotification(noti, hqPushTypeId: HqPushCatalog.joinRequest);
 
     // 계정 전환과 무관한 공유 대기열 + 총무 계정 번들에 즉시 전달
     final store = AppDependencies.instance.mockDataStore;
@@ -4147,7 +4280,7 @@ class ClubProvider extends ChangeNotifier {
       targetId: req.id,
       targetUserId: req.userId,
       isRead: false,
-    ));
+    ), hqPushTypeId: HqPushCatalog.joinResult);
 
     // 탈퇴 이력 있으면 신청자 계정에서 해제 + 내 모임 복구
     unawaited(_clearLeftClubForApplicant(req.userId, req.clubId));
@@ -4159,7 +4292,8 @@ class ClubProvider extends ChangeNotifier {
   void rejectRequest(String requestId) {
     final idx = _joinRequests.indexWhere((r) => r.id == requestId);
     if (idx == -1) return;
-    _joinRequests[idx] = _joinRequests[idx].copyWith(
+    final req = _joinRequests[idx];
+    _joinRequests[idx] = req.copyWith(
       status: JoinRequestStatus.rejected,
       reviewedBy: currentUserName,
       reviewedAt: DateTime.now(),
@@ -4167,6 +4301,21 @@ class ClubProvider extends ChangeNotifier {
     AppDependencies.instance.mockDataStore
         ?.removePendingJoinRequest(requestId);
     unawaited(SharedJoinRequestStore.remove(requestId));
+    final club = _allClubs.where((c) => c.id == req.clubId).firstOrNull ??
+        _myClubs.where((c) => c.id == req.clubId).firstOrNull;
+    _notifyHqPush(
+      typeId: HqPushCatalog.joinResult,
+      userIds: [req.userId],
+      appType: AppNotificationType.announcement,
+      clubId: req.clubId,
+      clubName: club?.name ?? '모임',
+      vars: {
+        '이름': req.userName,
+        '모임명': club?.name ?? '모임',
+        '결과': '거절',
+      },
+      targetId: req.id,
+    );
     notifyListeners();
     _persistImmediately();
   }

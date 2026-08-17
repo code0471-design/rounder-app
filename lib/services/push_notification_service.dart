@@ -6,9 +6,10 @@ import 'package:firebase_messaging/firebase_messaging.dart';
 import 'package:flutter/foundation.dart';
 import 'package:flutter_local_notifications/flutter_local_notifications.dart';
 
-import '../core/config/runtime_mode.dart';
 import '../core/firebase/firestore_paths.dart';
 import '../firebase_options.dart';
+import 'hq_push_catalog.dart';
+import 'hq_remote_settings.dart';
 
 @pragma('vm:entry-point')
 Future<void> firebaseMessagingBackgroundHandler(RemoteMessage message) async {
@@ -42,7 +43,7 @@ abstract final class PushNotificationService {
 
   /// runApp 이전에 한 번 호출. 백그라운드 핸들러 등록용.
   static void registerBackgroundHandler() {
-    if (kIsWeb || RuntimeMode.useOfflineMock) return;
+    if (!HqRemoteSettings.available) return;
     if (_backgroundHandlerRegistered) return;
     try {
       FirebaseMessaging.onBackgroundMessage(firebaseMessagingBackgroundHandler);
@@ -54,7 +55,7 @@ abstract final class PushNotificationService {
 
   static Future<void> init() async {
     if (_initialized) return;
-    if (kIsWeb || RuntimeMode.useOfflineMock) return;
+    if (!HqRemoteSettings.available) return;
     if (Firebase.apps.isEmpty) return;
 
     try {
@@ -100,13 +101,14 @@ abstract final class PushNotificationService {
 
       _initialized = true;
       debugPrint('[Push] initialized');
+      unawaited(HqPushCatalog.load());
     } catch (e, st) {
       debugPrint('[Push] init skip: $e\n$st');
     }
   }
 
   static Future<void> bindUserIds(Iterable<String> userIds) async {
-    if (kIsWeb || RuntimeMode.useOfflineMock) return;
+    if (!HqRemoteSettings.available) return;
     await init();
     final ids = userIds
         .map((e) => e.trim())
@@ -146,7 +148,7 @@ abstract final class PushNotificationService {
     String? type,
     String? clubId,
   }) async {
-    if (kIsWeb || RuntimeMode.useOfflineMock) return;
+    if (!HqRemoteSettings.available) return;
     final id = targetUserId.trim();
     if (id.isEmpty) return;
     try {
@@ -161,6 +163,97 @@ abstract final class PushNotificationService {
       });
     } catch (e) {
       debugPrint('[Push] enqueue skip: $e');
+    }
+  }
+
+  static String _d1DocId(String scheduleId, String userId) =>
+      '${scheduleId}__$userId';
+
+  static String _ymd(DateTime d) =>
+      '${d.year.toString().padLeft(4, '0')}-'
+      '${d.month.toString().padLeft(2, '0')}-'
+      '${d.day.toString().padLeft(2, '0')}';
+
+  /// 참석 확정 시 D-1 10시 리마인더 예약. 불참이면 삭제.
+  static Future<void> syncD1Reminder({
+    required String scheduleId,
+    required String userId,
+    required DateTime roundDate,
+    required String clubId,
+    required String clubName,
+    required String scheduleTitle,
+    required bool attending,
+  }) async {
+    if (!HqRemoteSettings.available) return;
+    final doc = FirebaseFirestore.instance
+        .collection(FirestorePaths.d1Queue)
+        .doc(_d1DocId(scheduleId, userId));
+    try {
+      if (!attending) {
+        await doc.delete();
+        return;
+      }
+      final sendOn = DateTime(roundDate.year, roundDate.month, roundDate.day)
+          .subtract(const Duration(days: 1));
+      final today = DateTime(DateTime.now().year, DateTime.now().month,
+          DateTime.now().day);
+      if (sendOn.isBefore(today)) return;
+      final t = HqPushCatalog.byIdSync(HqPushCatalog.d1Reminder);
+      await doc.set({
+        'userId': userId,
+        'scheduleId': scheduleId,
+        'clubId': clubId,
+        'sendOn': _ymd(sendOn),
+        'title': HqPushCatalog.applyVars(
+            t?.defaultTitle ?? '내일 라운딩 안내', {'모임명': clubName}),
+        'body': HqPushCatalog.applyVars(
+            t?.defaultBody ?? '내일 $clubName 라운딩이 있습니다. 늦지 않게 준비해 주세요.',
+            {'모임명': clubName}),
+        'scheduleTitle': scheduleTitle,
+        'updatedAt': FieldValue.serverTimestamp(),
+      });
+    } catch (e) {
+      debugPrint('[Push] d1 sync skip: $e');
+    }
+  }
+
+  static Future<void> clearD1ForSchedule(String scheduleId) async {
+    if (!HqRemoteSettings.available) return;
+    try {
+      final snap = await FirebaseFirestore.instance
+          .collection(FirestorePaths.d1Queue)
+          .where('scheduleId', isEqualTo: scheduleId)
+          .get();
+      for (final d in snap.docs) {
+        await d.reference.delete();
+      }
+    } catch (e) {
+      debugPrint('[Push] d1 clear skip: $e');
+    }
+  }
+
+  static Future<void> submitHqBroadcast({
+    required String id,
+    required String title,
+    required String body,
+    required bool sendNow,
+    required DateTime when,
+  }) async {
+    if (!HqRemoteSettings.available) return;
+    try {
+      await FirebaseFirestore.instance
+          .collection(FirestorePaths.hqBroadcasts)
+          .doc(id)
+          .set({
+        'title': title,
+        'body': body,
+        'sendNow': sendNow,
+        'when': Timestamp.fromDate(when),
+        'status': sendNow ? 'sending' : 'scheduled',
+        'createdAt': FieldValue.serverTimestamp(),
+      });
+    } catch (e) {
+      debugPrint('[Push] broadcast submit skip: $e');
     }
   }
 
