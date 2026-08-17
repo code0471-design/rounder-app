@@ -1,4 +1,5 @@
 import java.util.Properties
+import java.io.FileInputStream
 
 plugins {
     id("com.android.application")
@@ -6,6 +7,12 @@ plugins {
     // The Flutter Gradle Plugin must be applied after the Android and Kotlin Gradle plugins.
     id("dev.flutter.flutter-gradle-plugin")
     id("com.google.gms.google-services")
+}
+
+val keystoreProperties = Properties()
+val keystorePropertiesFile = rootProject.file("key.properties")
+if (keystorePropertiesFile.exists()) {
+    keystoreProperties.load(FileInputStream(keystorePropertiesFile))
 }
 
 android {
@@ -23,10 +30,7 @@ android {
     }
 
     defaultConfig {
-        // TODO: Specify your own unique Application ID (https://developer.android.com/studio/build/application-id.html).
         applicationId = "com.golfrounder.golf"
-        // You can update the following values to match your application needs.
-        // For more information, see: https://flutter.dev/to/review-gradle-config.
         minSdk = flutter.minSdkVersion
         targetSdk = flutter.targetSdkVersion
         versionCode = flutter.versionCode
@@ -46,11 +50,40 @@ android {
         manifestPlaceholders["KAKAO_NATIVE_APP_KEY"] = kakaoKey
     }
 
+    signingConfigs {
+        create("release") {
+            // Codemagic Android code signing env vars (preferred in CI)
+            val cmKeystore = System.getenv("CM_KEYSTORE_PATH")
+            val cmPassword = System.getenv("CM_KEYSTORE_PASSWORD")
+            val cmAlias = System.getenv("CM_KEY_ALIAS")
+            val cmKeyPassword = System.getenv("CM_KEY_PASSWORD")
+            if (!cmKeystore.isNullOrBlank() &&
+                !cmPassword.isNullOrBlank() &&
+                !cmAlias.isNullOrBlank() &&
+                !cmKeyPassword.isNullOrBlank()
+            ) {
+                storeFile = file(cmKeystore)
+                storePassword = cmPassword
+                keyAlias = cmAlias
+                keyPassword = cmKeyPassword
+            } else if (keystorePropertiesFile.exists()) {
+                keyAlias = keystoreProperties["keyAlias"] as String
+                keyPassword = keystoreProperties["keyPassword"] as String
+                storeFile = file(keystoreProperties["storeFile"] as String)
+                storePassword = keystoreProperties["storePassword"] as String
+            }
+        }
+    }
+
     buildTypes {
         release {
-            // TODO: Add your own signing config for the release build.
-            // Signing with the debug keys for now, so `flutter run --release` works.
-            signingConfig = signingConfigs.getByName("debug")
+            val releaseSigning = signingConfigs.getByName("release")
+            signingConfig = if (releaseSigning.storeFile != null) {
+                releaseSigning
+            } else {
+                // Local fallback only — Play Console rejects debug-signed AABs
+                signingConfigs.getByName("debug")
+            }
         }
     }
 }
@@ -58,4 +91,3 @@ android {
 flutter {
     source = "../.."
 }
-
