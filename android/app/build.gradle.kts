@@ -37,6 +37,12 @@ android {
         targetSdk = flutter.targetSdkVersion
         versionCode = flutter.versionCode
         versionName = flutter.versionName
+        // Play already consumed 10; refuse stale AABs instead of uploading them again.
+        if (flutter.versionCode <= 10) {
+            throw GradleException(
+                "versionCode ${flutter.versionCode} was already used on Play. Use pubspec 1.0.0+12 or --build-number=12.",
+            )
+        }
         // Kakao Login redirect scheme: kakao{NATIVE_APP_KEY}
         val localProps = Properties()
         val localFile = rootProject.file("local.properties")

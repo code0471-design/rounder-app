@@ -47,7 +47,8 @@ workflows:
         script: flutter pub get
       - name: Build release APK
         script: |
-          flutter build apk --release --android-skip-build-dependency-validation
+          flutter build apk --release --android-skip-build-dependency-validation \
+            --build-name=1.0.0 --build-number=12
     artifacts:
       - build/**/outputs/**/*.apk
 
@@ -65,7 +66,8 @@ workflows:
       - name: Build release AAB
         script: |
           set +e
-          flutter build appbundle --release --android-skip-build-dependency-validation 2>&1 | tee /tmp/rounder_aab.log
+          flutter build appbundle --release --android-skip-build-dependency-validation \
+            --build-name=1.0.0 --build-number=12 2>&1 | tee /tmp/rounder_aab.log
           status=${PIPESTATUS[0]}
           if [ $status -ne 0 ]; then
             echo "===== What went wrong (excerpt) ====="
