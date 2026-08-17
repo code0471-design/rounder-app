@@ -109,7 +109,9 @@ abstract final class SocialAuthService {
           '[SocialAuth] Kakao login failed (talk: $useKakaoTalk): $e',
         );
         if (!useKakaoTalk) {
-          throw SocialAuthException('카카오 로그인 실패: ${_describe(e)}');
+          throw SocialAuthException(
+            '카카오 로그인 실패: ${_describe(e)} / ${await _kakaoDebugInfo()}',
+          );
         }
         // 카카오톡 연동 실패 → 계정 로그인으로 한 번만 폴백
         useKakaoTalk = false;
@@ -233,6 +235,18 @@ abstract final class SocialAuthService {
         await UserApi.instance.logout();
       }
     } catch (_) {}
+  }
+
+  /// 앱이 실제로 카카오에 보내는 키 해시와 사용 중인 앱 키.
+  /// 콘솔 등록값과 대조해야 keyHash 오류를 특정할 수 있다.
+  static Future<String> _kakaoDebugInfo() async {
+    final key = SocialAuthConfig.kakaoNativeAppKey.trim();
+    final keyTail = key.length >= 6 ? key.substring(key.length - 6) : key;
+    try {
+      return 'keyHash=${await KakaoSdk.origin} appKey…$keyTail';
+    } catch (e) {
+      return 'keyHash 확인 실패($e) appKey…$keyTail';
+    }
   }
 
   static bool _isKakaoCancellation(Object error) {
