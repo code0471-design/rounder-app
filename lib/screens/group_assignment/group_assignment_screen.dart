@@ -279,11 +279,15 @@ class _GroupAssignmentScreenState extends State<GroupAssignmentScreen> {
                 color: Color(0xFF333333), size: 18),
             onPressed: () => Navigator.pop(context),
           ),
+          titleSpacing: 0,
           title: Column(
+            mainAxisSize: MainAxisSize.min,
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
               Text(
                 widget.schedule.displayTitle,
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
                 style: const TextStyle(
                     color: Color(0xFF999999), fontSize: 11),
               ),
@@ -294,8 +298,8 @@ class _GroupAssignmentScreenState extends State<GroupAssignmentScreen> {
                           color: Color(0xFF222222),
                           fontSize: 18,
                           fontWeight: FontWeight.w800)),
-                  const SizedBox(width: 8),
-                  if (isFinalized)
+                  if (isFinalized) ...[
+                    const SizedBox(width: 8),
                     Container(
                       padding: const EdgeInsets.symmetric(
                           horizontal: 8, vertical: 2),
@@ -309,27 +313,12 @@ class _GroupAssignmentScreenState extends State<GroupAssignmentScreen> {
                               fontSize: 10,
                               fontWeight: FontWeight.w700)),
                     ),
+                  ],
                 ],
               ),
             ],
           ),
-          titleSpacing: 0,
           actions: [
-            Container(
-              margin: const EdgeInsets.only(right: 4),
-              padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
-              decoration: BoxDecoration(
-                color: const Color(0xFFF5F5F5),
-                borderRadius: BorderRadius.circular(20),
-              ),
-              child: Text(
-                '참석 $totalAttend명 · 배정 $assignedCount명',
-                style: const TextStyle(
-                    color: Color(0xFF777777),
-                    fontSize: 11,
-                    fontWeight: FontWeight.w600),
-              ),
-            ),
             if (!isFinalized)
               IconButton(
                 icon: const Icon(Icons.refresh_rounded,
@@ -363,8 +352,33 @@ class _GroupAssignmentScreenState extends State<GroupAssignmentScreen> {
             ),
           ],
           bottom: PreferredSize(
-            preferredSize: const Size.fromHeight(1),
-            child: Container(color: const Color(0xFFEEEEEE), height: 1),
+            preferredSize: const Size.fromHeight(37),
+            child: Column(
+              children: [
+                Padding(
+                  padding: const EdgeInsets.fromLTRB(16, 0, 16, 8),
+                  child: Align(
+                    alignment: Alignment.centerLeft,
+                    child: Container(
+                      padding: const EdgeInsets.symmetric(
+                          horizontal: 10, vertical: 4),
+                      decoration: BoxDecoration(
+                        color: const Color(0xFFF5F5F5),
+                        borderRadius: BorderRadius.circular(20),
+                      ),
+                      child: Text(
+                        '참석 $totalAttend명 · 배정 $assignedCount명',
+                        style: const TextStyle(
+                            color: Color(0xFF777777),
+                            fontSize: 11,
+                            fontWeight: FontWeight.w600),
+                      ),
+                    ),
+                  ),
+                ),
+                Container(color: const Color(0xFFEEEEEE), height: 1),
+              ],
+            ),
           ),
         ),
         body: CustomScrollView(

@@ -151,13 +151,21 @@ class _FinanceScreenState extends State<FinanceScreen>
                       unselectedLabelColor: AppColors.inkSoft,
                       indicatorColor: AppColors.sageDeep,
                       indicatorWeight: 2.5,
+                      indicatorSize: TabBarIndicatorSize.label,
+                      labelPadding: const EdgeInsets.symmetric(horizontal: 4),
                       labelStyle: const TextStyle(
-                          fontSize: 13, fontWeight: FontWeight.w600),
+                          fontSize: 13,
+                          fontWeight: FontWeight.w600,
+                          height: 1.2),
+                      unselectedLabelStyle: const TextStyle(
+                          fontSize: 13,
+                          fontWeight: FontWeight.w500,
+                          height: 1.2),
                       tabs: const [
-                        Tab(text: '납부현황'),
-                        Tab(text: '수입/지출'),
-                        Tab(text: '결산보고'),
-                        Tab(text: '회비설정'),
+                        Tab(height: 46, child: _FinanceTabLabel('납부현황')),
+                        Tab(height: 46, child: _FinanceTabLabel('수입/지출')),
+                        Tab(height: 46, child: _FinanceTabLabel('결산보고')),
+                        Tab(height: 46, child: _FinanceTabLabel('회비설정')),
                       ],
                     ),
                     if (showTabGuideBubble)
@@ -189,6 +197,19 @@ class _FinanceScreenState extends State<FinanceScreen>
           ),
         );
       },
+    );
+  }
+}
+
+class _FinanceTabLabel extends StatelessWidget {
+  final String text;
+  const _FinanceTabLabel(this.text);
+
+  @override
+  Widget build(BuildContext context) {
+    return FittedBox(
+      fit: BoxFit.scaleDown,
+      child: Text(text, maxLines: 1, softWrap: false),
     );
   }
 }
@@ -454,6 +475,8 @@ class _PaymentStatusTabState extends State<_PaymentStatusTab> {
             // ── 회비 종류 선택 ──
             SingleChildScrollView(
               scrollDirection: Axis.horizontal,
+              clipBehavior: Clip.none,
+              padding: const EdgeInsets.only(bottom: 8),
               child: Row(
                 children: settings.map((s) {
                   final selected2 = s.id == _selectedDuesId;
@@ -472,7 +495,7 @@ class _PaymentStatusTabState extends State<_PaymentStatusTab> {
                       duration: const Duration(milliseconds: 200),
                       margin: const EdgeInsets.only(right: 8),
                       padding: const EdgeInsets.symmetric(
-                          horizontal: 14, vertical: 8),
+                          horizontal: 14, vertical: 10),
                       decoration: BoxDecoration(
                         color: selected2
                             ? AppColors.primary
