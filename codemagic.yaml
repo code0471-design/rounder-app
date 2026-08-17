@@ -1,13 +1,13 @@
 # Codemagic: keep shipping iOS even if Android fails.
-# In Codemagic UI, select workflow "iOS first (Android optional)".
-# For Play upload: use "Android release AAB" after adding an Android keystore
-# under Codemagic → Team settings → Code signing identities → Android keystores.
-# Then set android_signing below to that keystore reference name.
+# In Codemagic UI, select workflow "Android release AAB" for Play.
+# App Store Connect API key name must match Integrations → Developer Portal.
 workflows:
   ios-first:
     name: iOS first (Android optional)
     instance_type: mac_mini_m2
     max_build_duration: 90
+    integrations:
+      app_store_connect: Codemagic
     environment:
       flutter: stable
       xcode: latest
@@ -15,9 +15,6 @@ workflows:
       ios_signing:
         distribution_type: app_store
         bundle_identifier: com.golfrounder.golfRounder
-      # Uncomment after uploading a keystore in Codemagic (use your keystore reference name):
-      # android_signing:
-      #   - rounder_upload
     scripts:
       - name: Get packages
         script: flutter pub get
@@ -45,7 +42,6 @@ workflows:
     max_build_duration: 60
     environment:
       flutter: stable
-      # Replace rounder_upload with the exact reference name from Codemagic keystores
       android_signing:
         - rounder_upload
     scripts:
