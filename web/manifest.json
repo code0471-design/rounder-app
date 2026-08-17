@@ -1,6 +1,6 @@
 {
-    "name": "golf_rounder",
-    "short_name": "golf_rounder",
+    "name": "라운더",
+    "short_name": "라운더",
     "start_url": ".",
     "display": "standalone",
     "background_color": "#0175C2",

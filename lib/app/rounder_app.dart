@@ -61,7 +61,7 @@ class _RounderAppState extends State<RounderApp> {
       ],
       child: MaterialApp(
         navigatorKey: AppNavigator.key,
-        title: 'ROUNDER',
+        title: '라운더',
         debugShowCheckedModeBanner: false,
         theme: AppTheme.theme,
         locale: const Locale('ko', 'KR'),
