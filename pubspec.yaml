@@ -38,6 +38,10 @@ dev_dependencies:
   build_runner: 2.4.6
   flutter_launcher_icons: ^0.14.3
 
+# portone_flutter pulls app_links; 6.4.x AAR requires compileSdk 36 and breaks older plugins.
+dependency_overrides:
+  app_links: 6.3.3
+
 flutter_launcher_icons:
   android: true
   ios: true

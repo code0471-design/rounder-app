@@ -16,35 +16,25 @@ subprojects {
     project.layout.buildDirectory.value(newSubprojectBuildDir)
 }
 
+// MUST run before evaluationDependsOn / afterEvaluate.
+// app_links requires compileSdk >= 36; portone_flutter plugins ship with 34.
 subprojects {
-    project.evaluationDependsOn(":app")
-}
-
-// Force Flutter plugin libraries to compileSdk 36 (app_links AAR metadata / portone_flutter).
-subprojects {
-    afterEvaluate {
-        if (!plugins.hasPlugin("com.android.library")) return@afterEvaluate
-        val android = extensions.findByName("android") ?: return@afterEvaluate
-        val ok =
-            runCatching {
-                android.javaClass
-                    .getMethod("setCompileSdk", Int::class.javaPrimitiveType)
-                    .invoke(android, 36)
-            }.isSuccess ||
+    pluginManager.withPlugin("com.android.library") {
+        val androidExt = extensions.findByName("android") ?: return@withPlugin
+        for (methodName in listOf("setCompileSdk", "setCompileSdkVersion")) {
+            val applied =
                 runCatching {
-                    android.javaClass
-                        .getMethod("setCompileSdkVersion", Int::class.javaPrimitiveType)
-                        .invoke(android, 36)
-                }.isSuccess ||
-                runCatching {
-                    android.javaClass.methods
-                        .first { it.name == "compileSdkVersion" && it.parameterCount == 1 }
-                        .invoke(android, 36)
+                    androidExt.javaClass
+                        .getMethod(methodName, Int::class.javaPrimitiveType)
+                        .invoke(androidExt, 36)
                 }.isSuccess
-        if (!ok) {
-            logger.warn("Could not set compileSdk=36 on ${project.name}")
+            if (applied) break
         }
     }
+}
+
+subprojects {
+    project.evaluationDependsOn(":app")
 }
 
 tasks.register<Delete>("clean") {
