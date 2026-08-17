@@ -46,6 +46,6 @@ workflows:
         script: flutter pub get
       - name: Build release AAB
         script: |
-          flutter build appbundle --release --android-skip-build-dependency-validation
+          flutter build appbundle --release --android-skip-build-dependency-validation --verbose
     artifacts:
       - build/**/outputs/**/*.aab

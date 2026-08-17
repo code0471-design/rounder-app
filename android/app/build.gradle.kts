@@ -52,20 +52,12 @@ android {
 
     signingConfigs {
         create("release") {
-            // Codemagic Android code signing env vars (preferred in CI)
-            val cmKeystore = System.getenv("CM_KEYSTORE_PATH")
-            val cmPassword = System.getenv("CM_KEYSTORE_PASSWORD")
-            val cmAlias = System.getenv("CM_KEY_ALIAS")
-            val cmKeyPassword = System.getenv("CM_KEY_PASSWORD")
-            if (!cmKeystore.isNullOrBlank() &&
-                !cmPassword.isNullOrBlank() &&
-                !cmAlias.isNullOrBlank() &&
-                !cmKeyPassword.isNullOrBlank()
-            ) {
-                storeFile = file(cmKeystore)
-                storePassword = cmPassword
-                keyAlias = cmAlias
-                keyPassword = cmKeyPassword
+            // Codemagic exports CI=true and CM_KEYSTORE_* during android_signing
+            if (System.getenv("CI") == "true") {
+                storeFile = file(System.getenv("CM_KEYSTORE_PATH")!!)
+                storePassword = System.getenv("CM_KEYSTORE_PASSWORD")
+                keyAlias = System.getenv("CM_KEY_ALIAS")
+                keyPassword = System.getenv("CM_KEY_PASSWORD")
             } else if (keystorePropertiesFile.exists()) {
                 keyAlias = keystoreProperties["keyAlias"] as String
                 keyPassword = keystoreProperties["keyPassword"] as String
@@ -77,13 +69,7 @@ android {
 
     buildTypes {
         release {
-            val releaseSigning = signingConfigs.getByName("release")
-            signingConfig = if (releaseSigning.storeFile != null) {
-                releaseSigning
-            } else {
-                // Local fallback only — Play Console rejects debug-signed AABs
-                signingConfigs.getByName("debug")
-            }
+            signingConfig = signingConfigs.getByName("release")
         }
     }
 }
