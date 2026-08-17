@@ -2,7 +2,8 @@ import 'dart:convert';
 import 'dart:math';
 
 import 'package:crypto/crypto.dart';
-import 'package:firebase_auth/firebase_auth.dart';
+// Kakao SDK도 User를 노출하므로 이 파일에서는 Firebase의 User를 숨긴다.
+import 'package:firebase_auth/firebase_auth.dart' hide User;
 import 'package:flutter/foundation.dart';
 import 'package:google_sign_in/google_sign_in.dart';
 import 'package:kakao_flutter_sdk_user/kakao_flutter_sdk_user.dart';
@@ -90,19 +91,39 @@ abstract final class SocialAuthService {
 
   static Future<SocialProfile> _signInWithKakao() async {
     await ensureKakaoInitialized();
-    try {
-      if (await isKakaoTalkInstalled()) {
-        await UserApi.instance.loginWithKakaoTalk();
-      } else {
-        await UserApi.instance.loginWithKakaoAccount();
+
+    var useKakaoTalk = await isKakaoTalkInstalled();
+    while (true) {
+      try {
+        if (useKakaoTalk) {
+          await UserApi.instance.loginWithKakaoTalk();
+        } else {
+          await UserApi.instance.loginWithKakaoAccount();
+        }
+        break;
+      } catch (e) {
+        if (_isKakaoCancellation(e)) {
+          throw const SocialAuthException('카카오 로그인이 취소되었습니다.');
+        }
+        debugPrint(
+          '[SocialAuth] Kakao login failed (talk: $useKakaoTalk): $e',
+        );
+        if (!useKakaoTalk) {
+          throw SocialAuthException('카카오 로그인 실패: ${_describe(e)}');
+        }
+        // 카카오톡 연동 실패 → 계정 로그인으로 한 번만 폴백
+        useKakaoTalk = false;
       }
-    } catch (e) {
-      // 카카오톡 취소/실패 → 계정 로그인 재시도
-      debugPrint('[SocialAuth] KakaoTalk login fallback: $e');
-      await UserApi.instance.loginWithKakaoAccount();
     }
 
-    final user = await UserApi.instance.me();
+    final User user;
+    try {
+      user = await UserApi.instance.me();
+    } catch (e) {
+      debugPrint('[SocialAuth] Kakao me() failed: $e');
+      throw SocialAuthException('카카오 사용자 정보 조회 실패: ${_describe(e)}');
+    }
+
     final name = user.kakaoAccount?.profile?.nickname?.trim();
     return SocialProfile(
       provider: SocialProvider.kakao,
@@ -139,8 +160,16 @@ abstract final class SocialAuthService {
         photoUrl: account.photoUrl,
       );
     } on GoogleSignInException catch (e) {
+      debugPrint('[SocialAuth] Google login failed: ${e.code} ${e.description}');
       if (e.code == GoogleSignInExceptionCode.canceled) {
-        throw const SocialAuthException('구글 로그인이 취소되었습니다.');
+        // Android는 SHA-1/OAuth 클라이언트 설정 오류도 canceled로 내려주므로
+        // 사유가 있으면 함께 노출한다.
+        final detail = e.description?.trim();
+        throw SocialAuthException(
+          detail == null || detail.isEmpty
+              ? '구글 로그인이 취소되었습니다.'
+              : '구글 로그인이 취소되었습니다. ($detail)',
+        );
       }
       throw SocialAuthException('구글 로그인 실패: ${e.description ?? e.code.name}');
     }
@@ -204,6 +233,17 @@ abstract final class SocialAuthService {
         await UserApi.instance.logout();
       }
     } catch (_) {}
+  }
+
+  static bool _isKakaoCancellation(Object error) {
+    final text = error.toString().toLowerCase();
+    return text.contains('cancel') || text.contains('취소');
+  }
+
+  /// 콘솔 설정 문제를 기기에서 바로 확인할 수 있도록 사유를 한 줄로 요약.
+  static String _describe(Object error) {
+    final text = error.toString().replaceAll(RegExp(r'\s+'), ' ').trim();
+    return text.length > 160 ? '${text.substring(0, 160)}…' : text;
   }
 
   static String _generateNonce([int length = 32]) {
