@@ -33,6 +33,24 @@ workflows:
       - build/ios/ipa/*.ipa
       - /tmp/xcodebuild_logs/*.log
 
+  # Sideload build for testing on a device without waiting for Play propagation.
+  android-release-apk:
+    name: Android release APK (sideload)
+    instance_type: mac_mini_m2
+    max_build_duration: 60
+    environment:
+      flutter: stable
+      android_signing:
+        - rounder_upload
+    scripts:
+      - name: Get packages
+        script: flutter pub get
+      - name: Build release APK
+        script: |
+          flutter build apk --release --android-skip-build-dependency-validation
+    artifacts:
+      - build/**/outputs/**/*.apk
+
   android-release:
     name: Android release AAB
     instance_type: mac_mini_m2
