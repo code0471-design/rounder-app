@@ -13,6 +13,7 @@ import '../models/member_role.dart';
 import '../services/club_data_codec.dart';
 import '../services/club_persistence.dart';
 import '../services/firebase_auth_bridge.dart';
+import '../services/push_notification_service.dart';
 import '../services/shared_join_request_store.dart';
 
 // ════════════════════════════════════════════════════════════
@@ -342,6 +343,7 @@ class ClubProvider extends ChangeNotifier {
     await mergeSharedJoinRequests();
     await refreshJoinRequestInbox();
     _purgeDemoSeedNotifications();
+    unawaited(PushNotificationService.bindUserIds([authUserId, _currentUserId]));
     notifyListeners();
   }
 
@@ -903,8 +905,7 @@ class ClubProvider extends ChangeNotifier {
     final notifyRole = hasActiveTreasurer(clubId)
         ? ClubMemberRole.treasurer
         : ClubMemberRole.president;
-    _appNotifications.insert(
-      0,
+    addAppNotification(
       AppNotification(
         id: notiId,
         type: AppNotificationType.joinRequest,
@@ -2892,44 +2893,45 @@ class ClubProvider extends ChangeNotifier {
     final assignment = _groupAssignments[scheduleId];
     if (assignment == null) return;
     final groupNo = assignment.groupOf(memberId);
-    if (groupNo == null) return;
+    if (groupNo == null && !assignment.isFinalized) return;
 
-    final groups = List<AssignGroup>.from(assignment.groups);
-    for (var gi = 0; gi < groups.length; gi++) {
-      final slots = List<GroupSlot>.from(groups[gi].slots);
-      var changed = false;
-      for (var si = 0; si < slots.length; si++) {
-        if (slots[si].memberId == memberId) {
-          slots[si] = const GroupSlot();
-          changed = true;
+    if (groupNo != null) {
+      final groups = List<AssignGroup>.from(assignment.groups);
+      for (var gi = 0; gi < groups.length; gi++) {
+        final slots = List<GroupSlot>.from(groups[gi].slots);
+        var changed = false;
+        for (var si = 0; si < slots.length; si++) {
+          if (slots[si].memberId == memberId) {
+            slots[si] = const GroupSlot();
+            changed = true;
+          }
+        }
+        if (changed) {
+          groups[gi] = groups[gi].copyWithSlots(slots);
         }
       }
-      if (changed) {
-        groups[gi] = groups[gi].copyWithSlots(slots);
-      }
+      _groupAssignments[scheduleId] = assignment.copyWith(groups: groups);
     }
-    _groupAssignments[scheduleId] = assignment.copyWith(groups: groups);
 
     final club = _myClubs.where((c) => c.id == selectedClub.id).firstOrNull ??
         selectedClub;
     final treasurerId = joinRequestNotifyTargetId(club.id);
     if (treasurerId == null || _userIdsMatch(treasurerId, memberId)) return;
 
-    _appNotifications.insert(
-      0,
-      AppNotification(
-        id: 'noti_drop_${DateTime.now().millisecondsSinceEpoch}',
-        type: AppNotificationType.attendanceChanged,
-        clubId: club.id,
-        clubName: club.name,
-        title: '조편성 불참 변경',
-        body: '$memberName님이 $scheduleTitle 조편성 ${groupNo}조에서 불참으로 변경했습니다.',
-        isAdmin: true,
-        createdAt: DateTime.now(),
-        targetId: scheduleId,
-        targetUserId: treasurerId,
-      ),
-    );
+    addAppNotification(AppNotification(
+      id: 'noti_drop_${DateTime.now().millisecondsSinceEpoch}',
+      type: AppNotificationType.attendanceChanged,
+      clubId: club.id,
+      clubName: club.name,
+      title: '조편성 불참 변경',
+      body: groupNo != null
+          ? '$memberName님이 $scheduleTitle 조편성 ${groupNo}조에서 불참으로 변경했습니다.'
+          : '$memberName님이 $scheduleTitle 참석을 불참으로 변경했습니다.',
+      isAdmin: true,
+      createdAt: DateTime.now(),
+      targetId: scheduleId,
+      targetUserId: treasurerId,
+    ));
   }
 
   /// 총무 권한 — 특정 회원의 참석 상태를 강제로 변경하고 즉시 앱 푸시 알림 발송
@@ -3274,6 +3276,19 @@ class ClubProvider extends ChangeNotifier {
 
   void addAppNotification(AppNotification n) {
     _appNotifications.insert(0, n);
+    final target = n.targetUserId;
+    if (target != null &&
+        target.isNotEmpty &&
+        !_userIdsMatch(target, currentUserId) &&
+        !_userIdsMatch(target, _persistAuthUserId)) {
+      unawaited(PushNotificationService.enqueue(
+        targetUserId: target,
+        title: n.title,
+        body: n.body,
+        type: n.type.name,
+        clubId: n.clubId,
+      ));
+    }
     notifyListeners();
   }
 

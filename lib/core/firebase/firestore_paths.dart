@@ -8,6 +8,8 @@ abstract final class FirestorePaths {
   static const transactions = 'transactions';
   static const joinRequests = 'join_requests';
   static const userMemberships = 'user_memberships';
+  static const fcmTokens = 'fcm_tokens';
+  static const pushInboxCol = 'push_inbox';
   static const metaClubCatalog = '_meta/club_catalog';
 
   static String clubDoc(String clubId) => '$clubs/$clubId';
@@ -35,4 +37,8 @@ abstract final class FirestorePaths {
 
   static String userMembershipDoc(String userId, String clubId) =>
       '${userMemberships}/${userId}_$clubId';
+
+  static String fcmTokenDoc(String userId) => '$fcmTokens/$userId';
+
+  static String pushInboxItems(String userId) => '$pushInboxCol/$userId/items';
 }

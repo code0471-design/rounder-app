@@ -62,6 +62,11 @@ void main() {
       source.contains('아직 조편성이 확정되지 않았습니다'),
       isTrue,
     );
+    expect(
+      source.contains('조편성이 확정되었기 때문에 불참 변경시 총무에게 알림이 갑니다'),
+      isTrue,
+      reason: '조편성 확정 후 불참 변경 안내 얼럿이 사라짐',
+    );
   });
 
   test('리치 상세 하단 구성요소 유지 (건드리지 말 것)', () {

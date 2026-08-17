@@ -1,7 +1,10 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import '../models/user_model.dart';
 import '../services/firebase_auth_bridge.dart';
+import '../services/push_notification_service.dart';
 import '../services/social_auth_service.dart';
 import '../di/app_dependencies.dart';
 import '../data/repositories/mock/mock_data_store.dart';
@@ -215,6 +218,8 @@ class AuthProvider extends ChangeNotifier {
         _autoLogin = true;
       }
       notifyListeners();
+      // ignore: unawaited_futures
+      PushNotificationService.bindUserIds([updated.id]);
       return updated;
     }
 
@@ -231,6 +236,7 @@ class AuthProvider extends ChangeNotifier {
     }
 
     notifyListeners();
+    unawaited(PushNotificationService.bindUserIds([user.id]));
     return user;
   }
 
@@ -253,6 +259,7 @@ class AuthProvider extends ChangeNotifier {
 
     await SocialAuthService.signOutProviders();
     await FirebaseAuthBridge.signOut();
+    await PushNotificationService.unbind();
 
     final prefs = await SharedPreferences.getInstance();
     await prefs.remove(_kAutoLogin);

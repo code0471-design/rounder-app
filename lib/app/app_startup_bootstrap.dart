@@ -8,6 +8,7 @@ import '../core/config/runtime_mode.dart';
 import '../di/app_dependencies.dart';
 import '../firebase_options.dart';
 import '../services/firebase_auth_bridge.dart';
+import '../services/push_notification_service.dart';
 import 'app_startup_result.dart';
 
 /// runApp 이전 최소 부트스트랩 — Web Mock 은 Firebase 완전 생략
@@ -39,11 +40,18 @@ abstract final class AppStartupBootstrap {
     String? errorDetail;
 
     try {
-      await Firebase.initializeApp(
-        options: DefaultFirebaseOptions.currentPlatform,
-      ).timeout(const Duration(seconds: 5));
+      if (Firebase.apps.isEmpty) {
+        await Firebase.initializeApp(
+          options: DefaultFirebaseOptions.currentPlatform,
+        ).timeout(const Duration(seconds: 5));
+      }
       firebaseReady = true;
       debugPrint('[AppStartup] Firebase.initializeApp OK');
+      try {
+        await PushNotificationService.init();
+      } catch (e) {
+        debugPrint('[AppStartup] Push init skip: $e');
+      }
     } catch (e, st) {
       errorDetail = e.toString();
       debugPrint('[AppStartup] Firebase failed: $e\n$st');

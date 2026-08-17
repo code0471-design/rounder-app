@@ -601,7 +601,13 @@ class _AttendButton extends StatelessWidget {
                   onTap: () async {
                     final sheetCtx = context;
                     Navigator.pop(sheetCtx);
-                    final confirmed = await _showAbsentConfirmDialog(sheetCtx);
+                    final warnTreasurer = currentResponse == '참석' &&
+                        (provider.groupAssignment(schedule.id)?.isFinalized ??
+                            false);
+                    final confirmed = await _showAbsentConfirmDialog(
+                      sheetCtx,
+                      notifyTreasurer: warnTreasurer,
+                    );
                     if (confirmed == true) {
                       provider.respondToSchedule(
                           scheduleId: schedule.id, response: '불참');
@@ -688,10 +694,13 @@ class _AttendButton extends StatelessWidget {
   }
 
   // ── 불참 확인 다이얼로그 ──
-  Future<bool?> _showAbsentConfirmDialog(BuildContext context) {
+  Future<bool?> _showAbsentConfirmDialog(
+    BuildContext context, {
+    bool notifyTreasurer = false,
+  }) {
     return showDialog<bool>(
       context: context,
-      builder: (ctx) => AlertDialog(
+      builder: (dialogCtx) => AlertDialog(
         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
         title: Row(
           children: [
@@ -709,9 +718,11 @@ class _AttendButton extends StatelessWidget {
                 style: TextStyle(fontSize: 17, fontWeight: FontWeight.w700)),
           ],
         ),
-        content: const Text(
-          '이번 모임에 불참하시겠습니까?\n\n참석명단이 마감될 경우 참석으로 변경하면 대기 상태로 등록됩니다.',
-          style: TextStyle(fontSize: 14, height: 1.6),
+        content: Text(
+          notifyTreasurer
+              ? '조편성이 확정되었기 때문에 불참 변경시 총무에게 알림이 갑니다. 불참으로 변경하시겠습니까?'
+              : '이번 모임에 불참하시겠습니까?\n\n참석명단이 마감될 경우 참석으로 변경하면 대기 상태로 등록됩니다.',
+          style: const TextStyle(fontSize: 14, height: 1.6),
         ),
         actionsPadding: const EdgeInsets.fromLTRB(16, 0, 16, 16),
         actions: [
@@ -719,7 +730,7 @@ class _AttendButton extends StatelessWidget {
             children: [
               Expanded(
                 child: OutlinedButton(
-                  onPressed: () => Navigator.pop(ctx, false),
+                  onPressed: () => Navigator.of(dialogCtx).pop(false),
                   style: OutlinedButton.styleFrom(
                     foregroundColor: AppColors.textSecondary,
                     side: BorderSide(color: Colors.grey.withValues(alpha: 0.3)),
@@ -733,7 +744,7 @@ class _AttendButton extends StatelessWidget {
               const SizedBox(width: 10),
               Expanded(
                 child: ElevatedButton(
-                  onPressed: () => Navigator.pop(ctx, true),
+                  onPressed: () => Navigator.of(dialogCtx).pop(true),
                   style: ElevatedButton.styleFrom(
                     backgroundColor: AppColors.danger,
                     foregroundColor: Colors.white,
@@ -1187,7 +1198,13 @@ class ScheduleDetailScreen extends StatelessWidget {
                       }
                       return;
                     } else if (label == '불참') {
-                      final ok = await _showAbsentConfirmDialogCard(context);
+                      final warnTreasurer = currentResponse == '참석' &&
+                          (provider.groupAssignment(schedule.id)?.isFinalized ??
+                              false);
+                      final ok = await _showAbsentConfirmDialogCard(
+                        context,
+                        notifyTreasurer: warnTreasurer,
+                      );
                       if (ok == true) {
                         provider.respondToSchedule(
                             scheduleId: schedule.id, response: label);
@@ -1384,10 +1401,13 @@ class ScheduleDetailScreen extends StatelessWidget {
   }
 
   // ── _AttendanceCard 전용 불참 확인 다이얼로그 ──
-  Future<bool?> _showAbsentConfirmDialogCard(BuildContext context) {
+  Future<bool?> _showAbsentConfirmDialogCard(
+    BuildContext context, {
+    bool notifyTreasurer = false,
+  }) {
     return showDialog<bool>(
       context: context,
-      builder: (ctx) => AlertDialog(
+      builder: (dialogCtx) => AlertDialog(
         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
         title: Row(
           children: [
@@ -1405,16 +1425,18 @@ class ScheduleDetailScreen extends StatelessWidget {
                 style: TextStyle(fontSize: 17, fontWeight: FontWeight.w700)),
           ],
         ),
-        content: const Text(
-          '이번 모임에 불참하시겠습니까?\n\n참석명단이 마감될 경우 참석으로 변경하면 대기 상태로 등록됩니다.',
-          style: TextStyle(fontSize: 14, height: 1.6),
+        content: Text(
+          notifyTreasurer
+              ? '조편성이 확정되었기 때문에 불참 변경시 총무에게 알림이 갑니다. 불참으로 변경하시겠습니까?'
+              : '이번 모임에 불참하시겠습니까?\n\n참석명단이 마감될 경우 참석으로 변경하면 대기 상태로 등록됩니다.',
+          style: const TextStyle(fontSize: 14, height: 1.6),
         ),
         actionsPadding: const EdgeInsets.fromLTRB(16, 0, 16, 16),
         actions: [
           Row(children: [
             Expanded(
               child: OutlinedButton(
-                onPressed: () => Navigator.pop(ctx, false),
+                onPressed: () => Navigator.of(dialogCtx).pop(false),
                 style: OutlinedButton.styleFrom(
                   foregroundColor: AppColors.textSecondary,
                   side: BorderSide(color: Colors.grey.withValues(alpha: 0.3)),
@@ -1427,7 +1449,7 @@ class ScheduleDetailScreen extends StatelessWidget {
             const SizedBox(width: 10),
             Expanded(
               child: ElevatedButton(
-                onPressed: () => Navigator.pop(ctx, true),
+                onPressed: () => Navigator.of(dialogCtx).pop(true),
                 style: ElevatedButton.styleFrom(
                   backgroundColor: AppColors.danger,
                   foregroundColor: Colors.white,
