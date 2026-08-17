@@ -1,13 +1,14 @@
-# Codemagic: keep shipping iOS even if Android fails.
-# In Codemagic UI, select workflow "Android release AAB" for Play.
-# App Store Connect API key name must match Integrations → Developer Portal.
+# Codemagic: Android Play AAB + optional iOS build.
+# Select workflow "Android release AAB" for Play Console upload.
+# iOS TestFlight publishing temporarily disabled so yaml validates without
+# matching an App Store Connect API key name. Re-enable later with:
+#   integrations: { app_store_connect: <exact key name from Codemagic Integrations> }
+#   publishing.app_store_connect.auth: integration
 workflows:
   ios-first:
     name: iOS first (Android optional)
     instance_type: mac_mini_m2
     max_build_duration: 90
-    integrations:
-      app_store_connect: Codemagic
     environment:
       flutter: stable
       xcode: latest
@@ -31,10 +32,6 @@ workflows:
       - build/**/outputs/**/*.aab
       - build/ios/ipa/*.ipa
       - /tmp/xcodebuild_logs/*.log
-    publishing:
-      app_store_connect:
-        auth: integration
-        submit_to_testflight: true
 
   android-release:
     name: Android release AAB
