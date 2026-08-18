@@ -1241,7 +1241,7 @@ class _AttStat extends StatelessWidget {
             Text(label,
                 style: TextStyle(
                     fontSize: 14,
-                    fontWeight: FontWeight.w700,
+                    fontWeight: FontWeight.w400,
                     color: color)),
             if (guestIncluded > 0) ...[
               const SizedBox(height: 2),

@@ -42,10 +42,10 @@ class AppHeader extends StatelessWidget {
       style: IconButton.styleFrom(
         padding: EdgeInsets.zero,
         tapTargetSize: MaterialTapTargetSize.shrinkWrap,
-        minimumSize: const Size(32, 32),
-        visualDensity: const VisualDensity(horizontal: -4, vertical: -4),
+        minimumSize: const Size(40, 40),
+        visualDensity: const VisualDensity(horizontal: -2, vertical: -2),
       ),
-      constraints: const BoxConstraints.tightFor(width: 32, height: 32),
+      constraints: const BoxConstraints.tightFor(width: 40, height: 40),
     );
   }
 
@@ -81,11 +81,15 @@ class AppHeader extends StatelessWidget {
                   ),
                 ),
               ),
-              if (trailingActions != null) ...trailingActions!,
+              if (trailingActions != null) ...[
+                ...trailingActions!,
+                const SizedBox(width: 4),
+              ],
               _HeaderNotificationButton(
                 onTap: onNotificationTap,
                 count: notificationCount,
               ),
+              const SizedBox(width: 4),
               _HeaderProfileAvatar(onTap: profileTap),
             ],
           ),
@@ -179,8 +183,8 @@ class _HeaderProfileAvatar extends StatelessWidget {
     return AppHeader.compactIcon(
       onTap: onTap,
       icon: Container(
-        width: 28,
-        height: 28,
+        width: 30,
+        height: 30,
         decoration: BoxDecoration(
           color: AppColors.sageLighter,
           shape: BoxShape.circle,
@@ -192,7 +196,7 @@ class _HeaderProfileAvatar extends StatelessWidget {
         child: const Icon(
           Icons.person_outline_rounded,
           color: AppColors.primary,
-          size: 16,
+          size: 18,
         ),
       ),
     );

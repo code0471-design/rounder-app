@@ -21,6 +21,14 @@ class _LoginScreenState extends State<LoginScreen> {
   bool _loading = false;
   SocialProvider? _active;
 
+  @override
+  void initState() {
+    super.initState();
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      context.read<AuthProvider>().loadLastLoginMethod();
+    });
+  }
+
   Future<void> _syncClubProvider() async {
     final auth = context.read<AuthProvider>();
     if (!auth.isLoggedIn) return;
@@ -106,6 +114,24 @@ class _LoginScreenState extends State<LoginScreen> {
                 width: h * 0.36,
               ),
               const Spacer(flex: 2),
+              Consumer<AuthProvider>(
+                builder: (_, auth, __) {
+                  final hint = auth.lastLoginHint();
+                  if (hint.isEmpty) return const SizedBox.shrink();
+                  return Padding(
+                    padding: const EdgeInsets.only(bottom: 14),
+                    child: Text(
+                      hint,
+                      textAlign: TextAlign.center,
+                      style: TextStyle(
+                        fontSize: 13,
+                        fontWeight: FontWeight.w600,
+                        color: Colors.grey.shade700,
+                      ),
+                    ),
+                  );
+                },
+              ),
               _SocialLoginButton(
                 label: '카카오로 시작하기',
                 backgroundColor: const Color(0xFFFEE500),

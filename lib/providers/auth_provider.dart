@@ -21,11 +21,28 @@ class AuthProvider extends ChangeNotifier {
   static const _kAutoLogin     = 'auto_login';
   static const _kLastLoginId   = 'last_login_id';
   static const _kLastLoginName = 'last_login_name';
+  static const _kLastLoginMethod = 'last_login_method';
 
   // ── 현재 로그인 사용자 ───────────────────────────────────
   AppUser? _currentUser;
   AppUser? get currentUser  => _currentUser;
   bool     get isLoggedIn   => _currentUser != null;
+
+  /// 로그아웃 후에도 남겨, 다음 로그인 화면에서 안내한다.
+  String? _lastLoginMethod;
+  String? get lastLoginMethod => _lastLoginMethod;
+
+  static bool isPlaceholderName(String? name) {
+    final n = name?.trim() ?? '';
+    if (n.isEmpty || n == '회원') return true;
+    return n == '카카오 회원' || n == 'Google 회원' || n == 'Apple 회원';
+  }
+
+  String get greetingName {
+    final n = _currentUser?.name.trim() ?? '';
+    if (isPlaceholderName(n)) return '회원';
+    return n;
+  }
 
   /// 현재 유저 역할 (관리자 여부)
   bool get isAdmin => _currentUser?.isAdmin ?? false;
@@ -98,6 +115,7 @@ class AuthProvider extends ChangeNotifier {
   Future<bool> tryAutoLogin() async {
     final prefs = await SharedPreferences.getInstance();
     _autoLogin = prefs.getBool(_kAutoLogin) ?? false;
+    _lastLoginMethod = prefs.getString(_kLastLoginMethod);
 
     if (!_autoLogin) return false;
 
@@ -123,6 +141,33 @@ class AuthProvider extends ChangeNotifier {
     await FirebaseAuthBridge.ensureSignedIn(user);
     notifyListeners();
     return true;
+  }
+
+  Future<void> loadLastLoginMethod() async {
+    final prefs = await SharedPreferences.getInstance();
+    _lastLoginMethod = prefs.getString(_kLastLoginMethod);
+    notifyListeners();
+  }
+
+  Future<void> _rememberLoginMethod(String method) async {
+    _lastLoginMethod = method;
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.setString(_kLastLoginMethod, method);
+  }
+
+  String lastLoginHint() {
+    switch (_lastLoginMethod) {
+      case 'kakao':
+        return '최근에 카카오로 로그인했습니다';
+      case 'google':
+        return '최근에 구글로 로그인했습니다';
+      case 'apple':
+        return '최근에 Apple로 로그인했습니다';
+      case 'phone':
+        return '최근에 전화번호로 로그인했습니다';
+      default:
+        return '';
+    }
   }
 
   /// 자동로그인 설정 토글
@@ -173,6 +218,7 @@ class AuthProvider extends ChangeNotifier {
       await prefs.setString(_kSavedPhone, user.phone);
       _autoLogin = true;
     }
+    await _rememberLoginMethod('phone');
 
     notifyListeners();
     return true;
@@ -203,7 +249,7 @@ class AuthProvider extends ChangeNotifier {
       _persistPlatformUser(user);
     } else if (existing.name != profile.name &&
         profile.name.isNotEmpty &&
-        !profile.name.contains('회원')) {
+        !isPlaceholderName(profile.name)) {
       final updated = existing.copyWith(name: profile.name);
       final idx = _registeredUsers.indexWhere((u) => u.id == existing.id);
       if (idx >= 0) _registeredUsers[idx] = updated;
@@ -217,6 +263,7 @@ class AuthProvider extends ChangeNotifier {
         await prefs.setString(_kSavedPhone, updated.phone);
         _autoLogin = true;
       }
+      await _rememberLoginMethod(profile.provider.name);
       notifyListeners();
       // ignore: unawaited_futures
       PushNotificationService.bindUserIds([updated.id]);
@@ -235,6 +282,7 @@ class AuthProvider extends ChangeNotifier {
       _autoLogin = true;
     }
 
+    await _rememberLoginMethod(profile.provider.name);
     notifyListeners();
     unawaited(PushNotificationService.bindUserIds([user.id]));
     return user;

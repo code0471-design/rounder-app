@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import '../../../providers/auth_provider.dart';
+import '../../../providers/club_provider.dart';
 import '../../../theme/app_theme.dart';
 import '../../../widgets/app_header.dart';
 import '../../../widgets/one_line_slogan.dart';
@@ -37,9 +38,14 @@ class HomeHeroHeader extends StatelessWidget {
               boxShadow: AppShadows.soft,
             ),
             padding: const EdgeInsets.fromLTRB(24, 22, 24, 26),
-            child: Consumer<AuthProvider>(
-              builder: (_, auth, __) {
-                final name = auth.currentUser?.name ?? '회원';
+            child: Consumer2<AuthProvider, ClubProvider>(
+              builder: (_, auth, clubs, __) {
+                final memberName = clubs.currentMember?.name;
+                final name = (memberName != null &&
+                        memberName.isNotEmpty &&
+                        !AuthProvider.isPlaceholderName(memberName))
+                    ? memberName
+                    : auth.greetingName;
                 return Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [

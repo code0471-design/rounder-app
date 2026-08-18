@@ -3,6 +3,7 @@ import 'package:provider/provider.dart';
 import '../../models/club_model.dart';
 import '../../providers/club_provider.dart';
 import '../../theme/app_theme.dart';
+import '../schedule/round_photo_widgets.dart';
 
 // ════════════════════════════════════════════════════════════
 //  GalleryScreen — 모임 사진 갤러리 (네이버 밴드 스타일)
@@ -29,74 +30,65 @@ class _GalleryScreenState extends State<GalleryScreen> {
     return Consumer<ClubProvider>(
       builder: (context, provider, _) {
         final allPhotos = provider.clubPhotos;
-        final pastSchedules = provider.pastSchedules;
+        final albumSchedules = provider.schedules;
 
         return Scaffold(
           backgroundColor: AppColors.background,
-          body: allPhotos.isEmpty
-              ? _EmptyGallery(hasPastSchedules: pastSchedules.isNotEmpty)
+          body: allPhotos.isEmpty && albumSchedules.isEmpty
+              ? const _EmptyGallery(hasPastSchedules: false)
               : CustomScrollView(
                   slivers: [
-                    // ── 전체 사진 섹션 헤더 ──
-                    SliverToBoxAdapter(
-                      child: _SectionHeader(
-                        title: '전체 사진',
-                        count: allPhotos.length,
-                        trailing: allPhotos.length > _previewCount
-                            ? GestureDetector(
-                                onTap: () => setState(
-                                    () => _showAllPhotos = !_showAllPhotos),
-                                child: Row(
-                                  mainAxisSize: MainAxisSize.min,
-                                  children: [
-                                    Text(
-                                      _showAllPhotos ? '접기' : '전체보기',
-                                      style: const TextStyle(
-                                        fontSize: 12,
-                                        color: AppColors.primary,
-                                        fontWeight: FontWeight.w600,
-                                      ),
-                                    ),
-                                    Icon(
-                                      _showAllPhotos
-                                          ? Icons.keyboard_arrow_up
-                                          : Icons.keyboard_arrow_down,
-                                      size: 16,
-                                      color: AppColors.primary,
-                                    ),
-                                  ],
-                                ),
-                              )
-                            : null,
-                      ),
-                    ),
-
-                    // ── 전체 사진 그리드 (4×3 또는 전체) ──
-                    SliverToBoxAdapter(
-                      child: _buildAllPhotosGrid(allPhotos),
-                    ),
-
-                    // ── 라운드별 폴더 섹션 헤더 ──
-                    if (pastSchedules.isNotEmpty)
+                    if (allPhotos.isNotEmpty) ...[
                       SliverToBoxAdapter(
                         child: _SectionHeader(
-                          title: '라운드별 앨범',
-                          count: pastSchedules
-                              .where((s) => allPhotos
-                                  .any((p) => p.scheduleId == s.id))
-                              .length,
+                          title: '전체 사진',
+                          count: allPhotos.length,
+                          trailing: allPhotos.length > _previewCount
+                              ? GestureDetector(
+                                  onTap: () => setState(
+                                      () => _showAllPhotos = !_showAllPhotos),
+                                  child: Row(
+                                    mainAxisSize: MainAxisSize.min,
+                                    children: [
+                                      Text(
+                                        _showAllPhotos ? '접기' : '전체보기',
+                                        style: const TextStyle(
+                                          fontSize: 12,
+                                          color: AppColors.primary,
+                                          fontWeight: FontWeight.w600,
+                                        ),
+                                      ),
+                                      Icon(
+                                        _showAllPhotos
+                                            ? Icons.keyboard_arrow_up
+                                            : Icons.keyboard_arrow_down,
+                                        size: 16,
+                                        color: AppColors.primary,
+                                      ),
+                                    ],
+                                  ),
+                                )
+                              : null,
                         ),
                       ),
-
-                    // ── 라운드별 폴더 목록 ──
+                      SliverToBoxAdapter(
+                        child: _buildAllPhotosGrid(allPhotos),
+                      ),
+                    ],
+                    if (albumSchedules.isNotEmpty)
+                      SliverToBoxAdapter(
+                        child: _SectionHeader(
+                          title: '라운딩별 앨범',
+                          count: albumSchedules.length,
+                        ),
+                      ),
                     SliverList(
                       delegate: SliverChildBuilderDelegate(
                         (context, index) {
-                          final schedule = pastSchedules[index];
+                          final schedule = albumSchedules[index];
                           final photos = allPhotos
                               .where((p) => p.scheduleId == schedule.id)
                               .toList();
-                          if (photos.isEmpty) return const SizedBox.shrink();
                           final isExpanded =
                               _expandedFolderId == schedule.id;
                           return _RoundFolder(
@@ -111,7 +103,7 @@ class _GalleryScreenState extends State<GalleryScreen> {
                                 _openPhoto(context, photos, idx),
                           );
                         },
-                        childCount: pastSchedules.length,
+                        childCount: albumSchedules.length,
                       ),
                     ),
                     const SliverToBoxAdapter(child: SizedBox(height: 24)),
@@ -415,10 +407,10 @@ class _RoundFolder extends StatelessWidget {
     if (photos.isNotEmpty) {
       return ClipRRect(
         borderRadius: BorderRadius.circular(10),
-        child: Image.network(
-          photos.first.imageUrl,
+        child: RoundPhotoView(
+          imageUrl: photos.first.imageUrl,
           fit: BoxFit.cover,
-          errorBuilder: (_, __, ___) => const Center(
+          error: const Center(
             child: Icon(Icons.photo_album_outlined,
                 color: AppColors.primary, size: 22),
           ),
@@ -455,26 +447,13 @@ class _PhotoTile extends StatelessWidget {
           decoration: const BoxDecoration(
             color: AppColors.divider,
           ),
-          child: Image.network(
-            photo.imageUrl,
+          child: RoundPhotoView(
+            imageUrl: photo.imageUrl,
             fit: BoxFit.cover,
-            errorBuilder: (_, __, ___) => const Center(
+            error: const Center(
               child: Icon(Icons.broken_image_outlined,
                   color: AppColors.textSecondary),
             ),
-            loadingBuilder: (context, child, loadingProgress) {
-              if (loadingProgress == null) return child;
-              return Center(
-                child: CircularProgressIndicator(
-                  value: loadingProgress.expectedTotalBytes != null
-                      ? loadingProgress.cumulativeBytesLoaded /
-                          loadingProgress.expectedTotalBytes!
-                      : null,
-                  strokeWidth: 2,
-                  color: AppColors.primary,
-                ),
-              );
-            },
           ),
         ),
       ),
@@ -514,8 +493,8 @@ class _EmptyGallery extends StatelessWidget {
           const SizedBox(height: 8),
           Text(
             hasPastSchedules
-                ? '지난 일정 탭에서 사진을 업로드해 보세요!'
-                : '라운딩이 끝나면 사진을 올려 추억을 기록하세요!',
+                ? '일정 상세에서 사진을 올려 보세요!'
+                : '라운딩 일정에서 사진을 올려 추억을 기록하세요!',
             textAlign: TextAlign.center,
             style: const TextStyle(
                 fontSize: 13, color: AppColors.textSecondary, height: 1.5),
@@ -578,10 +557,10 @@ class _PhotoViewerScreenState extends State<_PhotoViewerScreen> {
                 return Hero(
                   tag: 'photo_${p.id}',
                   child: InteractiveViewer(
-                    child: Image.network(
-                      p.imageUrl,
+                    child: RoundPhotoView(
+                      imageUrl: p.imageUrl,
                       fit: BoxFit.contain,
-                      errorBuilder: (_, __, ___) => const Center(
+                      error: const Center(
                         child: Icon(Icons.broken_image_outlined,
                             color: Colors.white30, size: 60),
                       ),

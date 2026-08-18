@@ -4634,7 +4634,10 @@ class ClubProvider extends ChangeNotifier with WidgetsBindingObserver {
   /// 현재 모임 전체 사진 (갤러리용, 최신순)
   List<RoundPhoto> get clubPhotos {
     final clubId = selectedClub.id;
-    final list = _photos.where((p) => p.clubId == clubId).toList();
+    final scheduleIds = schedules.map((s) => s.id).toSet();
+    final list = _photos
+        .where((p) => p.clubId == clubId || scheduleIds.contains(p.scheduleId))
+        .toList();
     list.sort((a, b) => b.takenAt.compareTo(a.takenAt));
     return list;
   }
@@ -4658,6 +4661,7 @@ class ClubProvider extends ChangeNotifier with WidgetsBindingObserver {
       caption: caption.isEmpty ? null : caption,
       takenAt: DateTime.now(),
     ));
+    _persistImmediately();
     notifyListeners();
   }
 

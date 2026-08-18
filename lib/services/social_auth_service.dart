@@ -116,19 +116,25 @@ abstract final class SocialAuthService {
       }
     }
 
-    final User user;
-    try {
-      user = await UserApi.instance.me();
-    } catch (e) {
-      debugPrint('[SocialAuth] Kakao me() failed: $e / ${await _kakaoDebugInfo()}');
-      throw const SocialAuthException('카카오 계정 정보를 가져오지 못했습니다.');
+    var user = await _kakaoMe();
+    if (_kakaoNickname(user) == null) {
+      try {
+        await UserApi.instance.loginWithNewScopes([
+          'profile_nickname',
+          'profile_image',
+          'account_email',
+        ]);
+        user = await _kakaoMe();
+      } catch (e) {
+        debugPrint('[SocialAuth] Kakao extra scopes skipped: $e');
+      }
     }
 
-    final name = user.kakaoAccount?.profile?.nickname?.trim();
+    final name = _kakaoNickname(user);
     return SocialProfile(
       provider: SocialProvider.kakao,
       providerUserId: user.id.toString(),
-      name: (name == null || name.isEmpty) ? '카카오 회원' : name,
+      name: (name == null || name.isEmpty) ? '회원' : name,
       email: user.kakaoAccount?.email,
       photoUrl: user.kakaoAccount?.profile?.profileImageUrl,
     );
@@ -155,7 +161,7 @@ abstract final class SocialAuthService {
       return SocialProfile(
         provider: SocialProvider.google,
         providerUserId: account.id,
-        name: (name == null || name.isEmpty) ? 'Google 회원' : name,
+        name: (name == null || name.isEmpty) ? '회원' : name,
         email: account.email,
         photoUrl: account.photoUrl,
       );
@@ -210,7 +216,7 @@ abstract final class SocialAuthService {
     return SocialProfile(
       provider: SocialProvider.apple,
       providerUserId: userId,
-      name: fullName.isEmpty ? 'Apple 회원' : fullName,
+      name: fullName.isEmpty ? '회원' : fullName,
       email: apple.email,
     );
   }
@@ -226,6 +232,23 @@ abstract final class SocialAuthService {
         await UserApi.instance.logout();
       }
     } catch (_) {}
+  }
+
+  static Future<User> _kakaoMe() async {
+    try {
+      return await UserApi.instance.me();
+    } catch (e) {
+      debugPrint('[SocialAuth] Kakao me() failed: $e / ${await _kakaoDebugInfo()}');
+      throw const SocialAuthException('카카오 계정 정보를 가져오지 못했습니다.');
+    }
+  }
+
+  static String? _kakaoNickname(User user) {
+    final fromProfile = user.kakaoAccount?.profile?.nickname?.trim();
+    if (fromProfile != null && fromProfile.isNotEmpty) return fromProfile;
+    final fromProps = user.properties?['nickname']?.trim();
+    if (fromProps != null && fromProps.isNotEmpty) return fromProps;
+    return null;
   }
 
   /// 로그용. 화면에는 올리지 않는다.

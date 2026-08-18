@@ -332,15 +332,6 @@ class _AlimtalkSettingsScreenState extends State<AlimtalkSettingsScreen> {
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                const Text(
-                  '목록은 본사와 동일합니다. 여기서 중지하면 이 모임에만 적용되고, 본사에서 중지하면 모든 모임에 적용됩니다.',
-                  style: TextStyle(
-                    fontSize: 13,
-                    height: 1.45,
-                    color: AppColors.textSecondary,
-                  ),
-                ),
-                const SizedBox(height: 12),
                 _statusFilter(activeN, stoppedN),
               ],
             ),

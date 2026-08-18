@@ -17,7 +17,6 @@ import '../screens/clubs/create_club_screen.dart';
 import '../screens/my_clubs/my_clubs_screen.dart';
 import '../screens/splash/splash_screen.dart';
 import '../theme/app_theme.dart';
-import '../widgets/startup_warning_banner.dart';
 import 'app_startup_result.dart';
 
 class RounderApp extends StatefulWidget {
@@ -30,7 +29,6 @@ class RounderApp extends StatefulWidget {
 }
 
 class _RounderAppState extends State<RounderApp> {
-  bool _showWarning = true;
 
   /// 웹 기본 = 어드민. 앱만 볼 때는 `?app=1`.
   /// `#/login` `#/main` 같은 예전 해시가 남아 있어도 어드민을 덮지 않음.
@@ -41,7 +39,6 @@ class _RounderAppState extends State<RounderApp> {
 
   @override
   Widget build(BuildContext context) {
-    final warning = widget.startup?.warning;
     final webAdmin = _isWebAdminMode();
 
     return MultiProvider(
@@ -90,17 +87,7 @@ class _RounderAppState extends State<RounderApp> {
                 child: Center(child: CircularProgressIndicator()),
               );
 
-          if (_showWarning && warning != null && warning.isNotEmpty) {
-            content = Column(
-              children: [
-                StartupWarningBanner(
-                  message: warning,
-                  onDismiss: () => setState(() => _showWarning = false),
-                ),
-                Expanded(child: content),
-              ],
-            );
-          }
+          // 스테이징/Mock 경고 배너는 인트로 전에 깜빡이므로 사용자 화면에서는 숨긴다.
 
           return MediaQuery(data: clamped, child: content);
         },
