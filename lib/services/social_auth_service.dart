@@ -116,20 +116,9 @@ abstract final class SocialAuthService {
       }
     }
 
-    var user = await _kakaoMe();
-    if (_kakaoNickname(user) == null) {
-      try {
-        await UserApi.instance.loginWithNewScopes([
-          'profile_nickname',
-          'profile_image',
-          'account_email',
-        ]);
-        user = await _kakaoMe();
-      } catch (e) {
-        debugPrint('[SocialAuth] Kakao extra scopes skipped: $e');
-      }
-    }
-
+    // 추가 동의(이메일 등)를 다시 띄우지 않는다.
+    // 콘솔에 없는 항목을 요청하면 카카오가 "카카오 로그인 에러" 페이지를 연다.
+    final user = await _kakaoMe();
     final name = _kakaoNickname(user);
     return SocialProfile(
       provider: SocialProvider.kakao,
@@ -263,14 +252,38 @@ abstract final class SocialAuthService {
   }
 
   static String _kakaoUserMessage(Object error) {
+    if (error is KakaoAuthException) {
+      switch (error.error) {
+        case AuthErrorCause.invalidScope:
+          return '카카오 로그인 동의 항목 설정에 문제가 있습니다.';
+        case AuthErrorCause.misconfigured:
+        case AuthErrorCause.invalidClient:
+          return '카카오 로그인 설정에 문제가 있습니다. (${error.error.name})';
+        case AuthErrorCause.accessDenied:
+          return '카카오 로그인이 취소되었습니다.';
+        default:
+          return '카카오 로그인에 실패했습니다. (${error.error.name})';
+      }
+    }
     final text = error.toString().toLowerCase();
-    if (text.contains('keyhash') || text.contains('misconfigured')) {
+    if (text.contains('keyhash') ||
+        text.contains('misconfigured') ||
+        text.contains('koe004') ||
+        text.contains('koe101')) {
       return '카카오 로그인 설정에 문제가 있습니다. 잠시 후 다시 시도해 주세요.';
+    }
+    final koe = RegExp(r'koe\d+', caseSensitive: false).firstMatch(text);
+    if (koe != null) {
+      return '카카오 로그인에 실패했습니다. (${koe.group(0)!.toUpperCase()})';
     }
     return '카카오 로그인에 실패했습니다. 잠시 후 다시 시도해 주세요.';
   }
 
   static bool _isKakaoCancellation(Object error) {
+    if (error is KakaoAuthException &&
+        error.error == AuthErrorCause.accessDenied) {
+      return true;
+    }
     final text = error.toString().toLowerCase();
     return text.contains('cancel') || text.contains('취소');
   }
