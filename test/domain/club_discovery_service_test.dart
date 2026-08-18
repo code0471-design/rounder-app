@@ -86,5 +86,36 @@ void main() {
       expect(result.length, 1);
       expect(result.first.name, '서울 금융');
     });
+
+    test('city filter matches district clubs (부산 해운대구)', () {
+      final districtClubs = [
+        Club(
+          id: '4',
+          name: '해운대 라운더',
+          myRole: '일반',
+          region: '부산 해운대구',
+          industry: '금융',
+          memberCount: 7,
+          createdAt: DateTime(2024, 4, 1),
+        ),
+      ];
+      final byCity = ClubDiscoveryService.filter(
+        clubs: districtClubs,
+        region: '부산',
+      );
+      expect(byCity.single.name, '해운대 라운더');
+
+      final byDistrict = ClubDiscoveryService.filter(
+        clubs: districtClubs,
+        region: '부산 해운대구',
+      );
+      expect(byDistrict.single.name, '해운대 라운더');
+    });
+
+    test('kRegions lists Busan, Daegu, Ulsan districts', () {
+      expect(kRegions, contains('부산 해운대구'));
+      expect(kRegions, contains('대구 수성구'));
+      expect(kRegions, contains('울산 남구'));
+    });
   });
 }

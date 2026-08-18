@@ -1365,7 +1365,10 @@ class ClubProvider extends ChangeNotifier with WidgetsBindingObserver {
           // 시·도 그룹 매칭: '충청' → 충북/충남/대전/세종
           (region == '충청' && (c.region.startsWith('충') || c.region == '대전' || c.region == '세종')) ||
           (region == '전라' && (c.region.startsWith('전') || c.region == '광주')) ||
-          (region == '경상' && (c.region.startsWith('경') || c.region == '대구' || c.region == '울산' || c.region == '부산'));
+          (region == '경상' && (c.region.startsWith('경') ||
+              c.region.startsWith('대구') ||
+              c.region.startsWith('울산') ||
+              c.region.startsWith('부산')));
       final matchIndustry = industry == '전체' || c.industry == industry;
       final matchKeyword  = keyword.isEmpty ||
           c.name.contains(keyword) ||
