@@ -32,6 +32,21 @@
             "value": "public,max-age=3600"
           }
         ]
+      },
+      {
+        "source": "/admin/index.html",
+        "headers": [
+          {
+            "key": "Cache-Control",
+            "value": "no-cache"
+          }
+        ]
+      }
+    ],
+    "rewrites": [
+      {
+        "source": "/admin/**",
+        "destination": "/admin/index.html"
       }
     ]
   }
