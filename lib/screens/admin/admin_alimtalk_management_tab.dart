@@ -846,9 +846,15 @@ class _AdminAlimtalkManagementTabState
           'SOLAPI API Key/Secret이 설정되지 않았습니다.\n.env 파일을 확인해주세요.');
       return;
     }
-    if (!solapi.hasSenderPhone) {
+    if (!solapi.hasKakaoChannel) {
       _showResultSnackBar(false,
-          '발신번호(SOLAPI_SENDER_PHONE)가 설정되지 않았습니다.\n솔라피 콘솔에서 발신번호를 등록해주세요.');
+          '카카오 채널(SOLAPI_KAKAO_PF_ID)이 설정되지 않았습니다.\n솔라피에서 채널 연동 후 PFID를 넣어주세요.');
+      return;
+    }
+    final templateId = template.solapiTemplateId?.trim() ?? '';
+    if (templateId.isEmpty) {
+      _showResultSnackBar(false,
+          '이 템플릿의 솔라피 templateId가 없습니다.\n문자 대체발송은 하지 않습니다.');
       return;
     }
     final targets = _resolveTargets();
@@ -858,17 +864,11 @@ class _AdminAlimtalkManagementTabState
     }
     setState(() => _isSending = true);
     final messages = targets.map((m) {
-      final personalizedText = template.preview.replaceAll('{{이름}}', m.name);
-      final templateId = template.solapiTemplateId;
-      if (solapi.hasKakaoChannel && (templateId?.isNotEmpty ?? false)) {
-        return solapi.buildAlimtalkMessage(
-          to: m.phone,
-          templateId: templateId!,
-          fallbackText: personalizedText,
-          variables: {'#{이름}': m.name},
-        );
-      }
-      return solapi.buildSmsMessage(to: m.phone, text: personalizedText);
+      return solapi.buildAlimtalkMessage(
+        to: m.phone,
+        templateId: templateId,
+        variables: {'#{이름}': m.name},
+      );
     }).toList();
     final result = await solapi.sendManyRaw(messages);
     setState(() => _isSending = false);

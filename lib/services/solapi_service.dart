@@ -1,5 +1,6 @@
 // ════════════════════════════════════════════════════════════
-//  SolapiService — SOLAPI 알림톡/문자 (어드민 발송용)
+//  SolapiService — SOLAPI 알림톡 (어드민 발송용)
+//  라운더는 알림톡 실패 시 문자 대체발송을 하지 않는다.
 //  Key는 --dart-define 또는 추후 .env 연동. 미설정 시 발송 차단.
 // ════════════════════════════════════════════════════════════
 import 'dart:convert';
@@ -68,6 +69,7 @@ class SolapiService {
     };
   }
 
+  /// 라운더는 알림톡 실패 시 문자를 보내지 않는다. 내부 테스트용으로만 남긴다.
   Map<String, dynamic> buildSmsMessage({
     required String to,
     required String text,
@@ -85,16 +87,15 @@ class SolapiService {
     required String templateId,
     required Map<String, String> variables,
     String? text,
-    String? fallbackText,
   }) {
     return {
       'to': normalizePhone(to),
-      'from': normalizePhone(senderPhone),
-      'text': text ?? fallbackText ?? '',
+      if (text != null && text.isNotEmpty) 'text': text,
       'kakaoOptions': {
         'pfId': kakaoPfId,
         'templateId': templateId,
         'variables': variables,
+        'disableSms': true,
       },
     };
   }
@@ -102,9 +103,6 @@ class SolapiService {
   Future<SolapiResult> sendManyRaw(List<Map<String, dynamic>> messages) async {
     if (!isConfigured) {
       return SolapiResult.error('SOLAPI API Key가 설정되지 않았습니다.');
-    }
-    if (!hasSenderPhone) {
-      return SolapiResult.error('발신번호(SOLAPI_SENDER_PHONE)가 없습니다.');
     }
     if (messages.isEmpty) {
       return SolapiResult.error('발송 대상이 없습니다.');
