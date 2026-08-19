@@ -44,6 +44,14 @@
 				<string>com.googleusercontent.apps.909216389322-jfgbktkrvk7ulhtdc8u63el6ubk2i7n3</string>
 			</array>
 		</dict>
+		<dict>
+			<key>CFBundleTypeRole</key>
+			<string>Editor</string>
+			<key>CFBundleURLSchemes</key>
+			<array>
+				<string>rounder</string>
+			</array>
+		</dict>
 	</array>
 	<key>LSApplicationQueriesSchemes</key>
 	<array>
