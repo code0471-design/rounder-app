@@ -1692,21 +1692,22 @@ class ScheduleDetailScreen extends StatelessWidget {
   void _confirmCancel(BuildContext context, ClubProvider provider) {
     showDialog(
       context: context,
-      builder: (_) => AlertDialog(
+      builder: (dialogCtx) => AlertDialog(
         shape:
             RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
         title: const Text('일정 취소'),
         content: Text('${schedule.title} 일정을 취소하시겠습니까?'),
         actions: [
           TextButton(
-            onPressed: () => Navigator.pop(context),
+            onPressed: () => Navigator.of(dialogCtx).pop(),
             child: const Text('닫기'),
           ),
           ElevatedButton(
             onPressed: () {
+              final parentNav = Navigator.of(context);
+              Navigator.of(dialogCtx).pop();
               provider.cancelSchedule(schedule.id);
-              Navigator.pop(context);
-              Navigator.pop(context);
+              if (parentNav.canPop()) parentNav.pop();
             },
             style: ElevatedButton.styleFrom(
                 backgroundColor: AppColors.danger,

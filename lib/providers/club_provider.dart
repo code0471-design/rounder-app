@@ -939,6 +939,7 @@ class ClubProvider extends ChangeNotifier with WidgetsBindingObserver {
         isRead: false,
       ),
       hqPushTypeId: HqPushCatalog.joinRequest,
+      notifySelf: true,
     );
   }
 
@@ -2485,6 +2486,7 @@ class ClubProvider extends ChangeNotifier with WidgetsBindingObserver {
         '기한': dueText,
       },
       targetId: setting.id,
+      notifySelf: true,
     );
   }
 
@@ -2506,6 +2508,7 @@ class ClubProvider extends ChangeNotifier with WidgetsBindingObserver {
           '모임명': selectedClub.name,
         },
         targetId: duesTitle,
+        notifySelf: true,
       );
     }
   }
@@ -2939,18 +2942,24 @@ class ClubProvider extends ChangeNotifier with WidgetsBindingObserver {
     }
   }
 
-  /// 일정 취소(삭제) — 참여 신청(참석/불참)했던 회원 전원에게 앱 푸시 알림 발송
+  /// 일정 취소(삭제) — 참석 회원 + 취소자(총무)에게 앱 푸시 알림 발송
   int notifyScheduleCancelled(RoundSchedule schedule) {
     final club = _myClubs.where((c) => c.id == schedule.clubId).firstOrNull ??
         _allClubs.where((c) => c.id == schedule.clubId).firstOrNull;
     final clubName = club?.name ?? '';
-    final recipients =
-        schedule.responses.where((r) => r.response == '참석');
+    final recipientIds = <String>{
+      for (final r in schedule.responses)
+        if (r.response == '참석') r.memberId,
+    };
+    final me = currentMember?.id ?? currentUserId;
+    if (me.trim().isNotEmpty) recipientIds.add(me);
     var count = 0;
-    for (final r in recipients) {
+    for (final memberId in recipientIds) {
+      final fcmId = _fcmInboxIdFor(memberId);
+      if (fcmId.isEmpty) continue;
       addAppNotification(
         AppNotification(
-          id: 'noti_cancel_${schedule.id}_${r.memberId}_${DateTime.now().millisecondsSinceEpoch}',
+          id: 'noti_cancel_${schedule.id}_${memberId}_${DateTime.now().millisecondsSinceEpoch}',
           type: AppNotificationType.scheduleCancelled,
           clubId: schedule.clubId,
           clubName: clubName,
@@ -2958,9 +2967,10 @@ class ClubProvider extends ChangeNotifier with WidgetsBindingObserver {
           body: '${schedule.displayTitle} 일정이 총무에 의해 취소되었습니다.',
           createdAt: DateTime.now(),
           targetId: schedule.id,
-          targetUserId: r.memberId,
+          targetUserId: fcmId,
         ),
         hqPushTypeId: HqPushCatalog.scheduleCancel,
+        notifySelf: true,
       );
       count++;
     }
@@ -3046,7 +3056,7 @@ class ClubProvider extends ChangeNotifier with WidgetsBindingObserver {
     _persistImmediately();
     unawaited(PushNotificationService.syncD1Reminder(
       scheduleId: scheduleId,
-      userId: myId,
+      userId: _fcmInboxIdFor(myId),
       roundDate: schedule.roundDate,
       clubId: schedule.clubId,
       clubName: selectedClub.name,
@@ -3167,7 +3177,7 @@ class ClubProvider extends ChangeNotifier with WidgetsBindingObserver {
 
     unawaited(PushNotificationService.syncD1Reminder(
       scheduleId: scheduleId,
-      userId: memberId,
+      userId: _fcmInboxIdFor(memberId),
       roundDate: schedule.roundDate,
       clubId: schedule.clubId,
       clubName: club?.name ?? selectedClub.name,
@@ -3507,6 +3517,8 @@ class ClubProvider extends ChangeNotifier with WidgetsBindingObserver {
     final now = DateTime.now().millisecondsSinceEpoch;
     for (final id in userIds) {
       if (id.trim().isEmpty) continue;
+      final fcmId = _fcmInboxIdFor(id);
+      if (fcmId.isEmpty) continue;
       addAppNotification(
         AppNotification(
           id: 'noti_${typeId}_${id}_$now',
@@ -3518,7 +3530,7 @@ class ClubProvider extends ChangeNotifier with WidgetsBindingObserver {
           isAdmin: isAdmin,
           createdAt: DateTime.now(),
           targetId: targetId,
-          targetUserId: id,
+          targetUserId: fcmId,
           isRead: false,
         ),
         hqPushTypeId: typeId,
@@ -3983,7 +3995,11 @@ class ClubProvider extends ChangeNotifier with WidgetsBindingObserver {
       targetUserId: notifyTarget,
       isRead: false,
     );
-    addAppNotification(noti, hqPushTypeId: HqPushCatalog.joinRequest);
+    addAppNotification(
+      noti,
+      hqPushTypeId: HqPushCatalog.joinRequest,
+      notifySelf: true,
+    );
 
     // 계정 전환과 무관한 공유 대기열 + 총무 계정 번들에 즉시 전달
     final store = AppDependencies.instance.mockDataStore;
@@ -4380,9 +4396,9 @@ class ClubProvider extends ChangeNotifier with WidgetsBindingObserver {
       body: '${club?.name ?? '모임'} 가입이 승인되었습니다 ($assignedRole)',
       createdAt: DateTime.now(),
       targetId: req.id,
-      targetUserId: req.userId,
+      targetUserId: _fcmInboxIdFor(req.userId),
       isRead: false,
-    ), hqPushTypeId: HqPushCatalog.joinResult);
+    ), hqPushTypeId: HqPushCatalog.joinResult, notifySelf: true);
 
     // 탈퇴 이력 있으면 신청자 계정에서 해제 + 내 모임 복구
     unawaited(_clearLeftClubForApplicant(req.userId, req.clubId));
@@ -4417,6 +4433,7 @@ class ClubProvider extends ChangeNotifier with WidgetsBindingObserver {
         '결과': '거절',
       },
       targetId: req.id,
+      notifySelf: true,
     );
     notifyListeners();
     _persistImmediately();

@@ -37,7 +37,7 @@ android {
         targetSdk = flutter.targetSdkVersion
         // Play already used 10, 21, 22, 23, and 24. Keep this number in sync with
         // pubspec.yaml +N and Codemagic --build-number.
-        versionCode = 25
+        versionCode = 26
         versionName = "1.0.0"
         // Kakao Login redirect scheme: kakao{NATIVE_APP_KEY}
         val localProps = Properties()

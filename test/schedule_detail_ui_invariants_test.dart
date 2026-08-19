@@ -55,6 +55,22 @@ void main() {
         reason: '미정 3버튼 UI로 회귀');
   });
 
+  test('일정 취소 확정은 dialogCtx로 먼저 pop 해야 한다', () {
+    expect(source.contains('void _confirmCancel'), isTrue);
+    expect(source.contains("child: const Text('취소 확정')"), isTrue);
+    final start = source.indexOf('void _confirmCancel');
+    final end = source.indexOf('String _fmtDate(DateTime d)', start);
+    expect(start, greaterThanOrEqualTo(0));
+    expect(end, greaterThan(start));
+    final cancelFn = source.substring(start, end);
+    expect(cancelFn.contains('builder: (dialogCtx)'), isTrue,
+        reason: '취소 확정이 부모 context를 pop하면 버튼이 안 먹은 것처럼 보인다');
+    expect(cancelFn.contains('Navigator.of(dialogCtx).pop()'), isTrue);
+    expect(cancelFn.contains('Navigator.pop(context);\n              Navigator.pop(context);'),
+        isFalse,
+        reason: '취소 전에 부모를 두 번 pop하면 얼럿이 남고 취소만 뒤에서 반영된다');
+  });
+
   test('조편성 미확정 얼럿은 dialogCtx로 pop 해야 한다', () {
     expect(source.contains('Navigator.of(dialogCtx).pop()'), isTrue,
         reason: '확인 버튼이 부모 context를 pop하면 에러남');
