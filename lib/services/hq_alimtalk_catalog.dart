@@ -107,9 +107,25 @@ class HqAlimtalkCatalog {
       }
     }
 
+    var shouldPersist = true;
     final remote = await HqRemoteSettings.read(FirestorePaths.metaHqAlimtalk);
     if (remote != null) {
-      consider(jsonEncode(remote), source: 'firestore');
+      final typesRaw = remote['types'];
+      if (typesRaw is List &&
+          typesRaw.any(
+              (e) => e is Map && e['id']?.toString() == joinResultId) &&
+          !typesRaw.any((e) =>
+              e is Map && _removedIds.contains(e['id']?.toString()))) {
+        shouldPersist = false;
+      }
+      try {
+        consider(jsonEncode(remote), source: 'firestore');
+      } catch (e) {
+        debugPrint('[HqAlimtalkCatalog] firestore encode skip: $e');
+        try {
+          consider(jsonEncode({'types': typesRaw}), source: 'firestore');
+        } catch (_) {}
+      }
     }
 
     if (kIsWeb) {
@@ -139,8 +155,12 @@ class HqAlimtalkCatalog {
 
     final result =
         best ?? List<HqAlimtalkType>.from(AdminCatalog.hqAlimtalkTypes);
-    _memory = result;
-    return List<HqAlimtalkType>.from(result);
+    final merged = _mergeWithDefaults(result);
+    _memory = merged;
+    if (shouldPersist) {
+      await save(merged);
+    }
+    return List<HqAlimtalkType>.from(merged);
   }
 
   static Future<void> save(List<HqAlimtalkType> types) async {
