@@ -522,6 +522,7 @@ abstract final class AdminCatalog {
       channel: '푸시·알림톡',
       audience: PushAudienceKind.allMembers,
       timing: PushTimingKind.immediate,
+      audienceDetail: '정회원 전원 (등록자 본인 포함, 게스트 제외)',
       defaultTitle: '라운딩이 확정되었습니다',
       defaultBody: '{{모임명}} 라운딩이 확정되었습니다. 참석 여부를 알려주세요.',
     ),
@@ -571,7 +572,7 @@ abstract final class AdminCatalog {
       name: '일정 등록 참석 안내',
       audience: PushAudienceKind.allMembers,
       timing: PushTimingKind.immediate,
-      audienceDetail: '정회원 (게스트 제외)',
+      audienceDetail: '정회원 전원 (등록자 본인 포함, 게스트 제외)',
       preview:
           '{{모임명}} 라운딩이 등록되었습니다.\n📅 일시: {{일시}}\n📍 장소: {{장소}}\n참석 여부를 알려주세요.',
     ),

@@ -2584,13 +2584,24 @@ class ClubProvider extends ChangeNotifier with WidgetsBindingObserver {
     final clubName = selectedClub.name;
     _notifyHqPush(
       typeId: HqPushCatalog.scheduleConfirm,
-      userIds: regularMembers.map((m) => m.id).toList(),
+      userIds: _scheduleBroadcastUserIds(),
       appType: AppNotificationType.announcement,
       clubId: schedule.clubId,
       clubName: clubName,
       vars: {'모임명': clubName},
       targetId: schedule.id,
+      notifySelf: true,
     );
+  }
+
+  /// 일정 등록 푸시·알림톡 대상 — 정회원 전원 (등록자 본인 포함)
+  List<String> _scheduleBroadcastUserIds() {
+    final ids = <String>{
+      for (final m in regularMembers) m.id,
+    };
+    final me = currentMember?.id ?? currentUserId;
+    if (me.trim().isNotEmpty) ids.add(me);
+    return ids.toList();
   }
 
   /// 라운딩 후기/메모 저장
@@ -2795,8 +2806,15 @@ class ClubProvider extends ChangeNotifier with WidgetsBindingObserver {
           List<AttendanceResponse> priorResponses) =>
       priorResponses.map((r) => r.memberName).toList();
 
-  /// 참석여부 알림톡 대상 — 정회원만 (게스트 제외)
-  List<Member> attendanceAlimtalkRecipients() => regularMembers;
+  /// 참석여부 알림톡 대상 — 정회원 전원 (등록자 본인 포함, 게스트 제외)
+  List<Member> attendanceAlimtalkRecipients() {
+    final list = List<Member>.from(regularMembers);
+    final me = currentMember;
+    if (me != null && list.every((m) => m.id != me.id)) {
+      list.add(me);
+    }
+    return list;
+  }
 
   /// 조편성 알림톡 대상 — 참석 응답자 (정회원·게스트 구분 없음)
   List<AttendanceResponse> groupAlimtalkRecipients(String scheduleId) {
@@ -2815,8 +2833,14 @@ class ClubProvider extends ChangeNotifier with WidgetsBindingObserver {
   int sendGroupAssignmentAlimtalk(String scheduleId) =>
       groupAlimtalkRecipients(scheduleId).length;
 
-  List<String> attendanceAlimtalkRecipientNames() =>
-      attendanceAlimtalkRecipients().map((m) => m.name).toList();
+  List<String> attendanceAlimtalkRecipientNames() {
+    final names = attendanceAlimtalkRecipients().map((m) => m.name).toList();
+    final mine = currentUserName.trim();
+    if (mine.isNotEmpty && !names.contains(mine)) {
+      names.add(mine);
+    }
+    return names;
+  }
 
   List<String> groupAlimtalkRecipientNames(String scheduleId) =>
       groupAlimtalkRecipients(scheduleId)
@@ -3370,24 +3394,35 @@ class ClubProvider extends ChangeNotifier with WidgetsBindingObserver {
     notifyListeners();
   }
 
-  void addAppNotification(AppNotification n, {String? hqPushTypeId}) {
+  void addAppNotification(
+    AppNotification n, {
+    String? hqPushTypeId,
+    bool notifySelf = false,
+  }) {
     if (hqPushTypeId != null && !HqPushCatalog.isEnabledSync(hqPushTypeId)) {
       debugPrint('[Push] skipped disabled $hqPushTypeId');
       return;
     }
     _appNotifications.insert(0, n);
     final target = n.targetUserId;
-    if (target != null &&
-        target.isNotEmpty &&
-        !_userIdsMatch(target, currentUserId) &&
-        !_userIdsMatch(target, _persistAuthUserId)) {
-      unawaited(PushNotificationService.enqueue(
-        targetUserId: target,
-        title: n.title,
-        body: n.body,
-        type: hqPushTypeId ?? n.type.name,
-        clubId: n.clubId,
-      ));
+    if (target != null && target.isNotEmpty) {
+      final isSelf = _userIdsMatch(target, currentUserId) ||
+          _userIdsMatch(target, _persistAuthUserId);
+      if (!isSelf || notifySelf) {
+        final enqueueId = (notifySelf && isSelf)
+            ? ((_persistAuthUserId != null &&
+                    _persistAuthUserId!.trim().isNotEmpty)
+                ? _persistAuthUserId!
+                : currentUserId)
+            : target;
+        unawaited(PushNotificationService.enqueue(
+          targetUserId: enqueueId,
+          title: n.title,
+          body: n.body,
+          type: hqPushTypeId ?? n.type.name,
+          clubId: n.clubId,
+        ));
+      }
     }
     notifyListeners();
   }
@@ -3401,6 +3436,7 @@ class ClubProvider extends ChangeNotifier with WidgetsBindingObserver {
     Map<String, String> vars = const {},
     String? targetId,
     bool isAdmin = false,
+    bool notifySelf = false,
   }) {
     if (!HqPushCatalog.isEnabledSync(typeId)) return;
     final spec = HqPushCatalog.byIdSync(typeId);
@@ -3424,6 +3460,7 @@ class ClubProvider extends ChangeNotifier with WidgetsBindingObserver {
           isRead: false,
         ),
         hqPushTypeId: typeId,
+        notifySelf: notifySelf,
       );
     }
   }

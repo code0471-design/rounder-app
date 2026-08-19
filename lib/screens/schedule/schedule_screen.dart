@@ -3087,7 +3087,7 @@ class _ScheduleFormSheetState extends State<_ScheduleFormSheet> {
     final dateStr =
         '${roundDate.month}월 ${roundDate.day}일 (${['월','화','수','목','금','토','일'][roundDate.weekday-1]})';
     final memberCount = provider.members.where((m) =>
-        m.status == '활성' && m.id != provider.currentUserId).length;
+        m.status == '활성').length;
 
     showDialog(
       context: context,
@@ -3148,7 +3148,7 @@ class _ScheduleFormSheetState extends State<_ScheduleFormSheet> {
             onPressed: () {
               final memberIds = provider.members
                   .where((m) =>
-                      m.status == '활성' && m.id != provider.currentUserId)
+                      m.status == '활성')
                   .map((m) => m.id)
                   .toList();
               final sent = provider.sendScheduleAlimtalk(

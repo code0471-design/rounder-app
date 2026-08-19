@@ -33,7 +33,7 @@ class _AlimtalkSendScreenState extends State<AlimtalkSendScreen> {
       };
 
   String get _audienceNote => switch (widget.kind) {
-        AlimtalkSendKind.attendance => '정회원 (게스트 제외)',
+        AlimtalkSendKind.attendance => '정회원 전원 (등록자 본인 포함, 게스트 제외)',
         AlimtalkSendKind.groupAssignment => '참석 회원 (정회원·게스트)',
         AlimtalkSendKind.scheduleChanged => '전체 정회원 + 참석 게스트',
       };
