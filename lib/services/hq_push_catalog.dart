@@ -27,10 +27,8 @@ class HqPushCatalog {
     final byId = {for (final t in list) t.id: t};
     final merged = <HqPushType>[];
     for (final def in AdminCatalog.hqPushTypes) {
-      merged.add(byId[def.id] ?? def);
-    }
-    for (final t in list) {
-      if (!merged.any((m) => m.id == t.id)) merged.add(t);
+      final saved = byId[def.id];
+      merged.add(saved == null ? def : def.copyWith(enabled: saved.enabled));
     }
     return merged;
   }

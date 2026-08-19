@@ -22,6 +22,8 @@ class HqAlimtalkCatalog {
   static const scheduleUploadId = 'atk_schedule_upload';
   static const groupFinalizeId = 'atk_group_finalize';
   static const scheduleChangeId = 'atk_schedule_change';
+  static const joinResultId = 'atk_join_result';
+  static const _removedIds = {'atk_schedule_confirm'};
 
   static const clubLinkedIds = <String>{
     scheduleUploadId,
@@ -33,13 +35,14 @@ class HqAlimtalkCatalog {
   static final ValueNotifier<int> revision = ValueNotifier<int>(0);
 
   static List<HqAlimtalkType> _mergeWithDefaults(List<HqAlimtalkType> list) {
-    final byId = {for (final t in list) t.id: t};
+    final byId = {
+      for (final t in list)
+        if (!_removedIds.contains(t.id)) t.id: t,
+    };
     final merged = <HqAlimtalkType>[];
     for (final def in AdminCatalog.hqAlimtalkTypes) {
-      merged.add(byId[def.id] ?? def);
-    }
-    for (final t in list) {
-      if (!merged.any((m) => m.id == t.id)) merged.add(t);
+      final saved = byId[def.id];
+      merged.add(saved == null ? def : def.copyWith(enabled: saved.enabled));
     }
     return merged;
   }

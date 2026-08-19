@@ -446,13 +446,13 @@ abstract final class AdminCatalog {
     NotificationPolicyRow(
       no: 2,
       event: '가입 승인/거절',
-      channel: '푸시',
+      channel: '푸시·알림톡',
       audience: '해당 회원',
       timing: '등록 즉시',
     ),
     NotificationPolicyRow(
       no: 3,
-      event: '일정확정 참석권유',
+      event: '일정 등록 참석 안내',
       channel: '푸시·알림톡',
       audience: '전체회원',
       timing: '등록 즉시',
@@ -518,13 +518,13 @@ abstract final class AdminCatalog {
     ),
     HqPushType(
       id: 'push_schedule_confirm',
-      name: '일정확정 참석권유',
+      name: '일정 등록 참석 안내',
       channel: '푸시·알림톡',
       audience: PushAudienceKind.allMembers,
       timing: PushTimingKind.immediate,
       audienceDetail: '정회원 전원 (등록자 본인 포함, 게스트 제외)',
-      defaultTitle: '라운딩이 확정되었습니다',
-      defaultBody: '{{모임명}} 라운딩이 확정되었습니다. 참석 여부를 알려주세요.',
+      defaultTitle: '라운딩이 등록되었습니다',
+      defaultBody: '{{모임명}} {{일정명}}이 등록되었습니다. 참석 여부를 알려주세요.',
     ),
     HqPushType(
       id: 'push_d1_reminder',
@@ -551,7 +551,7 @@ abstract final class AdminCatalog {
       audience: PushAudienceKind.attendees,
       timing: PushTimingKind.immediate,
       defaultTitle: '라운딩이 취소되었습니다',
-      defaultBody: '{{모임명}} 라운딩이 취소되었습니다. 사유: {{사유}}',
+      defaultBody: '{{모임명}} {{일정명}}이 취소되었습니다.',
     ),
     HqPushType(
       id: 'push_dues_nudge',
@@ -568,13 +568,21 @@ abstract final class AdminCatalog {
   /// 본사 자동 알림톡 종류 (푸시 관리와 동일 UX)
   static const List<HqAlimtalkType> hqAlimtalkTypes = [
     HqAlimtalkType(
+      id: 'atk_join_result',
+      name: '가입 승인/거절',
+      audience: PushAudienceKind.specificMember,
+      timing: PushTimingKind.immediate,
+      audienceDetail: '신청자 본인',
+      preview: '{{이름}}님, {{모임명}} 가입 신청이 {{결과}}되었습니다.',
+    ),
+    HqAlimtalkType(
       id: 'atk_schedule_upload',
       name: '일정 등록 참석 안내',
       audience: PushAudienceKind.allMembers,
       timing: PushTimingKind.immediate,
       audienceDetail: '정회원 전원 (등록자 본인 포함, 게스트 제외)',
       preview:
-          '{{모임명}} 라운딩이 등록되었습니다.\n📅 일시: {{일시}}\n📍 장소: {{장소}}\n참석 여부를 알려주세요.',
+          '{{모임명}} {{일정명}}이 등록되었습니다.\n일시: {{일시}}\n장소: {{장소}}\n참석 여부를 알려주세요.',
     ),
     HqAlimtalkType(
       id: 'atk_group_finalize',
@@ -582,7 +590,7 @@ abstract final class AdminCatalog {
       audience: PushAudienceKind.attendees,
       timing: PushTimingKind.immediate,
       audienceDetail: '참석 회원 (정회원·게스트 포함)',
-      preview: '{{모임명}} 조편성이 확정되었습니다.\n조 편성을 확인해 주세요.',
+      preview: '{{모임명}} {{일정명}} 조편성이 확정되었습니다.\n조 편성을 확인해 주세요.',
     ),
     HqAlimtalkType(
       id: 'atk_schedule_change',
@@ -591,15 +599,7 @@ abstract final class AdminCatalog {
       timing: PushTimingKind.immediate,
       audienceDetail: '전체 정회원 + 참석 게스트',
       preview:
-          '{{모임명}} 라운딩 일정이 변경되었습니다.\n📅 일시: {{일시}}\n📍 장소: {{장소}}\n다시 참석 여부를 알려주세요.',
-    ),
-    HqAlimtalkType(
-      id: 'atk_schedule_confirm',
-      name: '일정확정 참석권유',
-      audience: PushAudienceKind.allMembers,
-      timing: PushTimingKind.immediate,
-      preview:
-          '{{모임명}} 라운딩이 확정되었습니다!\n📅 일시: {{일시}}\n📍 장소: {{장소}}\n참석 여부를 알려주세요.',
+          '{{모임명}} {{일정명}} 일정이 변경되었습니다.\n변경 일시: {{일시}}\n변경 장소: {{장소}}\n다시 참석 여부를 알려주세요.',
     ),
     HqAlimtalkType(
       id: 'atk_d1_reminder',
@@ -607,7 +607,7 @@ abstract final class AdminCatalog {
       audience: PushAudienceKind.attendees,
       timing: PushTimingKind.d1At10,
       preview:
-          '내일 {{모임명}} 라운딩이 있습니다.\n📅 일시: {{일시}}\n📍 장소: {{장소}}\n늦지 않게 준비해 주세요.',
+          '내일 {{모임명}} {{일정명}}이 있습니다.\n일시: {{일시}}\n장소: {{장소}}\n늦지 않게 준비해 주세요.',
     ),
     HqAlimtalkType(
       id: 'atk_dues_request',
@@ -622,7 +622,7 @@ abstract final class AdminCatalog {
       name: '일정취소 알림',
       audience: PushAudienceKind.attendees,
       timing: PushTimingKind.immediate,
-      preview: '{{모임명}} 라운딩이 취소되었습니다.\n사유: {{사유}}\n다음 기회에 뵙겠습니다.',
+      preview: '{{모임명}} {{일정명}}이 취소되었습니다.\n취소 일정: {{일시}}\n다음 기회에 뵙겠습니다.',
     ),
     HqAlimtalkType(
       id: 'atk_dues_nudge',
@@ -630,7 +630,7 @@ abstract final class AdminCatalog {
       audience: PushAudienceKind.specificMember,
       timing: PushTimingKind.immediate,
       audienceDetail: '미납 회원(총무 수동 발송)',
-      preview: '{{이름}}님, {{모임명}} 회비가 미납 상태입니다.\n빠른 납부 부탁드립니다.',
+      preview: '{{이름}}님, {{모임명}} 회비가 미납 상태입니다.\n확인 후 납부해 주세요.',
     ),
   ];
 
@@ -651,10 +651,10 @@ abstract final class AdminCatalog {
     ),
     AlimtalkTemplate(
       id: 'T003',
-      name: '일정확정 참석권유',
+      name: '일정 등록 참석 안내',
       category: '모임',
       preview:
-          '{{모임명}} 라운딩이 확정되었습니다!\n📅 일시: {{일시}}\n📍 장소: {{장소}}\n참석 여부를 알려주세요.',
+          '{{모임명}} {{일정명}}이 등록되었습니다.\n일시: {{일시}}\n장소: {{장소}}\n참석 여부를 알려주세요.',
     ),
     AlimtalkTemplate(
       id: 'T004',
@@ -675,7 +675,7 @@ abstract final class AdminCatalog {
       name: '일정취소 알림',
       category: '모임',
       preview:
-          '{{모임명}} 라운딩이 취소되었습니다.\n사유: {{사유}}\n다음 기회에 뵙겠습니다.',
+          '{{모임명}} {{일정명}}이 취소되었습니다.\n취소 일정: {{일시}}\n다음 기회에 뵙겠습니다.',
     ),
     AlimtalkTemplate(
       id: 'T007',

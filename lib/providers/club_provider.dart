@@ -2650,7 +2650,10 @@ class ClubProvider extends ChangeNotifier with WidgetsBindingObserver {
       appType: AppNotificationType.announcement,
       clubId: schedule.clubId,
       clubName: clubName,
-      vars: {'모임명': clubName},
+      vars: {
+        '모임명': clubName,
+        '일정명': schedule.displayTitle,
+      },
       targetId: schedule.id,
       notifySelf: true,
     );
