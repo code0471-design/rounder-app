@@ -7,7 +7,8 @@ void main() {
   test('일정 등록 HQ 푸시는 등록자 본인 enqueue를 켠다', () {
     final src = File('lib/providers/club_provider.dart').readAsStringSync();
     expect(src.contains('notifySelf: true'), isTrue);
-    expect(src.contains('_scheduleBroadcastUserIds()'), isTrue);
+    expect(src.contains('_fcmInboxIdFor'), isTrue,
+        reason: '명단 ID(m_creator_*)를 FCM 로그인 ID로 바꿔야 본인 폰에 푸시가 간다');
     expect(
       src.contains('bool notifySelf = false'),
       isTrue,

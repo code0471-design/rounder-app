@@ -968,6 +968,65 @@ class ClubProvider extends ChangeNotifier with WidgetsBindingObserver {
     return me.contains(a) && me.contains(b);
   }
 
+  /// 명단 ID(m_creator_*, m_{clubId}_*)와 로그인 계정을 같은 사람으로 본다.
+  bool _isSelfTarget(String? id) {
+    if (id == null || id.trim().isEmpty) return false;
+    if (_userIdsMatch(id, currentUserId) ||
+        _userIdsMatch(id, _persistAuthUserId)) {
+      return true;
+    }
+    final me = currentMember?.id;
+    if (me != null && (id == me || _userIdsMatch(id, me))) return true;
+
+    if (_myClubs.isEmpty) return false;
+    final clubId = selectedClub.id;
+    if (id == 'm_creator_$clubId') {
+      final cid = selectedClub.creatorId;
+      return cid.isEmpty ||
+          _userIdsMatch(cid, currentUserId) ||
+          _userIdsMatch(cid, _persistAuthUserId);
+    }
+    final prefix = 'm_${clubId}_';
+    if (id.startsWith(prefix)) {
+      final suffix = id.substring(prefix.length);
+      return _userIdsMatch(suffix, currentUserId) ||
+          _userIdsMatch(suffix, _persistAuthUserId);
+    }
+    return false;
+  }
+
+  /// FCM·푸시함은 Firebase 로그인 ID를 쓴다. 명단 ID를 그 키로 바꾼다.
+  String _fcmInboxIdFor(String memberOrUserId) {
+    final raw = memberOrUserId.trim();
+    if (raw.isEmpty) return raw;
+    if (_isSelfTarget(raw)) {
+      final auth = _persistAuthUserId?.trim();
+      if (auth != null && auth.isNotEmpty) return auth;
+      if (currentUserId.trim().isNotEmpty) return currentUserId;
+    }
+    if (_myClubs.isNotEmpty) {
+      final clubId = selectedClub.id;
+      final prefix = 'm_${clubId}_';
+      if (raw.startsWith(prefix)) {
+        final suffix = raw.substring(prefix.length);
+        if (suffix.isNotEmpty) return suffix;
+      }
+      if (raw == 'm_creator_$clubId') {
+        final cid = selectedClub.creatorId.trim();
+        if (cid.isNotEmpty) return cid;
+      }
+    }
+    if (raw.startsWith('m_creator_')) {
+      final club = [..._myClubs, ..._allClubs]
+          .where((c) => raw == 'm_creator_${c.id}')
+          .firstOrNull;
+      if (club != null && club.creatorId.trim().isNotEmpty) {
+        return club.creatorId.trim();
+      }
+    }
+    return raw;
+  }
+
   /// 레거시 데모 모임(c1~c5)은 모두 같은 공유 명단을 쓰므로 회원수도 동일해야 함.
   /// localStorage에 예전 임의값(24, 15, 8 등)이 저장돼 있어도 항상 실제 값으로 교정.
   void _reconcileLegacyMemberCounts() {
@@ -2595,13 +2654,17 @@ class ClubProvider extends ChangeNotifier with WidgetsBindingObserver {
   }
 
   /// 일정 등록 푸시·알림톡 대상 — 정회원 전원 (등록자 본인 포함)
+  /// FCM 토큰 키(로그인 ID)로 맞춰서 m_creator_* 명단 ID로는 보내지 않는다.
   List<String> _scheduleBroadcastUserIds() {
     final ids = <String>{
       for (final m in regularMembers) m.id,
     };
     final me = currentMember?.id ?? currentUserId;
     if (me.trim().isNotEmpty) ids.add(me);
-    return ids.toList();
+    return {
+      for (final id in ids)
+        if (_fcmInboxIdFor(id).isNotEmpty) _fcmInboxIdFor(id),
+    }.toList();
   }
 
   /// 라운딩 후기/메모 저장
@@ -3290,8 +3353,7 @@ class ClubProvider extends ChangeNotifier with WidgetsBindingObserver {
     final role = _myClubs[idx].myRole;
 
     // 특정 회원 전용 알림(참석 강제 변경, 강퇴 등) — 대상자만 확인 가능
-    if (n.targetUserId != null &&
-        !_userIdsMatch(n.targetUserId, currentUserId)) {
+    if (n.targetUserId != null && !_isSelfTarget(n.targetUserId)) {
       return false;
     }
 
@@ -3406,15 +3468,9 @@ class ClubProvider extends ChangeNotifier with WidgetsBindingObserver {
     _appNotifications.insert(0, n);
     final target = n.targetUserId;
     if (target != null && target.isNotEmpty) {
-      final isSelf = _userIdsMatch(target, currentUserId) ||
-          _userIdsMatch(target, _persistAuthUserId);
+      final isSelf = _isSelfTarget(target);
       if (!isSelf || notifySelf) {
-        final enqueueId = (notifySelf && isSelf)
-            ? ((_persistAuthUserId != null &&
-                    _persistAuthUserId!.trim().isNotEmpty)
-                ? _persistAuthUserId!
-                : currentUserId)
-            : target;
+        final enqueueId = _fcmInboxIdFor(target);
         unawaited(PushNotificationService.enqueue(
           targetUserId: enqueueId,
           title: n.title,
@@ -3422,6 +3478,12 @@ class ClubProvider extends ChangeNotifier with WidgetsBindingObserver {
           type: hqPushTypeId ?? n.type.name,
           clubId: n.clubId,
         ));
+        if (notifySelf && isSelf) {
+          unawaited(PushNotificationService.showLocal(
+            title: n.title,
+            body: n.body,
+          ));
+        }
       }
     }
     notifyListeners();
