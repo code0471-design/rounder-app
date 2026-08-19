@@ -38,7 +38,10 @@ class SolapiService {
   static const _apiKey = String.fromEnvironment('SOLAPI_API_KEY');
   static const _apiSecret = String.fromEnvironment('SOLAPI_API_SECRET');
   static const senderPhone = String.fromEnvironment('SOLAPI_SENDER_PHONE');
-  static const kakaoPfId = String.fromEnvironment('SOLAPI_KAKAO_PF_ID');
+  static const kakaoPfId = String.fromEnvironment(
+    'SOLAPI_KAKAO_PF_ID',
+    defaultValue: 'KA01PF260819163601284VyeVGcfZZWg',
+  );
 
   bool get isConfigured => _apiKey.isNotEmpty && _apiSecret.isNotEmpty;
   bool get hasSenderPhone => senderPhone.isNotEmpty;
