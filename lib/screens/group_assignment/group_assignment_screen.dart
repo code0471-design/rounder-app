@@ -229,13 +229,15 @@ class _GroupAssignmentScreenState extends State<GroupAssignmentScreen> {
         ),
       );
 
-      final settings = p.alimtalkSettingsOf(widget.schedule.clubId);
+      final live =
+          p.scheduleById(widget.schedule.id) ?? widget.schedule;
+      final settings = p.alimtalkSettingsOf(live.clubId);
       final isAdmin =
           p.isClubExecutive;
       if (isAdmin && settings.promptOnGroupFinalize) {
         final sent = await AlimtalkUtils.runGroupFlow(
           provider: p,
-          schedule: widget.schedule,
+          schedule: live,
         );
         if (sent == true && mounted) {
           Navigator.of(context).pop(); // 조편성 → 일정 상세
@@ -260,8 +262,10 @@ class _GroupAssignmentScreenState extends State<GroupAssignmentScreen> {
   @override
   Widget build(BuildContext context) {
     return Consumer<ClubProvider>(builder: (context, provider, _) {
-      final assignment = provider.getOrCreateAssignment(widget.schedule.id);
-      final attendees = widget.schedule.responses
+      final schedule =
+          provider.scheduleById(widget.schedule.id) ?? widget.schedule;
+      final assignment = provider.getOrCreateAssignment(schedule.id);
+      final attendees = schedule.responses
           .where((r) => r.response == '참석')
           .toList();
       final isFinalized = assignment.isFinalized;
@@ -285,7 +289,7 @@ class _GroupAssignmentScreenState extends State<GroupAssignmentScreen> {
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
               Text(
-                widget.schedule.displayTitle,
+                schedule.displayTitle,
                 maxLines: 1,
                 overflow: TextOverflow.ellipsis,
                 style: const TextStyle(
@@ -494,7 +498,9 @@ class _GroupAssignmentScreenState extends State<GroupAssignmentScreen> {
     int gi,
     int si,
   ) async {
-    final attendees = widget.schedule.responses
+    final schedule =
+        provider.scheduleById(widget.schedule.id) ?? widget.schedule;
+    final attendees = schedule.responses
         .where((r) => r.response == '참석')
         .toList();
     final memberMap = {for (final m in provider.members) m.id: m};

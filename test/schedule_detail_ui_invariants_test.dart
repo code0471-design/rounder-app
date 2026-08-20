@@ -99,4 +99,9 @@ void main() {
     expect(RegExp(r'\?\?\?').hasMatch(source), isFalse,
         reason: 'UTF-8 깨짐 — StrReplace로 schedule_screen을 건드리지 말 것');
   });
+
+  test('일정 상세는 provider.scheduleById로 최신 일정을 써야 한다', () {
+    expect(source.contains('provider.scheduleById(this.schedule.id)'), isTrue,
+        reason: '스냅샷 schedule만 쓰면 참석/조편성 인원이 어긋난다');
+  });
 }

@@ -3154,6 +3154,16 @@ class ClubProvider extends ChangeNotifier with WidgetsBindingObserver {
       response: response,
     );
 
+    if (prev == '참석' && response == '불참') {
+      notifyFirstWaiting(scheduleId);
+      _notifyTreasurerIfDroppedFromGroup(
+        scheduleId: scheduleId,
+        memberId: memberId,
+        memberName: memberName,
+        scheduleTitle: schedule.displayTitle,
+      );
+    }
+
     final club = _myClubs.where((c) => c.id == schedule.clubId).firstOrNull ??
         _allClubs.where((c) => c.id == schedule.clubId).firstOrNull;
 

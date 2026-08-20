@@ -881,6 +881,8 @@ class ScheduleDetailScreen extends StatelessWidget {
   Widget build(BuildContext context) {
     return Consumer<ClubProvider>(
       builder: (context, provider, _) {
+        final schedule =
+            provider.scheduleById(this.schedule.id) ?? this.schedule;
         final myRes = provider.myResponse(schedule.id);
         // 날짜 기준 자동 판정 — 라운딩 당일 자정이 지나면 자동으로 지난 일정으로 표시됨
         final isPast = schedule.isPast;

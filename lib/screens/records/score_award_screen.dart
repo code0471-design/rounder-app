@@ -112,7 +112,9 @@ class _ScoreAwardScreenState extends State<ScoreAwardScreen>
 
       // 조편성 없으면 참석 응답 기준
       if (_members.isEmpty) {
-        final attendingResponses = widget.schedule.responses
+        final schedule =
+            provider.scheduleById(widget.schedule.id) ?? widget.schedule;
+        final attendingResponses = schedule.responses
             .where((r) => r.response == '참석')
             .toList();
 
