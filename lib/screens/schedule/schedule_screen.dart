@@ -1053,6 +1053,11 @@ class ScheduleDetailScreen extends StatelessWidget {
 
                       const SizedBox(height: 16),
 
+                      // ── 참석 현황 카드 (스코어/시상 위) ──
+                      _AttendanceCard(schedule: schedule),
+
+                      const SizedBox(height: 16),
+
                       // ── ④ 스코어/시상 카드 ──
                       _ScoreAwardBannerCard(schedule: schedule, isPast: isPast),
 
@@ -1070,11 +1075,6 @@ class ScheduleDetailScreen extends StatelessWidget {
 
                       // ── 라운딩 후기/메모 (지난 일정이 되어도 언제든 열람·수정 가능) ──
                       _ReviewMemoCard(schedule: schedule),
-
-                      const SizedBox(height: 16),
-
-                      // ── 참석 현황 카드 ──
-                      _AttendanceCard(schedule: schedule),
 
                       const SizedBox(height: 16),
 

@@ -104,4 +104,31 @@ void main() {
     expect(source.contains('provider.scheduleById(this.schedule.id)'), isTrue,
         reason: '스냅샷 schedule만 쓰면 참석/조편성 인원이 어긋난다');
   });
+
+  test('참석 현황은 스코어/시상 카드 위에 있어야 한다', () {
+    final bodyStart = source.indexOf('body: SingleChildScrollView(');
+    final bodyEnd = source.indexOf('Widget _buildMyResponseCard(', bodyStart);
+    expect(bodyStart, greaterThanOrEqualTo(0));
+    expect(bodyEnd, greaterThan(bodyStart));
+    final body = source.substring(bodyStart, bodyEnd);
+    final attendance = body.indexOf('_AttendanceCard(schedule: schedule)');
+    final score =
+        body.indexOf('_ScoreAwardBannerCard(schedule: schedule, isPast: isPast)');
+    final group = body.indexOf('_GroupViewBannerCard(');
+    final info = body.indexOf('_InfoCard(schedule: schedule)');
+    expect(attendance, greaterThanOrEqualTo(0),
+        reason: '참석 현황 카드가 사라짐');
+    expect(score, greaterThanOrEqualTo(0), reason: '스코어/시상 카드가 사라짐');
+    expect(group, greaterThanOrEqualTo(0), reason: '조편성 배너가 사라짐');
+    expect(info, greaterThanOrEqualTo(0), reason: '일정 정보 카드가 사라짐');
+    expect(group < attendance, isTrue, reason: '조편성 다음에 참석 현황이 와야 함');
+    expect(attendance < score, isTrue,
+        reason: '참석 현황이 스코어/시상 아래로 내려가면 안 됨');
+    expect(score < info, isTrue, reason: '스코어/시상 다음에 일정 정보가 와야 함');
+    expect(body.contains('class _ReviewMemoCard'), isFalse);
+    expect(body.contains('_ReviewMemoCard(schedule: schedule)'), isTrue);
+    expect(body.contains('_RsvpWaitingCard(schedule: schedule, isAdmin: isAdmin)'),
+        isTrue);
+    expect(body.contains('_PhotoSection(schedule: schedule)'), isTrue);
+  });
 }

@@ -23,7 +23,7 @@ workflows:
         ignore_failure: true
         script: |
           flutter build appbundle --release --android-skip-build-dependency-validation \
-            --build-name=1.0.0 --build-number=27
+            --build-name=1.0.0 --build-number=28
       - name: Build iOS IPA
         script: |
           flutter build ipa --release \
@@ -49,7 +49,7 @@ workflows:
       - name: Build release APK
         script: |
           flutter build apk --release --android-skip-build-dependency-validation \
-            --build-name=1.0.0 --build-number=27
+            --build-name=1.0.0 --build-number=28
     artifacts:
       - build/**/outputs/**/*.apk
 
@@ -68,7 +68,7 @@ workflows:
         script: |
           set +e
           flutter build appbundle --release --android-skip-build-dependency-validation \
-            --build-name=1.0.0 --build-number=27 2>&1 | tee /tmp/rounder_aab.log
+            --build-name=1.0.0 --build-number=28 2>&1 | tee /tmp/rounder_aab.log
           status=${PIPESTATUS[0]}
           if [ $status -ne 0 ]; then
             echo "===== What went wrong (excerpt) ====="
