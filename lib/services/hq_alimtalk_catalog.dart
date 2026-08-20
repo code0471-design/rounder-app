@@ -112,12 +112,16 @@ class HqAlimtalkCatalog {
     final remote = await HqRemoteSettings.read(FirestorePaths.metaHqAlimtalk);
     if (remote != null) {
       final typesRaw = remote['types'];
-      if (typesRaw is List &&
-          typesRaw.any(
-              (e) => e is Map && e['id']?.toString() == joinResultId) &&
-          !typesRaw.any((e) =>
-              e is Map && _removedIds.contains(e['id']?.toString()))) {
-        shouldPersist = false;
+      if (typesRaw is List) {
+        bool hasId(String id) => typesRaw.any(
+              (e) => e is Map && e['id']?.toString() == id,
+            );
+        if (hasId(joinResultId) &&
+            hasId(clubInviteId) &&
+            !typesRaw.any((e) =>
+                e is Map && _removedIds.contains(e['id']?.toString()))) {
+          shouldPersist = false;
+        }
       }
       try {
         consider(jsonEncode(remote), source: 'firestore');
