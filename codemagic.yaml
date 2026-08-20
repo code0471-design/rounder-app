@@ -1,5 +1,6 @@
 # Codemagic: Android Play AAB + optional iOS build.
 # Select workflow "Android release AAB" for Play Console upload.
+# Version comes from pubspec.yaml (e.g. 1.0.0+30) — do NOT hardcode --build-number.
 # iOS TestFlight publishing temporarily disabled so yaml validates without
 # matching an App Store Connect API key name. Re-enable later with:
 #   integrations: { app_store_connect: <exact key name from Codemagic Integrations> }
@@ -22,13 +23,23 @@ workflows:
       - name: Build Android (non-blocking)
         ignore_failure: true
         script: |
+          VERSION_LINE=$(grep '^version:' pubspec.yaml | head -1 | tr -d ' ')
+          BUILD_NAME=${VERSION_LINE#version:}
+          BUILD_NAME=${BUILD_NAME%%+*}
+          BUILD_NUMBER=${VERSION_LINE##*+}
+          echo "Android version: $BUILD_NAME+$BUILD_NUMBER"
           flutter build appbundle --release --android-skip-build-dependency-validation \
-            --build-name=1.0.0 --build-number=29
+            --build-name="$BUILD_NAME" --build-number="$BUILD_NUMBER"
       - name: Build iOS IPA
         script: |
+          VERSION_LINE=$(grep '^version:' pubspec.yaml | head -1 | tr -d ' ')
+          BUILD_NAME=${VERSION_LINE#version:}
+          BUILD_NAME=${BUILD_NAME%%+*}
+          BUILD_NUMBER=${VERSION_LINE##*+}
+          echo "iOS version: $BUILD_NAME+$BUILD_NUMBER"
           flutter build ipa --release \
-            --build-name=1.0.0 \
-            --build-number=$((CM_BUILD_ID % 10000 + 10))
+            --build-name="$BUILD_NAME" \
+            --build-number="$BUILD_NUMBER"
     artifacts:
       - build/**/outputs/**/*.aab
       - build/ios/ipa/*.ipa
@@ -48,8 +59,13 @@ workflows:
         script: flutter pub get
       - name: Build release APK
         script: |
+          VERSION_LINE=$(grep '^version:' pubspec.yaml | head -1 | tr -d ' ')
+          BUILD_NAME=${VERSION_LINE#version:}
+          BUILD_NAME=${BUILD_NAME%%+*}
+          BUILD_NUMBER=${VERSION_LINE##*+}
+          echo "APK version: $BUILD_NAME+$BUILD_NUMBER"
           flutter build apk --release --android-skip-build-dependency-validation \
-            --build-name=1.0.0 --build-number=29
+            --build-name="$BUILD_NAME" --build-number="$BUILD_NUMBER"
     artifacts:
       - build/**/outputs/**/*.apk
 
@@ -67,8 +83,13 @@ workflows:
       - name: Build release AAB
         script: |
           set +e
+          VERSION_LINE=$(grep '^version:' pubspec.yaml | head -1 | tr -d ' ')
+          BUILD_NAME=${VERSION_LINE#version:}
+          BUILD_NAME=${BUILD_NAME%%+*}
+          BUILD_NUMBER=${VERSION_LINE##*+}
+          echo "AAB version: $BUILD_NAME+$BUILD_NUMBER"
           flutter build appbundle --release --android-skip-build-dependency-validation \
-            --build-name=1.0.0 --build-number=29 2>&1 | tee /tmp/rounder_aab.log
+            --build-name="$BUILD_NAME" --build-number="$BUILD_NUMBER" 2>&1 | tee /tmp/rounder_aab.log
           status=${PIPESTATUS[0]}
           if [ $status -ne 0 ]; then
             echo "===== What went wrong (excerpt) ====="
