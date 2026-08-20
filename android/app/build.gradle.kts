@@ -35,10 +35,9 @@ android {
         applicationId = "com.golfrounder.golf"
         minSdk = flutter.minSdkVersion
         targetSdk = flutter.targetSdkVersion
-        // Play already used 10, 21, 22, 23, and 24. Keep this number in sync with
-        // pubspec.yaml +N and Codemagic --build-number.
-        versionCode = 27
-        versionName = "1.0.0"
+        // Play already used 10, 21–28. Keep in sync via pubspec + Codemagic --build-number.
+        versionCode = flutter.versionCode
+        versionName = flutter.versionName
         // Kakao Login redirect scheme: kakao{NATIVE_APP_KEY}
         val localProps = Properties()
         val localFile = rootProject.file("local.properties")
