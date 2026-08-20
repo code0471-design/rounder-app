@@ -4816,11 +4816,12 @@ class ClubProvider extends ChangeNotifier with WidgetsBindingObserver {
     String? imageUrl,
   }) {
     final seed = DateTime.now().millisecondsSinceEpoch % 9999;
+    final uploaderId = currentMember?.id ?? currentUserId;
     _photos.add(RoundPhoto(
       id: 'photo_$seed',
       scheduleId: scheduleId,
       clubId: selectedClub.id,
-      uploaderId: currentUserId,
+      uploaderId: uploaderId,
       uploaderName: currentUserName,
       imageUrl: (imageUrl != null && imageUrl.isNotEmpty)
           ? imageUrl
@@ -4832,11 +4833,22 @@ class ClubProvider extends ChangeNotifier with WidgetsBindingObserver {
     notifyListeners();
   }
 
-  /// 사진 삭제 (본인 사진만)
-  void deletePhoto(String photoId) {
-    _photos.removeWhere(
-        (p) => p.id == photoId && p.uploaderId == currentUserId);
+  /// 내가 올린 사진인지 (명단 ID·로그인 ID 별칭 포함)
+  bool isOwnPhoto(RoundPhoto photo) {
+    if (_isSelfTarget(photo.uploaderId)) return true;
+    // ID가 어긋난 예전 저장분 — 업로드 이름이 본인과 같으면 본인으로 본다
+    final name = photo.uploaderName.trim();
+    return name.isNotEmpty && name == currentUserName.trim();
+  }
+
+  /// 사진 삭제 (본인 사진만). 성공 시 true.
+  bool deletePhoto(String photoId) {
+    final before = _photos.length;
+    _photos.removeWhere((p) => p.id == photoId && isOwnPhoto(p));
+    if (_photos.length == before) return false;
+    _persistImmediately();
     notifyListeners();
+    return true;
   }
 
   // ════════════════════════════════════════════════════════

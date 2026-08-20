@@ -609,8 +609,7 @@ class _PhotoViewerScreenState extends State<_PhotoViewerScreen> {
                       ),
                       Consumer<ClubProvider>(
                         builder: (_, provider, __) {
-                          final isOwn =
-                              photo.uploaderId == provider.currentUserId;
+                          final isOwn = provider.isOwnPhoto(photo);
                           return isOwn
                               ? IconButton(
                                   icon: const Icon(Icons.delete_outline,
@@ -740,8 +739,18 @@ class _PhotoViewerScreenState extends State<_PhotoViewerScreen> {
       ),
     );
     if (confirmed == true) {
-      provider.deletePhoto(photo.id);
-      if (context.mounted) Navigator.pop(context);
+      final ok = provider.deletePhoto(photo.id);
+      if (!context.mounted) return;
+      if (!ok) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('본인이 올린 사진만 삭제할 수 있습니다'),
+            behavior: SnackBarBehavior.floating,
+          ),
+        );
+        return;
+      }
+      Navigator.pop(context);
     }
   }
 }
