@@ -423,6 +423,9 @@ class Announcement {
   final List<AnnouncementComment> comments;
   /// 소속 모임 (null = 레거시 mock 공지)
   final String? clubId;
+  /// 작성자 (레거시 null 가능)
+  final String? authorId;
+  final String? authorName;
 
   Announcement({
     required this.id,
@@ -432,6 +435,8 @@ class Announcement {
     required this.createdAt,
     List<AnnouncementComment>? comments,
     this.clubId,
+    this.authorId,
+    this.authorName,
   }) : comments = comments ?? [];
 }
 
@@ -1189,6 +1194,21 @@ class RoundPhoto {
     this.caption,
     required this.takenAt,
   });
+
+  RoundPhoto copyWith({
+    String? caption,
+    bool clearCaption = false,
+  }) =>
+      RoundPhoto(
+        id: id,
+        scheduleId: scheduleId,
+        clubId: clubId,
+        uploaderId: uploaderId,
+        uploaderName: uploaderName,
+        imageUrl: imageUrl,
+        caption: clearCaption ? null : (caption ?? this.caption),
+        takenAt: takenAt,
+      );
 }
 
 // ────────────────────────────────────────────────────────────

@@ -332,6 +332,8 @@ class ClubDataCodec {
         'isPinned': a.isPinned,
         'createdAt': _dt(a.createdAt),
         'clubId': a.clubId,
+        'authorId': a.authorId,
+        'authorName': a.authorName,
         'comments': a.comments
             .map((c) => {
                   'id': c.id,
@@ -351,6 +353,8 @@ class ClubDataCodec {
         isPinned: j['isPinned'] as bool? ?? false,
         createdAt: _parseDtReq(j['createdAt']),
         clubId: j['clubId'] as String?,
+        authorId: j['authorId'] as String?,
+        authorName: j['authorName'] as String?,
         comments: (j['comments'] as List<dynamic>? ?? [])
             .map((c) {
               final m = Map<String, dynamic>.from(c as Map);

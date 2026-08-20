@@ -522,12 +522,14 @@ class _PhotoViewerScreen extends StatefulWidget {
 class _PhotoViewerScreenState extends State<_PhotoViewerScreen> {
   late PageController _pageController;
   late int _current;
+  late List<RoundPhoto> _photos;
   bool _showInfo = true;
 
   @override
   void initState() {
     super.initState();
     _current = widget.initialIndex;
+    _photos = List<RoundPhoto>.from(widget.photos);
     _pageController = PageController(initialPage: _current);
   }
 
@@ -539,7 +541,7 @@ class _PhotoViewerScreenState extends State<_PhotoViewerScreen> {
 
   @override
   Widget build(BuildContext context) {
-    final photo = widget.photos[_current];
+    final photo = _photos[_current];
 
     return Scaffold(
       backgroundColor: Colors.black,
@@ -550,10 +552,10 @@ class _PhotoViewerScreenState extends State<_PhotoViewerScreen> {
             onTap: () => setState(() => _showInfo = !_showInfo),
             child: PageView.builder(
               controller: _pageController,
-              itemCount: widget.photos.length,
+              itemCount: _photos.length,
               onPageChanged: (i) => setState(() => _current = i),
               itemBuilder: (_, i) {
-                final p = widget.photos[i];
+                final p = _photos[i];
                 return Hero(
                   tag: 'photo_${p.id}',
                   child: InteractiveViewer(
@@ -599,7 +601,7 @@ class _PhotoViewerScreenState extends State<_PhotoViewerScreen> {
                       ),
                       Expanded(
                         child: Text(
-                          '${_current + 1} / ${widget.photos.length}',
+                          '${_current + 1} / ${_photos.length}',
                           textAlign: TextAlign.center,
                           style: const TextStyle(
                               color: Colors.white,
@@ -610,14 +612,24 @@ class _PhotoViewerScreenState extends State<_PhotoViewerScreen> {
                       Consumer<ClubProvider>(
                         builder: (_, provider, __) {
                           final isOwn = provider.isOwnPhoto(photo);
-                          return isOwn
-                              ? IconButton(
-                                  icon: const Icon(Icons.delete_outline,
-                                      color: Colors.white70),
-                                  onPressed: () =>
-                                      _confirmDelete(context, provider, photo),
-                                )
-                              : const SizedBox(width: 48);
+                          if (!isOwn) return const SizedBox(width: 48);
+                          return Row(
+                            mainAxisSize: MainAxisSize.min,
+                            children: [
+                              IconButton(
+                                icon: const Icon(Icons.edit_outlined,
+                                    color: Colors.white70),
+                                onPressed: () =>
+                                    _editCaption(context, provider, photo),
+                              ),
+                              IconButton(
+                                icon: const Icon(Icons.delete_outline,
+                                    color: Colors.white70),
+                                onPressed: () =>
+                                    _confirmDelete(context, provider, photo),
+                              ),
+                            ],
+                          );
                         },
                       ),
                     ],
@@ -715,6 +727,46 @@ class _PhotoViewerScreenState extends State<_PhotoViewerScreen> {
 
   String _formatDate(DateTime dt) {
     return '${dt.year}.${dt.month.toString().padLeft(2, '0')}.${dt.day.toString().padLeft(2, '0')}';
+  }
+
+  Future<void> _editCaption(
+      BuildContext context, ClubProvider provider, RoundPhoto photo) async {
+    final ctrl = TextEditingController(text: photo.caption ?? '');
+    final ok = await showDialog<bool>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        shape:
+            RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+        title: const Text('사진 설명 수정',
+            style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold)),
+        content: TextField(
+          controller: ctrl,
+          maxLines: 3,
+          autofocus: true,
+          decoration: const InputDecoration(
+            hintText: '설명을 입력하세요',
+            border: OutlineInputBorder(),
+          ),
+        ),
+        actions: [
+          TextButton(
+              onPressed: () => Navigator.pop(ctx, false),
+              child: const Text('취소')),
+          TextButton(
+              onPressed: () => Navigator.pop(ctx, true),
+              child: const Text('저장',
+                  style: TextStyle(color: AppColors.primary))),
+        ],
+      ),
+    );
+    if (ok == true) {
+      provider.updatePhotoCaption(photo.id, ctrl.text);
+      if (!mounted) return;
+      final idx = provider.clubPhotos.indexWhere((p) => p.id == photo.id);
+      setState(() {
+        if (idx != -1) _photos[_current] = provider.clubPhotos[idx];
+      });
+    }
   }
 
   Future<void> _confirmDelete(

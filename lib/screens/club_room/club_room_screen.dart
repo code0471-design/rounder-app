@@ -1779,6 +1779,76 @@ class _AnnouncementDetailSheetState extends State<_AnnouncementDetailSheet> {
     ));
   }
 
+  Future<void> _editAnnouncement(
+      BuildContext context, ClubProvider prov, Announcement a) async {
+    final titleCtrl = TextEditingController(text: a.title);
+    final contentCtrl = TextEditingController(text: a.content ?? '');
+    final ok = await showDialog<bool>(
+      context: context,
+      builder: (dialogCtx) => AlertDialog(
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+        title: const Text('공지 수정',
+            style: TextStyle(fontWeight: FontWeight.bold, fontSize: 16)),
+        content: SizedBox(
+          width: 360,
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              TextField(
+                controller: titleCtrl,
+                decoration: const InputDecoration(
+                  labelText: '제목',
+                  border: OutlineInputBorder(),
+                ),
+              ),
+              const SizedBox(height: 12),
+              TextField(
+                controller: contentCtrl,
+                maxLines: 5,
+                decoration: const InputDecoration(
+                  labelText: '내용',
+                  border: OutlineInputBorder(),
+                ),
+              ),
+            ],
+          ),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(dialogCtx, false),
+            child: const Text('취소'),
+          ),
+          ElevatedButton(
+            onPressed: () {
+              if (titleCtrl.text.trim().isEmpty) return;
+              Navigator.pop(dialogCtx, true);
+            },
+            style: ElevatedButton.styleFrom(
+              backgroundColor: AppColors.primary,
+              foregroundColor: Colors.white,
+            ),
+            child: const Text('저장'),
+          ),
+        ],
+      ),
+    );
+    if (ok == true) {
+      prov.updateAnnouncement(
+        id: a.id,
+        title: titleCtrl.text,
+        content: contentCtrl.text,
+      );
+      if (context.mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('공지사항이 수정되었습니다'),
+            behavior: SnackBarBehavior.floating,
+          ),
+        );
+      }
+    }
+  }
+
   void _confirmDelete(BuildContext dialogCtx, BuildContext sheetCtx) {
     showDialog(
       context: dialogCtx,
@@ -1877,27 +1947,42 @@ class _AnnouncementDetailSheetState extends State<_AnnouncementDetailSheet> {
                       a.content?.isNotEmpty == true ? a.content! : '(내용 없음)',
                       style: const TextStyle(fontSize: 14, color: AppColors.textPrimary, height: 1.7),
                     ),
-                    // 관리자 버튼
-                    if (widget.isAdmin) ...[
+                    // 관리/작성자 버튼
+                    if (widget.isAdmin || prov.isOwnAnnouncement(a)) ...[
                       const SizedBox(height: 20),
                       const Divider(),
                       const SizedBox(height: 8),
                       Row(children: [
-                        Expanded(
-                          child: OutlinedButton.icon(
-                            onPressed: () {
-                              prov.toggleAnnouncementPin(a.id);
-                              Navigator.pop(context);
-                            },
-                            icon: Icon(a.isPinned ? Icons.push_pin_outlined : Icons.push_pin, size: 16),
-                            label: Text(a.isPinned ? '고정 해제' : '상단 고정'),
-                            style: OutlinedButton.styleFrom(
-                              foregroundColor: AppColors.accent,
-                              side: BorderSide(color: AppColors.accent.withValues(alpha: 0.5)),
-                              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+                        if (widget.isAdmin)
+                          Expanded(
+                            child: OutlinedButton.icon(
+                              onPressed: () {
+                                prov.toggleAnnouncementPin(a.id);
+                                Navigator.pop(context);
+                              },
+                              icon: Icon(a.isPinned ? Icons.push_pin_outlined : Icons.push_pin, size: 16),
+                              label: Text(a.isPinned ? '고정 해제' : '상단 고정'),
+                              style: OutlinedButton.styleFrom(
+                                foregroundColor: AppColors.accent,
+                                side: BorderSide(color: AppColors.accent.withValues(alpha: 0.5)),
+                                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+                              ),
                             ),
                           ),
-                        ),
+                        if (widget.isAdmin) const SizedBox(width: 10),
+                        if (widget.isAdmin || prov.isOwnAnnouncement(a))
+                          Expanded(
+                            child: OutlinedButton.icon(
+                              onPressed: () => _editAnnouncement(context, prov, a),
+                              icon: const Icon(Icons.edit_outlined, size: 16),
+                              label: const Text('수정'),
+                              style: OutlinedButton.styleFrom(
+                                foregroundColor: AppColors.primary,
+                                side: BorderSide(color: AppColors.primary.withValues(alpha: 0.5)),
+                                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+                              ),
+                            ),
+                          ),
                         const SizedBox(width: 10),
                         Expanded(
                           child: OutlinedButton.icon(
@@ -1932,7 +2017,13 @@ class _AnnouncementDetailSheetState extends State<_AnnouncementDetailSheet> {
                             textAlign: TextAlign.center),
                       )
                     else
-                      ...comments.map((c) => _CommentItem(comment: c)).toList(),
+                      ...comments
+                          .map((c) => _CommentItem(
+                                announcementId: a.id,
+                                comment: c,
+                                provider: prov,
+                              ))
+                          .toList(),
                     const SizedBox(height: 12),
                   ],
                 ),
@@ -2012,12 +2103,94 @@ class _AnnouncementDetailSheetState extends State<_AnnouncementDetailSheet> {
 
 // ── 댓글 아이템 ──
 class _CommentItem extends StatelessWidget {
+  final String announcementId;
   final AnnouncementComment comment;
-  const _CommentItem({required this.comment});
+  final ClubProvider provider;
+  const _CommentItem({
+    required this.announcementId,
+    required this.comment,
+    required this.provider,
+  });
+
+  Future<void> _edit(BuildContext context) async {
+    final ctrl = TextEditingController(text: comment.text);
+    final ok = await showDialog<bool>(
+      context: context,
+      builder: (dialogCtx) => AlertDialog(
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+        title: const Text('댓글 수정',
+            style: TextStyle(fontWeight: FontWeight.bold, fontSize: 16)),
+        content: TextField(
+          controller: ctrl,
+          maxLines: 4,
+          autofocus: true,
+          decoration: const InputDecoration(border: OutlineInputBorder()),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(dialogCtx, false),
+            child: const Text('취소'),
+          ),
+          ElevatedButton(
+            onPressed: () {
+              if (ctrl.text.trim().isEmpty) return;
+              Navigator.pop(dialogCtx, true);
+            },
+            style: ElevatedButton.styleFrom(
+              backgroundColor: AppColors.primary,
+              foregroundColor: Colors.white,
+            ),
+            child: const Text('저장'),
+          ),
+        ],
+      ),
+    );
+    if (ok == true) {
+      provider.updateAnnouncementComment(
+        announcementId: announcementId,
+        commentId: comment.id,
+        text: ctrl.text,
+      );
+    }
+  }
+
+  Future<void> _delete(BuildContext context) async {
+    final ok = await showDialog<bool>(
+      context: context,
+      builder: (dialogCtx) => AlertDialog(
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+        title: const Text('댓글 삭제',
+            style: TextStyle(fontWeight: FontWeight.bold, fontSize: 16)),
+        content: const Text('이 댓글을 삭제할까요?'),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(dialogCtx, false),
+            child: const Text('취소'),
+          ),
+          ElevatedButton(
+            onPressed: () => Navigator.pop(dialogCtx, true),
+            style: ElevatedButton.styleFrom(
+              backgroundColor: AppColors.danger,
+              foregroundColor: Colors.white,
+            ),
+            child: const Text('삭제'),
+          ),
+        ],
+      ),
+    );
+    if (ok == true) {
+      provider.deleteAnnouncementComment(
+        announcementId: announcementId,
+        commentId: comment.id,
+      );
+    }
+  }
 
   @override
   Widget build(BuildContext context) {
     final c = comment;
+    final canManage =
+        provider.isOwnAnnouncementComment(c) || provider.isClubExecutive;
     return Padding(
       padding: const EdgeInsets.symmetric(vertical: 6),
       child: Row(
@@ -2047,6 +2220,25 @@ class _CommentItem extends StatelessWidget {
                   const SizedBox(width: 6),
                   Text(_timeAgo(c.createdAt),
                       style: const TextStyle(fontSize: 10, color: AppColors.textSecondary)),
+                  const Spacer(),
+                  if (canManage)
+                    PopupMenuButton<String>(
+                      padding: EdgeInsets.zero,
+                      iconSize: 18,
+                      icon: const Icon(Icons.more_horiz,
+                          size: 18, color: AppColors.textSecondary),
+                      onSelected: (v) {
+                        if (v == 'edit') _edit(context);
+                        if (v == 'delete') _delete(context);
+                      },
+                      itemBuilder: (_) => [
+                        if (provider.isOwnAnnouncementComment(c))
+                          const PopupMenuItem(
+                              value: 'edit', child: Text('수정')),
+                        const PopupMenuItem(
+                            value: 'delete', child: Text('삭제')),
+                      ],
+                    ),
                 ]),
                 const SizedBox(height: 2),
                 Container(

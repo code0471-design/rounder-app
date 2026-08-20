@@ -19,7 +19,6 @@ class HqPushCatalog {
   static const duesRequest = 'push_dues_request';
   static const scheduleCancel = 'push_schedule_cancel';
   static const duesNudge = 'push_dues_nudge';
-  static const clubInvite = 'push_club_invite';
 
   static List<HqPushType>? _memory;
   static final ValueNotifier<int> revision = ValueNotifier<int>(0);

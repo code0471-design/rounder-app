@@ -481,8 +481,8 @@ abstract final class AdminCatalog {
     NotificationPolicyRow(
       no: 7,
       event: '모임 초대',
-      channel: '푸시·알림톡',
-      audience: '초대 대상(앱 회원이면 푸시)',
+      channel: '알림톡',
+      audience: '초대 대상(카카오톡)',
       timing: '등록 즉시',
     ),
     NotificationPolicyRow(
@@ -562,16 +562,6 @@ abstract final class AdminCatalog {
       audienceDetail: '미납 회원(총무 수동 발송)',
       defaultTitle: '회비 납부 독촉',
       defaultBody: '{{이름}}님, {{모임명}} 회비 미납 안내드립니다. 확인 후 납부해 주세요.',
-    ),
-    HqPushType(
-      id: 'push_club_invite',
-      name: '모임 초대',
-      channel: '푸시·알림톡',
-      audience: PushAudienceKind.specificMember,
-      timing: PushTimingKind.immediate,
-      audienceDetail: '초대 대상(앱에 가입된 회원)',
-      defaultTitle: '모임 초대',
-      defaultBody: '{{초대자}}님이 {{모임명}}에 초대했습니다. 앱에서 확인해 주세요.',
     ),
   ];
 

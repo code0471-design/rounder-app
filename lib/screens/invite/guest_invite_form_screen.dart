@@ -6,10 +6,11 @@ import '../../models/user_model.dart';
 import '../../providers/auth_provider.dart';
 import '../../providers/club_provider.dart';
 import '../../theme/app_theme.dart';
+import '../../utils/kakao_talk_launcher.dart';
 
 // ════════════════════════════════════════════════════════════
 //  GuestInviteFormScreen — 총무가 게스트를 초대할 때
-//  · 게스트 이름 / 연락처(선택) / 추천인(소개자) 선택 입력
+//  · 게스트 이름 / 추천인(소개자) 선택 입력 (연락처 입력 없음 — 카톡으로만 초대)
 //  · 추천인 정보가 담긴 초대 알림톡 링크를 발급/공유
 // ════════════════════════════════════════════════════════════
 class GuestInviteFormScreen extends StatefulWidget {
@@ -23,7 +24,6 @@ class GuestInviteFormScreen extends StatefulWidget {
 class _GuestInviteFormScreenState extends State<GuestInviteFormScreen> {
   final _formKey = GlobalKey<FormState>();
   final _nameCtrl = TextEditingController();
-  final _phoneCtrl = TextEditingController();
   Member? _referrer;
   InviteToken? _token;
   bool _sent = false;
@@ -31,7 +31,6 @@ class _GuestInviteFormScreenState extends State<GuestInviteFormScreen> {
   @override
   void dispose() {
     _nameCtrl.dispose();
-    _phoneCtrl.dispose();
     super.dispose();
   }
 
@@ -60,22 +59,22 @@ class _GuestInviteFormScreenState extends State<GuestInviteFormScreen> {
     await Clipboard.setData(ClipboardData(text: msg));
     if (!mounted) return;
 
-    final phone = _phoneCtrl.text.trim();
-    if (phone.isNotEmpty) {
-      final invitee = auth.findUserByPhone(phone);
-      if (invitee != null) {
-        context.read<ClubProvider>().notifyClubInvite(
-              clubId: widget.club.id,
-              clubName: widget.club.name,
-              inviteeUserId: invitee.id,
-              inviterName: token.inviterName,
-              inviteToken: token.token,
-            );
-      }
-    }
-
     setState(() => _sent = true);
     _showKakaoSheet(msg);
+  }
+
+  Future<void> _openKakaoTalk() async {
+    final ok = await openKakaoTalkApp();
+    if (!mounted) return;
+    if (!ok) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('카카오톡을 열 수 없습니다. 설치 여부를 확인해 주세요'),
+          backgroundColor: Color(0xFF3A1C00),
+          behavior: SnackBarBehavior.floating,
+        ),
+      );
+    }
   }
 
   void _showKakaoSheet(String message) {
@@ -167,15 +166,9 @@ class _GuestInviteFormScreenState extends State<GuestInviteFormScreen> {
               width: double.infinity,
               height: 50,
               child: ElevatedButton.icon(
-                onPressed: () {
+                onPressed: () async {
                   Navigator.pop(context);
-                  ScaffoldMessenger.of(context).showSnackBar(
-                    const SnackBar(
-                      content: Text('카카오톡을 열어 메시지를 붙여넣기 해주세요'),
-                      backgroundColor: Color(0xFF3A1C00),
-                      behavior: SnackBarBehavior.floating,
-                    ),
-                  );
+                  await _openKakaoTalk();
                 },
                 icon: const Text('K',
                     style: TextStyle(
@@ -307,16 +300,6 @@ class _GuestInviteFormScreenState extends State<GuestInviteFormScreen> {
                 decoration: _deco('예: 김게스트'),
                 validator: (v) =>
                     v == null || v.trim().isEmpty ? '이름을 입력하세요' : null,
-              ),
-              const SizedBox(height: 20),
-
-              const Text('연락처 (선택)',
-                  style: TextStyle(fontSize: 13, fontWeight: FontWeight.w600)),
-              const SizedBox(height: 8),
-              TextFormField(
-                controller: _phoneCtrl,
-                keyboardType: TextInputType.phone,
-                decoration: _deco('010-0000-0000'),
               ),
               const SizedBox(height: 20),
 

@@ -4057,6 +4057,62 @@ class _SchedulePhotoViewerState extends State<_SchedulePhotoViewer> {
   late PageController _controller;
   late int _current;
 
+  Future<void> _editCaption(
+      BuildContext context, ClubProvider provider, RoundPhoto photo) async {
+    final ctrl = TextEditingController(text: photo.caption ?? '');
+    final ok = await showDialog<bool>(
+      context: context,
+      builder: (dialogCtx) => AlertDialog(
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+        title: const Text('사진 설명 수정'),
+        content: TextField(
+          controller: ctrl,
+          maxLines: 3,
+          autofocus: true,
+          decoration: const InputDecoration(border: OutlineInputBorder()),
+        ),
+        actions: [
+          TextButton(
+              onPressed: () => Navigator.pop(dialogCtx, false),
+              child: const Text('취소')),
+          TextButton(
+              onPressed: () => Navigator.pop(dialogCtx, true),
+              child: const Text('저장')),
+        ],
+      ),
+    );
+    if (ok == true) {
+      provider.updatePhotoCaption(photo.id, ctrl.text);
+      if (mounted) setState(() {});
+    }
+  }
+
+  Future<void> _confirmDelete(
+      BuildContext context, ClubProvider provider, RoundPhoto photo) async {
+    final ok = await showDialog<bool>(
+      context: context,
+      builder: (dialogCtx) => AlertDialog(
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+        title: const Text('사진 삭제'),
+        content: const Text('이 사진을 삭제할까요?'),
+        actions: [
+          TextButton(
+              onPressed: () => Navigator.pop(dialogCtx, false),
+              child: const Text('취소')),
+          TextButton(
+              onPressed: () => Navigator.pop(dialogCtx, true),
+              child: const Text('삭제',
+                  style: TextStyle(color: AppColors.danger))),
+        ],
+      ),
+    );
+    if (ok == true) {
+      final deleted = provider.deletePhoto(photo.id);
+      if (!mounted) return;
+      if (deleted) Navigator.pop(context);
+    }
+  }
+
   @override
   void initState() {
     super.initState();
@@ -4083,6 +4139,26 @@ class _SchedulePhotoViewerState extends State<_SchedulePhotoViewer> {
           style: const TextStyle(color: Colors.white, fontSize: 14),
         ),
         centerTitle: true,
+        actions: [
+          Consumer<ClubProvider>(
+            builder: (ctx, provider, _) {
+              if (!provider.isOwnPhoto(photo)) return const SizedBox.shrink();
+              return Row(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  IconButton(
+                    icon: const Icon(Icons.edit_outlined, color: Colors.white70),
+                    onPressed: () => _editCaption(ctx, provider, photo),
+                  ),
+                  IconButton(
+                    icon: const Icon(Icons.delete_outline, color: Colors.white70),
+                    onPressed: () => _confirmDelete(ctx, provider, photo),
+                  ),
+                ],
+              );
+            },
+          ),
+        ],
       ),
       body: Stack(
         children: [

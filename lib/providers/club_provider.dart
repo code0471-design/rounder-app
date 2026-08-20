@@ -3599,6 +3599,7 @@ class ClubProvider extends ChangeNotifier with WidgetsBindingObserver {
       return;
     }
     final id = 'ann_${DateTime.now().millisecondsSinceEpoch}';
+    final authorId = currentMember?.id ?? currentUserId;
     _announcements.insert(
       0,
       Announcement(
@@ -3608,6 +3609,8 @@ class ClubProvider extends ChangeNotifier with WidgetsBindingObserver {
         isPinned: pin,
         createdAt: DateTime.now(),
         clubId: selectedClub.id,
+        authorId: authorId,
+        authorName: currentUserName,
       ),
     );
     // 고정 공지는 맨 위
@@ -3619,13 +3622,48 @@ class ClubProvider extends ChangeNotifier with WidgetsBindingObserver {
     _persistImmediately();
   }
 
-  /// 공지사항 삭제
+  bool isOwnAnnouncement(Announcement a) {
+    final id = a.authorId;
+    if (id != null && id.isNotEmpty && _isSelfTarget(id)) return true;
+    final name = a.authorName?.trim() ?? '';
+    return name.isNotEmpty && name == currentUserName.trim();
+  }
+
+  /// 공지 수정 — 작성자 또는 임원
+  bool updateAnnouncement({
+    required String id,
+    required String title,
+    String? content,
+  }) {
+    final idx = _announcements.indexWhere((a) => a.id == id);
+    if (idx == -1) return false;
+    final a = _announcements[idx];
+    if (!isOwnAnnouncement(a) && !isClubExecutive) return false;
+    _announcements[idx] = Announcement(
+      id: a.id,
+      title: title.trim(),
+      content: content?.trim(),
+      isPinned: a.isPinned,
+      createdAt: a.createdAt,
+      comments: a.comments,
+      clubId: a.clubId,
+      authorId: a.authorId ?? (currentMember?.id ?? currentUserId),
+      authorName: a.authorName ?? currentUserName,
+    );
+    notifyListeners();
+    _persistImmediately();
+    return true;
+  }
+
+  /// 공지사항 삭제 — 작성자 또는 임원
   void deleteAnnouncement(String id) {
-    if (!isClubExecutive) {
-      debugPrint('[ClubProvider] deleteAnnouncement blocked — not executive');
+    final a = _announcements.where((e) => e.id == id).firstOrNull;
+    if (a == null) return;
+    if (!isOwnAnnouncement(a) && !isClubExecutive) {
+      debugPrint('[ClubProvider] deleteAnnouncement blocked — not owner/executive');
       return;
     }
-    _announcements.removeWhere((a) => a.id == id);
+    _announcements.removeWhere((e) => e.id == id);
     notifyListeners();
     _persistImmediately();
   }
@@ -3643,6 +3681,8 @@ class ClubProvider extends ChangeNotifier with WidgetsBindingObserver {
       createdAt: a.createdAt,
       comments: a.comments,
       clubId: a.clubId,
+      authorId: a.authorId,
+      authorName: a.authorName,
     );
     // 고정된 공지는 맨 위로
     _announcements.sort((x, y) {
@@ -3682,6 +3722,8 @@ class ClubProvider extends ChangeNotifier with WidgetsBindingObserver {
       createdAt: a.createdAt,
       comments: updatedComments,
       clubId: a.clubId,
+      authorId: a.authorId,
+      authorName: a.authorName,
     );
 
     // 첫 댓글인 경우에만 포인트 +2 (동일 공지에 중복 부여 방지)
@@ -3714,6 +3756,75 @@ class ClubProvider extends ChangeNotifier with WidgetsBindingObserver {
     notifyListeners();
     _persistImmediately();
     return !alreadyCommented; // 포인트 획득 여부 반환
+  }
+
+  bool isOwnAnnouncementComment(AnnouncementComment c) =>
+      _isSelfTarget(c.authorId) ||
+      (c.authorName.trim().isNotEmpty &&
+          c.authorName.trim() == currentUserName.trim());
+
+  /// 공지 댓글 수정 — 작성자만
+  bool updateAnnouncementComment({
+    required String announcementId,
+    required String commentId,
+    required String text,
+  }) {
+    final idx = _announcements.indexWhere((a) => a.id == announcementId);
+    if (idx == -1) return false;
+    final a = _announcements[idx];
+    final ci = a.comments.indexWhere((c) => c.id == commentId);
+    if (ci == -1) return false;
+    final c = a.comments[ci];
+    if (!isOwnAnnouncementComment(c)) return false;
+    final next = List<AnnouncementComment>.from(a.comments);
+    next[ci] = AnnouncementComment(
+      id: c.id,
+      authorId: c.authorId,
+      authorName: c.authorName,
+      text: text.trim(),
+      createdAt: c.createdAt,
+    );
+    _announcements[idx] = Announcement(
+      id: a.id,
+      title: a.title,
+      content: a.content,
+      isPinned: a.isPinned,
+      createdAt: a.createdAt,
+      comments: next,
+      clubId: a.clubId,
+      authorId: a.authorId,
+      authorName: a.authorName,
+    );
+    notifyListeners();
+    _persistImmediately();
+    return true;
+  }
+
+  /// 공지 댓글 삭제 — 작성자 또는 임원
+  bool deleteAnnouncementComment({
+    required String announcementId,
+    required String commentId,
+  }) {
+    final idx = _announcements.indexWhere((a) => a.id == announcementId);
+    if (idx == -1) return false;
+    final a = _announcements[idx];
+    final c = a.comments.where((e) => e.id == commentId).firstOrNull;
+    if (c == null) return false;
+    if (!isOwnAnnouncementComment(c) && !isClubExecutive) return false;
+    _announcements[idx] = Announcement(
+      id: a.id,
+      title: a.title,
+      content: a.content,
+      isPinned: a.isPinned,
+      createdAt: a.createdAt,
+      comments: a.comments.where((e) => e.id != commentId).toList(),
+      clubId: a.clubId,
+      authorId: a.authorId,
+      authorName: a.authorName,
+    );
+    notifyListeners();
+    _persistImmediately();
+    return true;
   }
 
   // ════════════════════════════════════════════════════════
@@ -4457,36 +4568,6 @@ class ClubProvider extends ChangeNotifier with WidgetsBindingObserver {
     _persistImmediately();
   }
 
-  /// 모임 초대 — 이미 라운더 계정이 있는 상대에게 즉시 푸시
-  bool notifyClubInvite({
-    required String clubId,
-    required String clubName,
-    required String inviteeUserId,
-    required String inviterName,
-    String? inviteToken,
-  }) {
-    final target = inviteeUserId.trim();
-    if (target.isEmpty) return false;
-    if (_userIdsMatch(target, currentUserId) ||
-        _userIdsMatch(target, _persistAuthUserId)) {
-      return false;
-    }
-    _notifyHqPush(
-      typeId: HqPushCatalog.clubInvite,
-      userIds: [target],
-      appType: AppNotificationType.announcement,
-      clubId: clubId,
-      clubName: clubName,
-      vars: {
-        '초대자': inviterName,
-        '모임명': clubName,
-      },
-      targetId: inviteToken,
-      notifySelf: true,
-    );
-    return true;
-  }
-
   void _updateMemberCount(String clubId, int delta) {
     final i1 = _myClubs.indexWhere((c) => c.id == clubId);
     if (i1 != -1) {
@@ -4846,6 +4927,21 @@ class ClubProvider extends ChangeNotifier with WidgetsBindingObserver {
     final before = _photos.length;
     _photos.removeWhere((p) => p.id == photoId && isOwnPhoto(p));
     if (_photos.length == before) return false;
+    _persistImmediately();
+    notifyListeners();
+    return true;
+  }
+
+  /// 사진 캡션 수정 (본인만)
+  bool updatePhotoCaption(String photoId, String caption) {
+    final idx = _photos.indexWhere((p) => p.id == photoId);
+    if (idx == -1) return false;
+    if (!isOwnPhoto(_photos[idx])) return false;
+    final trimmed = caption.trim();
+    _photos[idx] = _photos[idx].copyWith(
+      caption: trimmed,
+      clearCaption: trimmed.isEmpty,
+    );
     _persistImmediately();
     notifyListeners();
     return true;

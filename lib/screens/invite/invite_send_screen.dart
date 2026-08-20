@@ -4,13 +4,13 @@ import 'package:provider/provider.dart';
 import '../../models/club_model.dart';
 import '../../models/user_model.dart';
 import '../../providers/auth_provider.dart';
-import '../../providers/club_provider.dart';
 import '../../theme/app_theme.dart';
+import '../../utils/kakao_talk_launcher.dart';
 
 // ════════════════════════════════════════════════════════════
 //  InviteSendScreen — 회원에게 초대 알림톡 보내기
-//  · 링크 생성 단계 제거 → 바로 알림톡 발송 화면 표시
 //  · 화면 진입 시 자동으로 초대 링크 생성
+//  · 카카오톡에 붙여 초대 (연락처 입력 없음)
 // ════════════════════════════════════════════════════════════
 class InviteSendScreen extends StatefulWidget {
   final Club club;
@@ -24,25 +24,15 @@ class _InviteSendScreenState extends State<InviteSendScreen> {
   InviteToken? _token;
   bool _generating = true;
   bool _sent = false;
-  bool _pushSent = false;
-  final _phoneCtrl = TextEditingController();
 
   @override
   void initState() {
     super.initState();
-    // 화면 진입 즉시 자동으로 초대 링크 생성
     WidgetsBinding.instance.addPostFrameCallback((_) {
       _generateToken();
     });
   }
 
-  @override
-  void dispose() {
-    _phoneCtrl.dispose();
-    super.dispose();
-  }
-
-  // ── 초대 토큰 자동 생성 ───────────────────────────────────
   Future<void> _generateToken() async {
     if (!mounted) return;
     setState(() => _generating = true);
@@ -60,37 +50,29 @@ class _InviteSendScreenState extends State<InviteSendScreen> {
     });
   }
 
-  void _trySendInvitePush() {
-    final phone = _phoneCtrl.text.trim();
-    if (phone.isEmpty || _token == null) return;
-    final auth = context.read<AuthProvider>();
-    final club = context.read<ClubProvider>();
-    final user = auth.findUserByPhone(phone);
-    if (user == null) return;
-    final ok = club.notifyClubInvite(
-      clubId: widget.club.id,
-      clubName: widget.club.name,
-      inviteeUserId: user.id,
-      inviterName: _token!.inviterName,
-      inviteToken: _token!.token,
-    );
-    if (ok && mounted) {
-      setState(() => _pushSent = true);
-    }
-  }
-
-  // ── 카카오 알림톡 공유 (mock) ─────────────────────────────
   Future<void> _shareKakao() async {
     if (_token == null) return;
     final msg = _token!.kakaoMessage(widget.club.name);
     await Clipboard.setData(ClipboardData(text: msg));
     if (!mounted) return;
-    _trySendInvitePush();
     setState(() => _sent = true);
     _showKakaoSheet(msg);
   }
 
-  // ── 링크만 복사 ───────────────────────────────────────────
+  Future<void> _openKakaoTalk() async {
+    final ok = await openKakaoTalkApp();
+    if (!mounted) return;
+    if (!ok) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('카카오톡을 열 수 없습니다. 설치 여부를 확인해 주세요'),
+          backgroundColor: Color(0xFF3A1C00),
+          behavior: SnackBarBehavior.floating,
+        ),
+      );
+    }
+  }
+
   Future<void> _copyLink() async {
     if (_token == null) return;
     await Clipboard.setData(ClipboardData(text: _token!.webUrl));
@@ -109,7 +91,6 @@ class _InviteSendScreenState extends State<InviteSendScreen> {
     );
   }
 
-  // ── 카카오 메시지 시트 ────────────────────────────────────
   void _showKakaoSheet(String message) {
     showModalBottomSheet(
       context: context,
@@ -117,18 +98,17 @@ class _InviteSendScreenState extends State<InviteSendScreen> {
       backgroundColor: Colors.white,
       shape: const RoundedRectangleBorder(
           borderRadius: BorderRadius.vertical(top: Radius.circular(20))),
-      builder: (_) => Padding(
+      builder: (sheetCtx) => Padding(
         padding: EdgeInsets.only(
           left: 24,
           right: 24,
           top: 24,
-          bottom: MediaQuery.of(context).viewInsets.bottom + 32,
+          bottom: MediaQuery.of(sheetCtx).viewInsets.bottom + 32,
         ),
         child: Column(
           mainAxisSize: MainAxisSize.min,
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            // 핸들
             Center(
               child: Container(
                 width: 40,
@@ -140,8 +120,6 @@ class _InviteSendScreenState extends State<InviteSendScreen> {
               ),
             ),
             const SizedBox(height: 20),
-
-            // 제목
             Row(
               children: [
                 Container(
@@ -162,12 +140,12 @@ class _InviteSendScreenState extends State<InviteSendScreen> {
                 const Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    Text('카카오 알림톡 미리보기',
+                    Text('카카오톡 초대 메시지',
                         style: TextStyle(
                             fontSize: 15,
                             fontWeight: FontWeight.bold,
                             color: AppColors.textPrimary)),
-                    Text('아래 메시지가 발송됩니다',
+                    Text('친구에게 붙여넣어 초대하세요',
                         style: TextStyle(
                             fontSize: 12, color: AppColors.textSecondary)),
                   ],
@@ -175,8 +153,6 @@ class _InviteSendScreenState extends State<InviteSendScreen> {
               ],
             ),
             const SizedBox(height: 16),
-
-            // 메시지 미리보기
             Container(
               width: double.infinity,
               padding: const EdgeInsets.all(16),
@@ -200,21 +176,13 @@ class _InviteSendScreenState extends State<InviteSendScreen> {
               style: TextStyle(fontSize: 11, color: Colors.grey[500]),
             ),
             const SizedBox(height: 20),
-
-            // 카카오톡 열기 버튼
             SizedBox(
               width: double.infinity,
               height: 50,
               child: ElevatedButton.icon(
-                onPressed: () {
-                  Navigator.pop(context);
-                  ScaffoldMessenger.of(context).showSnackBar(
-                    const SnackBar(
-                      content: Text('카카오톡을 열어 메시지를 붙여넣기 해주세요'),
-                      backgroundColor: Color(0xFF3A1C00),
-                      behavior: SnackBarBehavior.floating,
-                    ),
-                  );
+                onPressed: () async {
+                  Navigator.pop(sheetCtx);
+                  await _openKakaoTalk();
                 },
                 icon: const Text('K',
                     style: TextStyle(
@@ -309,39 +277,6 @@ class _InviteSendScreenState extends State<InviteSendScreen> {
             style: const TextStyle(
                 fontSize: 13, color: AppColors.textSecondary, height: 1.5),
           ),
-          const SizedBox(height: 24),
-
-          // ── 앱 회원 푸시용 휴대폰 (선택) ──
-          const Text('초대 상대 휴대폰 (선택)',
-              style: TextStyle(fontSize: 13, fontWeight: FontWeight.w600)),
-          const SizedBox(height: 4),
-          const Text('이미 라운더에 가입된 번호면 푸시가 바로 갑니다',
-              style: TextStyle(fontSize: 11, color: AppColors.textSecondary)),
-          const SizedBox(height: 8),
-          TextField(
-            controller: _phoneCtrl,
-            keyboardType: TextInputType.phone,
-            decoration: InputDecoration(
-              hintText: '010-0000-0000',
-              filled: true,
-              fillColor: Colors.white,
-              contentPadding:
-                  const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
-              border: OutlineInputBorder(
-                borderRadius: BorderRadius.circular(12),
-                borderSide: const BorderSide(color: Color(0xFFE5E7EB)),
-              ),
-              enabledBorder: OutlineInputBorder(
-                borderRadius: BorderRadius.circular(12),
-                borderSide: const BorderSide(color: Color(0xFFE5E7EB)),
-              ),
-            ),
-          ),
-          if (_pushSent) ...[
-            const SizedBox(height: 8),
-            const Text('앱 푸시를 초대 상대에게 보냈습니다',
-                style: TextStyle(fontSize: 12, color: AppColors.primary)),
-          ],
           const SizedBox(height: 24),
 
           // ── 메시지 미리보기 박스 ──
