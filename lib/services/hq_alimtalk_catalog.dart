@@ -23,6 +23,7 @@ class HqAlimtalkCatalog {
   static const groupFinalizeId = 'atk_group_finalize';
   static const scheduleChangeId = 'atk_schedule_change';
   static const joinResultId = 'atk_join_result';
+  static const clubInviteId = 'atk_club_invite';
   static const _removedIds = {'atk_schedule_confirm'};
 
   static const clubLinkedIds = <String>{

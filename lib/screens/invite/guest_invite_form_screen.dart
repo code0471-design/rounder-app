@@ -59,6 +59,21 @@ class _GuestInviteFormScreenState extends State<GuestInviteFormScreen> {
     final msg = token.kakaoMessage(widget.club.name);
     await Clipboard.setData(ClipboardData(text: msg));
     if (!mounted) return;
+
+    final phone = _phoneCtrl.text.trim();
+    if (phone.isNotEmpty) {
+      final invitee = auth.findUserByPhone(phone);
+      if (invitee != null) {
+        context.read<ClubProvider>().notifyClubInvite(
+              clubId: widget.club.id,
+              clubName: widget.club.name,
+              inviteeUserId: invitee.id,
+              inviterName: token.inviterName,
+              inviteToken: token.token,
+            );
+      }
+    }
+
     setState(() => _sent = true);
     _showKakaoSheet(msg);
   }

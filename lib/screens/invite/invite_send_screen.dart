@@ -4,6 +4,7 @@ import 'package:provider/provider.dart';
 import '../../models/club_model.dart';
 import '../../models/user_model.dart';
 import '../../providers/auth_provider.dart';
+import '../../providers/club_provider.dart';
 import '../../theme/app_theme.dart';
 
 // ════════════════════════════════════════════════════════════
@@ -23,6 +24,8 @@ class _InviteSendScreenState extends State<InviteSendScreen> {
   InviteToken? _token;
   bool _generating = true;
   bool _sent = false;
+  bool _pushSent = false;
+  final _phoneCtrl = TextEditingController();
 
   @override
   void initState() {
@@ -31,6 +34,12 @@ class _InviteSendScreenState extends State<InviteSendScreen> {
     WidgetsBinding.instance.addPostFrameCallback((_) {
       _generateToken();
     });
+  }
+
+  @override
+  void dispose() {
+    _phoneCtrl.dispose();
+    super.dispose();
   }
 
   // ── 초대 토큰 자동 생성 ───────────────────────────────────
@@ -51,12 +60,32 @@ class _InviteSendScreenState extends State<InviteSendScreen> {
     });
   }
 
+  void _trySendInvitePush() {
+    final phone = _phoneCtrl.text.trim();
+    if (phone.isEmpty || _token == null) return;
+    final auth = context.read<AuthProvider>();
+    final club = context.read<ClubProvider>();
+    final user = auth.findUserByPhone(phone);
+    if (user == null) return;
+    final ok = club.notifyClubInvite(
+      clubId: widget.club.id,
+      clubName: widget.club.name,
+      inviteeUserId: user.id,
+      inviterName: _token!.inviterName,
+      inviteToken: _token!.token,
+    );
+    if (ok && mounted) {
+      setState(() => _pushSent = true);
+    }
+  }
+
   // ── 카카오 알림톡 공유 (mock) ─────────────────────────────
   Future<void> _shareKakao() async {
     if (_token == null) return;
     final msg = _token!.kakaoMessage(widget.club.name);
     await Clipboard.setData(ClipboardData(text: msg));
     if (!mounted) return;
+    _trySendInvitePush();
     setState(() => _sent = true);
     _showKakaoSheet(msg);
   }
@@ -280,6 +309,39 @@ class _InviteSendScreenState extends State<InviteSendScreen> {
             style: const TextStyle(
                 fontSize: 13, color: AppColors.textSecondary, height: 1.5),
           ),
+          const SizedBox(height: 24),
+
+          // ── 앱 회원 푸시용 휴대폰 (선택) ──
+          const Text('초대 상대 휴대폰 (선택)',
+              style: TextStyle(fontSize: 13, fontWeight: FontWeight.w600)),
+          const SizedBox(height: 4),
+          const Text('이미 라운더에 가입된 번호면 푸시가 바로 갑니다',
+              style: TextStyle(fontSize: 11, color: AppColors.textSecondary)),
+          const SizedBox(height: 8),
+          TextField(
+            controller: _phoneCtrl,
+            keyboardType: TextInputType.phone,
+            decoration: InputDecoration(
+              hintText: '010-0000-0000',
+              filled: true,
+              fillColor: Colors.white,
+              contentPadding:
+                  const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+              border: OutlineInputBorder(
+                borderRadius: BorderRadius.circular(12),
+                borderSide: const BorderSide(color: Color(0xFFE5E7EB)),
+              ),
+              enabledBorder: OutlineInputBorder(
+                borderRadius: BorderRadius.circular(12),
+                borderSide: const BorderSide(color: Color(0xFFE5E7EB)),
+              ),
+            ),
+          ),
+          if (_pushSent) ...[
+            const SizedBox(height: 8),
+            const Text('앱 푸시를 초대 상대에게 보냈습니다',
+                style: TextStyle(fontSize: 12, color: AppColors.primary)),
+          ],
           const SizedBox(height: 24),
 
           // ── 메시지 미리보기 박스 ──

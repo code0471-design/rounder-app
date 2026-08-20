@@ -139,9 +139,9 @@ $webUrl
 
 #ROUNDER #골프모임 #게스트초대''';
     }
-    return '''[ROUNDER] $inviterName님이 '$clubName' 골프 모임에 초대했습니다! 🏌️
+    return '''[ROUNDER] $inviterName님이 '$clubName' 골프 모임에 초대했습니다!
 
-아래 링크를 눌러 가입하세요 (7일 이내 유효)
+앱에서 초대를 확인해 주세요. (7일 이내 유효)
 $webUrl
 
 #ROUNDER #골프모임 #초대''';

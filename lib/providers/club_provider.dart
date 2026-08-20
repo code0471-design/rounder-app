@@ -3372,11 +3372,16 @@ class ClubProvider extends ChangeNotifier with WidgetsBindingObserver {
       return ClubMemberRole.canApproveJoins(_myClubs[idx].myRole);
     }
 
+    // 본인 대상 알림(모임 초대 등) — 아직 모임에 없어도 표시·푸시 수신
+    if (n.targetUserId != null && _isSelfTarget(n.targetUserId)) {
+      return true;
+    }
+
     if (idx == -1) return false;
     final role = _myClubs[idx].myRole;
 
-    // 특정 회원 전용 알림(참석 강제 변경, 강퇴 등) — 대상자만 확인 가능
-    if (n.targetUserId != null && !_isSelfTarget(n.targetUserId)) {
+    // 특정 회원 전용 알림 — 대상자가 아니면 숨김
+    if (n.targetUserId != null) {
       return false;
     }
 
@@ -4450,6 +4455,36 @@ class ClubProvider extends ChangeNotifier with WidgetsBindingObserver {
     );
     notifyListeners();
     _persistImmediately();
+  }
+
+  /// 모임 초대 — 이미 라운더 계정이 있는 상대에게 즉시 푸시
+  bool notifyClubInvite({
+    required String clubId,
+    required String clubName,
+    required String inviteeUserId,
+    required String inviterName,
+    String? inviteToken,
+  }) {
+    final target = inviteeUserId.trim();
+    if (target.isEmpty) return false;
+    if (_userIdsMatch(target, currentUserId) ||
+        _userIdsMatch(target, _persistAuthUserId)) {
+      return false;
+    }
+    _notifyHqPush(
+      typeId: HqPushCatalog.clubInvite,
+      userIds: [target],
+      appType: AppNotificationType.announcement,
+      clubId: clubId,
+      clubName: clubName,
+      vars: {
+        '초대자': inviterName,
+        '모임명': clubName,
+      },
+      targetId: inviteToken,
+      notifySelf: true,
+    );
+    return true;
   }
 
   void _updateMemberCount(String clubId, int delta) {
