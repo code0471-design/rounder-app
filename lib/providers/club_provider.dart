@@ -11,6 +11,7 @@ import '../domain/services/group_assignment_service.dart';
 import '../models/club_model.dart';
 import '../models/member_role.dart';
 import '../services/club_data_codec.dart';
+import '../services/club_ops_sync.dart';
 import '../services/club_persistence.dart';
 import '../services/firebase_auth_bridge.dart';
 import '../services/hq_alimtalk_catalog.dart';
@@ -24,7 +25,10 @@ import '../services/shared_join_request_store.dart';
 class ClubProvider extends ChangeNotifier with WidgetsBindingObserver {
   String? _persistAuthUserId;
   bool _suppressPersist = false;
+  bool _applyingCloudOps = false;
+  String? _watchingClubId;
   Timer? _persistTimer;
+  Timer? _cloudPushTimer;
 
   ClubProvider() {
     _normalizeScheduleTitles();
@@ -35,6 +39,9 @@ class ClubProvider extends ChangeNotifier with WidgetsBindingObserver {
   @override
   void dispose() {
     WidgetsBinding.instance.removeObserver(this);
+    _persistTimer?.cancel();
+    _cloudPushTimer?.cancel();
+    ClubOpsSync.stopAllWatches();
     super.dispose();
   }
 
@@ -201,6 +208,8 @@ class ClubProvider extends ChangeNotifier with WidgetsBindingObserver {
     _syncAllNextRounds();
     _suppressPersist = false;
     notifyListeners();
+    // bootstrap 후 스테이징 ops 동기화
+    unawaited(_pullCloudOpsForMyClubs().then((_) => _watchSelectedClubOps()));
   }
 
   Club _clubFromBootstrap(Club bootClub, {bool forCatalog = false}) {
@@ -363,7 +372,82 @@ class ClubProvider extends ChangeNotifier with WidgetsBindingObserver {
     _purgeDemoSeedNotifications();
     await HqPushCatalog.load();
     unawaited(PushNotificationService.bindUserIds([authUserId, _currentUserId]));
+
+    // rounder-staging 운영 데이터 pull (테스터끼리 공유)
+    await _pullCloudOpsForMyClubs();
+    _watchSelectedClubOps();
     notifyListeners();
+  }
+
+  Future<void> _pullCloudOpsForMyClubs() async {
+    final authUserId = _persistAuthUserId;
+    if (authUserId == null) return;
+    if (!AppDependencies.instance.isInitialized ||
+        AppDependencies.instance.isOfflineMockMode) {
+      return;
+    }
+    _applyingCloudOps = true;
+    _suppressPersist = true;
+    try {
+      var bundle = _exportBundle();
+      final userMerged = await ClubOpsSync.pullMergeUser(
+        authUserId: authUserId,
+        local: bundle,
+      );
+      if (userMerged != null) bundle = userMerged;
+
+      for (final club in List<Club>.from(_myClubs)) {
+        final merged = await ClubOpsSync.pullMergeClub(
+          clubId: club.id,
+          local: bundle,
+        );
+        if (merged != null) bundle = merged;
+      }
+      _importBundle(bundle);
+      _scrubUndersizedScheduleCapacities();
+      _syncAllNextRounds();
+    } catch (e) {
+      debugPrint('[ClubProvider] cloud pull fail: $e');
+    } finally {
+      _suppressPersist = false;
+      _applyingCloudOps = false;
+      // 로컬만 있던 데이터를 서버에 최초 반영
+      unawaited(_persistNow());
+    }
+  }
+
+  void _watchSelectedClubOps() {
+    if (_myClubs.isEmpty) return;
+    if (!AppDependencies.instance.isInitialized ||
+        AppDependencies.instance.isOfflineMockMode) {
+      return;
+    }
+    final clubId = selectedClub.id;
+    if (_watchingClubId == clubId) return;
+    if (_watchingClubId != null) {
+      ClubOpsSync.stopWatchClub(_watchingClubId!);
+    }
+    _watchingClubId = clubId;
+    ClubOpsSync.watchClub(clubId, (remote) {
+      if (_applyingCloudOps) return;
+      _applyingCloudOps = true;
+      _suppressPersist = true;
+      try {
+        final merged = ClubOpsSync.applyRemoteSlice(
+          _exportBundle(),
+          clubId,
+          remote,
+        );
+        _importBundle(merged);
+        _syncNextRound(clubId);
+      } catch (e) {
+        debugPrint('[ClubProvider] cloud watch apply fail: $e');
+      } finally {
+        _suppressPersist = false;
+        _applyingCloudOps = false;
+        notifyListeners();
+      }
+    });
   }
 
   static String _leftClubsPrefsKey(String authUserId) =>
@@ -1155,7 +1239,17 @@ class ClubProvider extends ChangeNotifier with WidgetsBindingObserver {
   Future<void> _persistNow() async {
     final authUserId = _persistAuthUserId;
     if (authUserId == null) return;
-    await ClubPersistence.save(authUserId, _exportBundle());
+    final bundle = _exportBundle();
+    await ClubPersistence.save(authUserId, bundle);
+    if (_applyingCloudOps) return;
+    // 디바운스 푸시 — 연속 저장 시 Firestore 폭주 방지
+    _cloudPushTimer?.cancel();
+    _cloudPushTimer = Timer(const Duration(milliseconds: 400), () {
+      unawaited(ClubOpsSync.pushAllRelevant(
+        bundle,
+        authUserId: authUserId,
+      ));
+    });
   }
 
   /// 디바운스 없이 즉시 저장 (일정 등록 등)
@@ -3836,6 +3930,7 @@ class ClubProvider extends ChangeNotifier with WidgetsBindingObserver {
       _syncNextRound(_myClubs[index].id);
     }
     ensureCreatorMembers();
+    _watchSelectedClubOps();
     notifyListeners();
   }
 
@@ -3846,6 +3941,7 @@ class ClubProvider extends ChangeNotifier with WidgetsBindingObserver {
       _selectedClubIndex = idx;
       _syncNextRound(clubId);
       ensureCreatorMembers();
+      _watchSelectedClubOps();
       notifyListeners();
     }
   }

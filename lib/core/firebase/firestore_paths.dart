@@ -15,8 +15,24 @@ abstract final class FirestorePaths {
   static const metaHqAlimtalk = '_meta/hq_alimtalk';
   static const hqBroadcasts = 'hq_broadcasts';
   static const d1Queue = 'd1_queue';
+  /// 모임 운영 스냅샷 (일정·공지·회비·조편성 등) — 테스터 공유용
+  static const ops = 'ops';
+  static const opsBundleDoc = 'bundle';
+  static const photos = 'photos';
+  static const userOps = 'user_ops';
 
   static String clubDoc(String clubId) => '$clubs/$clubId';
+
+  static String clubOpsBundle(String clubId) =>
+      '${clubDoc(clubId)}/$ops/$opsBundleDoc';
+
+  static String clubPhotos(String clubId) => '${clubDoc(clubId)}/$photos';
+
+  static String clubPhotoDoc(String clubId, String photoId) =>
+      '${clubPhotos(clubId)}/$photoId';
+
+  static String userOpsBundle(String userId) =>
+      '$users/$userId/$userOps/$opsBundleDoc';
 
   static String clubMembers(String clubId) =>
       '${clubDoc(clubId)}/$members';

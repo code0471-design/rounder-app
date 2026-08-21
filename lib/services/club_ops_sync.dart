@@ -1,0 +1,549 @@
+import 'dart:async';
+import 'dart:convert';
+
+import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:flutter/foundation.dart';
+
+import '../core/firebase/firestore_paths.dart';
+import '../di/app_dependencies.dart';
+import 'club_data_codec.dart';
+
+/// 모임 운영 데이터를 rounder-staging Firestore에 공유한다.
+///
+/// ClubProvider의 로컬 번들 중 **클럽 스코프** 필드를
+/// `clubs/{clubId}/ops/bundle` 에 올리고, 다른 기기에서 내려받는다.
+class ClubOpsSync {
+  ClubOpsSync._();
+
+  static FirebaseFirestore get _db => FirebaseFirestore.instance;
+
+  static final Map<String, StreamSubscription<DocumentSnapshot>> _clubSubs =
+      {};
+  static StreamSubscription<DocumentSnapshot>? _userSub;
+
+  static bool get _enabled =>
+      AppDependencies.instance.isInitialized &&
+      !AppDependencies.instance.isOfflineMockMode;
+
+  /// 로컬 전체 번들에서 한 모임의 운영 데이터만 잘라 Firestore에 저장.
+  static Future<void> pushClubOps({
+    required String clubId,
+    required ClubDataBundle bundle,
+  }) async {
+    if (!_enabled || clubId.isEmpty) return;
+    try {
+      final full = ClubDataCodec.encode(bundle);
+      final slice = _sliceForClub(full, clubId);
+      final photos = (slice.remove('photos') as List<dynamic>? ?? []);
+      slice['updatedAtClient'] = DateTime.now().toIso8601String();
+      slice['updatedAt'] = FieldValue.serverTimestamp();
+      slice['schema'] = ClubDataCodec.currentVersion;
+
+      await _db
+          .doc(FirestorePaths.clubOpsBundle(clubId))
+          .set(slice, SetOptions(merge: false));
+
+      // 사진은 문서 1MB 한도 때문에 건별 저장
+      await _pushPhotos(clubId, photos);
+      debugPrint('[ClubOpsSync] pushed club=$clubId');
+    } catch (e, st) {
+      debugPrint('[ClubOpsSync] pushClubOps fail ($clubId): $e\n$st');
+    }
+  }
+
+  /// 내 모임들 + 데이터가 있는 클럽 id 전부 전부 push.
+  static Future<void> pushAllRelevant(
+    ClubDataBundle bundle, {
+    String? authUserId,
+  }) async {
+    if (!_enabled) return;
+    final ids = <String>{
+      ...bundle.myClubs.map((c) => c.id),
+      ...bundle.schedules.map((s) => s.clubId),
+      ...bundle.announcements
+          .map((a) => a.clubId)
+          .whereType<String>(),
+      ...bundle.photos.map((p) => p.clubId),
+      ...bundle.duesSettings
+          .map((d) => d.clubId)
+          .whereType<String>(),
+      ...bundle.alimtalkSettings.keys,
+    };
+    for (final id in ids) {
+      if (id.isEmpty) continue;
+      await pushClubOps(clubId: id, bundle: bundle);
+    }
+    await pushUserOps(bundle: bundle, authUserId: authUserId);
+  }
+
+  /// 계정 단위 (인앱 알림 등)
+  static Future<void> pushUserOps({
+    required ClubDataBundle bundle,
+    String? authUserId,
+  }) async {
+    if (!_enabled) return;
+    final uid = authUserId;
+    if (uid == null || uid.isEmpty) return;
+    try {
+      final full = ClubDataCodec.encode(bundle);
+      final payload = <String, dynamic>{
+        'appNotifications': full['appNotifications'],
+        'joinRequests': full['joinRequests'],
+        'updatedAtClient': DateTime.now().toIso8601String(),
+        'updatedAt': FieldValue.serverTimestamp(),
+        'schema': ClubDataCodec.currentVersion,
+      };
+      await _db
+          .doc(FirestorePaths.userOpsBundle(uid))
+          .set(payload, SetOptions(merge: false));
+    } catch (e) {
+      debugPrint('[ClubOpsSync] pushUserOps fail: $e');
+    }
+  }
+
+  /// Firestore → 로컬 번들 병합 (서버가 더 최신이면 서버 우선).
+  static Future<ClubDataBundle?> pullMergeClub({
+    required String clubId,
+    required ClubDataBundle local,
+  }) async {
+    if (!_enabled || clubId.isEmpty) return null;
+    try {
+      final snap =
+          await _db.doc(FirestorePaths.clubOpsBundle(clubId)).get();
+      if (!snap.exists || snap.data() == null) {
+        // 서버 비어 있으면 로컬을 최초 업로드
+        await pushClubOps(clubId: clubId, bundle: local);
+        return null;
+      }
+      final remote = Map<String, dynamic>.from(snap.data()!);
+      final photosSnap =
+          await _db.collection(FirestorePaths.clubPhotos(clubId)).get();
+      remote['photos'] = photosSnap.docs.map((d) {
+        final m = Map<String, dynamic>.from(d.data());
+        m['id'] = d.id;
+        return m;
+      }).toList();
+
+      final merged = _mergeClubIntoBundle(local, clubId, remote);
+      debugPrint('[ClubOpsSync] pulled club=$clubId');
+      return merged;
+    } catch (e, st) {
+      debugPrint('[ClubOpsSync] pullMergeClub fail ($clubId): $e\n$st');
+      return null;
+    }
+  }
+
+  static Future<ClubDataBundle?> pullMergeUser({
+    required String authUserId,
+    required ClubDataBundle local,
+  }) async {
+    if (!_enabled || authUserId.isEmpty) return null;
+    try {
+      final snap =
+          await _db.doc(FirestorePaths.userOpsBundle(authUserId)).get();
+      if (!snap.exists || snap.data() == null) {
+        await pushUserOps(bundle: local, authUserId: authUserId);
+        return null;
+      }
+      final remote = Map<String, dynamic>.from(snap.data()!);
+      final encoded = ClubDataCodec.encode(local);
+      if (remote['appNotifications'] is List) {
+        encoded['appNotifications'] = remote['appNotifications'];
+      }
+      if (remote['joinRequests'] is List) {
+        encoded['joinRequests'] = _mergeJoinRequests(
+          encoded['joinRequests'] as List? ?? const [],
+          remote['joinRequests'] as List,
+        );
+      }
+      return ClubDataCodec.decode(encoded);
+    } catch (e) {
+      debugPrint('[ClubOpsSync] pullMergeUser fail: $e');
+      return null;
+    }
+  }
+
+  /// 선택 모임 ops 실시간 구독.
+  static void watchClub(
+    String clubId,
+    void Function(Map<String, dynamic> remote) onData,
+  ) {
+    if (!_enabled || clubId.isEmpty) return;
+    unawaited(_clubSubs.remove(clubId)?.cancel());
+    _clubSubs[clubId] = _db
+        .doc(FirestorePaths.clubOpsBundle(clubId))
+        .snapshots()
+        .listen((snap) async {
+      if (!snap.exists || snap.data() == null) return;
+      final remote = Map<String, dynamic>.from(snap.data()!);
+      try {
+        final photosSnap =
+            await _db.collection(FirestorePaths.clubPhotos(clubId)).get();
+        remote['photos'] = photosSnap.docs.map((d) {
+          final m = Map<String, dynamic>.from(d.data());
+          m['id'] = d.id;
+          return m;
+        }).toList();
+      } catch (_) {}
+      onData(remote);
+    }, onError: (e) {
+      debugPrint('[ClubOpsSync] watchClub error ($clubId): $e');
+    });
+  }
+
+  static void stopWatchClub(String clubId) {
+    unawaited(_clubSubs.remove(clubId)?.cancel());
+  }
+
+  static void stopAllWatches() {
+    for (final s in _clubSubs.values) {
+      unawaited(s.cancel());
+    }
+    _clubSubs.clear();
+    unawaited(_userSub?.cancel());
+    _userSub = null;
+  }
+
+  // ── helpers ─────────────────────────────────────────────
+
+  static Future<void> _pushPhotos(
+    String clubId,
+    List<dynamic> photos,
+  ) async {
+    final col = _db.collection(FirestorePaths.clubPhotos(clubId));
+    final existing = await col.get();
+    final keepIds = <String>{};
+    for (final raw in photos) {
+      if (raw is! Map) continue;
+      final m = Map<String, dynamic>.from(raw);
+      final id = m['id'] as String?;
+      if (id == null || id.isEmpty) continue;
+      keepIds.add(id);
+      var imageUrl = m['imageUrl'] as String? ?? '';
+      // 초대형 data URI는 문서 한도 초과 → 메타만 남기고 본문은 생략 표시
+      if (imageUrl.startsWith('data:') && imageUrl.length > 700000) {
+        debugPrint(
+          '[ClubOpsSync] photo $id too large for Firestore, meta only',
+        );
+        m['imageUrl'] = '';
+        m['imageOmitted'] = true;
+      }
+      m['clubId'] = clubId;
+      m['updatedAt'] = FieldValue.serverTimestamp();
+      try {
+        await col.doc(id).set(m, SetOptions(merge: true));
+      } catch (e) {
+        debugPrint('[ClubOpsSync] photo push fail $id: $e');
+      }
+    }
+    for (final d in existing.docs) {
+      if (!keepIds.contains(d.id)) {
+        try {
+          await d.reference.delete();
+        } catch (_) {}
+      }
+    }
+  }
+
+  static Map<String, dynamic> _sliceForClub(
+    Map<String, dynamic> full,
+    String clubId,
+  ) {
+    bool clubField(dynamic item) {
+      if (item is! Map) return false;
+      return item['clubId'] == clubId;
+    }
+
+    bool memberOfClub(dynamic item) {
+      if (item is! Map) return false;
+      final id = item['id'] as String? ?? '';
+      return id == 'm_creator_$clubId' || id.startsWith('m_${clubId}_');
+    }
+
+    final scheduleIds = <String>{};
+    final schedules = (full['schedules'] as List? ?? [])
+        .where(clubField)
+        .map((e) {
+          final m = Map<String, dynamic>.from(e as Map);
+          scheduleIds.add(m['id'] as String? ?? '');
+          return m;
+        })
+        .toList();
+
+    final groupAssignments = <String, dynamic>{};
+    final ga = full['groupAssignments'];
+    if (ga is Map) {
+      ga.forEach((k, v) {
+        if (scheduleIds.contains(k)) groupAssignments[k as String] = v;
+      });
+    }
+
+    final waiting = (full['waitingList'] as List? ?? []).where((w) {
+      if (w is! Map) return false;
+      return scheduleIds.contains(w['scheduleId']);
+    }).toList();
+
+    final alimtalk = <String, dynamic>{};
+    final ats = full['alimtalkSettings'];
+    if (ats is Map && ats[clubId] != null) {
+      alimtalk[clubId] = ats[clubId];
+    }
+
+    final members = (full['members'] as List? ?? []).where(memberOfClub).toList();
+    final memberIds = members
+        .map((m) => (m as Map)['id'] as String?)
+        .whereType<String>()
+        .toSet();
+
+    final pointEvents = <String, dynamic>{};
+    final pe = full['pointEvents'];
+    if (pe is Map) {
+      pe.forEach((k, v) {
+        if (memberIds.contains(k)) pointEvents[k as String] = v;
+      });
+    }
+
+    final duesSettings = (full['duesSettings'] as List? ?? [])
+        .where(clubField)
+        .map((e) => Map<String, dynamic>.from(e as Map))
+        .toList();
+    final duesSettingIds =
+        duesSettings.map((d) => d['id'] as String?).whereType<String>().toSet();
+
+    final duesPayments = (full['duesPayments'] as List? ?? []).where((p) {
+      if (p is! Map) return false;
+      return duesSettingIds.contains(p['duesSettingId']);
+    }).toList();
+
+    final awardRecords = (full['awardRecords'] as List? ?? []).where((a) {
+      if (a is! Map) return false;
+      return scheduleIds.contains(a['scheduleId']);
+    }).toList();
+
+    // ActivityItem에는 clubId가 없음 — 선택 모임 동기화 시 전체 유지(유실 방지)
+    // 클럽 전용 피드로 쪼개기 전까지는 번들에 그대로 둠(아래 merge에서 원격 우선 교체 안 함)
+
+    return {
+      'clubId': clubId,
+      'schedules': schedules,
+      'announcements':
+          (full['announcements'] as List? ?? []).where(clubField).toList(),
+      'members': members,
+      'activities': full['activities'] ?? [],
+      'duesSettings': duesSettings,
+      'duesPayments': duesPayments,
+      'paymentRequests':
+          (full['paymentRequests'] as List? ?? []).where(clubField).toList(),
+      'transactions':
+          (full['transactions'] as List? ?? []).where(clubField).toList(),
+      'photos': (full['photos'] as List? ?? []).where(clubField).toList(),
+      'groupAssignments': groupAssignments,
+      'waitingList': waiting,
+      'alimtalkSettings': alimtalk,
+      'adApplications':
+          (full['adApplications'] as List? ?? []).where(clubField).toList(),
+      'adNotifications': full['adNotifications'] ?? [],
+      'sponsorApplications': (full['sponsorApplications'] as List? ?? [])
+          .where(clubField)
+          .toList(),
+      'awardRecords': awardRecords,
+      'thankYouMessages': full['thankYouMessages'] ?? [],
+      'pointEvents': pointEvents,
+    };
+  }
+
+  static ClubDataBundle _mergeClubIntoBundle(
+    ClubDataBundle local,
+    String clubId,
+    Map<String, dynamic> remote,
+  ) {
+    final encoded = ClubDataCodec.encode(local);
+
+    List<dynamic> replaceClubList(List? localList, List? remoteList) {
+      final kept = <dynamic>[
+        ...(localList ?? []).where((e) => e is Map && e['clubId'] != clubId),
+      ];
+      for (final e in remoteList ?? const []) {
+        if (e is Map) {
+          kept.add(Map<String, dynamic>.from(e));
+        } else {
+          kept.add(e);
+        }
+      }
+      return kept;
+    }
+
+    final scheduleIds = (remote['schedules'] as List? ?? [])
+        .whereType<Map>()
+        .map((s) => s['id'] as String?)
+        .whereType<String>()
+        .toSet();
+
+    encoded['schedules'] = replaceClubList(
+      encoded['schedules'] as List?,
+      remote['schedules'] as List?,
+    );
+    encoded['announcements'] = replaceClubList(
+      encoded['announcements'] as List?,
+      remote['announcements'] as List?,
+    );
+    encoded['duesSettings'] = replaceClubList(
+      encoded['duesSettings'] as List?,
+      remote['duesSettings'] as List?,
+    );
+    encoded['paymentRequests'] = replaceClubList(
+      encoded['paymentRequests'] as List?,
+      remote['paymentRequests'] as List?,
+    );
+    encoded['transactions'] = replaceClubList(
+      encoded['transactions'] as List?,
+      remote['transactions'] as List?,
+    );
+    encoded['photos'] = replaceClubList(
+      encoded['photos'] as List?,
+      remote['photos'] as List?,
+    );
+    encoded['adApplications'] = replaceClubList(
+      encoded['adApplications'] as List?,
+      remote['adApplications'] as List?,
+    );
+    encoded['sponsorApplications'] = replaceClubList(
+      encoded['sponsorApplications'] as List?,
+      remote['sponsorApplications'] as List?,
+    );
+
+    final remoteDuesIds = (remote['duesSettings'] as List? ?? [])
+        .whereType<Map>()
+        .map((d) => d['id'] as String?)
+        .whereType<String>()
+        .toSet();
+    final duesPayments = <dynamic>[
+      ...(encoded['duesPayments'] as List? ?? []).where((p) =>
+          p is! Map || !remoteDuesIds.contains(p['duesSettingId'])),
+      ..._asDynamicMaps(remote['duesPayments']),
+    ];
+    encoded['duesPayments'] = duesPayments;
+
+    final awards = <dynamic>[
+      ...(encoded['awardRecords'] as List? ?? []).where(
+          (a) => a is! Map || !scheduleIds.contains(a['scheduleId'])),
+      ..._asDynamicMaps(remote['awardRecords']),
+    ];
+    encoded['awardRecords'] = awards;
+
+    encoded['activities'] = _mergeById(
+      encoded['activities'] as List? ?? const [],
+      remote['activities'] as List? ?? const [],
+    );
+    encoded['thankYouMessages'] = _mergeById(
+      encoded['thankYouMessages'] as List? ?? const [],
+      remote['thankYouMessages'] as List? ?? const [],
+    );
+    encoded['adNotifications'] = _mergeById(
+      encoded['adNotifications'] as List? ?? const [],
+      remote['adNotifications'] as List? ?? const [],
+    );
+
+    // members: drop club-scoped, add remote
+    final members = <dynamic>[
+      ...(encoded['members'] as List? ?? []).where((e) {
+        if (e is! Map) return true;
+        final id = e['id'] as String? ?? '';
+        return id != 'm_creator_$clubId' && !id.startsWith('m_${clubId}_');
+      }),
+      ..._asDynamicMaps(remote['members']),
+    ];
+    encoded['members'] = members;
+
+    // groupAssignments: replace keys for this club's schedules
+    final ga = Map<String, dynamic>.from(
+      (encoded['groupAssignments'] as Map?)?.map(
+            (k, v) => MapEntry(k.toString(), v),
+          ) ??
+          {},
+    );
+    ga.removeWhere((k, _) => scheduleIds.contains(k));
+    final remoteGa = remote['groupAssignments'];
+    if (remoteGa is Map) {
+      remoteGa.forEach((k, v) => ga[k.toString()] = v);
+    }
+    encoded['groupAssignments'] = ga;
+
+    final waiting = <dynamic>[
+      ...(encoded['waitingList'] as List? ?? []).where(
+          (w) => w is! Map || !scheduleIds.contains(w['scheduleId'])),
+      ..._asDynamicMaps(remote['waitingList']),
+    ];
+    encoded['waitingList'] = waiting;
+
+    final ats = Map<String, dynamic>.from(
+      (encoded['alimtalkSettings'] as Map?)?.map(
+            (k, v) => MapEntry(k.toString(), v),
+          ) ??
+          {},
+    );
+    final remoteAts = remote['alimtalkSettings'];
+    if (remoteAts is Map && remoteAts[clubId] != null) {
+      ats[clubId] = remoteAts[clubId];
+    }
+    encoded['alimtalkSettings'] = ats;
+
+    final pe = Map<String, dynamic>.from(
+      (encoded['pointEvents'] as Map?)?.map(
+            (k, v) => MapEntry(k.toString(), v),
+          ) ??
+          {},
+    );
+    final remotePe = remote['pointEvents'];
+    if (remotePe is Map) {
+      remotePe.forEach((k, v) => pe[k.toString()] = v);
+    }
+    encoded['pointEvents'] = pe;
+
+    return ClubDataCodec.decode(encoded);
+  }
+
+  static List<Map<String, dynamic>> _asDynamicMaps(dynamic raw) {
+    if (raw is! List) return const [];
+    return raw
+        .whereType<Map>()
+        .map((e) => Map<String, dynamic>.from(e))
+        .toList();
+  }
+
+  static List<dynamic> _mergeById(List local, List remote) {
+    final byId = <String, Map<String, dynamic>>{};
+    for (final e in [...local, ...remote]) {
+      if (e is! Map) continue;
+      final m = Map<String, dynamic>.from(e);
+      final id = m['id'] as String?;
+      if (id == null) continue;
+      byId[id] = m;
+    }
+    return byId.values.toList();
+  }
+
+  static List<dynamic> _mergeJoinRequests(List local, List remote) {
+    final byId = <String, Map<String, dynamic>>{};
+    for (final e in [...local, ...remote]) {
+      if (e is! Map) continue;
+      final m = Map<String, dynamic>.from(e);
+      final id = m['id'] as String?;
+      if (id == null) continue;
+      byId[id] = m;
+    }
+    return byId.values.toList();
+  }
+
+  /// watch 콜백용: remote slice → 현재 번들에 병합
+  static ClubDataBundle applyRemoteSlice(
+    ClubDataBundle local,
+    String clubId,
+    Map<String, dynamic> remote,
+  ) =>
+      _mergeClubIntoBundle(local, clubId, remote);
+
+  /// 디버그/테스트용 JSON 크기
+  static int estimateJsonBytes(Map<String, dynamic> m) =>
+      utf8.encode(jsonEncode(m)).length;
+}
