@@ -11,7 +11,7 @@ import '../../utils/kakao_talk_launcher.dart';
 // ════════════════════════════════════════════════════════════
 //  GuestInviteFormScreen — 총무가 게스트를 초대할 때
 //  · 게스트 이름 / 추천인(소개자) 선택 입력 (연락처 입력 없음 — 카톡으로만 초대)
-//  · 추천인 정보가 담긴 초대 알림톡 링크를 발급/공유
+//  · 추천인 정보가 담긴 초대 알림톡 링크를 발급/공유 + (선택) 앱 회원 푸시
 // ════════════════════════════════════════════════════════════
 class GuestInviteFormScreen extends StatefulWidget {
   final Club club;
@@ -27,11 +27,33 @@ class _GuestInviteFormScreenState extends State<GuestInviteFormScreen> {
   Member? _referrer;
   InviteToken? _token;
   bool _sent = false;
+  final Set<String> _pushInviteeIds = {};
 
   @override
   void dispose() {
     _nameCtrl.dispose();
     super.dispose();
+  }
+
+  void _sendSelectedPushes() {
+    if (_token == null || _pushInviteeIds.isEmpty) return;
+    final club = context.read<ClubProvider>();
+    final n = club.notifyClubInvites(
+      clubId: widget.club.id,
+      clubName: widget.club.name,
+      inviteeUserIds: _pushInviteeIds,
+      inviterName: _token!.inviterName,
+      inviteToken: _token!.token,
+    );
+    if (n > 0 && mounted) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text('앱 회원 $n명에게 초대 푸시를 보냈습니다'),
+          behavior: SnackBarBehavior.floating,
+          backgroundColor: AppColors.primary,
+        ),
+      );
+    }
   }
 
   Future<void> _generateAndShare() async {
@@ -59,12 +81,14 @@ class _GuestInviteFormScreenState extends State<GuestInviteFormScreen> {
     await Clipboard.setData(ClipboardData(text: msg));
     if (!mounted) return;
 
+    _sendSelectedPushes();
     setState(() => _sent = true);
     _showKakaoSheet(msg);
   }
 
   Future<void> _openKakaoTalk() async {
     if (_token == null) return;
+    _sendSelectedPushes();
     final msg = _token!.kakaoMessage(widget.club.name);
     final result = await shareInviteViaKakaoTalk(
       clubName: widget.club.name,
@@ -365,6 +389,60 @@ class _GuestInviteFormScreenState extends State<GuestInviteFormScreen> {
                 validator: (v) => v == null ? '추천인을 선택하세요' : null,
               ),
               const SizedBox(height: 28),
+
+              Builder(builder: (context) {
+                final auth = context.watch<AuthProvider>();
+                final clubProv = context.watch<ClubProvider>();
+                final myId = auth.currentUser?.id;
+                final inClub = clubProv
+                    .membersForClub(widget.club.id)
+                    .map((m) => m.id)
+                    .toSet();
+                final candidates = auth.registeredUsers
+                    .where((u) =>
+                        u.id != myId &&
+                        !inClub.contains(u.id) &&
+                        !inClub.contains('m_${widget.club.id}_${u.id}'))
+                    .toList();
+                if (candidates.isEmpty) return const SizedBox.shrink();
+                return Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    const Text('앱 회원에게 푸시 (선택)',
+                        style: TextStyle(
+                            fontSize: 13, fontWeight: FontWeight.w600)),
+                    const SizedBox(height: 4),
+                    const Text('이미 라운더를 쓰는 친구에게는 푸시도 보냅니다.',
+                        style: TextStyle(
+                            fontSize: 11, color: AppColors.textSecondary)),
+                    const SizedBox(height: 8),
+                    Wrap(
+                      spacing: 8,
+                      runSpacing: 8,
+                      children: [
+                        for (final u in candidates)
+                          FilterChip(
+                            label: Text(u.name),
+                            selected: _pushInviteeIds.contains(u.id),
+                            onSelected: (on) {
+                              setState(() {
+                                if (on) {
+                                  _pushInviteeIds.add(u.id);
+                                } else {
+                                  _pushInviteeIds.remove(u.id);
+                                }
+                              });
+                            },
+                            selectedColor:
+                                AppColors.primary.withValues(alpha: 0.18),
+                            checkmarkColor: AppColors.primary,
+                          ),
+                      ],
+                    ),
+                    const SizedBox(height: 20),
+                  ],
+                );
+              }),
 
               if (_sent) ...[
                 Container(

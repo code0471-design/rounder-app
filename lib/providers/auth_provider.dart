@@ -183,6 +183,8 @@ class AuthProvider extends ChangeNotifier {
     notifyListeners();
   }
 
+  List<AppUser> get registeredUsers => List.unmodifiable(_registeredUsers);
+
   // ════════════════════════════════════════════════════════
   //  로그인
   // ════════════════════════════════════════════════════════

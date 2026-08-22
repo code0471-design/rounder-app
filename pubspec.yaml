@@ -1,7 +1,7 @@
 name: golf_rounder
 description: ROUNDER - 골프 모임 관리 앱
 publish_to: 'none'
-version: 1.0.0+32
+version: 1.0.0+33
 
 environment:
   sdk: '>=3.0.0 <4.0.0'

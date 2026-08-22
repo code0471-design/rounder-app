@@ -4677,6 +4677,58 @@ class ClubProvider extends ChangeNotifier with WidgetsBindingObserver {
     }
   }
 
+  /// 모임 초대 — 이미 라운더 계정이 있는 초대 대상에게 즉시 푸시
+  bool notifyClubInvite({
+    required String clubId,
+    required String clubName,
+    required String inviteeUserId,
+    required String inviterName,
+    String? inviteToken,
+  }) {
+    final target = inviteeUserId.trim();
+    if (target.isEmpty) return false;
+    if (_userIdsMatch(target, currentUserId) ||
+        _userIdsMatch(target, _persistAuthUserId)) {
+      return false;
+    }
+    _notifyHqPush(
+      typeId: HqPushCatalog.clubInvite,
+      userIds: [target],
+      appType: AppNotificationType.announcement,
+      clubId: clubId,
+      clubName: clubName,
+      vars: {
+        '초대자': inviterName,
+        '모임명': clubName,
+      },
+      targetId: inviteToken,
+      notifySelf: true,
+    );
+    return true;
+  }
+
+  int notifyClubInvites({
+    required String clubId,
+    required String clubName,
+    required Iterable<String> inviteeUserIds,
+    required String inviterName,
+    String? inviteToken,
+  }) {
+    var n = 0;
+    for (final id in inviteeUserIds) {
+      if (notifyClubInvite(
+        clubId: clubId,
+        clubName: clubName,
+        inviteeUserId: id,
+        inviterName: inviterName,
+        inviteToken: inviteToken,
+      )) {
+        n++;
+      }
+    }
+    return n;
+  }
+
   // ════════════════════════════════════════════════════════
   //  Actions — Leave Club
   // ════════════════════════════════════════════════════════

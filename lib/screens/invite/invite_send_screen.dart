@@ -4,13 +4,14 @@ import 'package:provider/provider.dart';
 import '../../models/club_model.dart';
 import '../../models/user_model.dart';
 import '../../providers/auth_provider.dart';
+import '../../providers/club_provider.dart';
 import '../../theme/app_theme.dart';
 import '../../utils/kakao_talk_launcher.dart';
 
 // ════════════════════════════════════════════════════════════
-//  InviteSendScreen — 회원에게 초대 알림톡 보내기
+//  InviteSendScreen — 회원에게 초대 알림톡·푸시 보내기
 //  · 화면 진입 시 자동으로 초대 링크 생성
-//  · 카카오톡에 붙여 초대 (연락처 입력 없음)
+//  · 카카오톡 친구 선택 + (선택) 앱 회원 푸시
 // ════════════════════════════════════════════════════════════
 class InviteSendScreen extends StatefulWidget {
   final Club club;
@@ -24,6 +25,7 @@ class _InviteSendScreenState extends State<InviteSendScreen> {
   InviteToken? _token;
   bool _generating = true;
   bool _sent = false;
+  final Set<String> _pushInviteeIds = {};
 
   @override
   void initState() {
@@ -55,12 +57,35 @@ class _InviteSendScreenState extends State<InviteSendScreen> {
     final msg = _token!.kakaoMessage(widget.club.name);
     await Clipboard.setData(ClipboardData(text: msg));
     if (!mounted) return;
+    _sendSelectedPushes();
     setState(() => _sent = true);
     _showKakaoSheet(msg);
   }
 
+  void _sendSelectedPushes() {
+    if (_token == null || _pushInviteeIds.isEmpty) return;
+    final club = context.read<ClubProvider>();
+    final n = club.notifyClubInvites(
+      clubId: widget.club.id,
+      clubName: widget.club.name,
+      inviteeUserIds: _pushInviteeIds,
+      inviterName: _token!.inviterName,
+      inviteToken: _token!.token,
+    );
+    if (n > 0 && mounted) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text('앱 회원 $n명에게 초대 푸시를 보냈습니다'),
+          behavior: SnackBarBehavior.floating,
+          backgroundColor: AppColors.primary,
+        ),
+      );
+    }
+  }
+
   Future<void> _openKakaoTalk() async {
     if (_token == null) return;
+    _sendSelectedPushes();
     final msg = _token!.kakaoMessage(widget.club.name);
     final result = await shareInviteViaKakaoTalk(
       clubName: widget.club.name,
@@ -320,6 +345,67 @@ class _InviteSendScreenState extends State<InviteSendScreen> {
                 fontSize: 13, color: AppColors.textSecondary, height: 1.5),
           ),
           const SizedBox(height: 24),
+
+          // ── 앱 회원 푸시 (선택) ──
+          Builder(builder: (context) {
+            final auth = context.watch<AuthProvider>();
+            final clubProv = context.watch<ClubProvider>();
+            final myId = auth.currentUser?.id;
+            final inClub = clubProv
+                .membersForClub(widget.club.id)
+                .map((m) => m.id)
+                .toSet();
+            final candidates = auth.registeredUsers
+                .where((u) =>
+                    u.id != myId &&
+                    !inClub.contains(u.id) &&
+                    !inClub.contains('m_${widget.club.id}_${u.id}'))
+                .toList();
+            if (candidates.isEmpty) return const SizedBox.shrink();
+            return Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                const Text(
+                  '앱 회원에게 푸시 (선택)',
+                  style: TextStyle(
+                      fontSize: 15,
+                      fontWeight: FontWeight.bold,
+                      color: AppColors.textPrimary),
+                ),
+                const SizedBox(height: 4),
+                const Text(
+                  '이미 라운더를 쓰는 친구에게는 푸시도 보냅니다. 여러 명 선택 가능.',
+                  style: TextStyle(
+                      fontSize: 12, color: AppColors.textSecondary),
+                ),
+                const SizedBox(height: 10),
+                Wrap(
+                  spacing: 8,
+                  runSpacing: 8,
+                  children: [
+                    for (final u in candidates)
+                      FilterChip(
+                        label: Text(u.name),
+                        selected: _pushInviteeIds.contains(u.id),
+                        onSelected: (on) {
+                          setState(() {
+                            if (on) {
+                              _pushInviteeIds.add(u.id);
+                            } else {
+                              _pushInviteeIds.remove(u.id);
+                            }
+                          });
+                        },
+                        selectedColor:
+                            AppColors.primary.withValues(alpha: 0.18),
+                        checkmarkColor: AppColors.primary,
+                      ),
+                  ],
+                ),
+                const SizedBox(height: 24),
+              ],
+            );
+          }),
 
           // ── 메시지 미리보기 박스 ──
           Container(
