@@ -60,16 +60,58 @@ class _InviteSendScreenState extends State<InviteSendScreen> {
   }
 
   Future<void> _openKakaoTalk() async {
-    final ok = await openKakaoTalkApp();
+    if (_token == null) return;
+    final msg = _token!.kakaoMessage(widget.club.name);
+    final result = await shareInviteViaKakaoTalk(
+      clubName: widget.club.name,
+      message: msg,
+      webUrl: _token!.webUrl,
+    );
     if (!mounted) return;
-    if (!ok) {
+    if (result == KakaoInviteShareResult.failed) {
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(
-          content: Text('카카오톡을 열 수 없습니다. 설치 여부를 확인해 주세요'),
+          content: Text('카카오톡 친구 선택을 열 수 없습니다. 설치 여부를 확인해 주세요'),
           backgroundColor: Color(0xFF3A1C00),
           behavior: SnackBarBehavior.floating,
         ),
       );
+      return;
+    }
+    if (result == KakaoInviteShareResult.openedAppOnly) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('카톡이 열렸습니다. 복사된 메시지를 붙여넣어 보내 주세요'),
+          behavior: SnackBarBehavior.floating,
+        ),
+      );
+      return;
+    }
+    // 한 번에 1명(또는 단톡 1곳) — 여러 명이면 다시 누르도록 안내
+    final again = await showDialog<bool>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+        title: const Text('친구에게 보냈나요?'),
+        content: const Text(
+          '카톡에서는 한 번에 한 명(또는 단톡 하나)만 고를 수 있어요.\n'
+          '다른 친구에게도 보내려면 다시 선택해 주세요.',
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(ctx, false),
+            child: const Text('닫기'),
+          ),
+          TextButton(
+            onPressed: () => Navigator.pop(ctx, true),
+            child: const Text('다른 친구 선택',
+                style: TextStyle(color: AppColors.primary)),
+          ),
+        ],
+      ),
+    );
+    if (again == true && mounted) {
+      await _openKakaoTalk();
     }
   }
 
@@ -145,7 +187,7 @@ class _InviteSendScreenState extends State<InviteSendScreen> {
                             fontSize: 15,
                             fontWeight: FontWeight.bold,
                             color: AppColors.textPrimary)),
-                    Text('친구에게 붙여넣어 초대하세요',
+                    Text('친구를 선택해 초대하세요',
                         style: TextStyle(
                             fontSize: 12, color: AppColors.textSecondary)),
                   ],
@@ -172,7 +214,7 @@ class _InviteSendScreenState extends State<InviteSendScreen> {
             ),
             const SizedBox(height: 6),
             Text(
-              '* 메시지가 클립보드에 복사되었습니다. 카카오톡에서 붙여넣기하세요.',
+              '* 친구 선택을 누르면 카카오톡에서 받을 사람을 고를 수 있습니다.',
               style: TextStyle(fontSize: 11, color: Colors.grey[500]),
             ),
             const SizedBox(height: 20),
@@ -189,7 +231,7 @@ class _InviteSendScreenState extends State<InviteSendScreen> {
                         fontSize: 18,
                         fontWeight: FontWeight.w900,
                         color: Color(0xFF3A1C00))),
-                label: const Text('카카오톡 열기',
+                label: const Text('친구 선택',
                     style: TextStyle(
                         fontSize: 15,
                         fontWeight: FontWeight.bold,
