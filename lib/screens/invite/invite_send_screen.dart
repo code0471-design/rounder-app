@@ -4,14 +4,12 @@ import 'package:provider/provider.dart';
 import '../../models/club_model.dart';
 import '../../models/user_model.dart';
 import '../../providers/auth_provider.dart';
-import '../../providers/club_provider.dart';
 import '../../theme/app_theme.dart';
 import '../../utils/kakao_talk_launcher.dart';
 
 // ════════════════════════════════════════════════════════════
-//  InviteSendScreen — 회원에게 초대 알림톡·푸시 보내기
-//  · 화면 진입 시 자동으로 초대 링크 생성
-//  · 카카오톡 친구 선택 + (선택) 앱 회원 푸시
+//  InviteSendScreen — 초대장 보내기
+//  · 「초대장 보내기」→ OS 텍스트 공유 시트 (밴드와 동일 UX)
 // ════════════════════════════════════════════════════════════
 class InviteSendScreen extends StatefulWidget {
   final Club club;
@@ -25,7 +23,6 @@ class _InviteSendScreenState extends State<InviteSendScreen> {
   InviteToken? _token;
   bool _generating = true;
   bool _sent = false;
-  final Set<String> _pushInviteeIds = {};
 
   @override
   void initState() {
@@ -52,91 +49,26 @@ class _InviteSendScreenState extends State<InviteSendScreen> {
     });
   }
 
-  Future<void> _shareKakao() async {
+  /// 밴드처럼 시스템 공유 시트 오픈 → 카톡 등에서 대상 선택
+  Future<void> _sendInvitation() async {
     if (_token == null) return;
     final msg = _token!.kakaoMessage(widget.club.name);
     await Clipboard.setData(ClipboardData(text: msg));
     if (!mounted) return;
-    _sendSelectedPushes();
     setState(() => _sent = true);
-    _showKakaoSheet(msg);
-  }
-
-  void _sendSelectedPushes() {
-    if (_token == null || _pushInviteeIds.isEmpty) return;
-    final club = context.read<ClubProvider>();
-    final n = club.notifyClubInvites(
-      clubId: widget.club.id,
-      clubName: widget.club.name,
-      inviteeUserIds: _pushInviteeIds,
-      inviterName: _token!.inviterName,
-      inviteToken: _token!.token,
-    );
-    if (n > 0 && mounted) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text('앱 회원 $n명에게 초대 푸시를 보냈습니다'),
-          behavior: SnackBarBehavior.floating,
-          backgroundColor: AppColors.primary,
-        ),
-      );
-    }
-  }
-
-  Future<void> _openKakaoTalk() async {
-    if (_token == null) return;
-    _sendSelectedPushes();
-    final msg = _token!.kakaoMessage(widget.club.name);
-    final result = await shareInviteViaKakaoTalk(
-      clubName: widget.club.name,
+    final ok = await shareInviteText(
       message: msg,
-      webUrl: _token!.webUrl,
+      subject: '${widget.club.name} 초대장',
     );
     if (!mounted) return;
-    if (result == KakaoInviteShareResult.failed) {
+    if (!ok) {
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(
-          content: Text('카카오톡 친구 선택을 열 수 없습니다. 설치 여부를 확인해 주세요'),
+          content: Text('공유 화면을 열 수 없습니다'),
           backgroundColor: Color(0xFF3A1C00),
           behavior: SnackBarBehavior.floating,
         ),
       );
-      return;
-    }
-    if (result == KakaoInviteShareResult.openedAppOnly) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content: Text('카톡이 열렸습니다. 복사된 메시지를 붙여넣어 보내 주세요'),
-          behavior: SnackBarBehavior.floating,
-        ),
-      );
-      return;
-    }
-    // 한 번에 1명(또는 단톡 1곳) — 여러 명이면 다시 누르도록 안내
-    final again = await showDialog<bool>(
-      context: context,
-      builder: (ctx) => AlertDialog(
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
-        title: const Text('친구에게 보냈나요?'),
-        content: const Text(
-          '카톡에서는 한 번에 한 명(또는 단톡 하나)만 고를 수 있어요.\n'
-          '다른 친구에게도 보내려면 다시 선택해 주세요.',
-        ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(ctx, false),
-            child: const Text('닫기'),
-          ),
-          TextButton(
-            onPressed: () => Navigator.pop(ctx, true),
-            child: const Text('다른 친구 선택',
-                style: TextStyle(color: AppColors.primary)),
-          ),
-        ],
-      ),
-    );
-    if (again == true && mounted) {
-      await _openKakaoTalk();
     }
   }
 
@@ -158,123 +90,6 @@ class _InviteSendScreenState extends State<InviteSendScreen> {
     );
   }
 
-  void _showKakaoSheet(String message) {
-    showModalBottomSheet(
-      context: context,
-      isScrollControlled: true,
-      backgroundColor: Colors.white,
-      shape: const RoundedRectangleBorder(
-          borderRadius: BorderRadius.vertical(top: Radius.circular(20))),
-      builder: (sheetCtx) => Padding(
-        padding: EdgeInsets.only(
-          left: 24,
-          right: 24,
-          top: 24,
-          bottom: MediaQuery.of(sheetCtx).viewInsets.bottom + 32,
-        ),
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Center(
-              child: Container(
-                width: 40,
-                height: 4,
-                decoration: BoxDecoration(
-                  color: Colors.grey[300],
-                  borderRadius: BorderRadius.circular(2),
-                ),
-              ),
-            ),
-            const SizedBox(height: 20),
-            Row(
-              children: [
-                Container(
-                  width: 40,
-                  height: 40,
-                  decoration: BoxDecoration(
-                    color: const Color(0xFFFEE500),
-                    borderRadius: BorderRadius.circular(10),
-                  ),
-                  child: const Center(
-                    child: Text('K', style: TextStyle(
-                      fontSize: 20, fontWeight: FontWeight.w900,
-                      color: Color(0xFF3A1C00),
-                    )),
-                  ),
-                ),
-                const SizedBox(width: 12),
-                const Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Text('카카오톡 초대 메시지',
-                        style: TextStyle(
-                            fontSize: 15,
-                            fontWeight: FontWeight.bold,
-                            color: AppColors.textPrimary)),
-                    Text('친구를 선택해 초대하세요',
-                        style: TextStyle(
-                            fontSize: 12, color: AppColors.textSecondary)),
-                  ],
-                ),
-              ],
-            ),
-            const SizedBox(height: 16),
-            Container(
-              width: double.infinity,
-              padding: const EdgeInsets.all(16),
-              decoration: BoxDecoration(
-                color: const Color(0xFFFEE500).withValues(alpha: 0.12),
-                borderRadius: BorderRadius.circular(12),
-                border: Border.all(
-                    color: const Color(0xFFFEE500).withValues(alpha: 0.5)),
-              ),
-              child: Text(
-                message,
-                style: const TextStyle(
-                    fontSize: 13,
-                    color: AppColors.textPrimary,
-                    height: 1.6),
-              ),
-            ),
-            const SizedBox(height: 6),
-            Text(
-              '* 친구 선택을 누르면 카카오톡에서 받을 사람을 고를 수 있습니다.',
-              style: TextStyle(fontSize: 11, color: Colors.grey[500]),
-            ),
-            const SizedBox(height: 20),
-            SizedBox(
-              width: double.infinity,
-              height: 50,
-              child: ElevatedButton.icon(
-                onPressed: () async {
-                  Navigator.pop(sheetCtx);
-                  await _openKakaoTalk();
-                },
-                icon: const Text('K',
-                    style: TextStyle(
-                        fontSize: 18,
-                        fontWeight: FontWeight.w900,
-                        color: Color(0xFF3A1C00))),
-                label: const Text('친구 선택',
-                    style: TextStyle(
-                        fontSize: 15,
-                        fontWeight: FontWeight.bold,
-                        color: Color(0xFF3A1C00))),
-                style: ElevatedButton.styleFrom(
-                  backgroundColor: const Color(0xFFFEE500),
-                  elevation: 0,
-                  shape: RoundedRectangleBorder(
-                      borderRadius: BorderRadius.circular(14)),
-                ),
-              ),
-            ),
-          ],
-        ),
-      ),
-    );
-  }
-
   @override
   Widget build(BuildContext context) {
     return Scaffold(
@@ -288,20 +103,17 @@ class _InviteSendScreenState extends State<InviteSendScreen> {
           onPressed: () => Navigator.pop(context),
         ),
         title: const Text(
-          '초대 알림톡 보내기',
+          '초대장 보내기',
           style: TextStyle(
               color: AppColors.textPrimary,
               fontSize: 17,
               fontWeight: FontWeight.bold),
         ),
       ),
-      body: _generating
-          ? _buildLoadingView()
-          : _buildMainView(),
+      body: _generating ? _buildLoadingView() : _buildMainView(),
     );
   }
 
-  // ── 로딩 뷰 ─────────────────────────────────────────────
   Widget _buildLoadingView() {
     return const Center(
       child: Column(
@@ -309,29 +121,27 @@ class _InviteSendScreenState extends State<InviteSendScreen> {
         children: [
           CircularProgressIndicator(color: AppColors.primary),
           SizedBox(height: 16),
-          Text('초대장 준비 중...', style: TextStyle(color: AppColors.textSecondary)),
+          Text('초대장 준비 중...',
+              style: TextStyle(color: AppColors.textSecondary)),
         ],
       ),
     );
   }
 
-  // ── 메인 뷰 (알림톡 바로 발송) ──────────────────────────
   Widget _buildMainView() {
     if (_token == null) return const SizedBox.shrink();
-    final expiryDate = '${_token!.expiresAt.month}월 ${_token!.expiresAt.day}일';
+    final expiryDate =
+        '${_token!.expiresAt.month}월 ${_token!.expiresAt.day}일';
 
     return SingleChildScrollView(
       padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 16),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          // ── 모임 정보 카드 ──
           _ClubInfoCard(club: widget.club),
           const SizedBox(height: 28),
-
-          // ── 안내 텍스트 ──
           const Text(
-            '초대 알림톡 보내기',
+            '초대장 보내기',
             style: TextStyle(
                 fontSize: 15,
                 fontWeight: FontWeight.bold,
@@ -339,75 +149,12 @@ class _InviteSendScreenState extends State<InviteSendScreen> {
           ),
           const SizedBox(height: 6),
           Text(
-            '카카오 알림톡으로 지인을 ${widget.club.name}에 초대하세요.\n'
+            '공유 화면에서 카카오톡 등을 고른 뒤 친구에게 보내세요.\n'
             '초대장은 $expiryDate까지 유효합니다.',
             style: const TextStyle(
                 fontSize: 13, color: AppColors.textSecondary, height: 1.5),
           ),
           const SizedBox(height: 24),
-
-          // ── 앱 회원 푸시 (선택) ──
-          Builder(builder: (context) {
-            final auth = context.watch<AuthProvider>();
-            final clubProv = context.watch<ClubProvider>();
-            final myId = auth.currentUser?.id;
-            final inClub = clubProv
-                .membersForClub(widget.club.id)
-                .map((m) => m.id)
-                .toSet();
-            final candidates = auth.registeredUsers
-                .where((u) =>
-                    u.id != myId &&
-                    !inClub.contains(u.id) &&
-                    !inClub.contains('m_${widget.club.id}_${u.id}'))
-                .toList();
-            if (candidates.isEmpty) return const SizedBox.shrink();
-            return Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                const Text(
-                  '앱 회원에게 푸시 (선택)',
-                  style: TextStyle(
-                      fontSize: 15,
-                      fontWeight: FontWeight.bold,
-                      color: AppColors.textPrimary),
-                ),
-                const SizedBox(height: 4),
-                const Text(
-                  '이미 라운더를 쓰는 친구에게는 푸시도 보냅니다. 여러 명 선택 가능.',
-                  style: TextStyle(
-                      fontSize: 12, color: AppColors.textSecondary),
-                ),
-                const SizedBox(height: 10),
-                Wrap(
-                  spacing: 8,
-                  runSpacing: 8,
-                  children: [
-                    for (final u in candidates)
-                      FilterChip(
-                        label: Text(u.name),
-                        selected: _pushInviteeIds.contains(u.id),
-                        onSelected: (on) {
-                          setState(() {
-                            if (on) {
-                              _pushInviteeIds.add(u.id);
-                            } else {
-                              _pushInviteeIds.remove(u.id);
-                            }
-                          });
-                        },
-                        selectedColor:
-                            AppColors.primary.withValues(alpha: 0.18),
-                        checkmarkColor: AppColors.primary,
-                      ),
-                  ],
-                ),
-                const SizedBox(height: 24),
-              ],
-            );
-          }),
-
-          // ── 메시지 미리보기 박스 ──
           Container(
             width: double.infinity,
             padding: const EdgeInsets.all(16),
@@ -430,15 +177,12 @@ class _InviteSendScreenState extends State<InviteSendScreen> {
                         borderRadius: BorderRadius.circular(6),
                       ),
                       child: const Center(
-                        child: Text('K',
-                            style: TextStyle(
-                                fontSize: 15,
-                                fontWeight: FontWeight.w900,
-                                color: Color(0xFF3A1C00))),
+                        child: Icon(Icons.ios_share,
+                            size: 16, color: Color(0xFF3A1C00)),
                       ),
                     ),
                     const SizedBox(width: 8),
-                    const Text('카카오 알림톡 메시지',
+                    const Text('초대장 메시지',
                         style: TextStyle(
                             fontSize: 12,
                             fontWeight: FontWeight.bold,
@@ -457,42 +201,39 @@ class _InviteSendScreenState extends State<InviteSendScreen> {
             ),
           ),
           const SizedBox(height: 24),
-
-          // ── 발송 상태 배지 (sent 후) ──
           if (_sent) ...[
             Container(
               width: double.infinity,
-              padding: const EdgeInsets.symmetric(vertical: 10, horizontal: 14),
+              padding:
+                  const EdgeInsets.symmetric(vertical: 10, horizontal: 14),
               decoration: BoxDecoration(
                 color: AppColors.primary.withValues(alpha: 0.08),
                 borderRadius: BorderRadius.circular(10),
-                border: Border.all(color: AppColors.primary.withValues(alpha: 0.3)),
+                border: Border.all(
+                    color: AppColors.primary.withValues(alpha: 0.3)),
               ),
               child: const Row(
                 children: [
-                  Icon(Icons.check_circle, color: AppColors.primary, size: 16),
+                  Icon(Icons.check_circle,
+                      color: AppColors.primary, size: 16),
                   SizedBox(width: 8),
-                  Text('알림톡 메시지가 클립보드에 복사되었습니다',
-                      style: TextStyle(fontSize: 12, color: AppColors.primary)),
+                  Text('초대장이 준비되었습니다. 공유 앱을 선택하세요',
+                      style:
+                          TextStyle(fontSize: 12, color: AppColors.primary)),
                 ],
               ),
             ),
             const SizedBox(height: 16),
           ],
-
-          // ── 주 버튼: 초대 알림톡 보내기 ──
           SizedBox(
             width: double.infinity,
             height: 54,
             child: ElevatedButton.icon(
-              onPressed: _shareKakao,
-              icon: const Text('K',
-                  style: TextStyle(
-                      fontSize: 20,
-                      fontWeight: FontWeight.w900,
-                      color: Color(0xFF3A1C00))),
+              onPressed: _sendInvitation,
+              icon: const Icon(Icons.ios_share,
+                  size: 20, color: Color(0xFF3A1C00)),
               label: Text(
-                _sent ? '다시 보내기' : '초대 알림톡 보내기',
+                _sent ? '다시 보내기' : '초대장 보내기',
                 style: const TextStyle(
                     fontSize: 16,
                     fontWeight: FontWeight.bold,
@@ -507,8 +248,6 @@ class _InviteSendScreenState extends State<InviteSendScreen> {
             ),
           ),
           const SizedBox(height: 12),
-
-          // ── 보조 버튼: 링크 복사 ──
           SizedBox(
             width: double.infinity,
             height: 48,
@@ -525,8 +264,6 @@ class _InviteSendScreenState extends State<InviteSendScreen> {
             ),
           ),
           const SizedBox(height: 24),
-
-          // ── 안내 카드 ──
           Container(
             padding: const EdgeInsets.all(14),
             decoration: BoxDecoration(
@@ -549,14 +286,11 @@ class _InviteSendScreenState extends State<InviteSendScreen> {
                 ]),
                 SizedBox(height: 6),
                 Text(
+                  '• 초대장 보내기를 누르면 카카오톡·문자 등 공유 앱을 고를 수 있습니다\n'
                   '• 초대 링크는 발급 후 7일간 유효합니다\n'
-                  '• 가입 신청 시 총무에게 승인 알림이 발송됩니다\n'
-                  '• 링크 수신자는 정회원 또는 게스트로 가입 가능합니다\n'
-                  '• 정회원 누구나 초대장을 발송할 수 있습니다',
+                  '• 가입 신청 시 총무에게 승인 알림이 발송됩니다',
                   style: TextStyle(
-                      fontSize: 11,
-                      color: Color(0xFF92400E),
-                      height: 1.7),
+                      fontSize: 11, color: Color(0xFF92400E), height: 1.7),
                 ),
               ],
             ),
@@ -568,9 +302,6 @@ class _InviteSendScreenState extends State<InviteSendScreen> {
   }
 }
 
-// ────────────────────────────────────────────────────────────
-//  모임 정보 카드
-// ────────────────────────────────────────────────────────────
 class _ClubInfoCard extends StatelessWidget {
   final Club club;
   const _ClubInfoCard({required this.club});

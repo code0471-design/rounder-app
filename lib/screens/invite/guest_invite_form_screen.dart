@@ -10,8 +10,7 @@ import '../../utils/kakao_talk_launcher.dart';
 
 // ════════════════════════════════════════════════════════════
 //  GuestInviteFormScreen — 총무가 게스트를 초대할 때
-//  · 게스트 이름 / 추천인(소개자) 선택 입력 (연락처 입력 없음 — 카톡으로만 초대)
-//  · 추천인 정보가 담긴 초대 알림톡 링크를 발급/공유 + (선택) 앱 회원 푸시
+//  · 게스트 이름 / 추천인 선택 → 초대장 보내기(OS 공유 시트)
 // ════════════════════════════════════════════════════════════
 class GuestInviteFormScreen extends StatefulWidget {
   final Club club;
@@ -27,33 +26,11 @@ class _GuestInviteFormScreenState extends State<GuestInviteFormScreen> {
   Member? _referrer;
   InviteToken? _token;
   bool _sent = false;
-  final Set<String> _pushInviteeIds = {};
 
   @override
   void dispose() {
     _nameCtrl.dispose();
     super.dispose();
-  }
-
-  void _sendSelectedPushes() {
-    if (_token == null || _pushInviteeIds.isEmpty) return;
-    final club = context.read<ClubProvider>();
-    final n = club.notifyClubInvites(
-      clubId: widget.club.id,
-      clubName: widget.club.name,
-      inviteeUserIds: _pushInviteeIds,
-      inviterName: _token!.inviterName,
-      inviteToken: _token!.token,
-    );
-    if (n > 0 && mounted) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text('앱 회원 $n명에게 초대 푸시를 보냈습니다'),
-          behavior: SnackBarBehavior.floating,
-          backgroundColor: AppColors.primary,
-        ),
-      );
-    }
   }
 
   Future<void> _generateAndShare() async {
@@ -75,188 +52,29 @@ class _GuestInviteFormScreenState extends State<GuestInviteFormScreen> {
       referrerName: _referrer!.name,
     );
 
-    setState(() => _token = token);
+    setState(() {
+      _token = token;
+      _sent = true;
+    });
 
     final msg = token.kakaoMessage(widget.club.name);
     await Clipboard.setData(ClipboardData(text: msg));
     if (!mounted) return;
 
-    _sendSelectedPushes();
-    setState(() => _sent = true);
-    _showKakaoSheet(msg);
-  }
-
-  Future<void> _openKakaoTalk() async {
-    if (_token == null) return;
-    _sendSelectedPushes();
-    final msg = _token!.kakaoMessage(widget.club.name);
-    final result = await shareInviteViaKakaoTalk(
-      clubName: widget.club.name,
+    final ok = await shareInviteText(
       message: msg,
-      webUrl: _token!.webUrl,
+      subject: '${widget.club.name} 게스트 초대장',
     );
     if (!mounted) return;
-    if (result == KakaoInviteShareResult.failed) {
+    if (!ok) {
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(
-          content: Text('카카오톡 친구 선택을 열 수 없습니다. 설치 여부를 확인해 주세요'),
+          content: Text('공유 화면을 열 수 없습니다'),
           backgroundColor: Color(0xFF3A1C00),
           behavior: SnackBarBehavior.floating,
         ),
       );
-      return;
     }
-    if (result == KakaoInviteShareResult.openedAppOnly) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content: Text('카톡이 열렸습니다. 복사된 메시지를 붙여넣어 보내 주세요'),
-          behavior: SnackBarBehavior.floating,
-        ),
-      );
-      return;
-    }
-    final again = await showDialog<bool>(
-      context: context,
-      builder: (ctx) => AlertDialog(
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
-        title: const Text('친구에게 보냈나요?'),
-        content: const Text(
-          '카톡에서는 한 번에 한 명(또는 단톡 하나)만 고를 수 있어요.\n'
-          '다른 친구에게도 보내려면 다시 선택해 주세요.',
-        ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(ctx, false),
-            child: const Text('닫기'),
-          ),
-          TextButton(
-            onPressed: () => Navigator.pop(ctx, true),
-            child: const Text('다른 친구 선택',
-                style: TextStyle(color: AppColors.primary)),
-          ),
-        ],
-      ),
-    );
-    if (again == true && mounted) {
-      await _openKakaoTalk();
-    }
-  }
-
-  void _showKakaoSheet(String message) {
-    showModalBottomSheet(
-      context: context,
-      isScrollControlled: true,
-      backgroundColor: Colors.white,
-      shape: const RoundedRectangleBorder(
-          borderRadius: BorderRadius.vertical(top: Radius.circular(20))),
-      builder: (_) => Padding(
-        padding: EdgeInsets.only(
-          left: 24,
-          right: 24,
-          top: 24,
-          bottom: MediaQuery.of(context).viewInsets.bottom + 32,
-        ),
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Center(
-              child: Container(
-                width: 40,
-                height: 4,
-                decoration: BoxDecoration(
-                  color: Colors.grey[300],
-                  borderRadius: BorderRadius.circular(2),
-                ),
-              ),
-            ),
-            const SizedBox(height: 20),
-            Row(
-              children: [
-                Container(
-                  width: 40,
-                  height: 40,
-                  decoration: BoxDecoration(
-                    color: const Color(0xFFFEE500),
-                    borderRadius: BorderRadius.circular(10),
-                  ),
-                  child: const Center(
-                    child: Text('K', style: TextStyle(
-                      fontSize: 20, fontWeight: FontWeight.w900,
-                      color: Color(0xFF3A1C00),
-                    )),
-                  ),
-                ),
-                const SizedBox(width: 12),
-                const Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Text('게스트 초대 알림톡 미리보기',
-                        style: TextStyle(
-                            fontSize: 15,
-                            fontWeight: FontWeight.bold,
-                            color: AppColors.textPrimary)),
-                    Text('아래 메시지가 발송됩니다',
-                        style: TextStyle(
-                            fontSize: 12, color: AppColors.textSecondary)),
-                  ],
-                ),
-              ],
-            ),
-            const SizedBox(height: 16),
-            Container(
-              width: double.infinity,
-              padding: const EdgeInsets.all(16),
-              decoration: BoxDecoration(
-                color: const Color(0xFFFEE500).withValues(alpha: 0.12),
-                borderRadius: BorderRadius.circular(12),
-                border: Border.all(
-                    color: const Color(0xFFFEE500).withValues(alpha: 0.5)),
-              ),
-              child: Text(
-                message,
-                style: const TextStyle(
-                    fontSize: 13,
-                    color: AppColors.textPrimary,
-                    height: 1.6),
-              ),
-            ),
-            const SizedBox(height: 6),
-            Text(
-              '* 친구 선택을 누르면 카카오톡에서 받을 사람을 고를 수 있습니다.',
-              style: TextStyle(fontSize: 11, color: Colors.grey[500]),
-            ),
-            const SizedBox(height: 20),
-            SizedBox(
-              width: double.infinity,
-              height: 50,
-              child: ElevatedButton.icon(
-                onPressed: () async {
-                  Navigator.pop(context);
-                  await _openKakaoTalk();
-                },
-                icon: const Text('K',
-                    style: TextStyle(
-                        fontSize: 18,
-                        fontWeight: FontWeight.w900,
-                        color: Color(0xFF3A1C00))),
-                label: const Text('친구 선택',
-                    style: TextStyle(
-                        fontSize: 15,
-                        fontWeight: FontWeight.bold,
-                        color: Color(0xFF3A1C00))),
-                style: ElevatedButton.styleFrom(
-                  backgroundColor: const Color(0xFFFEE500),
-                  elevation: 0,
-                  shape: RoundedRectangleBorder(
-                      borderRadius: BorderRadius.circular(14)),
-                ),
-              ),
-            ),
-          ],
-        ),
-      ),
-    );
   }
 
   Future<void> _copyLink() async {
@@ -390,60 +208,6 @@ class _GuestInviteFormScreenState extends State<GuestInviteFormScreen> {
               ),
               const SizedBox(height: 28),
 
-              Builder(builder: (context) {
-                final auth = context.watch<AuthProvider>();
-                final clubProv = context.watch<ClubProvider>();
-                final myId = auth.currentUser?.id;
-                final inClub = clubProv
-                    .membersForClub(widget.club.id)
-                    .map((m) => m.id)
-                    .toSet();
-                final candidates = auth.registeredUsers
-                    .where((u) =>
-                        u.id != myId &&
-                        !inClub.contains(u.id) &&
-                        !inClub.contains('m_${widget.club.id}_${u.id}'))
-                    .toList();
-                if (candidates.isEmpty) return const SizedBox.shrink();
-                return Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    const Text('앱 회원에게 푸시 (선택)',
-                        style: TextStyle(
-                            fontSize: 13, fontWeight: FontWeight.w600)),
-                    const SizedBox(height: 4),
-                    const Text('이미 라운더를 쓰는 친구에게는 푸시도 보냅니다.',
-                        style: TextStyle(
-                            fontSize: 11, color: AppColors.textSecondary)),
-                    const SizedBox(height: 8),
-                    Wrap(
-                      spacing: 8,
-                      runSpacing: 8,
-                      children: [
-                        for (final u in candidates)
-                          FilterChip(
-                            label: Text(u.name),
-                            selected: _pushInviteeIds.contains(u.id),
-                            onSelected: (on) {
-                              setState(() {
-                                if (on) {
-                                  _pushInviteeIds.add(u.id);
-                                } else {
-                                  _pushInviteeIds.remove(u.id);
-                                }
-                              });
-                            },
-                            selectedColor:
-                                AppColors.primary.withValues(alpha: 0.18),
-                            checkmarkColor: AppColors.primary,
-                          ),
-                      ],
-                    ),
-                    const SizedBox(height: 20),
-                  ],
-                );
-              }),
-
               if (_sent) ...[
                 Container(
                   width: double.infinity,
@@ -457,7 +221,7 @@ class _GuestInviteFormScreenState extends State<GuestInviteFormScreen> {
                     children: [
                       Icon(Icons.check_circle, color: AppColors.primary, size: 16),
                       SizedBox(width: 8),
-                      Text('게스트 초대 알림톡 메시지가 클립보드에 복사되었습니다',
+                      Text('초대장이 준비되었습니다. 공유 앱을 선택하세요',
                           style: TextStyle(fontSize: 12, color: AppColors.primary)),
                     ],
                   ),
@@ -470,13 +234,10 @@ class _GuestInviteFormScreenState extends State<GuestInviteFormScreen> {
                 height: 54,
                 child: ElevatedButton.icon(
                   onPressed: _generateAndShare,
-                  icon: const Text('K',
-                      style: TextStyle(
-                          fontSize: 20,
-                          fontWeight: FontWeight.w900,
-                          color: Color(0xFF3A1C00))),
+                  icon: const Icon(Icons.ios_share,
+                      size: 20, color: Color(0xFF3A1C00)),
                   label: Text(
-                    _sent ? '다시 보내기' : '게스트 초대 알림톡 보내기',
+                    _sent ? '다시 보내기' : '초대장 보내기',
                     style: const TextStyle(
                         fontSize: 16,
                         fontWeight: FontWeight.bold,
@@ -532,6 +293,7 @@ class _GuestInviteFormScreenState extends State<GuestInviteFormScreen> {
                     ]),
                     SizedBox(height: 6),
                     Text(
+                      '• 초대장 보내기를 누르면 카카오톡·문자 등 공유 앱을 고를 수 있습니다\n'
                       '• 초대 링크는 발급 후 7일간 유효합니다\n'
                       '• 링크로 가입 신청 시 게스트 등급으로 자동 접수됩니다\n'
                       '• 추천인 정보가 저장되어 조편성 시 함께 배정될 수 있습니다\n'
