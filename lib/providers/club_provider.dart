@@ -4992,20 +4992,41 @@ class ClubProvider extends ChangeNotifier with WidgetsBindingObserver {
     required String caption,
     String? imageUrl,
   }) {
-    final seed = DateTime.now().millisecondsSinceEpoch % 9999;
-    final uploaderId = currentMember?.id ?? currentUserId;
-    _photos.add(RoundPhoto(
-      id: 'photo_$seed',
+    addPhotos(
       scheduleId: scheduleId,
-      clubId: selectedClub.id,
-      uploaderId: uploaderId,
-      uploaderName: currentUserName,
-      imageUrl: (imageUrl != null && imageUrl.isNotEmpty)
-          ? imageUrl
-          : 'https://picsum.photos/seed/user$seed/600/400',
-      caption: caption.isEmpty ? null : caption,
-      takenAt: DateTime.now(),
-    ));
+      caption: caption,
+      imageUrls: [
+        (imageUrl != null && imageUrl.isNotEmpty)
+            ? imageUrl
+            : 'https://picsum.photos/seed/user${DateTime.now().microsecondsSinceEpoch}/600/400',
+      ],
+    );
+  }
+
+  /// 여러 사진을 한 번에 추가 (고유 ID 보장)
+  void addPhotos({
+    required String scheduleId,
+    required List<String> imageUrls,
+    String caption = '',
+  }) {
+    if (imageUrls.isEmpty) return;
+    final base = DateTime.now().microsecondsSinceEpoch;
+    final uploaderId = currentMember?.id ?? currentUserId;
+    final captionOrNull = caption.trim().isEmpty ? null : caption.trim();
+    for (var i = 0; i < imageUrls.length; i++) {
+      final url = imageUrls[i].trim();
+      if (url.isEmpty) continue;
+      _photos.add(RoundPhoto(
+        id: 'photo_${base}_$i',
+        scheduleId: scheduleId,
+        clubId: selectedClub.id,
+        uploaderId: uploaderId,
+        uploaderName: currentUserName,
+        imageUrl: url,
+        caption: captionOrNull,
+        takenAt: DateTime.now().add(Duration(milliseconds: i)),
+      ));
+    }
     _persistImmediately();
     notifyListeners();
   }

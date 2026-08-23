@@ -4015,9 +4015,9 @@ class _PhotoSection extends StatelessWidget {
 
   Future<void> _showUploadDialog(
       BuildContext context, ClubProvider provider) async {
-    String? dataUrl;
+    List<String> dataUrls;
     try {
-      dataUrl = await pickRoundPhotoDataUrl();
+      dataUrls = await pickRoundPhotoDataUrls();
     } catch (_) {
       if (!context.mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
@@ -4025,7 +4025,7 @@ class _PhotoSection extends StatelessWidget {
       );
       return;
     }
-    if (dataUrl == null || !context.mounted) return;
+    if (dataUrls.isEmpty || !context.mounted) return;
     showModalBottomSheet(
       context: context,
       isScrollControlled: true,
@@ -4035,7 +4035,7 @@ class _PhotoSection extends StatelessWidget {
       builder: (ctx) => PhotoUploadSheet(
         schedule: schedule,
         provider: provider,
-        initialDataUrl: dataUrl,
+        initialDataUrls: dataUrls,
       ),
     );
   }

@@ -399,10 +399,14 @@ class ClubOpsSync {
       encoded['transactions'] as List?,
       remote['transactions'] as List?,
     );
-    encoded['photos'] = replaceClubList(
-      encoded['photos'] as List?,
-      remote['photos'] as List?,
-    );
+    // photos 키 없음 = 사진 컬렉션 fetch 실패 → 로컬 유지 (덮어쓰기 금지)
+    if (remote.containsKey('photos')) {
+      encoded['photos'] = _mergeClubPhotos(
+        encoded['photos'] as List?,
+        remote['photos'] as List?,
+        clubId,
+      );
+    }
     encoded['adApplications'] = replaceClubList(
       encoded['adApplications'] as List?,
       remote['adApplications'] as List?,
@@ -521,6 +525,57 @@ class ClubOpsSync {
       byId[id] = m;
     }
     return byId.values.toList();
+  }
+
+  /// 모임 사진 병합: 원격이 imageOmitted/빈 URL이면 로컬 data URI를 유지.
+  static List<dynamic> _mergeClubPhotos(
+    List? localList,
+    List? remoteList,
+    String clubId,
+  ) {
+    final keptOther = <dynamic>[
+      ...(localList ?? []).where((e) => e is Map && e['clubId'] != clubId),
+    ];
+    final localById = <String, Map<String, dynamic>>{};
+    for (final e in localList ?? const []) {
+      if (e is! Map) continue;
+      if (e['clubId'] != clubId) continue;
+      final id = e['id'] as String?;
+      if (id == null || id.isEmpty) continue;
+      localById[id] = Map<String, dynamic>.from(e);
+    }
+    final remoteById = <String, Map<String, dynamic>>{};
+    for (final e in remoteList ?? const []) {
+      if (e is! Map) continue;
+      final m = Map<String, dynamic>.from(e);
+      final id = m['id'] as String?;
+      if (id == null || id.isEmpty) continue;
+      remoteById[id] = m;
+    }
+
+    final merged = <Map<String, dynamic>>[];
+    for (final id in {...localById.keys, ...remoteById.keys}) {
+      final local = localById[id];
+      final remote = remoteById[id];
+      if (remote == null) {
+        merged.add(local!);
+        continue;
+      }
+      if (local == null) {
+        merged.add(remote);
+        continue;
+      }
+      final localUrl = local['imageUrl'] as String? ?? '';
+      final remoteUrl = remote['imageUrl'] as String? ?? '';
+      final omitted = remote['imageOmitted'] == true;
+      final out = Map<String, dynamic>.from(remote);
+      if ((remoteUrl.isEmpty || omitted) && localUrl.isNotEmpty) {
+        out['imageUrl'] = localUrl;
+        out.remove('imageOmitted');
+      }
+      merged.add(out);
+    }
+    return [...keptOther, ...merged];
   }
 
   static List<dynamic> _mergeJoinRequests(List local, List remote) {

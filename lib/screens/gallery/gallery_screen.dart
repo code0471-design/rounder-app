@@ -25,16 +25,85 @@ class _GalleryScreenState extends State<GalleryScreen> {
   static const int _cols = 4;
   static const int _previewCount = _cols * _previewRows; // 12
 
+  /// 같은 제목·같은(또는 ±1일) 날짜 일정이 여러 개면 앨범 하나로 합친다.
+  /// UTC/로컬 변환으로 하루 밀린 중복 일정을 흡수한다.
+  List<_GalleryAlbum> _buildAlbums(
+    List<RoundSchedule> schedules,
+    List<RoundPhoto> allPhotos,
+  ) {
+    final byTitle = <String, List<RoundSchedule>>{};
+    for (final s in schedules) {
+      (byTitle[s.displayTitle.trim()] ??= []).add(s);
+    }
+
+    final albums = <_GalleryAlbum>[];
+    for (final entry in byTitle.entries) {
+      final sorted = List<RoundSchedule>.from(entry.value)
+        ..sort((a, b) => a.roundDate.compareTo(b.roundDate));
+
+      final clusters = <List<RoundSchedule>>[];
+      for (final s in sorted) {
+        final day = DateTime(
+            s.roundDate.year, s.roundDate.month, s.roundDate.day);
+        if (clusters.isEmpty) {
+          clusters.add([s]);
+          continue;
+        }
+        final last = clusters.last;
+        final lastDay = DateTime(last.last.roundDate.year,
+            last.last.roundDate.month, last.last.roundDate.day);
+        final diff = day.difference(lastDay).inDays.abs();
+        if (diff <= 1) {
+          last.add(s);
+        } else {
+          clusters.add([s]);
+        }
+      }
+
+      for (final group in clusters) {
+        final ids = group.map((s) => s.id).toSet();
+        final photos = allPhotos
+            .where((p) => ids.contains(p.scheduleId))
+            .toList()
+          ..sort((a, b) => b.takenAt.compareTo(a.takenAt));
+
+        group.sort((a, b) {
+          final pa = photos.where((p) => p.scheduleId == a.id).length;
+          final pb = photos.where((p) => p.scheduleId == b.id).length;
+          if (pa != pb) return pb.compareTo(pa);
+          if (a.responses.length != b.responses.length) {
+            return b.responses.length.compareTo(a.responses.length);
+          }
+          return b.id.compareTo(a.id);
+        });
+
+        final canonical = group.first;
+        final d = canonical.roundDate;
+        final folderId =
+            '${entry.key}|${d.year}-${d.month.toString().padLeft(2, '0')}-${d.day.toString().padLeft(2, '0')}';
+        albums.add(_GalleryAlbum(
+          schedule: canonical,
+          photos: photos,
+          folderId: folderId,
+        ));
+      }
+    }
+
+    albums.sort(
+        (a, b) => b.schedule.roundDate.compareTo(a.schedule.roundDate));
+    return albums;
+  }
+
   @override
   Widget build(BuildContext context) {
     return Consumer<ClubProvider>(
       builder: (context, provider, _) {
         final allPhotos = provider.clubPhotos;
-        final albumSchedules = provider.schedules;
+        final albums = _buildAlbums(provider.schedules, allPhotos);
 
         return Scaffold(
           backgroundColor: AppColors.background,
-          body: allPhotos.isEmpty && albumSchedules.isEmpty
+          body: allPhotos.isEmpty && albums.isEmpty
               ? const _EmptyGallery(hasPastSchedules: false)
               : CustomScrollView(
                   slivers: [
@@ -75,35 +144,32 @@ class _GalleryScreenState extends State<GalleryScreen> {
                         child: _buildAllPhotosGrid(allPhotos),
                       ),
                     ],
-                    if (albumSchedules.isNotEmpty)
+                    if (albums.isNotEmpty)
                       SliverToBoxAdapter(
                         child: _SectionHeader(
                           title: '라운딩별 앨범',
-                          count: albumSchedules.length,
+                          count: albums.length,
                         ),
                       ),
                     SliverList(
                       delegate: SliverChildBuilderDelegate(
                         (context, index) {
-                          final schedule = albumSchedules[index];
-                          final photos = allPhotos
-                              .where((p) => p.scheduleId == schedule.id)
-                              .toList();
+                          final album = albums[index];
                           final isExpanded =
-                              _expandedFolderId == schedule.id;
+                              _expandedFolderId == album.folderId;
                           return _RoundFolder(
-                            schedule: schedule,
-                            photos: photos,
+                            schedule: album.schedule,
+                            photos: album.photos,
                             isExpanded: isExpanded,
                             onToggle: () => setState(() {
                               _expandedFolderId =
-                                  isExpanded ? null : schedule.id;
+                                  isExpanded ? null : album.folderId;
                             }),
                             onPhotoTap: (idx) =>
-                                _openPhoto(context, photos, idx),
+                                _openPhoto(context, album.photos, idx),
                           );
                         },
-                        childCount: albumSchedules.length,
+                        childCount: albums.length,
                       ),
                     ),
                     const SliverToBoxAdapter(child: SizedBox(height: 24)),
@@ -192,6 +258,18 @@ class _GalleryScreenState extends State<GalleryScreen> {
       ),
     );
   }
+}
+
+class _GalleryAlbum {
+  final RoundSchedule schedule;
+  final List<RoundPhoto> photos;
+  final String folderId;
+
+  const _GalleryAlbum({
+    required this.schedule,
+    required this.photos,
+    required this.folderId,
+  });
 }
 
 // ════════════════════════════════════════════════════════════

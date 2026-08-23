@@ -9,16 +9,27 @@ import '../../models/club_model.dart';
 import '../../providers/club_provider.dart';
 import '../../theme/app_theme.dart';
 
-Future<String?> pickRoundPhotoDataUrl() async {
-  final picked = await ImagePicker().pickImage(
-    source: ImageSource.gallery,
-    maxWidth: 1600,
-    imageQuality: 85,
+/// 여러 장 선택. Firestore 문서 한도 내로 들어가도록 압축.
+Future<List<String>> pickRoundPhotoDataUrls() async {
+  final picked = await ImagePicker().pickMultiImage(
+    maxWidth: 1280,
+    imageQuality: 70,
     requestFullMetadata: false,
   );
-  if (picked == null) return null;
-  final bytes = await picked.readAsBytes();
-  return 'data:image/jpeg;base64,${base64Encode(bytes)}';
+  if (picked.isEmpty) return const [];
+  final out = <String>[];
+  for (final file in picked) {
+    final bytes = await file.readAsBytes();
+    if (bytes.isEmpty) continue;
+    out.add('data:image/jpeg;base64,${base64Encode(bytes)}');
+  }
+  return out;
+}
+
+Future<String?> pickRoundPhotoDataUrl() async {
+  final list = await pickRoundPhotoDataUrls();
+  if (list.isEmpty) return null;
+  return list.first;
 }
 
 class RoundPhotoView extends StatelessWidget {
@@ -64,12 +75,14 @@ class PhotoUploadSheet extends StatefulWidget {
   final RoundSchedule schedule;
   final ClubProvider provider;
   final String? initialDataUrl;
+  final List<String>? initialDataUrls;
 
   const PhotoUploadSheet({
     super.key,
     required this.schedule,
     required this.provider,
     this.initialDataUrl,
+    this.initialDataUrls,
   });
 
   @override
@@ -78,13 +91,21 @@ class PhotoUploadSheet extends StatefulWidget {
 
 class _PhotoUploadSheetState extends State<PhotoUploadSheet> {
   final _captionCtrl = TextEditingController();
-  String? _pickedUrl;
+  late List<String> _pickedUrls;
   bool _picking = false;
 
   @override
   void initState() {
     super.initState();
-    _pickedUrl = widget.initialDataUrl;
+    final fromList = widget.initialDataUrls ?? const <String>[];
+    final fromSingle = widget.initialDataUrl;
+    _pickedUrls = [
+      ...fromList.where((u) => u.trim().isNotEmpty),
+      if (fromSingle != null &&
+          fromSingle.trim().isNotEmpty &&
+          !fromList.contains(fromSingle))
+        fromSingle,
+    ];
   }
 
   @override
@@ -97,9 +118,12 @@ class _PhotoUploadSheetState extends State<PhotoUploadSheet> {
     if (_picking) return;
     setState(() => _picking = true);
     try {
-      final dataUrl = await pickRoundPhotoDataUrl();
-      if (!mounted || dataUrl == null) return;
-      setState(() => _pickedUrl = dataUrl);
+      final dataUrls = await pickRoundPhotoDataUrls();
+      if (!mounted || dataUrls.isEmpty) return;
+      setState(() {
+        // 새로 고른 사진으로 교체 (여러 장 재선택)
+        _pickedUrls = List<String>.from(dataUrls);
+      });
     } catch (_) {
       if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
@@ -110,23 +134,28 @@ class _PhotoUploadSheetState extends State<PhotoUploadSheet> {
     }
   }
 
+  void _removeAt(int index) {
+    setState(() => _pickedUrls.removeAt(index));
+  }
+
   void _upload() {
-    if (_pickedUrl == null) {
+    if (_pickedUrls.isEmpty) {
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(content: Text('갤러리에서 사진을 먼저 선택해 주세요')),
       );
       return;
     }
-    widget.provider.addPhoto(
+    final count = _pickedUrls.length;
+    widget.provider.addPhotos(
       scheduleId: widget.schedule.id,
+      imageUrls: List<String>.from(_pickedUrls),
       caption: _captionCtrl.text,
-      imageUrl: _pickedUrl,
     );
     final messenger = ScaffoldMessenger.of(context);
     Navigator.pop(context);
     messenger.showSnackBar(
       SnackBar(
-        content: const Text('사진이 업로드되었습니다'),
+        content: Text(count == 1 ? '사진이 업로드되었습니다' : '사진 $count장이 업로드되었습니다'),
         backgroundColor: AppColors.primary,
         behavior: SnackBarBehavior.floating,
       ),
@@ -158,36 +187,83 @@ class _PhotoUploadSheetState extends State<PhotoUploadSheet> {
               onTap: _picking ? null : _pick,
               borderRadius: BorderRadius.circular(12),
               child: Ink(
-                height: 140,
+                height: _pickedUrls.isEmpty ? 140 : null,
                 width: double.infinity,
                 decoration: BoxDecoration(
                   borderRadius: BorderRadius.circular(12),
                   border: Border.all(color: AppColors.divider),
                 ),
                 child: _picking
-                    ? const Center(child: CircularProgressIndicator(strokeWidth: 2))
-                    : _pickedUrl != null
-                        ? ClipRRect(
-                            borderRadius: BorderRadius.circular(12),
-                            child: RoundPhotoView(
-                                imageUrl: _pickedUrl!, fit: BoxFit.cover),
+                    ? const SizedBox(
+                        height: 140,
+                        child: Center(
+                            child: CircularProgressIndicator(strokeWidth: 2)),
+                      )
+                    : _pickedUrls.isEmpty
+                        ? const SizedBox(
+                            height: 140,
+                            child: Center(
+                              child: Column(
+                                mainAxisAlignment: MainAxisAlignment.center,
+                                children: [
+                                  Icon(Icons.photo_library_outlined,
+                                      size: 32, color: AppColors.textSecondary),
+                                  SizedBox(height: 6),
+                                  Text(
+                                    '갤러리에서 사진 선택 (여러 장 가능)',
+                                    textAlign: TextAlign.center,
+                                    style: TextStyle(
+                                        fontSize: 13,
+                                        fontWeight: FontWeight.w600,
+                                        color: AppColors.textPrimary),
+                                  ),
+                                ],
+                              ),
+                            ),
                           )
-                        : const Center(
-                            child: Column(
-                              mainAxisAlignment: MainAxisAlignment.center,
-                              children: [
-                                Icon(Icons.photo_library_outlined,
-                                    size: 32, color: AppColors.textSecondary),
-                                SizedBox(height: 6),
-                                Text(
-                                  '갤러리에서 사진 선택',
-                                  textAlign: TextAlign.center,
-                                  style: TextStyle(
-                                      fontSize: 13,
-                                      fontWeight: FontWeight.w600,
-                                      color: AppColors.textPrimary),
-                                ),
-                              ],
+                        : Padding(
+                            padding: const EdgeInsets.all(8),
+                            child: GridView.builder(
+                              shrinkWrap: true,
+                              physics: const NeverScrollableScrollPhysics(),
+                              itemCount: _pickedUrls.length,
+                              gridDelegate:
+                                  const SliverGridDelegateWithFixedCrossAxisCount(
+                                crossAxisCount: 3,
+                                crossAxisSpacing: 6,
+                                mainAxisSpacing: 6,
+                              ),
+                              itemBuilder: (context, index) {
+                                return Stack(
+                                  fit: StackFit.expand,
+                                  children: [
+                                    ClipRRect(
+                                      borderRadius: BorderRadius.circular(8),
+                                      child: RoundPhotoView(
+                                        imageUrl: _pickedUrls[index],
+                                        fit: BoxFit.cover,
+                                      ),
+                                    ),
+                                    Positioned(
+                                      top: 2,
+                                      right: 2,
+                                      child: Material(
+                                        color: Colors.black54,
+                                        shape: const CircleBorder(),
+                                        child: InkWell(
+                                          customBorder: const CircleBorder(),
+                                          onTap: () => _removeAt(index),
+                                          child: const Padding(
+                                            padding: EdgeInsets.all(4),
+                                            child: Icon(Icons.close,
+                                                size: 14, color: Colors.white),
+                                          ),
+                                        ),
+                                      ),
+                                    ),
+                                  ],
+                                );
+                              },
                             ),
                           ),
               ),
@@ -199,14 +275,16 @@ class _PhotoUploadSheetState extends State<PhotoUploadSheet> {
             child: OutlinedButton.icon(
               onPressed: _picking ? null : _pick,
               icon: const Icon(Icons.photo_library_outlined, size: 18),
-              label: Text(_pickedUrl == null ? '갤러리에서 선택' : '다른 사진 선택'),
+              label: Text(_pickedUrls.isEmpty
+                  ? '갤러리에서 여러 장 선택'
+                  : '다시 선택 (${_pickedUrls.length}장)'),
             ),
           ),
           const SizedBox(height: 12),
           TextField(
             controller: _captionCtrl,
             decoration: InputDecoration(
-              hintText: '사진 설명을 입력하세요 (선택)',
+              hintText: '사진 설명을 입력하세요 (선택, 전체 공통)',
               hintStyle: const TextStyle(
                   fontSize: 13, color: AppColors.textSecondary),
               border: OutlineInputBorder(
@@ -226,7 +304,9 @@ class _PhotoUploadSheetState extends State<PhotoUploadSheet> {
                 foregroundColor: Colors.white,
                 minimumSize: const Size.fromHeight(44),
               ),
-              child: const Text('업로드'),
+              child: Text(_pickedUrls.length <= 1
+                  ? '업로드'
+                  : '${_pickedUrls.length}장 업로드'),
             ),
           ),
         ],

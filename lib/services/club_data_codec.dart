@@ -63,6 +63,28 @@ class ClubDataCodec {
       v == null ? null : DateTime.parse(v as String);
   static DateTime _parseDtReq(dynamic v) => DateTime.parse(v as String);
 
+  /// 라운딩 날짜는 달력 일자만 의미 있음 (시·타임존으로 하루 밀림 방지).
+  static String _dateOnly(DateTime d) {
+    final y = d.year.toString().padLeft(4, '0');
+    final m = d.month.toString().padLeft(2, '0');
+    final day = d.day.toString().padLeft(2, '0');
+    return '$y-$m-$day';
+  }
+
+  static DateTime _parseRoundDate(dynamic v) {
+    final s = v as String;
+    final m = RegExp(r'^(\d{4})-(\d{2})-(\d{2})').firstMatch(s);
+    if (m != null) {
+      return DateTime(
+        int.parse(m.group(1)!),
+        int.parse(m.group(2)!),
+        int.parse(m.group(3)!),
+      );
+    }
+    final d = DateTime.parse(s).toLocal();
+    return DateTime(d.year, d.month, d.day);
+  }
+
   static Map<String, dynamic> encode(ClubDataBundle b) => {
         'version': currentVersion,
         'selectedClubIndex': b.selectedClubIndex,
@@ -557,7 +579,8 @@ class ClubDataCodec {
         'id': s.id,
         'clubId': s.clubId,
         'title': s.title,
-        'roundDate': _dt(s.roundDate),
+        // 날짜만 저장 — UTC/로컬 변환으로 하루 밀려 중복 앨범 생기는 것 방지
+        'roundDate': _dateOnly(s.roundDate),
         'teeTime': s.teeTime,
         'courseName': s.courseName,
         'courseAddress': s.courseAddress,
@@ -583,7 +606,7 @@ class ClubDataCodec {
       id: j['id'] as String,
       clubId: j['clubId'] as String,
       title: j['title'] as String,
-      roundDate: _parseDtReq(j['roundDate']),
+      roundDate: _parseRoundDate(j['roundDate']),
       teeTime: j['teeTime'] as String,
       courseName: j['courseName'] as String,
       courseAddress: j['courseAddress'] as String?,
