@@ -18,8 +18,6 @@ class GalleryScreen extends StatefulWidget {
 }
 
 class _GalleryScreenState extends State<GalleryScreen> {
-  bool _showAllPhotos = false; // 전체보기 토글
-
   /// 최근 사진 미리보기: 4열 × 3줄
   static const int _previewRows = 3;
   static const int _cols = 4;
@@ -114,23 +112,21 @@ class _GalleryScreenState extends State<GalleryScreen> {
                           count: allPhotos.length,
                           trailing: allPhotos.length > _previewCount
                               ? GestureDetector(
-                                  onTap: () => setState(
-                                      () => _showAllPhotos = !_showAllPhotos),
-                                  child: Row(
+                                  onTap: () =>
+                                      _openAllPhotos(context, allPhotos),
+                                  child: const Row(
                                     mainAxisSize: MainAxisSize.min,
                                     children: [
                                       Text(
-                                        _showAllPhotos ? '접기' : '전체보기',
-                                        style: const TextStyle(
+                                        '전체보기',
+                                        style: TextStyle(
                                           fontSize: 12,
                                           color: AppColors.primary,
                                           fontWeight: FontWeight.w600,
                                         ),
                                       ),
                                       Icon(
-                                        _showAllPhotos
-                                            ? Icons.keyboard_arrow_up
-                                            : Icons.keyboard_arrow_down,
+                                        Icons.chevron_right_rounded,
                                         size: 16,
                                         color: AppColors.primary,
                                       ),
@@ -172,11 +168,9 @@ class _GalleryScreenState extends State<GalleryScreen> {
     );
   }
 
-  // ── 전체 사진 그리드 빌드 ──
+  // ── 전체 사진 그리드 빌드 (최근 3줄만) ──
   Widget _buildAllPhotosGrid(List<RoundPhoto> allPhotos) {
-    final displayPhotos = _showAllPhotos
-        ? allPhotos
-        : allPhotos.take(_previewCount).toList();
+    final displayPhotos = allPhotos.take(_previewCount).toList();
 
     return Padding(
       padding: const EdgeInsets.fromLTRB(12, 0, 12, 0),
@@ -199,11 +193,9 @@ class _GalleryScreenState extends State<GalleryScreen> {
               );
             },
           ),
-
-          // "전체보기" 버튼 (접혀있고 더 있을 때)
-          if (!_showAllPhotos && allPhotos.length > _previewCount)
+          if (allPhotos.length > _previewCount)
             GestureDetector(
-              onTap: () => setState(() => _showAllPhotos = true),
+              onTap: () => _openAllPhotos(context, allPhotos),
               child: Container(
                 width: double.infinity,
                 margin: const EdgeInsets.only(top: 3),
@@ -220,7 +212,7 @@ class _GalleryScreenState extends State<GalleryScreen> {
                         size: 16, color: AppColors.primary),
                     const SizedBox(width: 6),
                     Text(
-                      '전체 ${allPhotos.length}장 보기',
+                      '전체보기 (${allPhotos.length}장)',
                       style: const TextStyle(
                         fontSize: 13,
                         color: AppColors.primary,
@@ -228,7 +220,7 @@ class _GalleryScreenState extends State<GalleryScreen> {
                       ),
                     ),
                     const SizedBox(width: 4),
-                    const Icon(Icons.keyboard_arrow_down,
+                    const Icon(Icons.chevron_right_rounded,
                         size: 16, color: AppColors.primary),
                   ],
                 ),
@@ -247,6 +239,15 @@ class _GalleryScreenState extends State<GalleryScreen> {
       MaterialPageRoute(
         builder: (_) =>
             _PhotoViewerScreen(photos: photos, initialIndex: index),
+      ),
+    );
+  }
+
+  void _openAllPhotos(BuildContext context, List<RoundPhoto> photos) {
+    Navigator.push(
+      context,
+      MaterialPageRoute(
+        builder: (_) => _AllPhotosScreen(photos: photos),
       ),
     );
   }
@@ -271,6 +272,62 @@ class _GalleryAlbum {
     required this.photos,
     required this.folderId,
   });
+}
+
+/// 전체 사진 그리드 화면 (전체보기)
+class _AllPhotosScreen extends StatelessWidget {
+  final List<RoundPhoto> photos;
+
+  const _AllPhotosScreen({required this.photos});
+
+  @override
+  Widget build(BuildContext context) {
+    return Scaffold(
+      backgroundColor: AppColors.background,
+      appBar: AppBar(
+        backgroundColor: Colors.white,
+        elevation: 0,
+        leading: IconButton(
+          icon: const Icon(Icons.arrow_back_ios_new,
+              size: 18, color: AppColors.textPrimary),
+          onPressed: () => Navigator.pop(context),
+        ),
+        title: Text(
+          '전체 사진 · ${photos.length}장',
+          style: const TextStyle(
+            fontSize: 16,
+            fontWeight: FontWeight.bold,
+            color: AppColors.textPrimary,
+          ),
+        ),
+      ),
+      body: GridView.builder(
+        padding: const EdgeInsets.all(12),
+        gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
+          crossAxisCount: 3,
+          crossAxisSpacing: 4,
+          mainAxisSpacing: 4,
+        ),
+        itemCount: photos.length,
+        itemBuilder: (context, index) {
+          return _PhotoTile(
+            photo: photos[index],
+            onTap: () {
+              Navigator.push(
+                context,
+                MaterialPageRoute(
+                  builder: (_) => _PhotoViewerScreen(
+                    photos: photos,
+                    initialIndex: index,
+                  ),
+                ),
+              );
+            },
+          );
+        },
+      ),
+    );
+  }
 }
 
 // ════════════════════════════════════════════════════════════

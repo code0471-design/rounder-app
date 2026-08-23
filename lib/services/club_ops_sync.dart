@@ -387,9 +387,10 @@ class ClubOpsSync {
       encoded['announcements'] as List?,
       remote['announcements'] as List?,
     );
-    encoded['duesSettings'] = replaceClubList(
+    encoded['duesSettings'] = _mergeClubScopedById(
       encoded['duesSettings'] as List?,
       remote['duesSettings'] as List?,
+      clubId,
     );
     encoded['paymentRequests'] = replaceClubList(
       encoded['paymentRequests'] as List?,
@@ -416,17 +417,11 @@ class ClubOpsSync {
       remote['sponsorApplications'] as List?,
     );
 
-    final remoteDuesIds = (remote['duesSettings'] as List? ?? [])
-        .whereType<Map>()
-        .map((d) => d['id'] as String?)
-        .whereType<String>()
-        .toSet();
-    final duesPayments = <dynamic>[
-      ...(encoded['duesPayments'] as List? ?? []).where((p) =>
-          p is! Map || !remoteDuesIds.contains(p['duesSettingId'])),
-      ..._asDynamicMaps(remote['duesPayments']),
-    ];
-    encoded['duesPayments'] = duesPayments;
+    encoded['duesPayments'] = _mergeDuesPayments(
+      encoded['duesPayments'] as List?,
+      remote['duesPayments'] as List?,
+      remote['duesSettings'] as List?,
+    );
 
     final awards = <dynamic>[
       ...(encoded['awardRecords'] as List? ?? []).where(
@@ -524,6 +519,75 @@ class ClubOpsSync {
       if (id == null) continue;
       byId[id] = m;
     }
+    return byId.values.toList();
+  }
+
+  /// clubId 스코프 목록을 id 기준으로 합친다. 원격이 비어 있으면 로컬 유지.
+  static List<dynamic> _mergeClubScopedById(
+    List? localList,
+    List? remoteList,
+    String clubId,
+  ) {
+    final keptOther = <dynamic>[
+      ...(localList ?? []).where((e) => e is Map && e['clubId'] != clubId),
+    ];
+    final remoteMaps = _asDynamicMaps(remoteList);
+    if (remoteMaps.isEmpty) {
+      return [
+        ...keptOther,
+        ...(localList ?? []).where((e) => e is Map && e['clubId'] == clubId),
+      ];
+    }
+    final byId = <String, Map<String, dynamic>>{};
+    for (final e in localList ?? const []) {
+      if (e is! Map) continue;
+      if (e['clubId'] != clubId) continue;
+      final id = e['id'] as String?;
+      if (id == null || id.isEmpty) continue;
+      byId[id] = Map<String, dynamic>.from(e);
+    }
+    for (final m in remoteMaps) {
+      final id = m['id'] as String?;
+      if (id == null || id.isEmpty) continue;
+      byId[id] = m;
+    }
+    return [...keptOther, ...byId.values];
+  }
+
+  /// 회비 납부 병합: id 합집합. 원격 납부가 비어 있으면 로컬 납부 유지.
+  static List<dynamic> _mergeDuesPayments(
+    List? localList,
+    List? remoteList,
+    List? remoteDuesSettings,
+  ) {
+    final remoteSettings = _asDynamicMaps(remoteDuesSettings);
+    final remoteSettingIds = remoteSettings
+        .map((d) => d['id'] as String?)
+        .whereType<String>()
+        .toSet();
+    final remotePayments = _asDynamicMaps(remoteList);
+
+    // 원격에 회비 설정은 있는데 납부 목록이 비면 → 로컬 납부 보존 (덮어쓰기 방지)
+    if (remotePayments.isEmpty) {
+      return List<dynamic>.from(localList ?? const []);
+    }
+
+    final byId = <String, Map<String, dynamic>>{};
+    for (final e in localList ?? const []) {
+      if (e is! Map) continue;
+      final m = Map<String, dynamic>.from(e);
+      final id = m['id'] as String?;
+      if (id == null || id.isEmpty) continue;
+      byId[id] = m;
+    }
+    for (final m in remotePayments) {
+      final id = m['id'] as String?;
+      if (id == null || id.isEmpty) continue;
+      byId[id] = m;
+    }
+
+    // 원격에 없는 회비설정(다른 모임·시드) 납부는 그대로 유지된 상태
+    if (remoteSettingIds.isEmpty) return byId.values.toList();
     return byId.values.toList();
   }
 

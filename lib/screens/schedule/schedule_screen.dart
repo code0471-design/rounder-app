@@ -3911,7 +3911,7 @@ class _PhotoSection extends StatelessWidget {
                     );
                   },
                 ),
-                if (photos.length > 6) ...[
+                if (photos.isNotEmpty) ...[
                   const SizedBox(height: 8),
                   GestureDetector(
                     onTap: () => _openAlbum(context, photos),

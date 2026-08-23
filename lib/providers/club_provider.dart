@@ -6592,24 +6592,32 @@ class ClubProvider extends ChangeNotifier with WidgetsBindingObserver {
     }
   }
 
-  /// 구버전 시드(2025년 고정)가 남아 현재 연 미납이 전원으로 보이는 문제 교정
+  /// 구버전 시드 제목의 연도만 현재로 맞춘다. 납부 내역은 절대 지우지 않는다.
   void _normalizeStaleDuesSeed() {
     final now = DateTime.now();
+    final y = now.year;
     final monthly = _duesSettings.where((d) => d.id == 'ds1').firstOrNull;
     if (monthly == null) return;
-    if (monthly.title.contains('${now.year}년')) return;
+    if (monthly.title.contains('$y년')) return;
     final looksLikeBuiltInSeed = _duesSettings.isNotEmpty &&
         _duesSettings.every((d) => RegExp(r'^ds\d+$').hasMatch(d.id));
     if (!looksLikeBuiltInSeed) return;
-    _duesSettings
-      ..clear()
-      ..addAll(_seedDuesSettings());
-    _duesPayments
-      ..clear()
-      ..addAll(_seedDuesPayments());
-    _paymentRequests
-      ..clear()
-      ..addAll(_seedPaymentRequests());
+
+    for (var i = 0; i < _duesSettings.length; i++) {
+      final d = _duesSettings[i];
+      var title = d.title;
+      title = title.replaceAllMapped(
+        RegExp(r'(\d{4})년'),
+        (_) => '$y년',
+      );
+      if (title == d.title && d.id == 'ds1' && !title.contains('$y년')) {
+        title = '$y년 월회비';
+      }
+      if (title != d.title) {
+        _duesSettings[i] = d.copyWith(title: title);
+      }
+    }
+    // 납부(_duesPayments)·신청(_paymentRequests)은 유지
   }
 
   static List<DuesSetting> _seedDuesSettings() {

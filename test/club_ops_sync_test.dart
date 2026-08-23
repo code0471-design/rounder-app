@@ -125,4 +125,99 @@ void main() {
     expect(merged.schedules.any((s) => s.id == 's_local'), isFalse);
     expect(merged.members.any((m) => m.id == 'm_c_test_u2'), isTrue);
   });
+
+  test('원격 납부가 비어 있어도 로컬 회비 납부 내역은 유지한다', () {
+    final local = ClubDataBundle(
+      selectedClubIndex: 0,
+      freshClubIds: {'c_test'},
+      myClubs: [
+        Club(
+          id: 'c_test',
+          name: '테스트',
+          myRole: '총무',
+          memberCount: 1,
+          region: '서울',
+          industry: 'IT',
+          teamCount: 4,
+        ),
+      ],
+      allClubs: const [],
+      joinRequests: const [],
+      members: const [],
+      activities: const [],
+      announcements: const [],
+      appNotifications: const [],
+      duesSettings: [
+        DuesSetting(
+          id: 'ds_club_1',
+          type: DuesType.monthly,
+          amount: 50000,
+          title: '2026년 월회비',
+          createdAt: DateTime(2026, 1, 1),
+          clubId: 'c_test',
+        ),
+      ],
+      duesPayments: [
+        DuesPayment(
+          id: 'pay_local_1',
+          memberId: 'm1',
+          memberName: '홍길동',
+          duesSettingId: 'ds_club_1',
+          amount: 50000,
+          paidAt: DateTime(2026, 3, 1),
+          recordedBy: '총무',
+        ),
+      ],
+      paymentRequests: const [],
+      transactions: const [],
+      schedules: const [],
+      photos: const [],
+      groupAssignments: const {},
+      adApplications: const [],
+      adNotifications: const [],
+      sponsorApplications: const [],
+      pointEvents: const {},
+      awardRecords: const [],
+      thankYouMessages: const [],
+      waitingList: const [],
+      alimtalkSettings: const {},
+    );
+
+    final remote = <String, dynamic>{
+      'clubId': 'c_test',
+      'schedules': <dynamic>[],
+      'announcements': <dynamic>[],
+      'members': <dynamic>[],
+      'activities': <dynamic>[],
+      'duesSettings': [
+        {
+          'id': 'ds_club_1',
+          'type': 'monthly',
+          'amount': 50000,
+          'title': '2026년 월회비',
+          'createdAt': DateTime(2026, 1, 1).toIso8601String(),
+          'isActive': true,
+          'clubId': 'c_test',
+          'amountHistory': <dynamic>[],
+        },
+      ],
+      'duesPayments': <dynamic>[],
+      'paymentRequests': <dynamic>[],
+      'transactions': <dynamic>[],
+      'photos': <dynamic>[],
+      'groupAssignments': <String, dynamic>{},
+      'waitingList': <dynamic>[],
+      'alimtalkSettings': <String, dynamic>{},
+      'adApplications': <dynamic>[],
+      'adNotifications': <dynamic>[],
+      'sponsorApplications': <dynamic>[],
+      'awardRecords': <dynamic>[],
+      'thankYouMessages': <dynamic>[],
+      'pointEvents': <String, dynamic>{},
+    };
+
+    final merged = ClubOpsSync.applyRemoteSlice(local, 'c_test', remote);
+    expect(merged.duesPayments.any((p) => p.id == 'pay_local_1'), isTrue);
+    expect(merged.duesSettings.any((d) => d.id == 'ds_club_1'), isTrue);
+  });
 }
