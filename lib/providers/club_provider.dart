@@ -1239,6 +1239,7 @@ class ClubProvider extends ChangeNotifier with WidgetsBindingObserver {
   Future<void> _persistNow() async {
     final authUserId = _persistAuthUserId;
     if (authUserId == null) return;
+    _stampOrphanDuesClubIds();
     final bundle = _exportBundle();
     await ClubPersistence.save(authUserId, bundle);
     if (_applyingCloudOps) return;
@@ -1333,6 +1334,7 @@ class ClubProvider extends ChangeNotifier with WidgetsBindingObserver {
       ..addAll(b.schedules);
     _scrubUndersizedScheduleCapacities();
     _normalizeStaleDuesSeed();
+    _stampOrphanDuesClubIds();
     _photos
       ..clear()
       ..addAll(b.photos);
@@ -2432,6 +2434,17 @@ class ClubProvider extends ChangeNotifier with WidgetsBindingObserver {
         clubId: setting.clubId ?? selectedClub.id,
       ));
     }
+
+    // 회비 설정에 clubId가 없으면 현재 모임으로 붙여 동기화·표시가 유지되게 한다
+    final setIdx = _duesSettings.indexWhere((d) => d.id == duesSettingId);
+    if (setIdx >= 0) {
+      final s = _duesSettings[setIdx];
+      if (s.clubId == null || s.clubId!.isEmpty) {
+        _duesSettings[setIdx] = s.copyWith(clubId: selectedClub.id);
+      }
+    }
+
+    _persistImmediately();
     notifyListeners();
   }
 
@@ -2461,6 +2474,7 @@ class ClubProvider extends ChangeNotifier with WidgetsBindingObserver {
       if (month != null && p.paidAt.month != month) return false;
       return true;
     });
+    _persistImmediately();
     notifyListeners();
   }
 
@@ -4154,7 +4168,7 @@ class ClubProvider extends ChangeNotifier with WidgetsBindingObserver {
   // ════════════════════════════════════════════════════════
   //  Actions — Join Request
   // ════════════════════════════════════════════════════════
-  Future<void> submitJoinRequest({
+  Future<bool> submitJoinRequest({
     required String clubId,
     String message = '',
     // 초대 경로에서 신규 가입자 정보를 직접 전달할 때 사용
@@ -4168,7 +4182,7 @@ class ClubProvider extends ChangeNotifier with WidgetsBindingObserver {
     // 이미 내 모임이면 신청 불가 (탈퇴 잔존/시드 재투입 가드)
     if (isMyClub(clubId)) {
       debugPrint('[ClubProvider] submitJoinRequest blocked — already in $clubId');
-      return;
+      return false;
     }
     final req = JoinRequest(
       id: 'jr_${DateTime.now().millisecondsSinceEpoch}',
@@ -4232,6 +4246,7 @@ class ClubProvider extends ChangeNotifier with WidgetsBindingObserver {
     notifyListeners();
     _persistImmediately();
     await _publishJoinRequestCrossAccount(req, noti);
+    return true;
   }
 
   /// 총무 화면 진입 시 호출 — 공유 대기열 → 알림 강제 동기화
@@ -6618,6 +6633,18 @@ class ClubProvider extends ChangeNotifier with WidgetsBindingObserver {
       }
     }
     // 납부(_duesPayments)·신청(_paymentRequests)은 유지
+  }
+
+  /// clubId 없는 회비 설정에 현재 선택 모임을 붙여 동기화·표시에서 빠지지 않게 한다.
+  void _stampOrphanDuesClubIds() {
+    if (_myClubs.isEmpty) return;
+    final clubId = selectedClub.id;
+    for (var i = 0; i < _duesSettings.length; i++) {
+      final d = _duesSettings[i];
+      if (d.clubId == null || d.clubId!.isEmpty) {
+        _duesSettings[i] = d.copyWith(clubId: clubId);
+      }
+    }
   }
 
   static List<DuesSetting> _seedDuesSettings() {

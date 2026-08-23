@@ -67,9 +67,14 @@ class ClubDetailDashboardScreen extends StatelessWidget {
             legacyProvider.hasPendingRequest(club.id) ||
             legacyProvider.hasPendingRequest(
                 ClubProvider.legacyClubIdFor(club.id));
+        // Firestore 모임은 controller.isMember만 신뢰 (legacy isMyClub 오판으로
+        // 가입 버튼이 '모임 입장'으로 바뀌는 문제 방지)
+        final isLegacyDemo = RegExp(r'^c[1-5]$').hasMatch(club.id) ||
+            club.id.startsWith('seed_');
         final isMine = !left &&
             !isPending &&
-            (legacyProvider.isMyClub(club.id) || controller.isMember);
+            (controller.isMember ||
+                (isLegacyDemo && legacyProvider.isMyClub(club.id)));
         final pending = controller.pendingRequests.isNotEmpty
             ? controller.pendingRequests
             : legacyProvider.pendingRequestsOf(club.id);
@@ -110,6 +115,35 @@ class ClubDetailDashboardScreen extends StatelessWidget {
                 ),
               ),
             ],
+          ),
+          bottomNavigationBar: Material(
+            color: AppColors.primaryDark,
+            child: SafeArea(
+              top: false,
+              child: Padding(
+                padding: const EdgeInsets.fromLTRB(16, 10, 16, 10),
+                child: isMine
+                    ? _MemberBar(
+                        club: club,
+                        isAdmin: isAdmin,
+                        pendingCount: controller.pendingRequests.length,
+                        controller: controller,
+                        legacyProvider: legacyProvider,
+                      )
+                    : isPending
+                        ? _PendingBar(
+                            club: club,
+                            controller: controller,
+                            legacyProvider: legacyProvider,
+                          )
+                        : _JoinBar(
+                            club: club,
+                            controller: controller,
+                            legacyProvider: legacyProvider,
+                            allowRejoin: left,
+                          ),
+              ),
+            ),
           ),
         );
       },
@@ -226,33 +260,6 @@ class _DetailAppBar extends StatelessWidget {
           ),
         ),
       ),
-      bottom: PreferredSize(
-        preferredSize: const Size.fromHeight(52),
-        child: Container(
-          color: AppColors.primaryDark,
-          padding: const EdgeInsets.fromLTRB(16, 0, 16, 10),
-          child: isMine
-              ? _MemberBar(
-                  club: club,
-                  isAdmin: isAdmin,
-                  pendingCount: controller.pendingRequests.length,
-                  controller: controller,
-                  legacyProvider: legacyProvider,
-                )
-              : isPending
-                  ? _PendingBar(
-                      club: club,
-                      controller: controller,
-                      legacyProvider: legacyProvider,
-                    )
-                  : _JoinBar(
-                      club: club,
-                      controller: controller,
-                      legacyProvider: legacyProvider,
-                      allowRejoin: allowRejoin,
-                    ),
-        ),
-      ),
     );
   }
 }
@@ -338,44 +345,44 @@ class _JoinBar extends StatelessWidget {
           ElevatedButton(
             onPressed: () async {
               final message = msgCtrl.text.trim();
-              final legacyId = ClubProvider.legacyClubIdFor(club.id);
               if (allowRejoin) {
                 controller.allowRejoinAfterLeave();
               }
 
-              // 알림/총무 인박스용 ClubProvider 경로 (seed↔legacy 정규화)
-              await legacyProvider.submitJoinRequest(
-                clubId: legacyId,
+              // Firestore 가입 신청을 우선 — legacy isMyClub 오판으로 조용히 실패하던 문제 방지
+              var ok = await controller.submitJoinRequest(
+                user: user,
                 message: message,
-                userId: user.id,
-                userName: user.name,
-                handicap: user.handicap,
+                allowRejoin: allowRejoin,
               );
-
-              var ok = legacyProvider.hasPendingRequest(legacyId) ||
-                  legacyProvider.hasPendingRequest(club.id);
               if (!ok) {
-                ok = await controller.submitJoinRequest(
-                  user: user,
+                final legacyId = ClubProvider.legacyClubIdFor(club.id);
+                final legacyOk = await legacyProvider.submitJoinRequest(
+                  clubId: legacyId,
                   message: message,
-                  allowRejoin: allowRejoin,
+                  userId: user.id,
+                  userName: user.name,
+                  handicap: user.handicap,
                 );
-              } else {
-                final pending = legacyProvider.pendingRequestsOf(legacyId);
-                JoinRequest? mine;
-                for (final r in pending) {
-                  if (r.userId == user.id ||
-                      r.userId == 'user_guest' ||
-                      r.userId == 'mg1') {
-                    mine = r;
-                    break;
+                ok = legacyOk ||
+                    legacyProvider.hasPendingRequest(legacyId) ||
+                    legacyProvider.hasPendingRequest(club.id);
+                if (ok) {
+                  final pending = legacyProvider.pendingRequestsOf(legacyId);
+                  JoinRequest? mine;
+                  for (final r in pending) {
+                    if (r.userId == user.id ||
+                        r.userId == 'user_guest' ||
+                        r.userId == 'mg1') {
+                      mine = r;
+                      break;
+                    }
                   }
-                }
-                if (mine != null) {
-                  controller.markJoinPending(mine);
-                } else {
-                  controller.allowRejoinAfterLeave();
-                  await controller.load(clubId: club.id, userId: user.id);
+                  if (mine != null) {
+                    controller.markJoinPending(mine);
+                  } else {
+                    await controller.load(clubId: club.id, userId: user.id);
+                  }
                 }
               }
 
@@ -386,7 +393,8 @@ class _JoinBar extends StatelessWidget {
                 SnackBar(
                   content: Text(ok
                       ? '가입 신청이 완료되었습니다.'
-                      : controller.errorMessage ?? '신청에 실패했습니다'),
+                      : controller.errorMessage ??
+                          '신청에 실패했습니다. 이미 가입된 모임인지 확인해 주세요.'),
                   backgroundColor:
                       ok ? AppColors.success : AppColors.danger,
                 ),

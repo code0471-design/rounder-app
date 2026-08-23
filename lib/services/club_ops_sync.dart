@@ -39,6 +39,23 @@ class ClubOpsSync {
       slice['updatedAt'] = FieldValue.serverTimestamp();
       slice['schema'] = ClubDataCodec.currentVersion;
 
+      // 로컬 회비가 비어 원격만 있는 경우 merge:false 로 원격 납부를 지워버리지 않음
+      final existing =
+          await _db.doc(FirestorePaths.clubOpsBundle(clubId)).get();
+      if (existing.exists && existing.data() != null) {
+        final remote = Map<String, dynamic>.from(existing.data()!);
+        final localPayments = slice['duesPayments'] as List? ?? const [];
+        final remotePayments = remote['duesPayments'] as List? ?? const [];
+        if (localPayments.isEmpty && remotePayments.isNotEmpty) {
+          slice['duesPayments'] = remotePayments;
+        }
+        final localSettings = slice['duesSettings'] as List? ?? const [];
+        final remoteSettings = remote['duesSettings'] as List? ?? const [];
+        if (localSettings.isEmpty && remoteSettings.isNotEmpty) {
+          slice['duesSettings'] = remoteSettings;
+        }
+      }
+
       await _db
           .doc(FirestorePaths.clubOpsBundle(clubId))
           .set(slice, SetOptions(merge: false));
@@ -304,7 +321,7 @@ class ClubOpsSync {
     }
 
     final duesSettings = (full['duesSettings'] as List? ?? [])
-        .where(clubField)
+        .where((e) => e is Map && e['clubId'] == clubId)
         .map((e) => Map<String, dynamic>.from(e as Map))
         .toList();
     final duesSettingIds =

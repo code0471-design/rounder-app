@@ -110,7 +110,7 @@ class _GalleryScreenState extends State<GalleryScreen> {
                         child: _SectionHeader(
                           title: '전체 사진',
                           count: allPhotos.length,
-                          trailing: allPhotos.length > _previewCount
+                          trailing: allPhotos.isNotEmpty
                               ? GestureDetector(
                                   onTap: () =>
                                       _openAllPhotos(context, allPhotos),
@@ -193,7 +193,7 @@ class _GalleryScreenState extends State<GalleryScreen> {
               );
             },
           ),
-          if (allPhotos.length > _previewCount)
+          if (allPhotos.isNotEmpty)
             GestureDetector(
               onTap: () => _openAllPhotos(context, allPhotos),
               child: Container(
