@@ -2657,8 +2657,18 @@ class ClubProvider extends ChangeNotifier with WidgetsBindingObserver {
     }
   }
 
-  /// 회비 설정 완전 삭제
+  /// 회비 설정 완전 삭제 — 연결 납부·입금요청·회비 수입 거래도 함께 제거
   void deleteDuesSetting(String id) {
+    final paymentIds = _duesPayments
+        .where((p) => p.duesSettingId == id)
+        .map((p) => p.id)
+        .toSet();
+    _transactions.removeWhere((t) =>
+        t.source == TxSource.dues &&
+        t.duesPaymentId != null &&
+        paymentIds.contains(t.duesPaymentId));
+    _duesPayments.removeWhere((p) => p.duesSettingId == id);
+    _paymentRequests.removeWhere((r) => r.duesSettingId == id);
     _duesSettings.removeWhere((d) => d.id == id);
     notifyListeners();
     _persistImmediately();

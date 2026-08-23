@@ -281,19 +281,28 @@ class _JoinBar extends StatelessWidget {
   Widget build(BuildContext context) {
     return SizedBox(
       width: double.infinity,
-      height: 40,
+      height: 48,
       child: ElevatedButton.icon(
         onPressed: controller.actionInProgress
             ? null
             : () => _showJoinDialog(context),
-        icon: const Icon(Icons.person_add_outlined, size: 16),
-        label: const Text('가입 신청',
-            style: TextStyle(fontWeight: FontWeight.bold)),
+        icon: const Icon(Icons.person_add_outlined, size: 18),
+        label: const Text(
+          '가입 신청',
+          style: TextStyle(
+            fontWeight: FontWeight.bold,
+            fontSize: 15,
+            height: 1.2,
+          ),
+        ),
         style: ElevatedButton.styleFrom(
           backgroundColor: AppColors.accent,
           foregroundColor: Colors.white,
           shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
           elevation: 0,
+          padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+          minimumSize: const Size(0, 48),
+          tapTargetSize: MaterialTapTargetSize.shrinkWrap,
         ),
       ),
     );
@@ -471,7 +480,7 @@ class _PendingBar extends StatelessWidget {
       children: [
         Expanded(
           child: Container(
-            height: 40,
+            height: 48,
             decoration: BoxDecoration(
               color: AppColors.warning.withValues(alpha: 0.15),
               borderRadius: BorderRadius.circular(10),
@@ -487,14 +496,15 @@ class _PendingBar extends StatelessWidget {
                     style: TextStyle(
                         color: AppColors.warning,
                         fontWeight: FontWeight.bold,
-                        fontSize: 13)),
+                        fontSize: 13,
+                        height: 1.2)),
               ],
             ),
           ),
         ),
         const SizedBox(width: 8),
         SizedBox(
-          height: 40,
+          height: 48,
           child: OutlinedButton(
             onPressed: controller.actionInProgress
                 ? null
@@ -504,9 +514,11 @@ class _PendingBar extends StatelessWidget {
               side: const BorderSide(color: Colors.white54),
               shape: RoundedRectangleBorder(
                   borderRadius: BorderRadius.circular(10)),
-              padding: const EdgeInsets.symmetric(horizontal: 12),
+              padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 12),
+              minimumSize: const Size(0, 48),
+              tapTargetSize: MaterialTapTargetSize.shrinkWrap,
             ),
-            child: const Text('신청 취소', style: TextStyle(fontSize: 12)),
+            child: const Text('신청 취소', style: TextStyle(fontSize: 12, height: 1.2)),
           ),
         ),
       ],
@@ -561,7 +573,7 @@ class _MemberBar extends StatelessWidget {
         if (isAdmin) ...[
           Expanded(
             child: Container(
-              height: 40,
+              height: 48,
               padding: const EdgeInsets.symmetric(horizontal: 10),
               decoration: BoxDecoration(
                 color: Colors.white.withValues(alpha: 0.15),
@@ -579,7 +591,8 @@ class _MemberBar extends StatelessWidget {
                         style: const TextStyle(
                             color: Colors.white,
                             fontWeight: FontWeight.bold,
-                            fontSize: 13)),
+                            fontSize: 13,
+                            height: 1.2)),
                   ),
                   if (pendingCount > 0) ...[
                     const SizedBox(width: 6),
@@ -605,19 +618,23 @@ class _MemberBar extends StatelessWidget {
         ],
         Expanded(
           child: SizedBox(
-            height: 40,
+            height: 48,
             child: ElevatedButton.icon(
               onPressed: () => _enterClubRoom(context),
-              icon: const Icon(Icons.meeting_room_outlined, size: 16),
+              icon: const Icon(Icons.meeting_room_outlined, size: 18),
               label: Text(isAdmin ? '입장' : '모임 입장',
                   style: const TextStyle(
-                      fontWeight: FontWeight.bold, fontSize: 13)),
+                      fontWeight: FontWeight.bold, fontSize: 13, height: 1.2)),
               style: ElevatedButton.styleFrom(
                 backgroundColor: AppColors.accent,
                 foregroundColor: Colors.white,
                 shape: RoundedRectangleBorder(
                     borderRadius: BorderRadius.circular(10)),
                 elevation: 0,
+                padding:
+                    const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+                minimumSize: const Size(0, 48),
+                tapTargetSize: MaterialTapTargetSize.shrinkWrap,
               ),
             ),
           ),
