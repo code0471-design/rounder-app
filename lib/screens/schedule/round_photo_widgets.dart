@@ -1,5 +1,6 @@
 import 'dart:convert';
 import 'dart:io';
+import 'dart:typed_data';
 
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
@@ -37,12 +38,28 @@ class RoundPhotoView extends StatelessWidget {
   final BoxFit fit;
   final Widget? error;
 
+  /// data URI 디코드 결과 캐시 — Consumer 재빌드 때 깜빡임 방지
+  static final Map<String, Uint8List> _dataUrlCache = {};
+  static const int _cacheMax = 48;
+
   const RoundPhotoView({
     super.key,
     required this.imageUrl,
     this.fit = BoxFit.cover,
     this.error,
   });
+
+  static Uint8List _cachedBytes(String dataUrl) {
+    final key = '${dataUrl.length}_${dataUrl.hashCode}';
+    final hit = _dataUrlCache[key];
+    if (hit != null) return hit;
+    final bytes = base64Decode(dataUrl.split(',').last);
+    if (_dataUrlCache.length >= _cacheMax) {
+      _dataUrlCache.remove(_dataUrlCache.keys.first);
+    }
+    _dataUrlCache[key] = bytes;
+    return bytes;
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -55,17 +72,31 @@ class RoundPhotoView extends StatelessWidget {
 
     if (imageUrl.startsWith('data:image')) {
       try {
-        final b64 = imageUrl.split(',').last;
-        return Image.memory(base64Decode(b64), fit: fit, errorBuilder: (_, __, ___) => fallback);
+        return Image.memory(
+          _cachedBytes(imageUrl),
+          fit: fit,
+          gaplessPlayback: true,
+          errorBuilder: (_, __, ___) => fallback,
+        );
       } catch (_) {
         return fallback;
       }
     }
     if (imageUrl.startsWith('http')) {
-      return Image.network(imageUrl, fit: fit, errorBuilder: (_, __, ___) => fallback);
+      return Image.network(
+        imageUrl,
+        fit: fit,
+        gaplessPlayback: true,
+        errorBuilder: (_, __, ___) => fallback,
+      );
     }
     if (!kIsWeb && imageUrl.isNotEmpty) {
-      return Image.file(File(imageUrl), fit: fit, errorBuilder: (_, __, ___) => fallback);
+      return Image.file(
+        File(imageUrl),
+        fit: fit,
+        gaplessPlayback: true,
+        errorBuilder: (_, __, ___) => fallback,
+      );
     }
     return fallback;
   }

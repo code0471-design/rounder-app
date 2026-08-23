@@ -432,6 +432,7 @@ class ClubProvider extends ChangeNotifier with WidgetsBindingObserver {
       if (_applyingCloudOps) return;
       _applyingCloudOps = true;
       _suppressPersist = true;
+      final beforeSig = _galleryWatchSignature();
       try {
         final merged = ClubOpsSync.applyRemoteSlice(
           _exportBundle(),
@@ -445,9 +446,24 @@ class ClubProvider extends ChangeNotifier with WidgetsBindingObserver {
       } finally {
         _suppressPersist = false;
         _applyingCloudOps = false;
-        notifyListeners();
+        // 사진·일정 등 갤러리 관련 내용이 같으면 통지 생략 → 깜빡임 감소
+        if (beforeSig != _galleryWatchSignature()) {
+          notifyListeners();
+        }
       }
     });
+  }
+
+  String _galleryWatchSignature() {
+    final photoPart = _photos
+        .map((p) => '${p.id}:${p.imageUrl.length}:${p.caption ?? ''}')
+        .join(',');
+    final schedPart = _schedules
+        .map((s) => '${s.id}:${s.responses.length}:${s.title}')
+        .join(',');
+    final duesPart = _duesPayments.map((p) => p.id).join(',');
+    final waitPart = _waitingList.map((w) => '${w.scheduleId}:${w.memberId}').join(',');
+    return '$photoPart|$schedPart|$duesPart|$waitPart|${_announcements.length}';
   }
 
   static String _leftClubsPrefsKey(String authUserId) =>

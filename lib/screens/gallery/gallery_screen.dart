@@ -17,11 +17,27 @@ class GalleryScreen extends StatefulWidget {
   State<GalleryScreen> createState() => _GalleryScreenState();
 }
 
-class _GalleryScreenState extends State<GalleryScreen> {
+class _GalleryScreenState extends State<GalleryScreen>
+    with AutomaticKeepAliveClientMixin {
   /// 최근 사진 미리보기: 4열 × 3줄
   static const int _previewRows = 3;
   static const int _cols = 4;
   static const int _previewCount = _cols * _previewRows; // 12
+
+  @override
+  bool get wantKeepAlive => true;
+
+  /// 사진·일정 id가 같을 때 Consumer 재빌드로 깜빡이지 않게 하는 시그니처
+  static String _gallerySignature(ClubProvider p) {
+    final photos = p.clubPhotos;
+    final schedules = p.schedules;
+    final photoPart = photos
+        .map((x) => '${x.id}:${x.imageUrl.length}:${x.caption ?? ''}')
+        .join(',');
+    final schedPart =
+        schedules.map((s) => '${s.id}:${s.displayTitle}').join(',');
+    return '${photos.length}|$photoPart|$schedPart';
+  }
 
   /// 같은 제목·같은(또는 ±1일) 날짜 일정이 여러 개면 앨범 하나로 합친다.
   /// UTC/로컬 변환으로 하루 밀린 중복 일정을 흡수한다.
@@ -94,8 +110,11 @@ class _GalleryScreenState extends State<GalleryScreen> {
 
   @override
   Widget build(BuildContext context) {
-    return Consumer<ClubProvider>(
-      builder: (context, provider, _) {
+    super.build(context);
+    return Selector<ClubProvider, String>(
+      selector: (_, p) => _gallerySignature(p),
+      builder: (context, _, __) {
+        final provider = context.read<ClubProvider>();
         final allPhotos = provider.clubPhotos;
         final albums = _buildAlbums(provider.schedules, allPhotos);
 
@@ -152,6 +171,7 @@ class _GalleryScreenState extends State<GalleryScreen> {
                         (context, index) {
                           final album = albums[index];
                           return _RoundFolder(
+                            key: ValueKey(album.folderId),
                             schedule: album.schedule,
                             photos: album.photos,
                             onOpen: () => _openAlbum(context, album),
@@ -400,6 +420,7 @@ class _RoundFolder extends StatelessWidget {
   final VoidCallback onOpen;
 
   const _RoundFolder({
+    super.key,
     required this.schedule,
     required this.photos,
     required this.onOpen,
@@ -619,6 +640,7 @@ class _PhotoTile extends StatelessWidget {
       child: Hero(
         tag: 'photo_${photo.id}',
         child: Container(
+          key: ValueKey('thumb_${photo.id}'),
           decoration: const BoxDecoration(
             color: AppColors.divider,
           ),
