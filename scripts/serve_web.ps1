@@ -13,8 +13,10 @@ Get-NetTCPConnection -LocalPort $Port -ErrorAction SilentlyContinue |
   ForEach-Object { Stop-Process -Id $_ -Force -ErrorAction SilentlyContinue }
 
 Set-Location $AppDir
-Write-Host "Building web..." -ForegroundColor Cyan
-& $Flutter build web --release
+Write-Host "Building web (Firebase / no mock)..." -ForegroundColor Cyan
+& $Flutter build web --release `
+  --dart-define=USE_FIREBASE_WEB=true `
+  --dart-define=FORCE_OFFLINE_MOCK=false
 if ($LASTEXITCODE -ne 0) { throw "flutter build web failed" }
 
 Write-Host "Serving: http://${HostName}:${Port}/" -ForegroundColor Green
