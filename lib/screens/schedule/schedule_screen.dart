@@ -1058,6 +1058,11 @@ class ScheduleDetailScreen extends StatelessWidget {
 
                       const SizedBox(height: 16),
 
+                      // ── RSVP 마감 안내 + 대기 명단 (정원 초과 자동 승격) ──
+                      _RsvpWaitingCard(schedule: schedule, isAdmin: isAdmin),
+
+                      const SizedBox(height: 16),
+
                       // ── ④ 스코어/시상 카드 ──
                       _ScoreAwardBannerCard(schedule: schedule, isPast: isPast),
 
@@ -1077,9 +1082,6 @@ class ScheduleDetailScreen extends StatelessWidget {
                       _ReviewMemoCard(schedule: schedule),
 
                       const SizedBox(height: 16),
-
-                      // ── RSVP 마감 안내 + 대기 명단 (정원 초과 자동 승격) ──
-                      _RsvpWaitingCard(schedule: schedule, isAdmin: isAdmin),
 
                       const SizedBox(height: 80),
                     ],
@@ -3823,71 +3825,8 @@ class _PhotoSection extends StatelessWidget {
                                     fontWeight: FontWeight.w700,
                                     color: AppColors.textPrimary)),
                             if (photos.isNotEmpty) ...[
-                              const SizedBox(width: 6),
-                              Container(
-                                padding: const EdgeInsets.symmetric(
-                                    horizontal: 6, vertical: 1),
-                                decoration: BoxDecoration(
-                                  color: AppColors.primary.withValues(alpha: 0.12),
-                                  borderRadius: BorderRadius.circular(10),
-                                ),
-                                child: Text(
-                                  '${photos.length}장',
-                                  style: const TextStyle(
-                                      fontSize: 10,
-                                      fontWeight: FontWeight.w700,
-                                      color: AppColors.primary),
-                                ),
-                              ),
-                            ],
-                          ],
-                        ),
-                        const Text(
-                          '라운딩 사진을 올려 추억을 남기세요',
-                          style: TextStyle(
-                              fontSize: 11,
-                              color: AppColors.textSecondary),
-                        ),
-                      ],
-                    ),
-                  ),
-                  const SizedBox(width: 8),
-                  Material(
-                    color: Colors.transparent,
-                    child: InkWell(
-                      onTap: () => _showUploadDialog(context, provider),
-                      borderRadius: BorderRadius.circular(20),
-                      child: Ink(
-                        padding: const EdgeInsets.symmetric(
-                            horizontal: 10, vertical: 6),
-                        decoration: BoxDecoration(
-                          gradient: const LinearGradient(
-                            colors: [AppColors.primary, AppColors.mintBright],
-                          ),
-                          borderRadius: BorderRadius.circular(20),
-                        ),
-                        child: const Row(
-                          mainAxisSize: MainAxisSize.min,
-                          children: [
-                            Icon(Icons.add_photo_alternate_rounded,
-                                color: Colors.white, size: 14),
-                            SizedBox(width: 4),
-                            Text('사진 추가',
-                                style: TextStyle(
-                                    fontSize: 11,
-                                    fontWeight: FontWeight.w700,
-                                    color: Colors.white)),
-                          ],
-                        ),
-                      ),
-                    ),
-                  ),
-                ],
-              ),
-
-              // ── 사진 그리드 미리보기 ──
-              if (photos.isNotEmpty) ...[
                 const SizedBox(height: 12),
+                // 미리보기: 3열 × 2줄
                 GridView.builder(
                   shrinkWrap: true,
                   physics: const NeverScrollableScrollPhysics(),
@@ -3900,31 +3839,11 @@ class _PhotoSection extends StatelessWidget {
                   itemCount: photos.length.clamp(0, 6),
                   itemBuilder: (context, index) {
                     final photo = photos[index];
-                    final isLast =
-                        index == 5 && photos.length > 6;
                     return GestureDetector(
                       onTap: () => _openViewer(context, photos, index),
                       child: ClipRRect(
                         borderRadius: BorderRadius.circular(8),
-                        child: Stack(
-                          fit: StackFit.expand,
-                          children: [
-                            RoundPhotoView(imageUrl: photo.imageUrl),
-                            if (isLast)
-                              Container(
-                                color: Colors.black.withValues(alpha: 0.6),
-                                child: Center(
-                                  child: Text(
-                                    '+${photos.length - 6}',
-                                    style: const TextStyle(
-                                        color: Colors.white,
-                                        fontSize: 18,
-                                        fontWeight: FontWeight.w800),
-                                  ),
-                                ),
-                              ),
-                          ],
-                        ),
+                        child: RoundPhotoView(imageUrl: photo.imageUrl),
                       ),
                     );
                   },
@@ -3932,7 +3851,7 @@ class _PhotoSection extends StatelessWidget {
                 if (photos.length > 6) ...[
                   const SizedBox(height: 8),
                   GestureDetector(
-                    onTap: () => _openViewer(context, photos, 0),
+                    onTap: () => _openAlbum(context, photos),
                     child: Container(
                       width: double.infinity,
                       padding: const EdgeInsets.symmetric(vertical: 8),
@@ -3942,18 +3861,17 @@ class _PhotoSection extends StatelessWidget {
                         border: Border.all(
                             color: AppColors.primary.withValues(alpha: 0.2)),
                       ),
-                      child: const Text(
-                        '전체 사진 보기',
+                      child: Text(
+                        '전체보기 (${photos.length}장)',
                         textAlign: TextAlign.center,
-                        style: TextStyle(
+                        style: const TextStyle(
                             fontSize: 12,
                             fontWeight: FontWeight.w600,
                             color: AppColors.primary),
                       ),
                     ),
                   ),
-                ],
-              ] else ...[
+                ],              ] else ...[
                 const SizedBox(height: 16),
                 Material(
                   color: const Color(0xFFF8F9FA),
@@ -4013,6 +3931,18 @@ class _PhotoSection extends StatelessWidget {
     );
   }
 
+  void _openAlbum(BuildContext context, List<RoundPhoto> photos) {
+    Navigator.push(
+      context,
+      MaterialPageRoute(
+        builder: (_) => _SchedulePhotoAlbumScreen(
+          title: schedule.displayTitle,
+          photos: photos,
+        ),
+      ),
+    );
+  }
+
   Future<void> _showUploadDialog(
       BuildContext context, ClubProvider provider) async {
     List<String> dataUrls;
@@ -4036,6 +3966,70 @@ class _PhotoSection extends StatelessWidget {
         schedule: schedule,
         provider: provider,
         initialDataUrls: dataUrls,
+      ),
+    );
+  }
+}
+
+
+// ── 일정 라운딩 사진첩 (전체보기) ──
+class _SchedulePhotoAlbumScreen extends StatelessWidget {
+  final String title;
+  final List<RoundPhoto> photos;
+  const _SchedulePhotoAlbumScreen({
+    required this.title,
+    required this.photos,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return Scaffold(
+      backgroundColor: AppColors.background,
+      appBar: AppBar(
+        backgroundColor: Colors.white,
+        elevation: 0,
+        leading: IconButton(
+          icon: const Icon(Icons.arrow_back_ios_new,
+              size: 18, color: AppColors.textPrimary),
+          onPressed: () => Navigator.pop(context),
+        ),
+        title: Text(
+          '$title · ${photos.length}장',
+          style: const TextStyle(
+            fontSize: 16,
+            fontWeight: FontWeight.bold,
+            color: AppColors.textPrimary,
+          ),
+        ),
+      ),
+      body: GridView.builder(
+        padding: const EdgeInsets.all(12),
+        gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
+          crossAxisCount: 3,
+          crossAxisSpacing: 4,
+          mainAxisSpacing: 4,
+        ),
+        itemCount: photos.length,
+        itemBuilder: (context, index) {
+          final photo = photos[index];
+          return GestureDetector(
+            onTap: () {
+              Navigator.push(
+                context,
+                MaterialPageRoute(
+                  builder: (_) => _SchedulePhotoViewer(
+                    photos: photos,
+                    initialIndex: index,
+                  ),
+                ),
+              );
+            },
+            child: ClipRRect(
+              borderRadius: BorderRadius.circular(8),
+              child: RoundPhotoView(imageUrl: photo.imageUrl),
+            ),
+          );
+        },
       ),
     );
   }
@@ -4236,9 +4230,9 @@ class _GroupViewBannerCard extends StatelessWidget {
     required this.isAdmin,
   });
 
-  // 조편성 미리보기 팔레트 (주황 헤더 레퍼런스)
-  static const Color _orange = Color(0xFFFF8F00);
-  static const Color _orangeDeep = Color(0xFFF57C00);
+  // 조편성 미리보기 팔레트 (브랜드 골드 — 딥그린/주황 대신)
+  static const Color _orange = Color(0xFFC9A227);
+  static const Color _orangeDeep = Color(0xFF8F7318);
   static const List<Color> _groupColors = [
     AppColors.primary,
     Color(0xFF00897B),
@@ -4360,12 +4354,12 @@ class _GroupViewBannerCard extends StatelessWidget {
               decoration: BoxDecoration(
                 gradient: isFinalized
                     ? const LinearGradient(
-                        colors: [_orange, Color(0xFFFFB300)],
+                        colors: [_orange, Color(0xFFE0C35A)],
                         begin: Alignment.topLeft,
                         end: Alignment.bottomRight,
                       )
                     : const LinearGradient(
-                        colors: [Color(0xFFFFF3E0), Color(0xFFFFF8E1)],
+                        colors: [Color(0xFFFBF6E4), Color(0xFFF8F1D6)],
                         begin: Alignment.topLeft,
                         end: Alignment.bottomRight,
                       ),

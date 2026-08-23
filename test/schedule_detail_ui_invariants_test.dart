@@ -20,9 +20,11 @@ void main() {
         reason: '일정 상세에서 _InsuranceBannerCard 활성 호출이 다시 켜짐');
   });
 
-  test('조편성 헤더는 주황 톤, 옛 블루/보라 배너 금지', () {
-    expect(source.contains('0xFFFF8F00'), isTrue,
-        reason: '조편성 주황(_orange)이 사라짐');
+  test('조편성 헤더는 브랜드 골드 톤, 옛 블루/보라/주황 배너 금지', () {
+    expect(source.contains('0xFFC9A227'), isTrue,
+        reason: '조편성 골드(_orange→gold)가 사라짐');
+    expect(source.contains('0xFFFF8F00'), isFalse,
+        reason: '옛 주황 조편성 톤이 남아 있음');
     expect(source.contains('0xFF0D47A1'), isFalse);
     expect(source.contains('0xFF1565C0'), isFalse);
     // 스코어/시상/사진 옛 보라 액센트 금지

@@ -19,8 +19,8 @@ class GalleryScreen extends StatefulWidget {
 
 class _GalleryScreenState extends State<GalleryScreen> {
   bool _showAllPhotos = false; // 전체보기 토글
-  String? _expandedFolderId; // 펼쳐진 폴더 ID
 
+  /// 최근 사진 미리보기: 4열 × 3줄
   static const int _previewRows = 3;
   static const int _cols = 4;
   static const int _previewCount = _cols * _previewRows; // 12
@@ -155,18 +155,10 @@ class _GalleryScreenState extends State<GalleryScreen> {
                       delegate: SliverChildBuilderDelegate(
                         (context, index) {
                           final album = albums[index];
-                          final isExpanded =
-                              _expandedFolderId == album.folderId;
                           return _RoundFolder(
                             schedule: album.schedule,
                             photos: album.photos,
-                            isExpanded: isExpanded,
-                            onToggle: () => setState(() {
-                              _expandedFolderId =
-                                  isExpanded ? null : album.folderId;
-                            }),
-                            onPhotoTap: (idx) =>
-                                _openPhoto(context, album.photos, idx),
+                            onOpen: () => _openAlbum(context, album),
                           );
                         },
                         childCount: albums.length,
@@ -258,6 +250,15 @@ class _GalleryScreenState extends State<GalleryScreen> {
       ),
     );
   }
+
+  void _openAlbum(BuildContext context, _GalleryAlbum album) {
+    Navigator.push(
+      context,
+      MaterialPageRoute(
+        builder: (_) => _RoundAlbumScreen(album: album),
+      ),
+    );
+  }
 }
 
 class _GalleryAlbum {
@@ -334,21 +335,17 @@ class _SectionHeader extends StatelessWidget {
 }
 
 // ════════════════════════════════════════════════════════════
-//  라운드별 폴더 위젯 (네이버 밴드 스타일)
+//  라운드별 앨범 행 — 탭하면 사진첩 화면으로 이동
 // ════════════════════════════════════════════════════════════
 class _RoundFolder extends StatelessWidget {
   final RoundSchedule schedule;
   final List<RoundPhoto> photos;
-  final bool isExpanded;
-  final VoidCallback onToggle;
-  final void Function(int index) onPhotoTap;
+  final VoidCallback onOpen;
 
   const _RoundFolder({
     required this.schedule,
     required this.photos,
-    required this.isExpanded,
-    required this.onToggle,
-    required this.onPhotoTap,
+    required this.onOpen,
   });
 
   @override
@@ -366,117 +363,73 @@ class _RoundFolder extends StatelessWidget {
           ),
         ],
       ),
-      child: Column(
-        children: [
-          // ── 폴더 헤더 ──
-          InkWell(
-            onTap: onToggle,
-            borderRadius: BorderRadius.vertical(
-              top: const Radius.circular(14),
-              bottom: isExpanded
-                  ? Radius.zero
-                  : const Radius.circular(14),
-            ),
-            child: Padding(
-              padding: const EdgeInsets.fromLTRB(14, 12, 12, 12),
-              child: Row(
-                children: [
-                  // 폴더 아이콘
-                  Container(
-                    width: 44,
-                    height: 44,
-                    decoration: BoxDecoration(
-                      color: AppColors.primary.withValues(alpha: 0.1),
-                      borderRadius: BorderRadius.circular(10),
-                    ),
-                    child: _buildFolderThumb(),
-                  ),
-                  const SizedBox(width: 12),
-                  // 제목 + 날짜
-                  Expanded(
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        Text(
-                          schedule.displayTitle,
-                          style: const TextStyle(
-                            fontSize: 14,
-                            fontWeight: FontWeight.bold,
-                            color: AppColors.textPrimary,
-                          ),
-                          maxLines: 1,
-                          overflow: TextOverflow.ellipsis,
-                        ),
-                        const SizedBox(height: 2),
-                        Text(
-                          _formatDate(schedule.roundDate),
-                          style: const TextStyle(
-                            fontSize: 12,
-                            color: AppColors.textSecondary,
-                          ),
-                        ),
-                      ],
-                    ),
-                  ),
-                  // 사진 수 배지 — 민트 캡슐
-                  Container(
-                    padding: const EdgeInsets.symmetric(
-                        horizontal: 10, vertical: 4),
-                    decoration: BoxDecoration(
-                      color: AppColors.mintBadge,
-                      borderRadius: BorderRadius.circular(14),
-                    ),
-                    child: Text(
-                      '${photos.length}장',
+      child: InkWell(
+        onTap: onOpen,
+        borderRadius: BorderRadius.circular(14),
+        child: Padding(
+          padding: const EdgeInsets.fromLTRB(14, 12, 12, 12),
+          child: Row(
+            children: [
+              Container(
+                width: 44,
+                height: 44,
+                decoration: BoxDecoration(
+                  color: AppColors.primary.withValues(alpha: 0.1),
+                  borderRadius: BorderRadius.circular(10),
+                ),
+                child: _buildFolderThumb(),
+              ),
+              const SizedBox(width: 12),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      schedule.displayTitle,
                       style: const TextStyle(
-                        fontSize: 11,
-                        color: AppColors.primary,
+                        fontSize: 14,
                         fontWeight: FontWeight.bold,
+                        color: AppColors.textPrimary,
+                      ),
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                    ),
+                    const SizedBox(height: 2),
+                    Text(
+                      _formatDate(schedule.roundDate),
+                      style: const TextStyle(
+                        fontSize: 12,
+                        color: AppColors.textSecondary,
                       ),
                     ),
-                  ),
-                  const SizedBox(width: 4),
-                  // 접기/펼치기 화살표
-                  AnimatedRotation(
-                    turns: isExpanded ? 0.5 : 0,
-                    duration: const Duration(milliseconds: 200),
-                    child: const Icon(
-                      Icons.keyboard_arrow_down,
-                      color: AppColors.textSecondary,
-                      size: 20,
-                    ),
-                  ),
-                ],
+                  ],
+                ),
               ),
-            ),
+              Container(
+                padding:
+                    const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+                decoration: BoxDecoration(
+                  color: AppColors.mintBadge,
+                  borderRadius: BorderRadius.circular(14),
+                ),
+                child: Text(
+                  '${photos.length}장',
+                  style: const TextStyle(
+                    fontSize: 11,
+                    color: AppColors.primary,
+                    fontWeight: FontWeight.bold,
+                  ),
+                ),
+              ),
+              const SizedBox(width: 4),
+              const Icon(
+                Icons.chevron_right_rounded,
+                color: AppColors.textSecondary,
+                size: 22,
+              ),
+            ],
           ),
-
-          // ── 펼쳐진 사진 그리드 ──
-          if (isExpanded) ...[
-            Container(
-              height: 1,
-              color: AppColors.divider,
-            ),
-            Padding(
-              padding: const EdgeInsets.all(8),
-              child: GridView.builder(
-                shrinkWrap: true,
-                physics: const NeverScrollableScrollPhysics(),
-                gridDelegate:
-                    const SliverGridDelegateWithFixedCrossAxisCount(
-                  crossAxisCount: 4,
-                  crossAxisSpacing: 3,
-                  mainAxisSpacing: 3,
-                ),
-                itemCount: photos.length,
-                itemBuilder: (context, index) => _PhotoTile(
-                  photo: photos[index],
-                  onTap: () => onPhotoTap(index),
-                ),
-              ),
-            ),
-          ],
-        ],
+        ),
       ),
     );
   }
@@ -503,6 +456,93 @@ class _RoundFolder extends StatelessWidget {
 
   String _formatDate(DateTime dt) {
     return '${dt.year}.${dt.month.toString().padLeft(2, '0')}.${dt.day.toString().padLeft(2, '0')}';
+  }
+}
+
+/// 라운딩별 사진첩 (모임명 탭 진입)
+class _RoundAlbumScreen extends StatelessWidget {
+  final _GalleryAlbum album;
+
+  const _RoundAlbumScreen({required this.album});
+
+  @override
+  Widget build(BuildContext context) {
+    final photos = album.photos;
+    final d = album.schedule.roundDate;
+    final dateLabel =
+        '${d.year}.${d.month.toString().padLeft(2, '0')}.${d.day.toString().padLeft(2, '0')}';
+
+    return Scaffold(
+      backgroundColor: AppColors.background,
+      appBar: AppBar(
+        backgroundColor: Colors.white,
+        elevation: 0,
+        leading: IconButton(
+          icon: const Icon(Icons.arrow_back_ios_new,
+              size: 18, color: AppColors.textPrimary),
+          onPressed: () => Navigator.pop(context),
+        ),
+        title: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text(
+              album.schedule.displayTitle,
+              style: const TextStyle(
+                fontSize: 16,
+                fontWeight: FontWeight.bold,
+                color: AppColors.textPrimary,
+              ),
+            ),
+            Text(
+              '$dateLabel · ${photos.length}장',
+              style: const TextStyle(
+                fontSize: 12,
+                color: AppColors.textSecondary,
+                fontWeight: FontWeight.w400,
+              ),
+            ),
+          ],
+        ),
+      ),
+      body: photos.isEmpty
+          ? const Center(
+              child: Column(
+                mainAxisAlignment: MainAxisAlignment.center,
+                children: [
+                  Icon(Icons.photo_album_outlined,
+                      size: 48, color: AppColors.textSecondary),
+                  SizedBox(height: 12),
+                  Text('아직 사진이 없습니다',
+                      style: TextStyle(color: AppColors.textSecondary)),
+                ],
+              ),
+            )
+          : GridView.builder(
+              padding: const EdgeInsets.all(12),
+              gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
+                crossAxisCount: 3,
+                crossAxisSpacing: 4,
+                mainAxisSpacing: 4,
+              ),
+              itemCount: photos.length,
+              itemBuilder: (context, index) {
+                return _PhotoTile(
+                  photo: photos[index],
+                  onTap: () {
+                    Navigator.push(
+                      context,
+                      MaterialPageRoute(
+                        builder: (_) => _PhotoViewerScreen(
+                          photos: photos,
+                          initialIndex: index,
+                        ),
+                      ),
+                    );
+                  },
+                );
+              },
+            ),
+    );
   }
 }
 

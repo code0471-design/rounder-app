@@ -7,7 +7,7 @@ import 'rounder_logo.dart';
 
 /// 앱 전역 상단 헤더 — 화이트 배경 + 확대 투명 로고 + 알림/프로필
 class AppHeader extends StatelessWidget {
-  static const logoHeight = 42.0;
+  static const logoHeight = 34.0;
 
   final VoidCallback onNotificationTap;
   final VoidCallback? onProfileTap;
