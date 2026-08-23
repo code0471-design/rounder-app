@@ -168,17 +168,41 @@ class _TreasurerTransferScreenState extends State<TreasurerTransferScreen> {
                     ),
                     const SizedBox(height: 4),
                     Text(
-                      '인수인계할 회원을 선택해 주세요',
+                      members.isEmpty
+                          ? '선택 가능한 회원이 없습니다'
+                          : '아래 목록에서 인수인계할 회원을 눌러 주세요',
                       style: TextStyle(
                           fontSize: 12, color: Colors.grey.shade500),
                     ),
                     const SizedBox(height: 12),
-                    ...members.map((m) => _MemberSelectCard(
-                          member: m,
-                          selected: _selectedNewTreasurerId == m.id,
-                          onTap: () => setState(
-                              () => _selectedNewTreasurerId = m.id),
-                        )),
+                    if (members.isEmpty)
+                      Container(
+                        width: double.infinity,
+                        padding: const EdgeInsets.all(16),
+                        decoration: BoxDecoration(
+                          color: const Color(0xFFFFF8E1),
+                          borderRadius: BorderRadius.circular(12),
+                          border: Border.all(
+                              color: const Color(0xFFFFE082)),
+                        ),
+                        child: Text(
+                          vacantAppoint
+                              ? '활성 정회원이 없어 총무를 선임할 수 없습니다.\n회원 가입·승인 후 다시 시도해 주세요.'
+                              : '나 외에 활성 정회원이 있어야 인수인계할 수 있습니다.\n(현 총무·게스트·비활성 회원은 목록에 나오지 않습니다)',
+                          style: TextStyle(
+                            fontSize: 13,
+                            height: 1.45,
+                            color: Colors.orange.shade900,
+                          ),
+                        ),
+                      )
+                    else
+                      ...members.map((m) => _MemberSelectCard(
+                            member: m,
+                            selected: _selectedNewTreasurerId == m.id,
+                            onTap: () => setState(
+                                () => _selectedNewTreasurerId = m.id),
+                          )),
                     const SizedBox(height: 20),
 
                     // ── 인수인계 체크리스트 ──
@@ -534,68 +558,78 @@ class _MemberSelectCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return GestureDetector(
-      onTap: onTap,
-      child: Container(
-        margin: const EdgeInsets.only(bottom: 8),
-        padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
-        decoration: BoxDecoration(
-          color: selected
-              ? AppColors.primary.withValues(alpha: 0.06)
-              : Colors.white,
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 8),
+      child: Material(
+        color: selected
+            ? AppColors.primary.withValues(alpha: 0.06)
+            : Colors.white,
+        borderRadius: BorderRadius.circular(12),
+        child: InkWell(
+          onTap: onTap,
           borderRadius: BorderRadius.circular(12),
-          border: Border.all(
-            color: selected
-                ? AppColors.primary.withValues(alpha: 0.4)
-                : Colors.grey.shade200,
-            width: selected ? 1.5 : 1,
-          ),
-        ),
-        child: Row(
-          children: [
-            CircleAvatar(
-              radius: 20,
-              backgroundColor: selected
-                  ? AppColors.primary.withValues(alpha: 0.15)
-                  : Colors.grey.shade100,
-              child: Text(
-                member.name[0],
-                style: TextStyle(
-                  fontWeight: FontWeight.bold,
-                  color: selected ? AppColors.primary : AppColors.textSecondary,
-                ),
+          child: Container(
+            padding:
+                const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+            decoration: BoxDecoration(
+              borderRadius: BorderRadius.circular(12),
+              border: Border.all(
+                color: selected
+                    ? AppColors.primary.withValues(alpha: 0.4)
+                    : Colors.grey.shade200,
+                width: selected ? 1.5 : 1,
               ),
             ),
-            const SizedBox(width: 12),
-            Expanded(
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Text(
-                    member.name,
+            child: Row(
+              children: [
+                CircleAvatar(
+                  radius: 20,
+                  backgroundColor: selected
+                      ? AppColors.primary.withValues(alpha: 0.15)
+                      : Colors.grey.shade100,
+                  child: Text(
+                    member.name.isNotEmpty ? member.name[0] : '?',
                     style: TextStyle(
                       fontWeight: FontWeight.bold,
-                      fontSize: 14,
                       color: selected
                           ? AppColors.primary
-                          : AppColors.textPrimary,
+                          : AppColors.textSecondary,
                     ),
                   ),
-                  Text(
-                    '${member.role} · ${member.memberType}',
-                    style: const TextStyle(
-                        fontSize: 11, color: AppColors.textSecondary),
+                ),
+                const SizedBox(width: 12),
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        member.name,
+                        style: TextStyle(
+                          fontWeight: FontWeight.bold,
+                          fontSize: 14,
+                          color: selected
+                              ? AppColors.primary
+                              : AppColors.textPrimary,
+                        ),
+                      ),
+                      Text(
+                        '${member.role} · ${member.memberType}',
+                        style: const TextStyle(
+                            fontSize: 11,
+                            color: AppColors.textSecondary),
+                      ),
+                    ],
                   ),
-                ],
-              ),
+                ),
+                if (selected)
+                  const Icon(Icons.check_circle,
+                      color: AppColors.primary, size: 22)
+                else
+                  Icon(Icons.radio_button_unchecked,
+                      color: Colors.grey.shade300, size: 22),
+              ],
             ),
-            if (selected)
-              const Icon(Icons.check_circle,
-                  color: AppColors.primary, size: 22)
-            else
-              Icon(Icons.radio_button_unchecked,
-                  color: Colors.grey.shade300, size: 22),
-          ],
+          ),
         ),
       ),
     );
