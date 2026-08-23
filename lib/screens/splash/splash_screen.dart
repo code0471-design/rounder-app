@@ -86,9 +86,13 @@ class _SplashScreenState extends State<SplashScreen> {
 
     final frag = Uri.base.fragment;
     final wantsAdmin = frag == '/admin' || frag == 'admin';
+    final needsPhone =
+        autoLoggedIn && context.read<AuthProvider>().needsPhoneNumber;
     final route = wantsAdmin
         ? '/admin'
-        : (autoLoggedIn ? '/main' : '/login');
+        : (autoLoggedIn
+            ? (needsPhone ? '/phone-required' : '/main')
+            : '/login');
     await Navigator.of(context).pushReplacementNamed(route);
 
     if (bootstrapNote != null && mounted) {

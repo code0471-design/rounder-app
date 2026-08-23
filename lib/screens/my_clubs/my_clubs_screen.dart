@@ -18,8 +18,25 @@ import 'widgets/home_club_card.dart';
 // ════════════════════════════════════════════════════════════
 //  MyClubsScreen — Premium Home (Clean Slate v1)
 // ════════════════════════════════════════════════════════════
-class MyClubsScreen extends StatelessWidget {
+class MyClubsScreen extends StatefulWidget {
   const MyClubsScreen({super.key});
+
+  @override
+  State<MyClubsScreen> createState() => _MyClubsScreenState();
+}
+
+class _MyClubsScreenState extends State<MyClubsScreen> {
+  @override
+  void initState() {
+    super.initState();
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (!mounted) return;
+      final auth = context.read<AuthProvider>();
+      if (auth.isLoggedIn && auth.needsPhoneNumber) {
+        Navigator.of(context).pushReplacementNamed('/phone-required');
+      }
+    });
+  }
 
   Future<void> _refreshClubs(BuildContext context) async {
     final auth = context.read<AuthProvider>();

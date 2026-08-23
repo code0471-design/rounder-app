@@ -47,6 +47,16 @@ class AuthProvider extends ChangeNotifier {
   /// 현재 유저 역할 (관리자 여부)
   bool get isAdmin => _currentUser?.isAdmin ?? false;
 
+  /// 소셜 로그인 등 — 휴대폰 번호가 없으면 필수 수집 대상
+  bool get needsPhoneNumber {
+    final user = _currentUser;
+    if (user == null) return false;
+    return _normalizePhone(user.phone).length < 10;
+  }
+
+  static bool isPhoneMissing(String? phone) =>
+      (phone ?? '').replaceAll(RegExp(r'[^0-9]'), '').length < 10;
+
   // ── 자동로그인 설정 ──────────────────────────────────────
   bool _autoLogin = false;
   bool get autoLogin => _autoLogin;
@@ -138,7 +148,29 @@ class AuthProvider extends ChangeNotifier {
     }
 
     _currentUser = user;
-    await FirebaseAuthBridge.ensureSignedIn(user);
+    // Firestore에 이미 번호가 있으면 로컬 세션 보강 (다른 기기에서 등록한 경우)
+    if (needsPhoneNumber) {
+      try {
+        final deps = AppDependencies.instance;
+        if (deps.isInitialized && !deps.isOfflineMockMode) {
+          final doc = await FirebaseFirestore.instance
+              .collection(FirestorePaths.users)
+              .doc(user.id)
+              .get();
+          final remotePhone = doc.data()?['phone'] as String?;
+          if (!isPhoneMissing(remotePhone)) {
+            final updated = user.copyWith(phone: formatPhone(remotePhone!));
+            final idx = _registeredUsers.indexWhere((u) => u.id == user.id);
+            if (idx >= 0) _registeredUsers[idx] = updated;
+            _currentUser = updated;
+            await prefs.setString(_kSavedPhone, updated.phone);
+          }
+        }
+      } catch (e) {
+        debugPrint('[AuthProvider] hydrate phone skip: $e');
+      }
+    }
+    await FirebaseAuthBridge.ensureSignedIn(_currentUser!);
     notifyListeners();
     return true;
   }
@@ -288,6 +320,101 @@ class AuthProvider extends ChangeNotifier {
     notifyListeners();
     unawaited(PushNotificationService.bindUserIds([user.id]));
     return user;
+  }
+
+  /// 소셜 로그인 후 휴대폰 번호 등록 (본인인증 완료 시)
+  Future<AppUser?> attachPhoneToCurrentUser({
+    required String phone,
+    required VerifyMethod verifyMethod,
+  }) async {
+    final current = _currentUser;
+    if (current == null) return null;
+
+    final formatted = formatPhone(phone);
+    if (_normalizePhone(formatted).length < 10) return null;
+
+    // 다른 계정에 이미 쓰인 번호인지 확인
+    final occupied = findUserByPhone(formatted);
+    if (occupied != null && occupied.id != current.id) {
+      throw StateError('이미 다른 계정에 등록된 전화번호입니다.');
+    }
+
+    final updated = current.copyWith(
+      phone: formatted,
+      isVerified: true,
+      verifyMethod: verifyMethod,
+    );
+
+    final idx = _registeredUsers.indexWhere((u) => u.id == current.id);
+    if (idx >= 0) {
+      _registeredUsers[idx] = updated;
+    } else {
+      _registeredUsers.add(updated);
+    }
+    _currentUser = updated;
+
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.setString(_kSavedPhone, updated.phone);
+    await prefs.setString(_kLastLoginId, updated.id);
+    await prefs.setString(_kLastLoginName, updated.name);
+    await prefs.setBool(_kAutoLogin, true);
+    _autoLogin = true;
+
+    await FirebaseAuthBridge.ensureSignedIn(updated);
+    await _persistPlatformUser(updated);
+    await _propagatePhoneToClubMembers(updated);
+
+    notifyListeners();
+    return updated;
+  }
+
+  /// users + 클럽 members 문서에 전화번호 반영
+  Future<void> _propagatePhoneToClubMembers(AppUser user) async {
+    if (_normalizePhone(user.phone).isEmpty) return;
+    try {
+      final deps = AppDependencies.instance;
+      if (deps.isOfflineMockMode) {
+        final store = deps.mockDataStore;
+        store?.upsertAppUser(
+          MockAppUser(
+            id: user.id,
+            name: user.name,
+            phone: user.phone,
+            gender: '남',
+            createdAt: user.createdAt,
+          ),
+        );
+        return;
+      }
+
+      // clubs/*/members 에서 동일 user id 문서 phone 보강
+      final snap = await FirebaseFirestore.instance
+          .collectionGroup(FirestorePaths.members)
+          .get();
+      final batch = FirebaseFirestore.instance.batch();
+      var writes = 0;
+      for (final doc in snap.docs) {
+        final data = doc.data();
+        final id = data['id'] as String? ?? doc.id;
+        final userId = data['user_id'] as String? ?? data['userId'] as String?;
+        final match = id == user.id ||
+            userId == user.id ||
+            doc.id == user.id ||
+            doc.id.endsWith('_${user.id}');
+        if (!match) continue;
+        final existing = (data['phone'] as String?)?.trim() ?? '';
+        if (existing.replaceAll(RegExp(r'[^0-9]'), '').length >= 10) continue;
+        batch.set(doc.reference, {
+          'phone': user.phone,
+          'updated_at': FieldValue.serverTimestamp(),
+        }, SetOptions(merge: true));
+        writes++;
+        if (writes >= 40) break; // 안전 상한
+      }
+      if (writes > 0) await batch.commit();
+    } catch (e) {
+      debugPrint('[AuthProvider] propagate phone to members failed: $e');
+    }
   }
 
   /// 기존 동기 login (하위 호환)

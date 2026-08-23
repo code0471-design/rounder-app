@@ -4861,6 +4861,32 @@ class ClubProvider extends ChangeNotifier with WidgetsBindingObserver {
     }
   }
 
+  /// 소셜 로그인 후 등록한 휴대폰을 로컬 명단에 반영
+  void syncAuthUserPhone(String phone) {
+    final authId = _persistAuthUserId ?? currentUserId;
+    if (authId.isEmpty || phone.trim().isEmpty) return;
+    var changed = false;
+    for (var i = 0; i < _members.length; i++) {
+      final m = _members[i];
+      final match = m.id == authId ||
+          m.id == currentUserId ||
+          (_persistAuthUserId != null &&
+              _userIdsMatch(m.id, _persistAuthUserId)) ||
+          m.id.endsWith('_$authId') ||
+          m.id == 'm_creator_${selectedClub.id}';
+      if (!match) continue;
+      if ((m.phone ?? '').replaceAll(RegExp(r'[^0-9]'), '').length >= 10) {
+        continue;
+      }
+      _members[i] = m.copyWith(phone: phone);
+      changed = true;
+    }
+    if (changed) {
+      notifyListeners();
+      _persistImmediately();
+    }
+  }
+
   /// 마이페이지 직책 변경 — 명단·Club.myRole을 모임 단위로 확실히 반영
   bool setMyRoleForClub(String clubId, String role) {
     final roleEncoded = ClubMemberRole.encodeRoles(

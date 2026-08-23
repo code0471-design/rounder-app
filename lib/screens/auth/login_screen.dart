@@ -74,7 +74,10 @@ class _LoginScreenState extends State<LoginScreen> {
       if (!mounted) return;
       await _syncClubProvider();
       if (!mounted) return;
-      Navigator.of(context).pushReplacementNamed('/main');
+      final needsPhone = context.read<AuthProvider>().needsPhoneNumber;
+      Navigator.of(context).pushReplacementNamed(
+        needsPhone ? '/phone-required' : '/main',
+      );
     } catch (e) {
       if (!mounted) return;
       final msg = e is SocialAuthException
