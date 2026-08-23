@@ -3825,8 +3825,71 @@ class _PhotoSection extends StatelessWidget {
                                     fontWeight: FontWeight.w700,
                                     color: AppColors.textPrimary)),
                             if (photos.isNotEmpty) ...[
+                              const SizedBox(width: 6),
+                              Container(
+                                padding: const EdgeInsets.symmetric(
+                                    horizontal: 6, vertical: 1),
+                                decoration: BoxDecoration(
+                                  color: AppColors.primary.withValues(alpha: 0.12),
+                                  borderRadius: BorderRadius.circular(10),
+                                ),
+                                child: Text(
+                                  '${photos.length}장',
+                                  style: const TextStyle(
+                                      fontSize: 10,
+                                      fontWeight: FontWeight.w700,
+                                      color: AppColors.primary),
+                                ),
+                              ),
+                            ],
+                          ],
+                        ),
+                        const Text(
+                          '라운딩 사진을 올려 추억을 남기세요',
+                          style: TextStyle(
+                              fontSize: 11,
+                              color: AppColors.textSecondary),
+                        ),
+                      ],
+                    ),
+                  ),
+                  const SizedBox(width: 8),
+                  Material(
+                    color: Colors.transparent,
+                    child: InkWell(
+                      onTap: () => _showUploadDialog(context, provider),
+                      borderRadius: BorderRadius.circular(20),
+                      child: Ink(
+                        padding: const EdgeInsets.symmetric(
+                            horizontal: 10, vertical: 6),
+                        decoration: BoxDecoration(
+                          gradient: const LinearGradient(
+                            colors: [AppColors.primary, AppColors.mintBright],
+                          ),
+                          borderRadius: BorderRadius.circular(20),
+                        ),
+                        child: const Row(
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            Icon(Icons.add_photo_alternate_rounded,
+                                color: Colors.white, size: 14),
+                            SizedBox(width: 4),
+                            Text('사진 추가',
+                                style: TextStyle(
+                                    fontSize: 11,
+                                    fontWeight: FontWeight.w700,
+                                    color: Colors.white)),
+                          ],
+                        ),
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+
+              // ── 사진 그리드 미리보기 (3열 × 2줄) ──
+              if (photos.isNotEmpty) ...[
                 const SizedBox(height: 12),
-                // 미리보기: 3열 × 2줄
                 GridView.builder(
                   shrinkWrap: true,
                   physics: const NeverScrollableScrollPhysics(),
@@ -3871,7 +3934,8 @@ class _PhotoSection extends StatelessWidget {
                       ),
                     ),
                   ),
-                ],              ] else ...[
+                ],
+              ] else ...[
                 const SizedBox(height: 16),
                 Material(
                   color: const Color(0xFFF8F9FA),
@@ -3970,6 +4034,7 @@ class _PhotoSection extends StatelessWidget {
     );
   }
 }
+
 
 
 // ── 일정 라운딩 사진첩 (전체보기) ──
