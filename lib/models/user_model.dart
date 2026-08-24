@@ -121,8 +121,12 @@ class InviteToken {
   bool get isValid => !isExpired && !isUsed;
   bool get isGuestInvite => inviteType == InviteMemberType.guest;
 
-  /// 앱 딥링크 URL (실제 배포 시 도메인으로 교체)
-  String get deepLink => 'rounder://invite?token=$token&club=$clubId';
+  /// 앱 딥링크 URL
+  String get deepLink {
+    final name = Uri.encodeComponent(clubName);
+    final inviter = Uri.encodeComponent(inviterName);
+    return 'rounder://invite?token=$token&club=$clubId&name=$name&inviter=$inviter';
+  }
 
   /// 카카오 공유용 웹 URL (실제 배포 시 도메인으로 교체)
   String get webUrl =>

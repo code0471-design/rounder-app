@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_localizations/flutter_localizations.dart';
@@ -17,6 +19,7 @@ import '../screens/auth/phone_required_screen.dart';
 import '../screens/clubs/create_club_screen.dart';
 import '../screens/my_clubs/my_clubs_screen.dart';
 import '../screens/splash/splash_screen.dart';
+import '../services/deep_link_service.dart';
 import '../theme/app_theme.dart';
 import 'app_startup_result.dart';
 
@@ -30,6 +33,13 @@ class RounderApp extends StatefulWidget {
 }
 
 class _RounderAppState extends State<RounderApp> {
+  @override
+  void initState() {
+    super.initState();
+    if (!_isWebAdminMode()) {
+      unawaited(DeepLinkService.instance.start());
+    }
+  }
 
   /// 웹 기본 = 어드민. 앱만 볼 때는 `?app=1`.
   /// `#/login` `#/main` 같은 예전 해시가 남아 있어도 어드민을 덮지 않음.

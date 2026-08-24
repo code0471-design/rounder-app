@@ -24,6 +24,7 @@ import '../sponsor/thank_you_feed_screen.dart';
 import '../clubs/club_settings_screen.dart';
 import '../members/treasurer_transfer_screen.dart';
 import '../alimtalk/alimtalk_settings_screen.dart';
+import '../group_assignment/group_assignment_screen.dart';
 
 // ── 초대 버튼 (정회원/게스트 공용 칩 버튼) ──
 class _InviteChipButton extends StatelessWidget {
@@ -89,7 +90,23 @@ String _fmtAmount(int amount) {
 // ════════════════════════════════════════════════════════════
 class ClubRoomScreen extends StatefulWidget {
   final Club club;
-  const ClubRoomScreen({super.key, required this.club});
+  /// 하단 탭: 0홈 1일정 2갤러리 3회원 4재무
+  final int initialTab;
+  /// 일정 상세(또는 조편성)로 바로 열 일정 id
+  final String? openScheduleId;
+  /// true면 일정 상세 대신 조편성 화면
+  final bool openGroupAssignment;
+  /// id 없을 때 다가오는 일정 상세/조편성으로 진입 (알림톡 딥링크용)
+  final bool openNearestSchedule;
+
+  const ClubRoomScreen({
+    super.key,
+    required this.club,
+    this.initialTab = 0,
+    this.openScheduleId,
+    this.openGroupAssignment = false,
+    this.openNearestSchedule = false,
+  });
 
   @override
   State<ClubRoomScreen> createState() => _ClubRoomScreenState();
@@ -101,6 +118,10 @@ class _ClubRoomScreenState extends State<ClubRoomScreen> {
   @override
   void initState() {
     super.initState();
+    final startTab = widget.initialTab;
+    if (startTab >= 0 && startTab < 5) {
+      _tabIndex = startTab;
+    }
     WidgetsBinding.instance.addPostFrameCallback((_) async {
       if (!mounted) return;
       final p = context.read<ClubProvider>();
@@ -110,8 +131,60 @@ class _ClubRoomScreenState extends State<ClubRoomScreen> {
       p.syncMyRoleFromMemberRoster();
       // 다른 계정 가입신청 → 총무 알림 동기화
       await p.refreshJoinRequestInbox();
+      if (!mounted) return;
+      // 재무 탭이 막혀 있으면 홈으로
+      if (_tabIndex == _financeTabIndex && !_canOpenFinanceTab()) {
+        setState(() => _tabIndex = 0);
+      }
+      await _openDeepLinkTarget(p);
     });
   }
+
+  Future<void> _openDeepLinkTarget(ClubProvider provider) async {
+    final scheduleId = widget.openScheduleId?.trim() ?? '';
+    final shouldOpen = scheduleId.isNotEmpty ||
+        widget.openGroupAssignment ||
+        widget.openNearestSchedule;
+    if (!shouldOpen) return;
+
+    // 탭 Navigator가 붙은 뒤 push
+    await Future<void>.delayed(const Duration(milliseconds: 50));
+    if (!mounted) return;
+
+    openTab(scheduleTabIndex);
+    await Future<void>.delayed(const Duration(milliseconds: 50));
+    if (!mounted) return;
+
+    final nav = _navigatorKeys[scheduleTabIndex].currentState;
+    if (nav == null) return;
+
+    RoundSchedule? schedule;
+    if (scheduleId.isNotEmpty) {
+      schedule = provider.scheduleById(scheduleId);
+    }
+    // id 없으면 다가오는 일정 하나
+    schedule ??= provider.upcomingSchedules.isNotEmpty
+        ? provider.upcomingSchedules.first
+        : null;
+    if (schedule == null) return;
+
+    if (widget.openGroupAssignment) {
+      await nav.push(
+        MaterialPageRoute<void>(
+          builder: (_) => GroupAssignmentScreen(schedule: schedule!),
+        ),
+      );
+      return;
+    }
+
+    await nav.push(
+      MaterialPageRoute<void>(
+        builder: (_) => ScheduleDetailScreen(schedule: schedule!),
+      ),
+    );
+  }
+
+  static const int scheduleTabIndex = 1;
 
   // ── 탭별 독립 Navigator 키 (5개) ──
   // 각 탭이 자체 Navigator 스택을 가져 하위 페이지 push/pop이 탭 안에서만 일어남

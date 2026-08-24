@@ -4,6 +4,7 @@ import '../../di/app_dependencies.dart';
 import '../../models/club_model.dart';
 import '../../providers/auth_provider.dart';
 import '../../providers/club_provider.dart';
+import '../../services/deep_link_service.dart';
 import '../../theme/app_theme.dart';
 import '../../features/clubs/presentation/club_list_navigation.dart';
 import '../club_room/club_room_screen.dart';
@@ -34,7 +35,9 @@ class _MyClubsScreenState extends State<MyClubsScreen> {
       final auth = context.read<AuthProvider>();
       if (auth.isLoggedIn && auth.needsPhoneNumber) {
         Navigator.of(context).pushReplacementNamed('/phone-required');
+        return;
       }
+      DeepLinkService.instance.onAppReady();
     });
   }
 
