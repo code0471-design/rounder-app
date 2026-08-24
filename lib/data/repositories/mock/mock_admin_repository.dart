@@ -214,12 +214,13 @@ class MockAdminRepository implements AdminRepository {
     final now = DateTime.now();
     final today = DateTime(now.year, now.month, now.day);
     final todayStr = _dateFmt.format(today);
-    final weekday = now.weekday;
-    final weekStart = today.subtract(Duration(days: weekday - 1));
     final weeklySignups = List<int>.filled(7, 0);
     final weeklyClubs = List<int>.filled(7, 0);
+    final weeklyLabels = List<String>.filled(7, '');
     for (var i = 0; i < 7; i++) {
-      final key = _dateFmt.format(weekStart.add(Duration(days: i)));
+      final day = today.subtract(Duration(days: 6 - i));
+      final key = _dateFmt.format(day);
+      weeklyLabels[i] = '${day.month}/${day.day}';
       weeklySignups[i] =
           _members.where((m) => m.joinDate == key).length;
       weeklyClubs[i] = _clubs.where((c) => c.createdDate == key).length;
@@ -238,6 +239,11 @@ class MockAdminRepository implements AdminRepository {
               (m.joinDate == todayStr || m.joinDate == '-') &&
               todayHostNames.contains(m.name))
           .length;
+      if (todaySignups > 0) {
+        weeklySignups[6] = weeklySignups[6] < todaySignups
+            ? todaySignups
+            : weeklySignups[6];
+      }
     }
     return DashboardStats(
       totalMembers: _members.length,
@@ -248,6 +254,7 @@ class MockAdminRepository implements AdminRepository {
       todayNewClubs: _clubs.where((c) => c.createdDate == todayStr).length,
       weeklySignups: weeklySignups,
       weeklyClubs: weeklyClubs,
+      weeklyDayLabels: weeklyLabels,
     );
   }
 

@@ -55,33 +55,32 @@ class AdminController extends ChangeNotifier {
 
   Future<void> _refreshStats() async {
     try {
-      // 스트림으로 받은 최신 목록 기준 (리포지토리 캐시 race 방지)
+      // 「최근 7일」= 오늘 포함 과거 6일 (달력 월~일 주가 아님)
       final now = DateTime.now();
-      final today =
-          '${now.year.toString().padLeft(4, '0')}-${now.month.toString().padLeft(2, '0')}-${now.day.toString().padLeft(2, '0')}';
-      final weekday = now.weekday;
-      final weekStart = DateTime(now.year, now.month, now.day)
-          .subtract(Duration(days: weekday - 1));
+      final todayDate = DateTime(now.year, now.month, now.day);
+      final today = _dateKey(todayDate);
       final weeklySignups = List<int>.filled(7, 0);
       final weeklyClubs = List<int>.filled(7, 0);
+      final weeklyLabels = List<String>.filled(7, '');
       for (var i = 0; i < 7; i++) {
-        final d = weekStart.add(Duration(days: i));
-        final key =
-            '${d.year.toString().padLeft(4, '0')}-${d.month.toString().padLeft(2, '0')}-${d.day.toString().padLeft(2, '0')}';
+        final d = todayDate.subtract(Duration(days: 6 - i));
+        final key = _dateKey(d);
+        weeklyLabels[i] = '${d.month}/${d.day}';
         weeklySignups[i] =
-            _members.where((m) => _joinDateKey(m.joinDate) == key).length;
-        weeklyClubs[i] = _clubs.where((c) => c.createdDate == key).length;
+            _members.where((m) => _dateKeyFromRaw(m.joinDate) == key).length;
+        weeklyClubs[i] =
+            _clubs.where((c) => _dateKeyFromRaw(c.createdDate) == key).length;
       }
       // 앱 모임찾기와 동일: active + pending (블라인드/종료 제외)
       final operatingClubs = _clubs
           .where((c) => c.status == 'active' || c.status == 'pending')
           .length;
       var todaySignups =
-          _members.where((m) => _joinDateKey(m.joinDate) == today).length;
+          _members.where((m) => _dateKeyFromRaw(m.joinDate) == today).length;
       // joinDate 누락 보정: 오늘 개설 모임의 호스트가 회원 목록에 있으면 가입으로 카운트
       if (todaySignups == 0) {
         final todayHosts = _clubs
-            .where((c) => c.createdDate == today)
+            .where((c) => _dateKeyFromRaw(c.createdDate) == today)
             .map((c) => c.host)
             .where((h) => h.isNotEmpty && h != '-')
             .toSet();
@@ -90,10 +89,9 @@ class AdminController extends ChangeNotifier {
               .where((m) => todayHosts.contains(m.name))
               .length;
           if (todaySignups > 0) {
-            weeklySignups[weekday - 1] =
-                weeklySignups[weekday - 1] < todaySignups
-                    ? todaySignups
-                    : weeklySignups[weekday - 1];
+            weeklySignups[6] = weeklySignups[6] < todaySignups
+                ? todaySignups
+                : weeklySignups[6];
           }
         }
       }
@@ -101,25 +99,31 @@ class AdminController extends ChangeNotifier {
         totalMembers: _members.length,
         activeClubs: operatingClubs,
         todaySignups: todaySignups,
-        todayNewClubs: _clubs.where((c) => c.createdDate == today).length,
+        todayNewClubs: _clubs
+            .where((c) => _dateKeyFromRaw(c.createdDate) == today)
+            .length,
         weeklySignups: weeklySignups,
         weeklyClubs: weeklyClubs,
+        weeklyDayLabels: weeklyLabels,
       );
     } catch (e) {
       debugPrint('[AdminController] stats: $e');
     }
   }
 
-  /// joinDate 문자열을 yyyy-MM-dd로 정규화 (로컬 자정 기준)
-  static String _joinDateKey(String raw) {
+  static String _dateKey(DateTime d) =>
+      '${d.year.toString().padLeft(4, '0')}-'
+      '${d.month.toString().padLeft(2, '0')}-'
+      '${d.day.toString().padLeft(2, '0')}';
+
+  /// 날짜 문자열을 yyyy-MM-dd로 정규화 (로컬 자정 기준)
+  static String _dateKeyFromRaw(String raw) {
     if (raw.isEmpty || raw == '-') return '';
     if (RegExp(r'^\d{4}-\d{2}-\d{2}$').hasMatch(raw)) return raw;
     final parsed = DateTime.tryParse(raw);
     if (parsed == null) return raw;
     final d = parsed.toLocal();
-    return '${d.year.toString().padLeft(4, '0')}-'
-        '${d.month.toString().padLeft(2, '0')}-'
-        '${d.day.toString().padLeft(2, '0')}';
+    return _dateKey(d);
   }
 
   Future<void> updateClubStatus(String clubId, String status) async {

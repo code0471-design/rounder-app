@@ -421,6 +421,8 @@ class DashboardStats {
   final int todayNewClubs;
   final List<int> weeklySignups;
   final List<int> weeklyClubs;
+  /// 최근 7일 라벨 (예: 8/18 … 8/24). 비어 있으면 월~일 폴백.
+  final List<String> weeklyDayLabels;
 
   const DashboardStats({
     required this.totalMembers,
@@ -429,6 +431,7 @@ class DashboardStats {
     required this.todayNewClubs,
     required this.weeklySignups,
     required this.weeklyClubs,
+    this.weeklyDayLabels = const [],
   });
 }
 

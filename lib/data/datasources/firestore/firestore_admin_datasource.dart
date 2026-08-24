@@ -210,12 +210,12 @@ class FirestoreAdminDataSource {
 
     final weeklySignups = List<int>.filled(7, 0);
     final weeklyClubs = List<int>.filled(7, 0);
-    // index 0 = 월요일 … 6 = 일요일 (이번 주)
-    final weekday = now.weekday; // 1=Mon … 7=Sun
-    final weekStart = today.subtract(Duration(days: weekday - 1));
+    final weeklyLabels = List<String>.filled(7, '');
+    // index 0 = 6일 전 … 6 = 오늘 (최근 7일)
     for (var i = 0; i < 7; i++) {
-      final day = weekStart.add(Duration(days: i));
+      final day = today.subtract(Duration(days: 6 - i));
       final key = _dateFmt.format(day);
+      weeklyLabels[i] = '${day.month}/${day.day}';
       weeklySignups[i] = members.where((m) => m.joinDate == key).length;
       weeklyClubs[i] = clubs.where((c) => c.createdDate == key).length;
     }
@@ -227,6 +227,7 @@ class FirestoreAdminDataSource {
       todayNewClubs: todayNewClubs,
       weeklySignups: weeklySignups,
       weeklyClubs: weeklyClubs,
+      weeklyDayLabels: weeklyLabels,
     );
   }
 

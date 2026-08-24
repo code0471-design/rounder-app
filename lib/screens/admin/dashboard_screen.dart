@@ -105,6 +105,7 @@ class AdminDashboardScreen extends StatelessWidget {
             height: 180,
             child: _WeeklyBarChart(
               data: stats.weeklySignups,
+              labels: stats.weeklyDayLabels,
               color: AdminColors.accent,
             ),
           ),
@@ -125,6 +126,7 @@ class AdminDashboardScreen extends StatelessWidget {
             height: 180,
             child: _WeeklyBarChart(
               data: stats.weeklyClubs,
+              labels: stats.weeklyDayLabels,
               color: AdminColors.statusInfo,
             ),
           ),
@@ -420,9 +422,14 @@ class AdminDashboardScreen extends StatelessWidget {
 // ────────────────────────────────────────────────────────────
 class _WeeklyBarChart extends StatelessWidget {
   final List<int> data;
+  final List<String> labels;
   final Color color;
 
-  const _WeeklyBarChart({required this.data, required this.color});
+  const _WeeklyBarChart({
+    required this.data,
+    required this.labels,
+    required this.color,
+  });
 
   @override
   Widget build(BuildContext context) {
@@ -438,9 +445,11 @@ class _WeeklyBarChart extends StatelessWidget {
       children: List.generate(data.length, (i) {
         final ratio = maxVal > 0 ? data[i] / maxVal : 0.0;
         final isMax = data[i] == data.reduce((a, b) => a > b ? a : b);
-        final dayLabel = i < AdminCatalog.weekDays.length
-            ? AdminCatalog.weekDays[i]
-            : '';
+        final dayLabel = i < labels.length && labels[i].isNotEmpty
+            ? labels[i]
+            : (i < AdminCatalog.weekDays.length
+                ? AdminCatalog.weekDays[i]
+                : '');
 
         return Expanded(
           child: Padding(
