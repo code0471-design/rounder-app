@@ -3052,23 +3052,17 @@ class ClubProvider extends ChangeNotifier with WidgetsBindingObserver {
 
   /// 일정 수정
   /// 날짜·시간·코스·정원이 바뀌면 참석/대기/조편성을 초기화한다 (재참석 안내).
-  void updateSchedule(RoundSchedule updated) {
+  /// 반환: 실질 변경(재참석·알림톡 대상) 여부. 제목·공지만 바뀌면 false.
+  bool updateSchedule(RoundSchedule updated) {
     if (!canCreateSchedule) {
       debugPrint('[ClubProvider] updateSchedule blocked — not executive');
-      return;
+      return false;
     }
     final idx = _schedules.indexWhere((s) => s.id == updated.id);
-    if (idx == -1) return;
+    if (idx == -1) return false;
 
     final prev = _schedules[idx];
-    final materialChanged =
-        !_isSameScheduleDay(prev.roundDate, updated.roundDate) ||
-            prev.teeTime != updated.teeTime ||
-            prev.courseName.trim() != updated.courseName.trim() ||
-            (prev.courseAddress ?? '').trim() !=
-                (updated.courseAddress ?? '').trim() ||
-            prev.teamCount != updated.teamCount ||
-            prev.effectiveCapacity != updated.effectiveCapacity;
+    final materialChanged = isMaterialScheduleChange(prev, updated);
 
     var next = updated;
     if (materialChanged) {
@@ -3086,7 +3080,17 @@ class ClubProvider extends ChangeNotifier with WidgetsBindingObserver {
     _syncNextRound(next.clubId);
     notifyListeners();
     _persistImmediately();
+    return materialChanged;
   }
+
+  /// 날짜·시간·코스·정원 변경 여부 (제목·공지 제외)
+  static bool isMaterialScheduleChange(RoundSchedule a, RoundSchedule b) =>
+      !_isSameScheduleDay(a.roundDate, b.roundDate) ||
+      a.teeTime != b.teeTime ||
+      a.courseName.trim() != b.courseName.trim() ||
+      (a.courseAddress ?? '').trim() != (b.courseAddress ?? '').trim() ||
+      a.teamCount != b.teamCount ||
+      a.effectiveCapacity != b.effectiveCapacity;
 
   static bool _isSameScheduleDay(DateTime a, DateTime b) =>
       a.year == b.year && a.month == b.month && a.day == b.day;

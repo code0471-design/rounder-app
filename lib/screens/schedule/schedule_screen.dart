@@ -3014,7 +3014,7 @@ class _ScheduleFormSheetState extends State<_ScheduleFormSheet> {
         notice: notice,
       );
       final provider = widget.provider;
-      provider.updateSchedule(updated);
+      final materialChanged = provider.updateSchedule(updated);
       setState(() => _saving = false);
       if (mounted) Navigator.pop(context);
       final messenger = AppNavigator.context != null
@@ -3031,7 +3031,8 @@ class _ScheduleFormSheetState extends State<_ScheduleFormSheet> {
       );
       final settings =
           provider.alimtalkSettingsOf(provider.selectedClub.id);
-      if (settings.promptOnScheduleChange) {
+      // 제목·공지만 바뀐 경우 재참석 알림톡 생략
+      if (materialChanged && settings.promptOnScheduleChange) {
         await Future.delayed(const Duration(milliseconds: 300));
         await AlimtalkUtils.runScheduleChangeFlow(
           provider: provider,
