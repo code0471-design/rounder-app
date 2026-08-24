@@ -12,11 +12,23 @@ class SignupScreen extends StatefulWidget {
   /// 초대 경로로 진입 시 클럽 ID 전달 (선택)
   final String? inviteClubId;
   final String? inviteClubName;
+  final String? inviteInviterName;
+  final String? inviteToken;
+  final bool inviteAsGuest;
+  final String? inviteReferrerId;
+  final String? inviteReferrerName;
+  final String? inviteGuestName;
 
   const SignupScreen({
     super.key,
     this.inviteClubId,
     this.inviteClubName,
+    this.inviteInviterName,
+    this.inviteToken,
+    this.inviteAsGuest = false,
+    this.inviteReferrerId,
+    this.inviteReferrerName,
+    this.inviteGuestName,
   });
 
   @override
@@ -64,6 +76,14 @@ class _SignupScreenState extends State<SignupScreen> {
           name: _nameCtrl.text.trim(),
           phone: _phoneCtrl.text.trim(),
           handicap: handicap,
+          inviteClubId: widget.inviteClubId,
+          inviteClubName: widget.inviteClubName,
+          inviteInviterName: widget.inviteInviterName,
+          inviteToken: widget.inviteToken,
+          inviteAsGuest: widget.inviteAsGuest,
+          inviteReferrerId: widget.inviteReferrerId,
+          inviteReferrerName: widget.inviteReferrerName,
+          inviteGuestName: widget.inviteGuestName,
         ),
       ),
     );

@@ -6,6 +6,7 @@ import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 
 import '../models/club_model.dart';
+import '../models/user_model.dart';
 import '../navigation/app_navigator.dart';
 import '../providers/auth_provider.dart';
 import '../providers/club_provider.dart';
@@ -15,14 +16,13 @@ import '../screens/invite/invite_landing_screen.dart';
 /// 알림톡/푸시 앱링크 진입
 ///
 /// 솔라피 버튼 URL (검수 템플릿별):
-/// - 가입 승인/거절 → `rounder://join`
 /// - 모임 초대 → `rounder://invite?token=#{토큰}&club=#{클럽ID}&name=#{모임명}&inviter=#{초대자}`
 /// - 일정 등록 / 변경 / 취소 / D-1 → `rounder://schedule`
 /// - 조편성 확정 → `rounder://group`
 /// - 회비 납부요청 / 납부 독촉 → `rounder://dues`
 /// - 공통 폴백 → `rounder://open`
 ///
-/// 선택 쿼리: `club`(모임 id), `id`(일정 id) — 있으면 해당 모임·일정으로 이동.
+/// (가입 승인/거절 알림톡은 초대 즉시가입으로 대체 — 사용 안 함)
 class DeepLinkService {
   DeepLinkService._();
   static final DeepLinkService instance = DeepLinkService._();
@@ -77,6 +77,13 @@ class DeepLinkService {
     WidgetsBinding.instance.addPostFrameCallback((_) {
       handle(pending);
     });
+  }
+
+  /// 로그인/회원가입 전에 초대 링크만 기억
+  void queue(Uri uri) {
+    if (uri.scheme != 'rounder') return;
+    _pending = uri;
+    debugPrint('[DeepLink] queued host=${uri.host}');
   }
 
   void handle(Uri uri) {
@@ -183,6 +190,16 @@ class DeepLinkService {
         (q['inviter'] ?? q['inviterName'] ?? known?.inviterName ?? '').trim();
     final resolvedClubId =
         (clubId.isNotEmpty ? clubId : known?.clubId ?? '').trim();
+    final typeRaw = (q['type'] ?? '').trim().toLowerCase();
+    final inviteType = (typeRaw == 'guest' ||
+            known?.inviteType == InviteMemberType.guest)
+        ? InviteMemberType.guest
+        : InviteMemberType.regular;
+    final referrerId =
+        (q['referrer'] ?? q['referrerId'] ?? known?.referrerId ?? '').trim();
+    final referrerName = (q['referrerName'] ?? known?.referrerName ?? '').trim();
+    final guestName = (q['guest'] ?? q['guestName'] ?? known?.guestName ?? '')
+        .trim();
 
     if (resolvedClubId.isEmpty && clubName.isEmpty) {
       debugPrint('[DeepLink] invite missing club — fall back to main');
@@ -204,6 +221,10 @@ class DeepLinkService {
           clubName: clubName.isNotEmpty ? clubName : '모임',
           inviterName: inviter.isNotEmpty ? inviter : '회원',
           token: token.isNotEmpty ? token : 'link',
+          inviteType: inviteType,
+          referrerId: referrerId.isEmpty ? null : referrerId,
+          referrerName: referrerName.isEmpty ? null : referrerName,
+          guestName: guestName.isEmpty ? null : guestName,
         ),
       ),
     );

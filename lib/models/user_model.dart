@@ -125,7 +125,20 @@ class InviteToken {
   String get deepLink {
     final name = Uri.encodeComponent(clubName);
     final inviter = Uri.encodeComponent(inviterName);
-    return 'rounder://invite?token=$token&club=$clubId&name=$name&inviter=$inviter';
+    final type = inviteType == InviteMemberType.guest ? 'guest' : 'regular';
+    final buf = StringBuffer(
+      'rounder://invite?token=$token&club=$clubId&name=$name&inviter=$inviter&type=$type',
+    );
+    if (referrerId != null && referrerId!.isNotEmpty) {
+      buf.write('&referrer=${Uri.encodeComponent(referrerId!)}');
+    }
+    if (referrerName != null && referrerName!.isNotEmpty) {
+      buf.write('&referrerName=${Uri.encodeComponent(referrerName!)}');
+    }
+    if (guestName != null && guestName!.isNotEmpty) {
+      buf.write('&guest=${Uri.encodeComponent(guestName!)}');
+    }
+    return buf.toString();
   }
 
   /// 카카오 공유용 웹 URL (실제 배포 시 도메인으로 교체)

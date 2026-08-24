@@ -63,4 +63,16 @@ class FirestoreClubRepository implements ClubRepository {
         creatorMember: creatorMember,
         moderationStatus: moderationStatus,
       );
+
+  @override
+  Future<void> addMemberViaInvite({
+    required String clubId,
+    required String userId,
+    required Member member,
+  }) =>
+      _dataSource.addMemberViaInvite(
+        clubId: clubId,
+        userId: userId,
+        member: member,
+      );
 }

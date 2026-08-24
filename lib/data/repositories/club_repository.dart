@@ -24,6 +24,13 @@ abstract class ClubRepository {
     required Member creatorMember,
     String moderationStatus = 'active',
   });
+
+  /// 초대 수락 — 승인 없이 멤버·멤버십 즉시 등록
+  Future<void> addMemberViaInvite({
+    required String clubId,
+    required String userId,
+    required Member member,
+  });
 }
 
 abstract class MemberRepository {

@@ -4275,6 +4275,138 @@ class ClubProvider extends ChangeNotifier with WidgetsBindingObserver {
     return true;
   }
 
+  /// 초대 링크 수락 — 총무 승인 없이 즉시 가입 (밴드형)
+  Future<bool> joinViaInvite({
+    required String clubId,
+    String? clubName,
+    bool asGuest = false,
+    String? referrerId,
+    String? referrerName,
+    String? displayName,
+  }) async {
+    if (clubId.trim().isEmpty || clubId == 'unknown') {
+      debugPrint('[ClubProvider] joinViaInvite blocked — invalid clubId');
+      return false;
+    }
+    if (isMyClub(clubId)) {
+      debugPrint('[ClubProvider] joinViaInvite — already member of $clubId');
+      return true;
+    }
+
+    final userId = currentUserId;
+    final userName = (displayName != null && displayName.trim().isNotEmpty)
+        ? displayName.trim()
+        : currentUserName;
+    final role = asGuest ? ClubMemberRole.guest : ClubMemberRole.regular;
+    final memberType =
+        asGuest ? ClubMemberRole.guest : ClubMemberRole.regular;
+
+    Club? club = _myClubs.where((c) => c.id == clubId).firstOrNull ??
+        _allClubs.where((c) => c.id == clubId).firstOrNull ??
+        AppDependencies.instance.mockDataStore?.clubById(clubId);
+
+    if (club == null) {
+      try {
+        club = await AppDependencies.instance.clubRepository
+            .fetchClubById(clubId, userId: userId);
+      } catch (e) {
+        debugPrint('[ClubProvider] joinViaInvite fetchClub skip: $e');
+      }
+    }
+
+    final resolvedName = (clubName != null && clubName.trim().isNotEmpty)
+        ? clubName.trim()
+        : (club?.name ?? '모임');
+
+    club ??= Club(
+      id: clubId,
+      name: resolvedName,
+      myRole: role,
+      memberCount: 1,
+      creatorId: '',
+      createdAt: DateTime.now(),
+    );
+
+    final member = Member(
+      id: userId,
+      name: userName,
+      gender: '남',
+      memberType: memberType,
+      role: role,
+      joinDate: DateTime.now(),
+      status: '활성',
+      referrerId: referrerId,
+      referrerName: referrerName,
+    );
+
+    final alreadyListed = _members.any(
+      (m) => m.id == userId || m.id == 'm_${clubId}_$userId',
+    );
+    if (!alreadyListed) {
+      _members.add(member);
+    }
+
+    final joinedClub = club.copyWith(
+      name: resolvedName,
+      myRole: role,
+      memberCount: club.memberCount + (alreadyListed ? 0 : 1),
+    );
+    if (!_myClubs.any((c) => c.id == clubId)) {
+      _myClubs.add(joinedClub);
+    } else {
+      final i = _myClubs.indexWhere((c) => c.id == clubId);
+      if (i != -1) _myClubs[i] = _myClubs[i].copyWith(myRole: role);
+    }
+    if (!_allClubs.any((c) => c.id == clubId)) {
+      _allClubs.add(joinedClub);
+    }
+
+    _activities.insert(
+      0,
+      ActivityItem(
+        id: 'act_invite_${DateTime.now().millisecondsSinceEpoch}',
+        memberId: userId,
+        memberName: userName,
+        activityType: 'join',
+        description: asGuest ? '초대 링크로 게스트 가입' : '초대 링크로 즉시 가입',
+        timestamp: DateTime.now(),
+      ),
+    );
+
+    // 운영진에게 알림 (승인 요청이 아님)
+    final notifyTarget = joinRequestNotifyTargetId(clubId);
+    addAppNotification(
+      AppNotification(
+        id: 'noti_invite_join_${clubId}_$userId',
+        type: AppNotificationType.announcement,
+        clubId: clubId,
+        clubName: resolvedName,
+        isAdmin: true,
+        title: '초대 가입',
+        body: '$userName님이 초대 링크로 가입했습니다',
+        createdAt: DateTime.now(),
+        targetId: clubId,
+        targetUserId: notifyTarget,
+        isRead: false,
+      ),
+      notifySelf: true,
+    );
+
+    try {
+      await AppDependencies.instance.clubRepository.addMemberViaInvite(
+        clubId: clubId,
+        userId: userId,
+        member: member,
+      );
+    } catch (e) {
+      debugPrint('[ClubProvider] joinViaInvite remote skip: $e');
+    }
+
+    notifyListeners();
+    _persistImmediately();
+    return true;
+  }
+
   /// 총무 화면 진입 시 호출 — 공유 대기열 → 알림 강제 동기화
   Future<void> refreshJoinRequestInbox() async {
     await mergeSharedJoinRequests();

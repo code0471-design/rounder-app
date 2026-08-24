@@ -227,6 +227,58 @@ class FirestoreClubDataSource {
     return role != null;
   }
 
+  /// 초대 링크로 즉시 가입 (승인 없음)
+  Future<void> addMemberViaInvite({
+    required String clubId,
+    required String userId,
+    required Member member,
+  }) async {
+    try {
+      final batch = _db.batch();
+      final memberRef = _db.doc(FirestorePaths.clubMemberDoc(clubId, userId));
+      final membershipRef =
+          _db.doc(FirestorePaths.userMembershipDoc(userId, clubId));
+      final clubRef = _db.doc(FirestorePaths.clubDoc(clubId));
+
+      final memberData = MemberMapper.toMap(member);
+      memberData['user_id'] = userId;
+      if (member.referrerId != null) {
+        memberData['referrer_id'] = member.referrerId;
+      }
+      if (member.referrerName != null) {
+        memberData['referrer_name'] = member.referrerName;
+      }
+      batch.set(memberRef, memberData, SetOptions(merge: true));
+
+      batch.set(
+        membershipRef,
+        {
+          'user_id': userId,
+          'club_id': clubId,
+          'role': member.role,
+          'member_type': member.memberType,
+          'joined_at': FieldValue.serverTimestamp(),
+          'updated_at': FieldValue.serverTimestamp(),
+          'via_invite': true,
+        },
+        SetOptions(merge: true),
+      );
+
+      batch.set(
+        clubRef,
+        {
+          'member_count': FieldValue.increment(1),
+          'updated_at': FieldValue.serverTimestamp(),
+        },
+        SetOptions(merge: true),
+      );
+
+      await batch.commit();
+    } on FirebaseException catch (e) {
+      throw NetworkDataException('초대 가입 실패', cause: e);
+    }
+  }
+
   Future<void> updateTeamCount(String clubId, int teamCount) async {
     await updateClubInfo(clubId, teamCount: teamCount);
   }

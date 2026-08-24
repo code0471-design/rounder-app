@@ -22,9 +22,9 @@ class HqAlimtalkCatalog {
   static const scheduleUploadId = 'atk_schedule_upload';
   static const groupFinalizeId = 'atk_group_finalize';
   static const scheduleChangeId = 'atk_schedule_change';
-  static const joinResultId = 'atk_join_result';
+  static const joinResultId = 'atk_join_result'; // legacy — 초대 즉시가입으로 대체
   static const clubInviteId = 'atk_club_invite';
-  static const _removedIds = {'atk_schedule_confirm'};
+  static const _removedIds = {'atk_schedule_confirm', 'atk_join_result'};
 
   static const clubLinkedIds = <String>{
     scheduleUploadId,
@@ -116,8 +116,7 @@ class HqAlimtalkCatalog {
         bool hasId(String id) => typesRaw.any(
               (e) => e is Map && e['id']?.toString() == id,
             );
-        if (hasId(joinResultId) &&
-            hasId(clubInviteId) &&
+        if (hasId(clubInviteId) &&
             !typesRaw.any((e) =>
                 e is Map && _removedIds.contains(e['id']?.toString()))) {
           shouldPersist = false;

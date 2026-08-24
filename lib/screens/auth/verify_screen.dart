@@ -5,6 +5,7 @@ import 'package:flutter/services.dart';
 import 'package:provider/provider.dart';
 import '../../models/user_model.dart';
 import '../../providers/auth_provider.dart';
+import '../../providers/club_provider.dart';
 import '../../services/identity_verification_result.dart';
 import '../../theme/app_theme.dart';
 import 'portone_identity_screen.dart';
@@ -18,12 +19,28 @@ class VerifyScreen extends StatefulWidget {
   final String name;
   final String phone;
   final double? handicap;
+  final String? inviteClubId;
+  final String? inviteClubName;
+  final String? inviteInviterName;
+  final String? inviteToken;
+  final bool inviteAsGuest;
+  final String? inviteReferrerId;
+  final String? inviteReferrerName;
+  final String? inviteGuestName;
 
   const VerifyScreen({
     super.key,
     required this.name,
     required this.phone,
     this.handicap,
+    this.inviteClubId,
+    this.inviteClubName,
+    this.inviteInviterName,
+    this.inviteToken,
+    this.inviteAsGuest = false,
+    this.inviteReferrerId,
+    this.inviteReferrerName,
+    this.inviteGuestName,
   });
 
   @override
@@ -130,7 +147,7 @@ class _VerifyScreenState extends State<VerifyScreen> {
   }
 
   // ── 회원가입 완료 ─────────────────────────────────────────
-  void _completeSignup(VerifyMethod method) {
+  Future<void> _completeSignup(VerifyMethod method) async {
     final auth = context.read<AuthProvider>();
     auth.setSignupData(
       name: widget.name,
@@ -139,7 +156,29 @@ class _VerifyScreenState extends State<VerifyScreen> {
       verifyMethod: method,
     );
     auth.completeSignup();
-    // 모든 이전 스택 제거 후 메인으로
+
+    final clubId = widget.inviteClubId?.trim() ?? '';
+    if (clubId.isNotEmpty) {
+      final clubs = context.read<ClubProvider>();
+      await clubs.switchUser(auth.currentUser!.id);
+      await clubs.joinViaInvite(
+        clubId: clubId,
+        clubName: widget.inviteClubName,
+        asGuest: widget.inviteAsGuest,
+        referrerId: widget.inviteReferrerId,
+        referrerName: widget.inviteReferrerName,
+        displayName: widget.inviteAsGuest &&
+                (widget.inviteGuestName?.trim().isNotEmpty ?? false)
+            ? widget.inviteGuestName!.trim()
+            : widget.name,
+      );
+      final token = widget.inviteToken?.trim() ?? '';
+      if (token.isNotEmpty && token != 'link') {
+        auth.markTokenUsed(token);
+      }
+    }
+
+    if (!mounted) return;
     Navigator.of(context).pushNamedAndRemoveUntil('/main', (_) => false);
   }
 

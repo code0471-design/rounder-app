@@ -153,4 +153,29 @@ class MockClubRepository implements ClubRepository {
     );
     _store.bump(persist: true);
   }
+
+  @override
+  Future<void> addMemberViaInvite({
+    required String clubId,
+    required String userId,
+    required Member member,
+  }) async {
+    if (_isMemberAnyKey(clubId, _userAliases(userId))) return;
+    _store.addMember(
+      clubId: clubId,
+      member: Member(
+        id: userId,
+        name: member.name,
+        gender: member.gender,
+        memberType: member.memberType,
+        role: member.role,
+        handicap: member.handicap,
+        joinDate: member.joinDate ?? DateTime.now(),
+        status: member.status,
+        referrerId: member.referrerId,
+        referrerName: member.referrerName,
+      ),
+      alsoAsIds: _userAliases(userId).toList(),
+    );
+  }
 }

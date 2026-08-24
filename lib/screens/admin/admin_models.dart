@@ -568,14 +568,6 @@ abstract final class AdminCatalog {
   /// 본사 자동 알림톡 종류 (푸시 관리와 동일 UX)
   static const List<HqAlimtalkType> hqAlimtalkTypes = [
     HqAlimtalkType(
-      id: 'atk_join_result',
-      name: '가입 승인/거절',
-      audience: PushAudienceKind.specificMember,
-      timing: PushTimingKind.immediate,
-      audienceDetail: '신청자 본인',
-      preview: '{{이름}}님, {{모임명}} 가입 신청이 {{결과}}되었습니다.',
-    ),
-    HqAlimtalkType(
       id: 'atk_club_invite',
       name: '모임 초대',
       audience: PushAudienceKind.specificMember,
