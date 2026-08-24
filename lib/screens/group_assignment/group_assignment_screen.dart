@@ -6,17 +6,17 @@ import '../../theme/app_theme.dart';
 import '../../utils/alimtalk_utils.dart';
 
 // ─────────────────────────────────────────────
-//  조별 색상 팔레트 — 브랜드 그린 톤
+//  조별 색상 팔레트 — 구분되는 뮤트 톤 (흰 글자 대비)
 // ─────────────────────────────────────────────
 const _kGroupColors = [
-  Color(0xFF1B4D3E), // 1조
-  Color(0xFF2A6B55), // 2조
-  Color(0xFF3D6B5A), // 3조
-  Color(0xFF5A8F7B), // 4조
-  Color(0xFF2F5C4C), // 5조
-  Color(0xFF4A7A68), // 6조
-  Color(0xFF153D32), // 7조
-  Color(0xFF6B9B88), // 8조
+  Color(0xFF1B4D3E), // 1조 포레스트
+  Color(0xFF2F6F8F), // 2조 틸 블루
+  Color(0xFF5F7340), // 3조 올리브
+  Color(0xFF8A6B3F), // 4조 웜 브라운
+  Color(0xFF3D5C6E), // 5조 스틸
+  Color(0xFF6E4E3A), // 6조 코코아
+  Color(0xFF2A6358), // 7조 시그린
+  Color(0xFF7A5A48), // 8조 토프
 ];
 
 Color _groupColor(int groupNumber) =>

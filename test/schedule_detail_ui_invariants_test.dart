@@ -33,8 +33,8 @@ void main() {
   });
 
   test('기준 UI: 딥그린 헤더 카드 + 장소·시간 강조 (SliverAppBar/RoundHero 금지)', () {
-    expect(source.contains('Size.fromHeight(108)'), isTrue,
-        reason: '장소·시간 강조 카드형 AppBar(108)가 사라짐');
+    expect(source.contains('Size.fromHeight(128)'), isTrue,
+        reason: '장소·시간 강조 카드형 AppBar(128)가 사라짐');
     expect(source.contains('Icons.place_rounded'), isTrue);
     expect(source.contains('Icons.schedule_rounded'), isTrue);
     expect(source.contains('BorderRadius.circular(16)'), isTrue,

@@ -892,11 +892,11 @@ class ScheduleDetailScreen extends StatelessWidget {
           backgroundColor: AppColors.background,
           // ── 슬림 AppBar 딥그린 카드형 (장소·시간 강조 — 상단 보완) ──
           appBar: PreferredSize(
-            preferredSize: const Size.fromHeight(108),
+            preferredSize: const Size.fromHeight(128),
             child: ColoredBox(
               color: AppColors.background,
               child: Padding(
-                padding: const EdgeInsets.fromLTRB(12, 8, 12, 8),
+                padding: const EdgeInsets.fromLTRB(12, 10, 12, 10),
                 child: Container(
                   decoration: BoxDecoration(
                     gradient: const LinearGradient(
@@ -914,7 +914,7 @@ class ScheduleDetailScreen extends StatelessWidget {
                     ],
                   ),
                   child: Padding(
-                    padding: const EdgeInsets.fromLTRB(4, 8, 4, 8),
+                    padding: const EdgeInsets.fromLTRB(4, 12, 4, 12),
                     child: Row(
                       crossAxisAlignment: CrossAxisAlignment.center,
                       children: [
@@ -938,15 +938,15 @@ class ScheduleDetailScreen extends StatelessWidget {
                               Text(
                                 schedule.displayTitle,
                                 style: TextStyle(
-                                  color: Colors.white.withValues(alpha: 0.88),
-                                  fontSize: 12,
-                                  fontWeight: FontWeight.w600,
-                                  height: 1.1,
+                                  color: Colors.white.withValues(alpha: 0.92),
+                                  fontSize: 13,
+                                  fontWeight: FontWeight.w700,
+                                  height: 1.2,
                                 ),
                                 maxLines: 1,
                                 overflow: TextOverflow.ellipsis,
                               ),
-                              const SizedBox(height: 4),
+                              const SizedBox(height: 6),
                               Row(
                                 children: [
                                   Container(
@@ -977,7 +977,7 @@ class ScheduleDetailScreen extends StatelessWidget {
                                   ),
                                 ],
                               ),
-                              const SizedBox(height: 4),
+                              const SizedBox(height: 6),
                               Row(
                                 children: [
                                   Container(

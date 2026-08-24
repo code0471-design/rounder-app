@@ -159,8 +159,8 @@ class AuthProvider extends ChangeNotifier {
               .get();
           final remotePhone = doc.data()?['phone'] as String?;
           if (!isPhoneMissing(remotePhone)) {
-            final updated = user.copyWith(phone: formatPhone(remotePhone!));
-            final idx = _registeredUsers.indexWhere((u) => u.id == user.id);
+            final updated = user!.copyWith(phone: formatPhone(remotePhone));
+            final idx = _registeredUsers.indexWhere((u) => u.id == updated.id);
             if (idx >= 0) _registeredUsers[idx] = updated;
             _currentUser = updated;
             await prefs.setString(_kSavedPhone, updated.phone);
@@ -259,50 +259,77 @@ class AuthProvider extends ChangeNotifier {
   }
 
   /// 카카오 / 구글 / Apple 로그인 (신규면 계정 생성)
+  ///
+  /// Firestore `users.phone`을 우선 반영한다. 번호가 없으면
+  /// [needsPhoneNumber]가 true가 되어 `/phone-required`로 보낸다.
+  /// 빈 번호로 원격 phone을 덮어쓰지 않는다.
   Future<AppUser> loginWithSocial(
     SocialProfile profile, {
     bool saveSession = true,
   }) async {
-    final existing =
+    final memory =
         _registeredUsers.where((u) => u.id == profile.appUserId).firstOrNull;
 
-    final user = existing ??
-        AppUser(
-          id: profile.appUserId,
-          name: profile.name,
-          phone: '',
-          isVerified: true,
-          isAdmin: false,
-          role: '일반',
-          profileImageUrl: profile.photoUrl,
-        );
-
-    if (existing == null) {
-      _registeredUsers.add(user);
-      // ignore: unawaited_futures
-      _persistPlatformUser(user);
-    } else if (existing.name != profile.name &&
-        profile.name.isNotEmpty &&
-        !isPlaceholderName(profile.name)) {
-      final updated = existing.copyWith(name: profile.name);
-      final idx = _registeredUsers.indexWhere((u) => u.id == existing.id);
-      if (idx >= 0) _registeredUsers[idx] = updated;
-      _currentUser = updated;
-      await FirebaseAuthBridge.ensureSignedIn(updated);
-      if (saveSession) {
-        final prefs = await SharedPreferences.getInstance();
-        await prefs.setBool(_kAutoLogin, true);
-        await prefs.setString(_kLastLoginId, updated.id);
-        await prefs.setString(_kLastLoginName, updated.name);
-        await prefs.setString(_kSavedPhone, updated.phone);
-        _autoLogin = true;
+    String remotePhone = '';
+    String? remoteName;
+    try {
+      final deps = AppDependencies.instance;
+      if (deps.isInitialized && !deps.isOfflineMockMode) {
+        final doc = await FirebaseFirestore.instance
+            .collection(FirestorePaths.users)
+            .doc(profile.appUserId)
+            .get();
+        final data = doc.data();
+        if (data != null) {
+          remotePhone = formatPhone((data['phone'] as String?) ?? '');
+          final n = (data['name'] as String?)?.trim();
+          if (n != null && n.isNotEmpty && !isPlaceholderName(n)) {
+            remoteName = n;
+          }
+        }
       }
-      await _rememberLoginMethod(profile.provider.name);
-      notifyListeners();
-      // ignore: unawaited_futures
-      PushNotificationService.bindUserIds([updated.id]);
-      return updated;
+    } catch (e) {
+      debugPrint('[AuthProvider] social login hydrate phone skip: $e');
     }
+
+    // 번호: Firestore > 메모리(이미 인증된 경우) > 빈 값
+    final resolvedPhone = !isPhoneMissing(remotePhone)
+        ? remotePhone
+        : (memory != null && !isPhoneMissing(memory.phone) ? memory.phone : '');
+
+    final resolvedName = () {
+      if (profile.name.isNotEmpty && !isPlaceholderName(profile.name)) {
+        return profile.name;
+      }
+      if (remoteName != null) return remoteName;
+      if (memory != null &&
+          memory.name.isNotEmpty &&
+          !isPlaceholderName(memory.name)) {
+        return memory.name;
+      }
+      return profile.name.isNotEmpty ? profile.name : '회원';
+    }();
+
+    final user = AppUser(
+      id: profile.appUserId,
+      name: resolvedName,
+      phone: resolvedPhone,
+      handicap: memory?.handicap,
+      isVerified: !isPhoneMissing(resolvedPhone),
+      isAdmin: memory?.isAdmin ?? false,
+      role: memory?.role ?? '일반',
+      profileImageUrl: profile.photoUrl ?? memory?.profileImageUrl,
+      verifyMethod: memory?.verifyMethod,
+    );
+
+    final idx = _registeredUsers.indexWhere((u) => u.id == user.id);
+    if (idx >= 0) {
+      _registeredUsers[idx] = user;
+    } else {
+      _registeredUsers.add(user);
+    }
+    // ignore: unawaited_futures
+    _persistPlatformUser(user);
 
     _currentUser = user;
     await FirebaseAuthBridge.ensureSignedIn(user);
@@ -636,18 +663,22 @@ class AuthProvider extends ChangeNotifier {
         }
         return;
       }
-      await FirebaseFirestore.instance
-          .collection(FirestorePaths.users)
-          .doc(user.id)
-          .set({
+      // 빈 phone으로 기존 번호를 지우지 않음 (소셜 재로그인 시 본사 연락처 유실 방지)
+      final data = <String, dynamic>{
         'name': user.name,
-        'phone': user.phone,
         'nickname': user.name,
         'gender': '남',
         'account_status': 'normal',
         'created_at': FieldValue.serverTimestamp(),
         'updated_at': FieldValue.serverTimestamp(),
-      }, SetOptions(merge: true));
+      };
+      if (!isPhoneMissing(user.phone)) {
+        data['phone'] = user.phone;
+      }
+      await FirebaseFirestore.instance
+          .collection(FirestorePaths.users)
+          .doc(user.id)
+          .set(data, SetOptions(merge: true));
     } catch (e) {
       debugPrint('[AuthProvider] persist platform user failed: $e');
     }
