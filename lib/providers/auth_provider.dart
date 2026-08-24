@@ -158,7 +158,7 @@ class AuthProvider extends ChangeNotifier {
               .doc(user.id)
               .get();
           final remotePhone = doc.data()?['phone'] as String?;
-          if (!isPhoneMissing(remotePhone)) {
+          if (remotePhone != null && !isPhoneMissing(remotePhone)) {
             final updated = user!.copyWith(phone: formatPhone(remotePhone));
             final idx = _registeredUsers.indexWhere((u) => u.id == updated.id);
             if (idx >= 0) _registeredUsers[idx] = updated;
