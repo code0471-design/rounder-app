@@ -3051,19 +3051,45 @@ class ClubProvider extends ChangeNotifier with WidgetsBindingObserver {
           .toList();
 
   /// 일정 수정
+  /// 날짜·시간·코스·정원이 바뀌면 참석/대기/조편성을 초기화한다 (재참석 안내).
   void updateSchedule(RoundSchedule updated) {
     if (!canCreateSchedule) {
       debugPrint('[ClubProvider] updateSchedule blocked — not executive');
       return;
     }
     final idx = _schedules.indexWhere((s) => s.id == updated.id);
-    if (idx != -1) {
-      _schedules[idx] = updated;
-      _syncNextRound(updated.clubId);
-      notifyListeners();
-      _persistImmediately();
+    if (idx == -1) return;
+
+    final prev = _schedules[idx];
+    final materialChanged =
+        !_isSameScheduleDay(prev.roundDate, updated.roundDate) ||
+            prev.teeTime != updated.teeTime ||
+            prev.courseName.trim() != updated.courseName.trim() ||
+            (prev.courseAddress ?? '').trim() !=
+                (updated.courseAddress ?? '').trim() ||
+            prev.teamCount != updated.teamCount ||
+            prev.effectiveCapacity != updated.effectiveCapacity;
+
+    var next = updated;
+    if (materialChanged) {
+      next = updated.copyWith(responses: const []);
+      _groupAssignments.remove(updated.id);
+      _waitingList.removeWhere((w) => w.scheduleId == updated.id);
+      unawaited(PushNotificationService.clearD1ForSchedule(updated.id));
+      debugPrint(
+        '[ClubProvider] updateSchedule reset attendance '
+        'id=${updated.id} (date/time/course/capacity changed)',
+      );
     }
+
+    _schedules[idx] = next;
+    _syncNextRound(next.clubId);
+    notifyListeners();
+    _persistImmediately();
   }
+
+  static bool _isSameScheduleDay(DateTime a, DateTime b) =>
+      a.year == b.year && a.month == b.month && a.day == b.day;
 
   /// 일정 취소
   void cancelSchedule(String scheduleId) {
