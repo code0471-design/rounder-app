@@ -172,6 +172,13 @@ class _PhoneRequiredScreenState extends State<PhoneRequiredScreen> {
     }
   }
 
+  Future<void> _goLogin() async {
+    final auth = context.read<AuthProvider>();
+    await auth.logoutAsync();
+    if (!mounted) return;
+    Navigator.of(context).pushNamedAndRemoveUntil('/login', (_) => false);
+  }
+
   @override
   Widget build(BuildContext context) {
     final auth = context.watch<AuthProvider>();
@@ -180,11 +187,15 @@ class _PhoneRequiredScreenState extends State<PhoneRequiredScreen> {
     return Scaffold(
       backgroundColor: AppColors.background,
       appBar: AppBar(
-        backgroundColor: AppColors.primaryDark,
+        backgroundColor: Colors.white,
         elevation: 0,
-        automaticallyImplyLeading: false,
+        leading: IconButton(
+          icon: const Icon(Icons.arrow_back_ios_new, size: 18),
+          color: AppColors.textPrimary,
+          onPressed: _busy ? null : _goLogin,
+        ),
         title: const Text(
-          '휴대폰 번호 등록',
+          '휴대폰 번호 입력',
           style: TextStyle(
             color: AppColors.textPrimary,
             fontSize: 17,
@@ -201,7 +212,9 @@ class _PhoneRequiredScreenState extends State<PhoneRequiredScreen> {
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 Text(
-                  '$name님, 휴대폰 번호가 필요합니다',
+                  name.isNotEmpty && name != '회원'
+                      ? '$name님, 휴대폰 번호를 입력해 주세요'
+                      : '휴대폰 번호를 입력해 주세요',
                   style: const TextStyle(
                     fontSize: 20,
                     fontWeight: FontWeight.bold,
@@ -210,7 +223,7 @@ class _PhoneRequiredScreenState extends State<PhoneRequiredScreen> {
                 ),
                 const SizedBox(height: 8),
                 const Text(
-                  '모임 알림·회비·초대를 위해 휴대폰 번호를 등록해 주세요.\n카카오 로그인만으로는 번호가 전달되지 않습니다.',
+                  '알림톡·모임 연락을 위해 번호가 필요해요.\n입력 후 간단히 인증만 하면 바로 시작할 수 있어요.',
                   style: TextStyle(
                     fontSize: 13,
                     height: 1.45,

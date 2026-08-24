@@ -84,15 +84,19 @@ class _SplashScreenState extends State<SplashScreen> {
 
     if (!mounted) return;
 
+    final auth = context.read<AuthProvider>();
+    // 번호 미등록 세션은 로그인 화면부터 다시 (카카오 → 번호 입력 순서)
+    if (autoLoggedIn && auth.needsPhoneNumber) {
+      await auth.logoutAsync();
+      autoLoggedIn = false;
+    }
+    if (!mounted) return;
+
     final frag = Uri.base.fragment;
     final wantsAdmin = frag == '/admin' || frag == 'admin';
-    final needsPhone =
-        autoLoggedIn && context.read<AuthProvider>().needsPhoneNumber;
     final route = wantsAdmin
         ? '/admin'
-        : (autoLoggedIn
-            ? (needsPhone ? '/phone-required' : '/main')
-            : '/login');
+        : (autoLoggedIn ? '/main' : '/login');
     await Navigator.of(context).pushReplacementNamed(route);
 
     if (bootstrapNote != null && mounted) {
