@@ -19,6 +19,8 @@ void main() {
     expect(find.textContaining(BusinessInfo.registrationNo), findsWidgets);
     expect(find.textContaining(BusinessInfo.ceo), findsWidgets);
     expect(find.textContaining(BusinessInfo.address), findsWidgets);
+    expect(find.textContaining(BusinessInfo.phone), findsWidgets);
+    expect(find.textContaining('070-4571-4169'), findsWidgets);
   });
 
   testWidgets('서비스 소개 페이지에 골프 모임 관리 안내가 있다', (tester) async {

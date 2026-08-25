@@ -20,7 +20,7 @@ class BusinessInfo {
   static const String address = '서울특별시 동작구 사당로20사길 6, 제이하우스 301호';
 
   /// 전화번호 — 포트원/통신사 심사는 유선번호만 인정한다. 010은 거절된다.
-  static const String phone = '';
+  static const String phone = '070-4571-4169';
 
   static const String email = 'code0471@gmail.com';
 
