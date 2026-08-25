@@ -2,6 +2,7 @@ import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import '../../services/identity_verification_result.dart';
 import '../../theme/app_theme.dart';
+import '../../widgets/business_info_footer.dart';
 
 /// 키 없음 / 웹 — 안내 + 개발용 완료 (전체 화면)
 class PortoneIdentityFallback extends StatelessWidget {
@@ -90,6 +91,8 @@ class PortoneIdentityFallback extends StatelessWidget {
               style: TextStyle(fontSize: 13, color: AppColors.textSecondary),
             ),
             const Spacer(),
+            const BusinessInfoFooter(),
+            const SizedBox(height: 16),
             SizedBox(
               height: 52,
               child: ElevatedButton.icon(

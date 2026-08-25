@@ -17,8 +17,8 @@ class PortoneConfig {
   /// 앱 URL Scheme (iOS/Android 복귀용)
   static const String appScheme = 'rounder';
 
-  /// 회사명 (인증창 표시)
-  static const String company = '라운더';
+  /// 회사명 (인증창 표시) — 사업자 상호와 맞춤
+  static const String company = '아레나엑스';
 
   /// PG사 — 다날 휴대폰 본인인증
   static const String pg = 'danal';

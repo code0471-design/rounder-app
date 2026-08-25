@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import '../../theme/app_theme.dart';
+import '../../widgets/business_info_footer.dart';
 import 'verify_screen.dart';
 import 'login_screen.dart';
 
@@ -250,6 +251,8 @@ class _SignupScreenState extends State<SignupScreen> {
                 ),
               ),
               const SizedBox(height: 16),
+              const BusinessInfoFooter(),
+              const SizedBox(height: 8),
 
               // ── 로그인으로 ──
               Center(

@@ -9,6 +9,7 @@ import '../../providers/auth_provider.dart';
 import '../../providers/club_provider.dart';
 import '../../theme/app_theme.dart';
 import '../club_room/club_room_screen.dart';
+import '../legal/service_about_screen.dart';
 import '../members/my_role_change_screen.dart';
 
 // ── 후원 기간 포맷 헬퍼 ──────────────────────────────────────
@@ -1649,6 +1650,47 @@ class _AccountSettingsTabState extends State<_AccountSettingsTab> {
               )
             else
               ...myClubs.map((club) => _ClubWithdrawTile(club: club, provider: provider)),
+
+            const SizedBox(height: 28),
+
+            const _AccountSectionHeader(label: '서비스'),
+            const SizedBox(height: 10),
+            Container(
+              decoration: BoxDecoration(
+                color: Colors.white,
+                borderRadius: BorderRadius.circular(14),
+              ),
+              child: InkWell(
+                borderRadius: BorderRadius.circular(14),
+                onTap: () {
+                  Navigator.of(context).push(
+                    MaterialPageRoute(
+                      builder: (_) => const ServiceAboutScreen(),
+                    ),
+                  );
+                },
+                child: const Padding(
+                  padding: EdgeInsets.symmetric(horizontal: 16, vertical: 16),
+                  child: Row(
+                    children: [
+                      Icon(Icons.info_outline, color: AppColors.primary, size: 20),
+                      SizedBox(width: 12),
+                      Expanded(
+                        child: Text(
+                          '서비스 소개 · 사업자 정보',
+                          style: TextStyle(
+                            fontSize: 14,
+                            fontWeight: FontWeight.w600,
+                            color: AppColors.textPrimary,
+                          ),
+                        ),
+                      ),
+                      Icon(Icons.chevron_right, color: AppColors.textSecondary),
+                    ],
+                  ),
+                ),
+              ),
+            ),
 
             const SizedBox(height: 28),
 

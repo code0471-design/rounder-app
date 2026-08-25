@@ -5,6 +5,7 @@ import '../../di/app_dependencies.dart';
 import '../../providers/auth_provider.dart';
 import '../../providers/club_provider.dart';
 import '../../services/social_auth_service.dart';
+import '../legal/service_about_screen.dart';
 import '../../widgets/rounder_logo.dart';
 
 // ════════════════════════════════════════════════════════════
@@ -170,6 +171,17 @@ class _LoginScreenState extends State<LoginScreen> {
                 ),
               ],
               const Spacer(flex: 1),
+              TextButton(
+                onPressed: () {
+                  Navigator.of(context).push(
+                    MaterialPageRoute(
+                      builder: (_) => const ServiceAboutScreen(),
+                    ),
+                  );
+                },
+                child: const Text('서비스 소개 · 사업자 정보'),
+              ),
+              const SizedBox(height: 8),
             ],
           ),
         ),

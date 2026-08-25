@@ -8,6 +8,7 @@ import '../../providers/auth_provider.dart';
 import '../../providers/club_provider.dart';
 import '../../services/identity_verification_result.dart';
 import '../../theme/app_theme.dart';
+import '../../widgets/business_info_footer.dart';
 import 'portone_identity_screen.dart';
 
 // ════════════════════════════════════════════════════════════
@@ -291,6 +292,9 @@ class _VerifyScreenState extends State<VerifyScreen> {
                     ],
                   ),
                 ),
+                const SizedBox(height: 28),
+                const BusinessInfoFooter(),
+                const SizedBox(height: 12),
               ],
             ),
           ),
