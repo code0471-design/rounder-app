@@ -50,9 +50,11 @@ abstract final class AppStartupBootstrap {
       firebaseReady = true;
       debugPrint('[AppStartup] Firebase.initializeApp OK');
       try {
-        await HqPushCatalog.load();
-        await HqAlimtalkCatalog.load();
-        await PushNotificationService.init();
+        await Future.wait([
+          HqPushCatalog.load(),
+          HqAlimtalkCatalog.load(),
+          PushNotificationService.init(),
+        ]).timeout(const Duration(seconds: 6));
       } catch (e) {
         debugPrint('[AppStartup] Push init skip: $e');
       }

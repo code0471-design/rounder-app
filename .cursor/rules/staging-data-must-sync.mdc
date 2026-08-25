@@ -1,0 +1,13 @@
+---
+description: 스테이징 테스트 기능은 Firestore 공유가 기본 — 로컬-only 금지
+alwaysApply: true
+---
+
+# 스테이징 데이터는 테스터끼리 공유되어야 한다
+
+Royce는 테스터와 `rounder-staging`으로 검증한다. **폰 SharedPreferences에만 남는 운영 데이터는 버그**다.
+
+1. 일정·참석·조편성·공지·사진·회원·회비·알림 등 **모임 운영 데이터**는 Firestore(스테이징) R/W가 기본.
+2. 새 기능을 로컬-only로 넣지 않는다. 불가피하면 구현 전에 “테스터끼리 안 보입니다”를 **먼저** 말한다.
+3. `_persistImmediately` / `ClubPersistence`만으로 끝내고 끝내지 않는다. `ClubOpsSync`(또는 해당 repo)에 반영.
+4. 로컬에 남겨도 되는 것: 자동로그인·기기 캐시뿐.

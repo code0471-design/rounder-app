@@ -1,0 +1,15 @@
+---
+description: oneclub 통합 어드민 알림 관리 건드리면 회귀 금지
+alwaysApply: true
+---
+
+# oneclub 어드민 알림 관리
+
+`C:\Users\AKH\oneclub` 또는 통합 Admin(`/admin/`) 알림 화면을 수정할 때:
+
+1. **3탭 UX 유지**: 알림 정책 / 알림톡 관리 / 푸시 관리  
+2. 알림톡·푸시에 **모임 자동 + 본사 발송**, **발송 시간·대상** 유지  
+3. 변경 후 oneclub에서 `flutter test test/admin_notifications_invariants_test.dart`  
+4. 로컬만 고치고 `origin/main` push·호스팅 재배포를 빼먹으면 스테이징이 구 UI로 돌아간 것처럼 보인다 — **push 필수**
+5. **웹 빌드 실패 시 `firebase deploy` 금지** — 실패해도 예전 `website/admin`이 올라가 알림 관리가 구 UI로 보임
+6. `admin_main.dart` / `rounderStaging` 옵션은 로컬-only로 두지 말고 커밋

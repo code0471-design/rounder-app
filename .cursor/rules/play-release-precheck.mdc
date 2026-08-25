@@ -1,0 +1,26 @@
+---
+description: Play/Codemagic 올리기 전 버전·빌드 설정을 미리 검증
+alwaysApply: true
+---
+
+# Play 업로드·Codemagic 빌드 전 체크
+
+Royce는 Codemagic 한 번에 ~20분이 든다. “올리세요”만 하고 버전 충돌 나면 같은 일을 반복하게 된다.
+
+## 필수 (빌드/업로드를 안내하기 전)
+
+1. **`pubspec.yaml` `version:`** — `name+code` (예: `1.0.0+30`). Play에 이미 쓴 versionCode면 **먼저 +1 커밋·푸시**.
+2. **`codemagic.yaml`** — `--build-number` / `--build-name` **하드코딩 금지**. pubspec에서 읽는지 확인. 예전에 `29` 고정이 AAB를 계속 29로 만들었다.
+3. **`android/app/build.gradle.kts`** — `versionCode`/`versionName`이 `flutter.versionCode`/`flutter.versionName`인지 확인 (하드코딩 금지).
+4. **원격 `codemagic-main`**에 버전 bump + yaml 수정이 **푸시된 뒤**에만 “Codemagic 돌리세요 / Play 올리세요”라고 말한다.
+5. 안내할 때 **기대 versionCode**를 한 줄로 명시하고, Codemagic 로그에 `AAB version: …+N`이 보이는지 확인하라고 적는다.
+
+## 금지
+
+- pubspec만 올리고 Codemagic 고정값을 안 보고 업로드 안내
+- “일단 올려보세요” 후 충돌 나면 그때 버전 올리기
+- 출시노트만 주고 버전/빌드 파이프라인은 미확인
+
+## 출시노트
+
+Play용 출시노트는 요청 시 주고, **버전 번호와 같이** 한 번에 맞춘다.
