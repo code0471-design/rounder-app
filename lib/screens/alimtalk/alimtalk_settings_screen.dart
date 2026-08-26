@@ -6,7 +6,7 @@ import '../../screens/admin/admin_models.dart';
 import '../../services/hq_alimtalk_catalog.dart';
 import '../../theme/app_theme.dart';
 
-/// 모임 방 · 알림톡 설정 (어드민 알림톡 관리 8종과 동일 목록·연동)
+/// 모임 방 · 알림톡 설정 (어드민 알림톡 관리와 동일 목록·연동)
 class AlimtalkSettingsScreen extends StatefulWidget {
   const AlimtalkSettingsScreen({super.key});
 

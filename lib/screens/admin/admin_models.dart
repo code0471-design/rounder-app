@@ -483,13 +483,6 @@ abstract final class AdminCatalog {
     ),
     NotificationPolicyRow(
       no: 7,
-      event: '모임 초대',
-      channel: '알림톡',
-      audience: '초대 대상(카카오톡)',
-      timing: '등록 즉시',
-    ),
-    NotificationPolicyRow(
-      no: 8,
       event: '납부 독촉',
       channel: '푸시',
       audience: '해당 회원',
@@ -570,15 +563,6 @@ abstract final class AdminCatalog {
 
   /// 본사 자동 알림톡 종류 (푸시 관리와 동일 UX)
   static const List<HqAlimtalkType> hqAlimtalkTypes = [
-    HqAlimtalkType(
-      id: 'atk_club_invite',
-      name: '모임 초대',
-      audience: PushAudienceKind.specificMember,
-      timing: PushTimingKind.immediate,
-      audienceDetail: '초대 대상(외부 포함, 알림톡)',
-      preview:
-          '{{초대자}}님이 {{모임명}}에 초대하였습니다.\n앱에서 초대를 확인해 주세요.',
-    ),
     HqAlimtalkType(
       id: 'atk_schedule_upload',
       name: '일정 등록 참석 안내',
@@ -680,13 +664,6 @@ abstract final class AdminCatalog {
       category: '모임',
       preview:
           '{{모임명}} {{일정명}}이 취소되었습니다.\n취소 일정: {{일시}}\n다음 기회에 뵙겠습니다.',
-    ),
-    AlimtalkTemplate(
-      id: 'T007',
-      name: '모임 초대',
-      category: '초대',
-      preview:
-          '{{초대자}}님이 {{모임명}}에 초대하였습니다.\n앱에서 초대를 확인해 주세요.',
     ),
     AlimtalkTemplate(
       id: 'T008',

@@ -23,8 +23,12 @@ class HqAlimtalkCatalog {
   static const groupFinalizeId = 'atk_group_finalize';
   static const scheduleChangeId = 'atk_schedule_change';
   static const joinResultId = 'atk_join_result'; // legacy — 초대 즉시가입으로 대체
-  static const clubInviteId = 'atk_club_invite';
-  static const _removedIds = {'atk_schedule_confirm', 'atk_join_result'};
+  static const clubInviteId = 'atk_club_invite'; // legacy — 카톡 공유 초대로 대체
+  static const _removedIds = {
+    'atk_schedule_confirm',
+    'atk_join_result',
+    clubInviteId,
+  };
 
   static const clubLinkedIds = <String>{
     scheduleUploadId,
@@ -113,12 +117,16 @@ class HqAlimtalkCatalog {
     if (remote != null) {
       final typesRaw = remote['types'];
       if (typesRaw is List) {
-        bool hasId(String id) => typesRaw.any(
-              (e) => e is Map && e['id']?.toString() == id,
-            );
-        if (hasId(clubInviteId) &&
-            !typesRaw.any((e) =>
-                e is Map && _removedIds.contains(e['id']?.toString()))) {
+        final remoteIds = {
+          for (final e in typesRaw)
+            if (e is Map && (e['id']?.toString() ?? '').isNotEmpty)
+              e['id'].toString(),
+        };
+        final currentIds = {
+          for (final t in AdminCatalog.hqAlimtalkTypes) t.id,
+        };
+        if (currentIds.every(remoteIds.contains) &&
+            !remoteIds.any(_removedIds.contains)) {
           shouldPersist = false;
         }
       }
