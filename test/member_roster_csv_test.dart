@@ -48,6 +48,22 @@ void main() {
     expect(csvEscape('서울, 동작구'), '"서울, 동작구"');
   });
 
+  test('xlsx는 엑셀 파일 형식(ZIP)으로 만들어진다', () {
+    final bytes = clubMemberRosterXlsx([
+      Member(
+        id: '1',
+        name: '김골프',
+        gender: '남',
+        phone: '010-1234-5678',
+        memberType: '정회원',
+        role: '총무',
+      ),
+    ]);
+    expect(bytes.length, greaterThan(100));
+    expect(bytes[0], 0x50); // P
+    expect(bytes[1], 0x4B); // K
+  });
+
   test('파일 이름에서 금지 문자를 제거한다', () {
     expect(safeFileStem('라운더/서울:모임'), '라운더_서울_모임');
   });

@@ -62,8 +62,8 @@ class _AdminMembersScreenState extends State<AdminMembersScreen> {
     }
     try {
       await downloadCsvFile(
-        filename: 'ROUNDER_회원명단.csv',
-        csv: adminMemberRosterCsv(members),
+        filename: 'ROUNDER_회원명단.xlsx',
+        bytes: adminMemberRosterXlsx(members),
       );
       if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(

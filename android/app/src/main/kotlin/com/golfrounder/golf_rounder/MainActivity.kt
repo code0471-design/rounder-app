@@ -21,7 +21,7 @@ class MainActivity : FlutterActivity() {
                     result.notImplemented()
                     return@setMethodCallHandler
                 }
-                val filename = call.argument<String>("filename") ?: "회원명단.xls"
+                val filename = call.argument<String>("filename") ?: "회원명단.xlsx"
                 val bytes = call.argument<ByteArray>("bytes")
                 if (bytes == null) {
                     result.error("no_bytes", "bytes missing", null)
@@ -39,7 +39,7 @@ class MainActivity : FlutterActivity() {
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
             val values = ContentValues().apply {
                 put(MediaStore.Downloads.DISPLAY_NAME, filename)
-                put(MediaStore.Downloads.MIME_TYPE, "application/vnd.ms-excel")
+                put(MediaStore.Downloads.MIME_TYPE, "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet")
                 put(MediaStore.Downloads.IS_PENDING, 1)
             }
             val uri = contentResolver.insert(

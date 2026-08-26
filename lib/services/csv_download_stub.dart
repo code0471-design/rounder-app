@@ -1,4 +1,4 @@
 Future<void> downloadCsvFile({
   required String filename,
-  required String csv,
+  required List<int> bytes,
 }) async {}

@@ -88,11 +88,11 @@ class _MembersScreenState extends State<MembersScreen>
     }
 
     final clubName = safeFileStem(provider.selectedClub.name);
-    final filename = '${clubName}_회원명단.csv';
+    final filename = '${clubName}_회원명단.xlsx';
     try {
       await downloadCsvFile(
         filename: filename,
-        csv: clubMemberRosterCsv(members),
+        bytes: clubMemberRosterXlsx(members),
       );
       if (!context.mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(

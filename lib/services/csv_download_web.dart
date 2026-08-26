@@ -1,16 +1,21 @@
 // ignore: avoid_web_libraries_in_flutter
-import 'dart:convert';
 import 'dart:html' as html;
+import 'dart:typed_data';
+
+import 'xlsx_from_rows.dart';
 
 Future<void> downloadCsvFile({
   required String filename,
-  required String csv,
+  required List<int> bytes,
 }) async {
-  final excelName = filename.toLowerCase().endsWith('.csv')
-      ? '${filename.substring(0, filename.length - 4)}.xls'
-      : filename;
-  final bytes = utf8.encode(csv);
-  final blob = html.Blob([bytes], 'application/vnd.ms-excel');
+  final excelName = filename.toLowerCase().endsWith('.xlsx')
+      ? filename
+      : filename.replaceAll(RegExp(r'\.(csv|xls)$', caseSensitive: false), '') +
+          '.xlsx';
+  final blob = html.Blob(
+    [Uint8List.fromList(bytes)],
+    excelXlsxMime,
+  );
   final url = html.Url.createObjectUrlFromBlob(blob);
   html.AnchorElement(href: url)
     ..setAttribute('download', excelName)
