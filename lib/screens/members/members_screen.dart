@@ -3,6 +3,8 @@ import 'package:provider/provider.dart';
 import '../../models/club_model.dart';
 import '../../models/member_role.dart';
 import '../../providers/club_provider.dart';
+import '../../services/csv_download.dart';
+import '../../services/member_roster_csv.dart';
 import '../../theme/app_theme.dart';
 import '../../widgets/ad_banner.dart';
 import '../invite/invite_send_screen.dart';
@@ -48,6 +50,56 @@ class _MembersScreenState extends State<MembersScreen>
     return list
         .where((m) => m.name.contains(_searchQuery))
         .toList();
+  }
+
+  List<Member> _membersForCurrentTab({
+    required List<Member> all,
+    required List<Member> regular,
+    required List<Member> guests,
+  }) {
+    switch (_tabController.index) {
+      case 1:
+        return regular;
+      case 2:
+        return guests;
+      default:
+        return all;
+    }
+  }
+
+  Future<void> _downloadExcel(
+    BuildContext context,
+    ClubProvider provider, {
+    required List<Member> all,
+    required List<Member> regular,
+    required List<Member> guests,
+  }) async {
+    final members = _membersForCurrentTab(
+      all: all,
+      regular: regular,
+      guests: guests,
+    );
+    if (members.isEmpty) {
+      if (!context.mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('다운로드할 회원이 없습니다')),
+      );
+      return;
+    }
+
+    final clubName = safeFileStem(provider.selectedClub.name);
+    final filename = '${clubName}_회원명단.csv';
+    try {
+      await downloadCsvFile(
+        filename: filename,
+        csv: clubMemberRosterCsv(members),
+      );
+    } catch (_) {
+      if (!context.mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('엑셀 파일을 만들지 못했습니다')),
+      );
+    }
   }
 
   @override
@@ -130,6 +182,18 @@ class _MembersScreenState extends State<MembersScreen>
                   );
                 },
               ),
+              if (provider.isClubExecutive)
+                IconButton(
+                  icon: const Icon(Icons.file_download_outlined, color: Colors.white),
+                  tooltip: '엑셀 다운로드',
+                  onPressed: () => _downloadExcel(
+                    context,
+                    provider,
+                    all: all,
+                    regular: regular,
+                    guests: guests,
+                  ),
+                ),
               IconButton(
                 icon: const Icon(Icons.person_add_alt_1_outlined, color: Colors.white),
                 tooltip: '게스트 초대하기',

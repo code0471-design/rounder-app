@@ -7,6 +7,8 @@ import 'package:flutter/material.dart';
 import 'admin_theme.dart';
 import 'package:provider/provider.dart';
 import '../../features/admin/application/admin_controller.dart';
+import '../../services/csv_download.dart';
+import '../../services/member_roster_csv.dart';
 import 'admin_models.dart';
 
 class AdminMembersScreen extends StatefulWidget {
@@ -47,6 +49,28 @@ class _AdminMembersScreenState extends State<AdminMembersScreen> {
       return _sortAsc ? cmp : -cmp;
     });
     return list;
+  }
+
+  Future<void> _downloadExcel(List<AdminMember> source) async {
+    final members = _filtered(source);
+    if (members.isEmpty) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('다운로드할 회원이 없습니다')),
+      );
+      return;
+    }
+    try {
+      await downloadCsvFile(
+        filename: 'ROUNDER_회원명단.csv',
+        csv: adminMemberRosterCsv(members),
+      );
+    } catch (_) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('엑셀 파일을 만들지 못했습니다')),
+      );
+    }
   }
 
   @override
@@ -125,20 +149,23 @@ class _AdminMembersScreenState extends State<AdminMembersScreen> {
         const SizedBox(width: 6),
         AdminBadge(label: '차단 $blocked명', color: AdminColors.statusDanger),
         const Spacer(),
-        // Export Button
-        Container(
-          padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
-          decoration: BoxDecoration(
-            color: AdminColors.accent,
-            borderRadius: BorderRadius.circular(8),
-          ),
-          child: const Row(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              Icon(Icons.file_download_outlined, color: Colors.white, size: 15),
-              SizedBox(width: 6),
-              Text('엑셀 다운로드', style: TextStyle(color: Colors.white, fontSize: 13, fontWeight: FontWeight.w600)),
-            ],
+        InkWell(
+          onTap: () => _downloadExcel(members),
+          borderRadius: BorderRadius.circular(8),
+          child: Container(
+            padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
+            decoration: BoxDecoration(
+              color: AdminColors.accent,
+              borderRadius: BorderRadius.circular(8),
+            ),
+            child: const Row(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Icon(Icons.file_download_outlined, color: Colors.white, size: 15),
+                SizedBox(width: 6),
+                Text('엑셀 다운로드', style: TextStyle(color: Colors.white, fontSize: 13, fontWeight: FontWeight.w600)),
+              ],
+            ),
           ),
         ),
       ],
