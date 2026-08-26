@@ -4,6 +4,8 @@
     <uses-permission android:name="android.permission.READ_MEDIA_IMAGES"/>
     <uses-permission android:name="android.permission.READ_EXTERNAL_STORAGE"
         android:maxSdkVersion="32"/>
+    <uses-permission android:name="android.permission.WRITE_EXTERNAL_STORAGE"
+        android:maxSdkVersion="28"/>
     <uses-permission android:name="android.permission.INTERNET"/>
     <uses-permission android:name="android.permission.POST_NOTIFICATIONS"/>
     <application
@@ -70,6 +72,12 @@
         <intent>
             <action android:name="android.media.action.IMAGE_CAPTURE"/>
         </intent>
+        <!-- 회원 명단 엑셀 공유 (카톡·드라이브) -->
+        <intent>
+            <action android:name="android.intent.action.SEND" />
+            <data android:mimeType="*/*" />
+        </intent>
+        <package android:name="com.google.android.apps.docs" />
         <!-- 카카오톡 앱 열기 (초대 붙여넣기) -->
         <package android:name="com.kakao.talk" />
         <intent>

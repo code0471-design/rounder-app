@@ -94,6 +94,10 @@ class _MembersScreenState extends State<MembersScreen>
         filename: filename,
         csv: clubMemberRosterCsv(members),
       );
+      if (!context.mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('파일 앱의 다운로드 폴더에서 열어 주세요')),
+      );
     } catch (_) {
       if (!context.mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(

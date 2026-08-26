@@ -65,6 +65,10 @@ class _AdminMembersScreenState extends State<AdminMembersScreen> {
         filename: 'ROUNDER_회원명단.csv',
         csv: adminMemberRosterCsv(members),
       );
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('파일 앱의 다운로드 폴더에서 열어 주세요')),
+      );
     } catch (_) {
       if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
