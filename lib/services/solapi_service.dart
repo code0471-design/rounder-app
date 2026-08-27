@@ -53,7 +53,7 @@ class SolapiService {
   /// 템플릿 변수명: #{인증번호}
   static const otpTemplateId = String.fromEnvironment(
     'SOLAPI_OTP_TEMPLATE_ID',
-    defaultValue: 'SythWc9qhK',
+    defaultValue: 'UnnQDOxu0b',
   );
 
   bool get isConfigured => _apiKey.isNotEmpty && _apiSecret.isNotEmpty;

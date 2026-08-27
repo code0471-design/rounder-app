@@ -38,7 +38,7 @@ workflows:
             --build-name="$BUILD_NAME" --build-number="$BUILD_NUMBER" \
             --dart-define=SOLAPI_API_KEY="$SOLAPI_API_KEY" \
             --dart-define=SOLAPI_API_SECRET="$SOLAPI_API_SECRET" \
-            --dart-define=SOLAPI_OTP_TEMPLATE_ID="${SOLAPI_OTP_TEMPLATE_ID:-SythWc9qhK}" \
+            --dart-define=SOLAPI_OTP_TEMPLATE_ID="${SOLAPI_OTP_TEMPLATE_ID:-UnnQDOxu0b}" \
             --dart-define=SOLAPI_KAKAO_PF_ID="$SOLAPI_KAKAO_PF_ID" \
             --dart-define=SOLAPI_SENDER_PHONE="${SOLAPI_SENDER_PHONE:-01045110471}"
       - name: Build iOS IPA
@@ -53,7 +53,7 @@ workflows:
             --build-number="$BUILD_NUMBER" \
             --dart-define=SOLAPI_API_KEY="$SOLAPI_API_KEY" \
             --dart-define=SOLAPI_API_SECRET="$SOLAPI_API_SECRET" \
-            --dart-define=SOLAPI_OTP_TEMPLATE_ID="${SOLAPI_OTP_TEMPLATE_ID:-SythWc9qhK}" \
+            --dart-define=SOLAPI_OTP_TEMPLATE_ID="${SOLAPI_OTP_TEMPLATE_ID:-UnnQDOxu0b}" \
             --dart-define=SOLAPI_KAKAO_PF_ID="$SOLAPI_KAKAO_PF_ID" \
             --dart-define=SOLAPI_SENDER_PHONE="${SOLAPI_SENDER_PHONE:-01045110471}" \
             --export-options-plist=/Users/builder/export_options.plist
@@ -92,7 +92,7 @@ workflows:
             --build-name="$BUILD_NAME" --build-number="$BUILD_NUMBER" \
             --dart-define=SOLAPI_API_KEY="$SOLAPI_API_KEY" \
             --dart-define=SOLAPI_API_SECRET="$SOLAPI_API_SECRET" \
-            --dart-define=SOLAPI_OTP_TEMPLATE_ID="${SOLAPI_OTP_TEMPLATE_ID:-SythWc9qhK}" \
+            --dart-define=SOLAPI_OTP_TEMPLATE_ID="${SOLAPI_OTP_TEMPLATE_ID:-UnnQDOxu0b}" \
             --dart-define=SOLAPI_KAKAO_PF_ID="$SOLAPI_KAKAO_PF_ID" \
             --dart-define=SOLAPI_SENDER_PHONE="${SOLAPI_SENDER_PHONE:-01045110471}"
     artifacts:
@@ -123,7 +123,7 @@ workflows:
             --build-name="$BUILD_NAME" --build-number="$BUILD_NUMBER" \
             --dart-define=SOLAPI_API_KEY="$SOLAPI_API_KEY" \
             --dart-define=SOLAPI_API_SECRET="$SOLAPI_API_SECRET" \
-            --dart-define=SOLAPI_OTP_TEMPLATE_ID="${SOLAPI_OTP_TEMPLATE_ID:-SythWc9qhK}" \
+            --dart-define=SOLAPI_OTP_TEMPLATE_ID="${SOLAPI_OTP_TEMPLATE_ID:-UnnQDOxu0b}" \
             --dart-define=SOLAPI_KAKAO_PF_ID="$SOLAPI_KAKAO_PF_ID" \
             --dart-define=SOLAPI_SENDER_PHONE="${SOLAPI_SENDER_PHONE:-01045110471}" \
             2>&1 | tee /tmp/rounder_aab.log
