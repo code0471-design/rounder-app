@@ -9,7 +9,6 @@ import '../../models/user_model.dart';
 import '../../providers/auth_provider.dart';
 import '../../providers/club_provider.dart';
 import '../../theme/app_theme.dart';
-import '../../widgets/business_info_footer.dart';
 
 /// 소셜 로그인 후 휴대폰 번호가 없을 때 필수 수집 화면
 class PhoneRequiredScreen extends StatefulWidget {
@@ -319,8 +318,6 @@ class _PhoneRequiredScreenState extends State<PhoneRequiredScreen> {
                     ),
                   ),
                 ],
-                const SizedBox(height: 28),
-                const BusinessInfoFooter(),
               ],
             ),
           ),
