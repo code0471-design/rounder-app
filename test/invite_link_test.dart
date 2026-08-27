@@ -1,3 +1,5 @@
+import 'dart:io';
+
 import 'package:flutter_test/flutter_test.dart';
 import 'package:golf_rounder/config/invite_links.dart';
 import 'package:golf_rounder/models/user_model.dart';
@@ -55,5 +57,14 @@ void main() {
     });
     expect(url, contains('referrer='));
     expect(url, contains(Uri.encodeComponent('token=inv_1')));
+  });
+
+  test('초대 랜딩은 카톡 복귀 시 앱을 자동으로 다시 열지 않는다', () {
+    final html = File('website/invite.html').readAsStringSync();
+    expect(html.contains('addEventListener("visibilitychange"'), isFalse);
+    expect(html.contains("addEventListener('visibilitychange'"), isFalse);
+    expect(html.contains('addEventListener("pageshow"'), isFalse);
+    expect(html.contains("addEventListener('pageshow'"), isFalse);
+    expect(html.contains('rounder_invite_tried'), isFalse);
   });
 }

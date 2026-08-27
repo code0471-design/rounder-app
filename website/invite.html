@@ -75,7 +75,7 @@
     <div class="invite-mark" aria-hidden="true">⛳</div>
     <div class="invite-kicker">GOLF CLUB INVITE</div>
     <h1 id="headline">골프 모임에 초대되었습니다</h1>
-    <p id="subline">앱에서 가입하기를 누르면, 설치된 경우 바로 가입되고 없으면 스토어로 이동합니다.</p>
+    <p id="subline">아래 버튼을 한 번만 눌러 주세요. 앱이 있으면 바로 가입되고, 없으면 스토어로 이동합니다.</p>
     <div class="invite-actions">
       <a class="btn btn-primary" id="join-app" href="#">앱에서 가입하기</a>
     </div>
@@ -142,30 +142,16 @@
       var btn = document.getElementById("join-app");
       btn.href = android ? intent : deep;
 
-      function openApp() {
-        window.location.href = android ? intent : deep;
-      }
-
+      // 버튼을 눌렀을 때만 앱/스토어로 보낸다.
+      // visibilitychange / pageshow 로 자동 실행하면 카톡 인앱 브라우저가
+      // 다시 보일 때마다 ROUND ER가 앞으로 튀어나온다.
       btn.addEventListener("click", function (e) {
         if (android) return;
         e.preventDefault();
-        openApp();
+        window.location.href = deep;
         setTimeout(function () {
           if (!document.hidden) window.location.href = play;
         }, 1600);
-      });
-
-      document.addEventListener("visibilitychange", function () {
-        if (document.hidden) return;
-        setTimeout(openApp, 300);
-      });
-      window.addEventListener("pageshow", function () {
-        if (sessionStorage.getItem("rounder_invite_tried") === "1") {
-          setTimeout(openApp, 300);
-        }
-      });
-      btn.addEventListener("click", function () {
-        sessionStorage.setItem("rounder_invite_tried", "1");
       });
     })();
   </script>

@@ -102,6 +102,10 @@ class _InviteLandingScreenState extends State<InviteLandingScreen> {
       );
     } else {
       await PendingInviteStore.clear();
+      if (!mounted) return;
+      await Future<void>.delayed(const Duration(milliseconds: 450));
+      if (!mounted) return;
+      _openClubRoom();
     }
   }
 

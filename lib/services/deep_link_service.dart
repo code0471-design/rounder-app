@@ -35,6 +35,9 @@ class DeepLinkService {
   Uri? _pending;
   bool _started = false;
   bool _ready = false;
+  bool _inviteNavLock = false;
+  String? _lastInviteKey;
+  DateTime? _lastInviteAt;
 
   /// 일정 탭 / 재무 탭 인덱스 (ClubRoomScreen과 동일)
   static const scheduleTab = 1;
@@ -102,11 +105,13 @@ class DeepLinkService {
   Future<void> _ingestPlayReferrer() async {
     if (kIsWeb) return;
     if (defaultTargetPlatform != TargetPlatform.android) return;
+    if (await PendingInviteStore.wasPlayReferrerUsed()) return;
     try {
       final details = await PlayInstallReferrer.installReferrer
           .timeout(const Duration(seconds: 4));
       final uri = InviteLinks.uriFromPlayReferrer(details.installReferrer);
       if (uri == null) return;
+      await PendingInviteStore.markPlayReferrerUsed();
       _pending = uri;
       await PendingInviteStore.save(uri);
       debugPrint('[DeepLink] play referrer: $uri');
@@ -252,23 +257,65 @@ class DeepLinkService {
       return;
     }
 
+    final inviteKey = '$resolvedClubId|$token';
+    final now = DateTime.now();
+    if (_lastInviteKey == inviteKey &&
+        _lastInviteAt != null &&
+        now.difference(_lastInviteAt!) < const Duration(seconds: 8)) {
+      debugPrint('[DeepLink] invite skip — debounce $inviteKey');
+      return;
+    }
+
+    if (auth.isLoggedIn &&
+        !auth.needsPhoneNumber &&
+        resolvedClubId.isNotEmpty) {
+      final clubs = context.read<ClubProvider>();
+      if (clubs.isMyClub(resolvedClubId)) {
+        await PendingInviteStore.clear();
+        debugPrint('[DeepLink] invite skip — already member $resolvedClubId');
+        _lastInviteKey = inviteKey;
+        _lastInviteAt = now;
+        return;
+      }
+    }
+
     final nav = AppNavigator.state;
     if (nav == null) return;
 
-    await nav.push(
-      MaterialPageRoute<void>(
-        builder: (_) => InviteLandingScreen(
-          clubId: resolvedClubId.isNotEmpty ? resolvedClubId : 'unknown',
-          clubName: clubName.isNotEmpty ? clubName : '모임',
-          inviterName: inviter.isNotEmpty ? inviter : '회원',
-          token: token.isNotEmpty ? token : 'link',
-          inviteType: inviteType,
-          referrerId: referrerId.isEmpty ? null : referrerId,
-          referrerName: referrerName.isEmpty ? null : referrerName,
-          guestName: guestName.isEmpty ? null : guestName,
+    var inviteAlreadyOpen = false;
+    nav.popUntil((route) {
+      if (route.settings.name == '/invite') {
+        inviteAlreadyOpen = true;
+      }
+      return true;
+    });
+    if (inviteAlreadyOpen || _inviteNavLock) {
+      debugPrint('[DeepLink] invite skip — landing already open');
+      return;
+    }
+
+    _lastInviteKey = inviteKey;
+    _lastInviteAt = now;
+    _inviteNavLock = true;
+    try {
+      await nav.push(
+        MaterialPageRoute<void>(
+          settings: const RouteSettings(name: '/invite'),
+          builder: (_) => InviteLandingScreen(
+            clubId: resolvedClubId.isNotEmpty ? resolvedClubId : 'unknown',
+            clubName: clubName.isNotEmpty ? clubName : '모임',
+            inviterName: inviter.isNotEmpty ? inviter : '회원',
+            token: token.isNotEmpty ? token : 'link',
+            inviteType: inviteType,
+            referrerId: referrerId.isEmpty ? null : referrerId,
+            referrerName: referrerName.isEmpty ? null : referrerName,
+            guestName: guestName.isEmpty ? null : guestName,
+          ),
         ),
-      ),
-    );
+      );
+    } finally {
+      _inviteNavLock = false;
+    }
   }
 
   Future<void> _openClubRoom(
