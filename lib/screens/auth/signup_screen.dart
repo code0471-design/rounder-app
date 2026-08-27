@@ -7,7 +7,7 @@ import 'login_screen.dart';
 
 // ════════════════════════════════════════════════════════════
 //  SignupScreen — 회원가입 (이름 / 전화번호 / 핸디캡)
-//  → 다음: VerifyScreen (본인인증)
+//  → 다음: VerifyScreen (휴대폰 문자 인증)
 // ════════════════════════════════════════════════════════════
 class SignupScreen extends StatefulWidget {
   /// 초대 경로로 진입 시 클럽 ID 전달 (선택)
@@ -52,7 +52,7 @@ class _SignupScreenState extends State<SignupScreen> {
     super.dispose();
   }
 
-  // ── 다음 단계 (본인인증) ──────────────────────────────────
+  // ── 다음 단계 (휴대폰 인증) ──────────────────────────────────
   void _goToVerify() {
     if (!_formKey.currentState!.validate()) return;
     if (!_agreeTerms || !_agreePrivacy) {
@@ -244,7 +244,7 @@ class _SignupScreenState extends State<SignupScreen> {
                     elevation: 0,
                   ),
                   child: const Text(
-                    '다음 — 본인인증',
+                    '다음 — 휴대폰 인증',
                     style: TextStyle(
                         fontSize: 16, fontWeight: FontWeight.bold),
                   ),

@@ -6,15 +6,12 @@ import 'package:provider/provider.dart';
 import '../../models/user_model.dart';
 import '../../providers/auth_provider.dart';
 import '../../providers/club_provider.dart';
-import '../../services/identity_verification_result.dart';
 import '../../theme/app_theme.dart';
 import '../../widgets/business_info_footer.dart';
-import 'portone_identity_screen.dart';
 
 // ════════════════════════════════════════════════════════════
-//  VerifyScreen — SMS / PASS 본인인증
-//  - SMS: 인증번호 발송 → 4자리 입력 → 확인
-//  - PASS: 포트원 본인인증 화면 연결 (키 없으면 개발용 mock)
+//  VerifyScreen — 휴대폰 문자 인증
+//  인증번호 발송 → 4자리 입력 → 확인
 // ════════════════════════════════════════════════════════════
 class VerifyScreen extends StatefulWidget {
   final String name;
@@ -49,9 +46,6 @@ class VerifyScreen extends StatefulWidget {
 }
 
 class _VerifyScreenState extends State<VerifyScreen> {
-  VerifyMethod _selectedMethod = VerifyMethod.sms;
-
-  // ── SMS 관련 ──
   final _codeCtrl = TextEditingController();
   String? _smsError;
 
@@ -108,45 +102,6 @@ class _VerifyScreenState extends State<VerifyScreen> {
     }
   }
 
-  // ── PASS 인증 (포트원 화면 연결) ───────────────────────────
-  Future<void> _requestPass() async {
-    final result = await Navigator.push<IdentityVerificationResult>(
-      context,
-      MaterialPageRoute(
-        builder: (_) => PortoneIdentityScreen(
-          expectedName: widget.name,
-          expectedPhone: widget.phone,
-        ),
-      ),
-    );
-    if (!mounted || result == null) return;
-
-    if (!result.success) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text(result.errorMessage ?? '본인인증에 실패했습니다'),
-          backgroundColor: AppColors.danger,
-          behavior: SnackBarBehavior.floating,
-        ),
-      );
-      return;
-    }
-
-    final auth = context.read<AuthProvider>();
-    auth.confirmPassVerified(phone: result.phone ?? widget.phone);
-    if (!mounted) return;
-    if (kDebugMode && result.usedMock) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content: Text('개발용 본인인증으로 가입을 완료합니다'),
-          behavior: SnackBarBehavior.floating,
-          duration: Duration(seconds: 2),
-        ),
-      );
-    }
-    _completeSignup(VerifyMethod.pass);
-  }
-
   // ── 회원가입 완료 ─────────────────────────────────────────
   Future<void> _completeSignup(VerifyMethod method) async {
     final auth = context.read<AuthProvider>();
@@ -198,7 +153,7 @@ class _VerifyScreenState extends State<VerifyScreen> {
               onPressed: () => Navigator.pop(context),
             ),
             title: const Text(
-              '본인인증',
+              '휴대폰 인증',
               style: TextStyle(
                   color: AppColors.textPrimary,
                   fontSize: 17,
@@ -214,43 +169,15 @@ class _VerifyScreenState extends State<VerifyScreen> {
                 _InfoCard(name: widget.name, phone: widget.phone),
                 const SizedBox(height: 28),
 
-                // ── 인증 방법 선택 탭 ──
-                const Text(
-                  '인증 방법 선택',
-                  style: TextStyle(
-                      fontSize: 15,
-                      fontWeight: FontWeight.bold,
-                      color: AppColors.textPrimary),
+                _SmsSection(
+                  auth: auth,
+                  codeCtrl: _codeCtrl,
+                  error: _smsError,
+                  canResend: _canResend,
+                  timerText: _timerText,
+                  onSendSms: _sendSms,
+                  onVerify: _verifySms,
                 ),
-                const SizedBox(height: 12),
-                _MethodSelector(
-                  selected: _selectedMethod,
-                  onChanged: (m) {
-                    setState(() {
-                      _selectedMethod = m;
-                      _smsError = null;
-                    });
-                    auth.resetVerify();
-                  },
-                ),
-                const SizedBox(height: 28),
-
-                // ── 인증 UI ──
-                if (_selectedMethod == VerifyMethod.sms)
-                  _SmsSection(
-                    auth: auth,
-                    codeCtrl: _codeCtrl,
-                    error: _smsError,
-                    canResend: _canResend,
-                    timerText: _timerText,
-                    onSendSms: _sendSms,
-                    onVerify: _verifySms,
-                  )
-                else
-                  _PassSection(
-                    auth: auth,
-                    onRequest: _requestPass,
-                  ),
 
                 const SizedBox(height: 20),
 
@@ -279,11 +206,11 @@ class _VerifyScreenState extends State<VerifyScreen> {
                       const SizedBox(height: 6),
                       Text(
                         kDebugMode
-                            ? '• 본인 명의 휴대폰으로만 인증 가능합니다\n'
-                                '• 인증 정보는 회원 관리 목적으로만 사용됩니다\n'
+                            ? '• 입력한 번호로 인증문자를 보냅니다\n'
+                                '• 번호는 알림톡·모임 연락에 사용됩니다\n'
                                 '• (디버그) SMS 인증번호: 1234'
-                            : '• 본인 명의 휴대폰으로만 인증 가능합니다\n'
-                                '• 인증 정보는 회원 관리 목적으로만 사용됩니다',
+                            : '• 입력한 번호로 인증문자를 보냅니다\n'
+                                '• 번호는 알림톡·모임 연락에 사용됩니다',
                         style: const TextStyle(
                             fontSize: 11,
                             color: AppColors.textSecondary,
@@ -348,96 +275,6 @@ class _InfoCard extends StatelessWidget {
             ],
           ),
         ],
-      ),
-    );
-  }
-}
-
-// ────────────────────────────────────────────────────────────
-//  인증 방법 선택 탭
-// ────────────────────────────────────────────────────────────
-class _MethodSelector extends StatelessWidget {
-  final VerifyMethod selected;
-  final ValueChanged<VerifyMethod> onChanged;
-  const _MethodSelector({required this.selected, required this.onChanged});
-
-  @override
-  Widget build(BuildContext context) {
-    return Row(
-      children: [
-        Expanded(
-          child: _MethodTab(
-            icon: Icons.sms_outlined,
-            label: 'SMS 인증',
-            sub: '문자 메시지',
-            isSelected: selected == VerifyMethod.sms,
-            onTap: () => onChanged(VerifyMethod.sms),
-          ),
-        ),
-        const SizedBox(width: 10),
-        Expanded(
-          child: _MethodTab(
-            icon: Icons.verified_user_outlined,
-            label: 'PASS 인증',
-            sub: '통신사 앱',
-            isSelected: selected == VerifyMethod.pass,
-            onTap: () => onChanged(VerifyMethod.pass),
-          ),
-        ),
-      ],
-    );
-  }
-}
-
-class _MethodTab extends StatelessWidget {
-  final IconData icon;
-  final String label;
-  final String sub;
-  final bool isSelected;
-  final VoidCallback onTap;
-
-  const _MethodTab({
-    required this.icon,
-    required this.label,
-    required this.sub,
-    required this.isSelected,
-    required this.onTap,
-  });
-
-  @override
-  Widget build(BuildContext context) {
-    return GestureDetector(
-      onTap: onTap,
-      child: AnimatedContainer(
-        duration: const Duration(milliseconds: 200),
-        padding: const EdgeInsets.symmetric(vertical: 16),
-        decoration: BoxDecoration(
-          color: isSelected ? AppColors.primary : const Color(0xFFF7F8FA),
-          borderRadius: BorderRadius.circular(14),
-          border: Border.all(
-            color: isSelected ? AppColors.primary : const Color(0xFFE5E7EB),
-            width: isSelected ? 2 : 1,
-          ),
-        ),
-        child: Column(
-          children: [
-            Icon(icon,
-                color: isSelected ? Colors.white : AppColors.textSecondary,
-                size: 26),
-            const SizedBox(height: 6),
-            Text(label,
-                style: TextStyle(
-                    fontSize: 13,
-                    fontWeight: FontWeight.bold,
-                    color: isSelected ? Colors.white : AppColors.textPrimary)),
-            Text(sub,
-                style: TextStyle(
-                    fontSize: 11,
-                    color: isSelected
-                        ? Colors.white70
-                        : AppColors.textSecondary)),
-          ],
-        ),
       ),
     );
   }
@@ -608,115 +445,6 @@ class _SmsSection extends StatelessWidget {
               style: TextStyle(
                   fontSize: 13,
                   color: canResend ? AppColors.primary : AppColors.textSecondary),
-            ),
-          ),
-        ),
-      ],
-    );
-  }
-}
-
-// ────────────────────────────────────────────────────────────
-//  PASS 인증 섹션
-// ────────────────────────────────────────────────────────────
-class _PassSection extends StatelessWidget {
-  final AuthProvider auth;
-  final VoidCallback onRequest;
-
-  const _PassSection({required this.auth, required this.onRequest});
-
-  @override
-  Widget build(BuildContext context) {
-    if (auth.isVerifying) {
-      return Column(
-        children: [
-          const SizedBox(height: 20),
-          const CircularProgressIndicator(color: AppColors.primary),
-          const SizedBox(height: 20),
-          const Text(
-            'PASS 앱에서 인증을 진행해 주세요',
-            style: TextStyle(
-                fontSize: 15,
-                fontWeight: FontWeight.w600,
-                color: AppColors.textPrimary),
-            textAlign: TextAlign.center,
-          ),
-          const SizedBox(height: 8),
-          Text(
-            '통신사 PASS 앱에서 인증을 완료해 주세요',
-            style: TextStyle(
-                fontSize: 12, color: Colors.grey[500]),
-            textAlign: TextAlign.center,
-          ),
-          const SizedBox(height: 24),
-        ],
-      );
-    }
-
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        // PASS 로고 영역
-        Container(
-          width: double.infinity,
-          padding: const EdgeInsets.symmetric(vertical: 24),
-          decoration: BoxDecoration(
-            color: const Color(0xFFF0F4FF),
-            borderRadius: BorderRadius.circular(14),
-          ),
-          child: Column(
-            children: [
-              Container(
-                width: 64,
-                height: 64,
-                decoration: BoxDecoration(
-                  gradient: const LinearGradient(
-                    colors: [Color(0xFF4F46E5), Color(0xFF7C3AED)],
-                    begin: Alignment.topLeft,
-                    end: Alignment.bottomRight,
-                  ),
-                  borderRadius: BorderRadius.circular(18),
-                ),
-                child: const Icon(Icons.verified_user,
-                    color: Colors.white, size: 34),
-              ),
-              const SizedBox(height: 12),
-              const Text('PASS 본인인증',
-                  style: TextStyle(
-                      fontSize: 16,
-                      fontWeight: FontWeight.bold,
-                      color: AppColors.textPrimary)),
-              const SizedBox(height: 4),
-              Text('SKT · KT · LG U+ 통신사 인증',
-                  style:
-                      TextStyle(fontSize: 12, color: Colors.grey[500])),
-            ],
-          ),
-        ),
-        const SizedBox(height: 20),
-        const Text(
-          'PASS / 휴대폰 본인인증을 진행합니다.\n'
-          '포트원 키가 설정되면 실제 인증창이 열리고,\n'
-          '키가 없으면 개발용 완료 화면으로 이동합니다.',
-          style: TextStyle(
-              fontSize: 13,
-              color: AppColors.textSecondary,
-              height: 1.6),
-        ),
-        const SizedBox(height: 20),
-        SizedBox(
-          width: double.infinity,
-          height: 52,
-          child: ElevatedButton.icon(
-            onPressed: onRequest,
-            icon: const Icon(Icons.verified_user_outlined, size: 20),
-            label: const Text('PASS / 휴대폰 본인인증하기'),
-            style: ElevatedButton.styleFrom(
-              backgroundColor: const Color(0xFF4F46E5),
-              foregroundColor: Colors.white,
-              shape: RoundedRectangleBorder(
-                  borderRadius: BorderRadius.circular(14)),
-              elevation: 0,
             ),
           ),
         ),

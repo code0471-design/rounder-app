@@ -8,10 +8,8 @@ import 'package:provider/provider.dart';
 import '../../models/user_model.dart';
 import '../../providers/auth_provider.dart';
 import '../../providers/club_provider.dart';
-import '../../services/identity_verification_result.dart';
 import '../../theme/app_theme.dart';
 import '../../widgets/business_info_footer.dart';
-import 'portone_identity_screen.dart';
 
 /// 소셜 로그인 후 휴대폰 번호가 없을 때 필수 수집 화면
 class PhoneRequiredScreen extends StatefulWidget {
@@ -26,7 +24,6 @@ class _PhoneRequiredScreenState extends State<PhoneRequiredScreen> {
   final _phoneCtrl = TextEditingController();
   final _codeCtrl = TextEditingController();
 
-  VerifyMethod _method = VerifyMethod.sms;
   bool _codeSent = false;
   bool _busy = false;
   String? _error;
@@ -97,34 +94,6 @@ class _PhoneRequiredScreenState extends State<PhoneRequiredScreen> {
       return;
     }
     await _savePhone(VerifyMethod.sms);
-  }
-
-  Future<void> _requestPass() async {
-    if (!_formKey.currentState!.validate()) return;
-    final auth = context.read<AuthProvider>();
-    final name = auth.currentUser?.name ?? '회원';
-    final phone = _phoneCtrl.text.trim();
-
-    final result = await Navigator.push<IdentityVerificationResult>(
-      context,
-      MaterialPageRoute(
-        builder: (_) => PortoneIdentityScreen(
-          expectedName: name,
-          expectedPhone: phone,
-        ),
-      ),
-    );
-    if (!mounted || result == null) return;
-
-    if (!result.success) {
-      setState(() {
-        _error = result.errorMessage ?? '본인인증에 실패했습니다';
-      });
-      return;
-    }
-
-    auth.confirmPassVerified(phone: result.phone ?? phone);
-    await _savePhone(VerifyMethod.pass, phoneOverride: result.phone ?? phone);
   }
 
   Future<void> _savePhone(
@@ -269,43 +238,7 @@ class _PhoneRequiredScreenState extends State<PhoneRequiredScreen> {
                     return null;
                   },
                 ),
-                const SizedBox(height: 20),
-                const Text(
-                  '인증 방법',
-                  style: TextStyle(
-                    fontSize: 13,
-                    fontWeight: FontWeight.w600,
-                    color: AppColors.textPrimary,
-                  ),
-                ),
-                const SizedBox(height: 10),
-                Row(
-                  children: [
-                    Expanded(
-                      child: _MethodChip(
-                        label: 'SMS 인증',
-                        selected: _method == VerifyMethod.sms,
-                        onTap: () => setState(() {
-                          _method = VerifyMethod.sms;
-                          _error = null;
-                        }),
-                      ),
-                    ),
-                    const SizedBox(width: 10),
-                    Expanded(
-                      child: _MethodChip(
-                        label: 'PASS 인증',
-                        selected: _method == VerifyMethod.pass,
-                        onTap: () => setState(() {
-                          _method = VerifyMethod.pass;
-                          _error = null;
-                          _codeSent = false;
-                        }),
-                      ),
-                    ),
-                  ],
-                ),
-                if (_method == VerifyMethod.sms && _codeSent) ...[
+                if (_codeSent) ...[
                   const SizedBox(height: 20),
                   TextFormField(
                     controller: _codeCtrl,
@@ -344,9 +277,7 @@ class _PhoneRequiredScreenState extends State<PhoneRequiredScreen> {
                     onPressed: _busy
                         ? null
                         : () {
-                            if (_method == VerifyMethod.pass) {
-                              _requestPass();
-                            } else if (!_codeSent) {
+                            if (!_codeSent) {
                               _sendSms();
                             } else {
                               _verifySmsAndSave();
@@ -369,9 +300,7 @@ class _PhoneRequiredScreenState extends State<PhoneRequiredScreen> {
                             ),
                           )
                         : Text(
-                            _method == VerifyMethod.pass
-                                ? 'PASS로 인증하기'
-                                : (_codeSent ? '인증 완료' : '인증번호 받기'),
+                            _codeSent ? '인증 완료' : '인증번호 받기',
                             style: const TextStyle(
                               fontSize: 16,
                               fontWeight: FontWeight.w700,
@@ -379,9 +308,7 @@ class _PhoneRequiredScreenState extends State<PhoneRequiredScreen> {
                           ),
                   ),
                 ),
-                if (_method == VerifyMethod.sms &&
-                    _codeSent &&
-                    _canResend) ...[
+                if (_codeSent && _canResend) ...[
                   const SizedBox(height: 12),
                   Center(
                     child: TextButton(
@@ -394,48 +321,6 @@ class _PhoneRequiredScreenState extends State<PhoneRequiredScreen> {
                 const BusinessInfoFooter(),
               ],
             ),
-          ),
-        ),
-      ),
-    );
-  }
-}
-
-class _MethodChip extends StatelessWidget {
-  final String label;
-  final bool selected;
-  final VoidCallback onTap;
-
-  const _MethodChip({
-    required this.label,
-    required this.selected,
-    required this.onTap,
-  });
-
-  @override
-  Widget build(BuildContext context) {
-    return InkWell(
-      onTap: onTap,
-      borderRadius: BorderRadius.circular(10),
-      child: Container(
-        padding: const EdgeInsets.symmetric(vertical: 12),
-        decoration: BoxDecoration(
-          color: selected
-              ? AppColors.primary.withValues(alpha: 0.12)
-              : Colors.white,
-          borderRadius: BorderRadius.circular(10),
-          border: Border.all(
-            color: selected ? AppColors.primary : const Color(0xFFE5E7EB),
-            width: selected ? 1.5 : 1,
-          ),
-        ),
-        child: Text(
-          label,
-          textAlign: TextAlign.center,
-          style: TextStyle(
-            fontWeight: FontWeight.w700,
-            fontSize: 13,
-            color: selected ? AppColors.primary : AppColors.textSecondary,
           ),
         ),
       ),
