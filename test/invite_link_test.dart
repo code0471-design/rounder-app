@@ -35,4 +35,25 @@ void main() {
       isFalse,
     );
   });
+
+  test('Play 스토어 referrer에서 초대 딥링크를 복원한다', () {
+    final uri = InviteLinks.uriFromPlayReferrer(
+      'token=inv_1&club=club_a&name=%ED%95%9C%EB%82%A8%EA%B3%A8%ED%94%84%ED%9A%8C&inviter=%EB%A1%9C%EC%9D%B4',
+    );
+    expect(uri, isNotNull);
+    expect(uri!.scheme, 'rounder');
+    expect(uri.host, 'invite');
+    expect(uri.queryParameters['token'], 'inv_1');
+    expect(uri.queryParameters['club'], 'club_a');
+    expect(uri.queryParameters['name'], '한남골프회');
+  });
+
+  test('Play 스토어 설치 URL에 초대 referrer가 들어간다', () {
+    final url = InviteLinks.playStoreUrl(inviteQuery: {
+      'token': 'inv_1',
+      'club': 'club_a',
+    });
+    expect(url, contains('referrer='));
+    expect(url, contains(Uri.encodeComponent('token=inv_1')));
+  });
 }

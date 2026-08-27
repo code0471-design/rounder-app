@@ -4,6 +4,7 @@ import '../../models/user_model.dart';
 import '../../providers/auth_provider.dart';
 import '../../providers/club_provider.dart';
 import '../../services/deep_link_service.dart';
+import '../../services/pending_invite_store.dart';
 import '../../theme/app_theme.dart';
 import '../../widgets/rounder_logo.dart';
 import '../auth/signup_screen.dart';
@@ -13,7 +14,7 @@ import '../club_room/club_room_screen.dart';
 //  InviteLandingScreen — 초대 링크 클릭 후 진입 화면
 //
 //  초대 = 즉시 가입 (승인 없음, 밴드형)
-//  A. 로그인됨 → 확인 후 바로 모임 멤버
+//  A. 로그인됨 → 확인 없이 바로 모임 멤버
 //  B. 미로그인 → 로그인/회원가입 후 즉시 가입
 // ════════════════════════════════════════════════════════════
 class InviteLandingScreen extends StatefulWidget {
@@ -54,80 +55,13 @@ class _InviteLandingScreenState extends State<InviteLandingScreen> {
     WidgetsBinding.instance.addPostFrameCallback((_) {
       final auth = context.read<AuthProvider>();
       if (auth.isLoggedIn) {
-        _showJoinDialog();
+        _acceptInvite();
       }
     });
   }
 
-  void _showJoinDialog() {
-    showDialog(
-      context: context,
-      barrierDismissible: false,
-      builder: (_) => AlertDialog(
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(18)),
-        title: Row(
-          children: [
-            const Text('⛳', style: TextStyle(fontSize: 24)),
-            const SizedBox(width: 8),
-            Expanded(
-              child: Text(
-                '${widget.clubName}에\n바로 가입할까요?',
-                style: const TextStyle(
-                    fontSize: 16, fontWeight: FontWeight.bold),
-              ),
-            ),
-          ],
-        ),
-        content: Column(
-          mainAxisSize: MainAxisSize.min,
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Text(
-              '${widget.inviterName}님이 초대했습니다.',
-              style: const TextStyle(
-                  fontSize: 13, color: AppColors.textSecondary),
-            ),
-            const SizedBox(height: 12),
-            Container(
-              padding: const EdgeInsets.all(10),
-              decoration: BoxDecoration(
-                color: const Color(0xFFF0F4FF),
-                borderRadius: BorderRadius.circular(8),
-              ),
-              child: Text(
-                _asGuest
-                    ? '확인하면 게스트로 즉시 가입됩니다. 별도 승인은 없습니다.'
-                    : '확인하면 바로 모임 회원이 됩니다. 별도 승인은 없습니다.',
-                style: const TextStyle(fontSize: 12, color: AppColors.primary),
-              ),
-            ),
-          ],
-        ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(context),
-            child: const Text('취소',
-                style: TextStyle(color: AppColors.textSecondary)),
-          ),
-          ElevatedButton(
-            onPressed: () {
-              Navigator.pop(context);
-              _acceptInvite();
-            },
-            style: ElevatedButton.styleFrom(
-              backgroundColor: AppColors.primary,
-              foregroundColor: Colors.white,
-              shape: RoundedRectangleBorder(
-                  borderRadius: BorderRadius.circular(10)),
-            ),
-            child: const Text('가입하기'),
-          ),
-        ],
-      ),
-    );
-  }
-
   Future<void> _acceptInvite() async {
+    if (_joining || _joined) return;
     setState(() => _joining = true);
 
     final auth = context.read<AuthProvider>();
@@ -166,6 +100,8 @@ class _InviteLandingScreenState extends State<InviteLandingScreen> {
           behavior: SnackBarBehavior.floating,
         ),
       );
+    } else {
+      await PendingInviteStore.clear();
     }
   }
 
@@ -204,7 +140,7 @@ class _InviteLandingScreenState extends State<InviteLandingScreen> {
                 asGuest: _asGuest,
                 isLoggedIn: auth.isLoggedIn,
                 isJoining: _joining,
-                onJoinAsExisting: _showJoinDialog,
+                onJoinAsExisting: _acceptInvite,
                 onLogin: () {
                   final uri = Uri(
                     scheme: 'rounder',

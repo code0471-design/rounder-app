@@ -3,6 +3,7 @@ import 'dart:async';
 import 'package:app_links/app_links.dart';
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
+import 'package:play_install_referrer/play_install_referrer.dart';
 import 'package:provider/provider.dart';
 
 import '../config/invite_links.dart';
@@ -13,6 +14,7 @@ import '../providers/auth_provider.dart';
 import '../providers/club_provider.dart';
 import '../screens/club_room/club_room_screen.dart';
 import '../screens/invite/invite_landing_screen.dart';
+import 'pending_invite_store.dart';
 
 /// 알림톡/푸시 앱링크 진입
 ///
@@ -47,9 +49,23 @@ class DeepLinkService {
       if (initial != null) {
         debugPrint('[DeepLink] initial: $initial');
         _pending = initial;
+        if (InviteLinks.isInviteUri(initial)) {
+          unawaited(PendingInviteStore.save(initial));
+        }
       }
     } catch (e) {
       debugPrint('[DeepLink] getInitialLink fail: $e');
+    }
+
+    if (_pending == null) {
+      final saved = await PendingInviteStore.load();
+      if (saved != null) {
+        _pending = saved;
+        debugPrint('[DeepLink] restored pending $saved');
+      }
+    }
+    if (_pending == null) {
+      await _ingestPlayReferrer();
     }
 
     _sub = _appLinks.uriLinkStream.listen(
@@ -71,19 +87,42 @@ class DeepLinkService {
   /// 로그인·휴대폰 등록 후 `/main` 진입 시 호출
   void onAppReady() {
     _ready = true;
-    final pending = _pending;
+    unawaited(_flushPending());
+  }
+
+  Future<void> _flushPending() async {
+    var pending = _pending ?? await PendingInviteStore.load();
     if (pending == null) return;
     _pending = null;
-    // 스플래시→메인 전환 직후 한 프레임 뒤 이동
     WidgetsBinding.instance.addPostFrameCallback((_) {
       handle(pending);
     });
+  }
+
+  Future<void> _ingestPlayReferrer() async {
+    if (kIsWeb) return;
+    if (defaultTargetPlatform != TargetPlatform.android) return;
+    try {
+      final details = await PlayInstallReferrer.installReferrer
+          .timeout(const Duration(seconds: 4));
+      final uri = InviteLinks.uriFromPlayReferrer(details.installReferrer);
+      if (uri == null) return;
+      _pending = uri;
+      await PendingInviteStore.save(uri);
+      debugPrint('[DeepLink] play referrer: $uri');
+      if (_ready) {
+        handle(uri);
+      }
+    } catch (e) {
+      debugPrint('[DeepLink] play referrer skip: $e');
+    }
   }
 
   /// 로그인/회원가입 전에 초대 링크만 기억
   void queue(Uri uri) {
     if (uri.scheme != 'rounder' && !InviteLinks.isInviteHttps(uri)) return;
     _pending = uri;
+    unawaited(PendingInviteStore.save(uri));
     debugPrint('[DeepLink] queued host=${uri.host} path=${uri.path}');
   }
 
@@ -96,6 +135,7 @@ class DeepLinkService {
     final ctx = AppNavigator.context;
     if (!_ready || ctx == null || AppNavigator.state == null) {
       _pending = uri;
+      unawaited(PendingInviteStore.save(uri));
       debugPrint('[DeepLink] queued host=${uri.host}');
       return;
     }

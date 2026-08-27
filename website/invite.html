@@ -4,7 +4,7 @@
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title>ROUNDER 모임 초대</title>
-  <meta name="description" content="ROUNDER 골프 모임 초대입니다. 라운더 앱에서 가입하세요." />
+  <meta name="description" content="ROUNDER 골프 모임 초대입니다. 앱에서 바로 가입하세요." />
   <meta name="theme-color" content="#1B4D3E" />
   <link rel="preconnect" href="https://cdn.jsdelivr.net" />
   <link rel="stylesheet" href="https://cdn.jsdelivr.net/gh/orioncactus/pretendard/dist/web/static/pretendard.css" />
@@ -68,10 +68,6 @@
     .invite-actions .btn {
       width: 100%;
     }
-    .invite-actions .btn-ghost {
-      border-color: rgba(21, 40, 32, 0.18);
-      color: #1b4d3e;
-    }
   </style>
 </head>
 <body class="invite-body">
@@ -79,15 +75,24 @@
     <div class="invite-mark" aria-hidden="true">⛳</div>
     <div class="invite-kicker">GOLF CLUB INVITE</div>
     <h1 id="headline">골프 모임에 초대되었습니다</h1>
-    <p id="subline">라운더 앱에서 초대를 확인하고 바로 가입하세요.</p>
+    <p id="subline">앱에서 가입하기를 누르면, 설치된 경우 바로 가입되고 없으면 스토어로 이동합니다.</p>
     <div class="invite-actions">
-      <a class="btn btn-primary" id="open-app" href="#">라운더 앱에서 열기</a>
-      <a class="btn btn-ghost" id="play-store" href="https://play.google.com/store/apps/details?id=com.golfrounder.golf">앱이 없으면 Store에서 설치</a>
+      <a class="btn btn-primary" id="join-app" href="#">앱에서 가입하기</a>
     </div>
   </div>
   <script>
     (function () {
+      var KEY = "rounder_pending_invite_v1";
       var params = new URLSearchParams(window.location.search);
+      var hasQuery = false;
+      params.forEach(function () { hasQuery = true; });
+      if (!hasQuery) {
+        try {
+          var saved = localStorage.getItem(KEY);
+          if (saved) params = new URLSearchParams(saved);
+        } catch (e) {}
+      }
+
       var club = params.get("name") || params.get("clubName") || "";
       var inviter = params.get("inviter") || params.get("inviterName") || "";
       var token = params.get("token") || "";
@@ -107,8 +112,14 @@
       if (referrerName) q.set("referrerName", referrerName);
       if (guest) q.set("guest", guest);
       var qs = q.toString();
+      try {
+        if (qs) localStorage.setItem(KEY, qs);
+      } catch (e) {}
+
       var deep = "rounder://invite" + (qs ? "?" + qs : "");
-      var play = "https://play.google.com/store/apps/details?id=com.golfrounder.golf";
+      var play =
+        "https://play.google.com/store/apps/details?id=com.golfrounder.golf" +
+        (qs ? "&referrer=" + encodeURIComponent(qs) : "");
       var intent =
         "intent://invite" +
         (qs ? "?" + qs : "") +
@@ -122,27 +133,40 @@
         headline.textContent = "'" + club + "' 골프 모임 초대";
       }
       if (inviter) {
-        subline.textContent = inviter + "님이 라운더로 초대했습니다. 앱에서 바로 가입할 수 있습니다.";
+        subline.textContent =
+          inviter + "님이 초대했습니다. 앱이 있으면 바로 가입되고, 없으면 스토어로 이동합니다.";
       }
 
       var ua = navigator.userAgent || "";
       var android = /android/i.test(ua);
-      var open = document.getElementById("open-app");
-      open.href = android ? intent : deep;
-      open.addEventListener("click", function (e) {
+      var btn = document.getElementById("join-app");
+      btn.href = android ? intent : deep;
+
+      function openApp() {
+        window.location.href = android ? intent : deep;
+      }
+
+      btn.addEventListener("click", function (e) {
         if (android) return;
         e.preventDefault();
-        window.location.href = deep;
+        openApp();
         setTimeout(function () {
-          window.location.href = play;
+          if (!document.hidden) window.location.href = play;
         }, 1600);
       });
 
-      if (android) {
-        setTimeout(function () {
-          window.location.href = intent;
-        }, 400);
-      }
+      document.addEventListener("visibilitychange", function () {
+        if (document.hidden) return;
+        setTimeout(openApp, 300);
+      });
+      window.addEventListener("pageshow", function () {
+        if (sessionStorage.getItem("rounder_invite_tried") === "1") {
+          setTimeout(openApp, 300);
+        }
+      });
+      btn.addEventListener("click", function () {
+        sessionStorage.setItem("rounder_invite_tried", "1");
+      });
     })();
   </script>
 </body>
