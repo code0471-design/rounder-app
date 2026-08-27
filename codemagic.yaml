@@ -20,6 +20,8 @@ workflows:
     scripts:
       - name: Get packages
         script: flutter pub get
+      - name: Set up iOS code signing
+        script: xcode-project use-profiles
       - name: Build Android (non-blocking)
         ignore_failure: true
         script: |
@@ -39,7 +41,8 @@ workflows:
           echo "iOS version: $BUILD_NAME+$BUILD_NUMBER"
           flutter build ipa --release \
             --build-name="$BUILD_NAME" \
-            --build-number="$BUILD_NUMBER"
+            --build-number="$BUILD_NUMBER" \
+            --export-options-plist=/Users/builder/export_options.plist
     artifacts:
       - build/**/outputs/**/*.aab
       - build/ios/ipa/*.ipa
