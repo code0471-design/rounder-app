@@ -1,0 +1,11 @@
+---
+description: 라운더 휴대폰 인증은 SMS 문자만 (다날/PASS 금지)
+alwaysApply: true
+---
+
+# 휴대폰 인증 정책
+
+- **SMS 문자 인증번호만** 사용한다.
+- **다날 / 포트원 PASS / 통신사 본인인증은 쓰지 않는다.**
+- `phone_required_screen` · `verify_screen`에 PASS 선택 UI를 다시 넣지 말 것.
+- 실발송은 Solapi 등 문자 API로 연동한다 (목 코드 `1234`는 개발용).
