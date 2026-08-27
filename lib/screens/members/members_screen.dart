@@ -119,124 +119,71 @@ class _MembersScreenState extends State<MembersScreen>
 
         return Scaffold(
           backgroundColor: AppColors.background,
-          appBar: AppBar(
-            automaticallyImplyLeading: false,
-            backgroundColor: AppColors.primaryDark,
-            title: const Text(
-              '회원 관리',
-              style: TextStyle(
-                fontWeight: FontWeight.bold,
-                color: Colors.white,
-                fontSize: 18,
-              ),
-            ),
-            iconTheme: const IconThemeData(color: Colors.white),
-            actions: [
-              // 가입 신청 배지
-              Consumer<ClubProvider>(
-                builder: (_, prov, __) {
-                  final pending = prov.pendingRequestsOf(prov.selectedClub.id);
-                  return pending.isEmpty
-                      ? const SizedBox.shrink()
-                      : IconButton(
-                          icon: Stack(
-                            clipBehavior: Clip.none,
-                            children: [
-                              const Icon(Icons.how_to_reg,
-                                  color: Colors.white),
-                              Positioned(
-                                right: -4,
-                                top: -4,
-                                child: Container(
-                                  width: 14,
-                                  height: 14,
-                                  decoration: const BoxDecoration(
-                                    color: AppColors.danger,
-                                    shape: BoxShape.circle,
-                                  ),
-                                  child: Center(
-                                    child: Text(
-                                      '${pending.length}',
-                                      style: const TextStyle(
-                                          color: Colors.white,
-                                          fontSize: 8,
-                                          fontWeight: FontWeight.bold),
-                                    ),
-                                  ),
-                                ),
-                              ),
-                            ],
-                          ),
-                          tooltip: '가입 신청',
-                          onPressed: () =>
-                              _showJoinRequests(context, prov),
-                        );
-                },
-              ),
-              IconButton(
-                icon: const Icon(Icons.badge_outlined, color: Colors.white),
-                tooltip: '정회원 초대하기',
-                onPressed: () {
-                  final prov = context.read<ClubProvider>();
+          body: Column(
+            children: [
+              _MembersHeader(
+                onJoinRequests: () => _showJoinRequests(context, provider),
+                pendingCount:
+                    provider.pendingRequestsOf(provider.selectedClub.id).length,
+                onInviteRegular: () {
                   Navigator.push(
                     context,
                     MaterialPageRoute(
-                      builder: (_) => InviteSendScreen(club: prov.selectedClub),
+                      builder: (_) =>
+                          InviteSendScreen(club: provider.selectedClub),
+                    ),
+                  );
+                },
+                showExcel: provider.isClubExecutive,
+                onExcel: () => _downloadExcel(
+                  context,
+                  provider,
+                  all: all,
+                  regular: regular,
+                  guests: guests,
+                ),
+                onInviteGuest: () {
+                  Navigator.push(
+                    context,
+                    MaterialPageRoute(
+                      builder: (_) =>
+                          GuestInviteFormScreen(club: provider.selectedClub),
                     ),
                   );
                 },
               ),
-              if (provider.isClubExecutive)
-                IconButton(
-                  icon: const Icon(Icons.file_download_outlined, color: Colors.white),
-                  tooltip: '엑셀 다운로드',
-                  onPressed: () => _downloadExcel(
-                    context,
-                    provider,
-                    all: all,
-                    regular: regular,
-                    guests: guests,
+              Container(
+                decoration: const BoxDecoration(
+                  color: AppColors.cream,
+                  border: Border(
+                    bottom: BorderSide(color: AppColors.divider),
                   ),
                 ),
-              IconButton(
-                icon: const Icon(Icons.person_add_alt_1_outlined, color: Colors.white),
-                tooltip: '게스트 초대하기',
-                onPressed: () {
-                  final prov = context.read<ClubProvider>();
-                  Navigator.push(
-                    context,
-                    MaterialPageRoute(
-                      builder: (_) => GuestInviteFormScreen(club: prov.selectedClub),
-                    ),
-                  );
-                },
-              ),
-            ],
-            bottom: PreferredSize(
-              preferredSize: const Size.fromHeight(48),
-              child: Container(
-                color: AppColors.primary,
                 child: TabBar(
                   controller: _tabController,
-                  labelColor: Colors.white,
-                  unselectedLabelColor: Colors.white54,
+                  isScrollable: false,
+                  tabAlignment: TabAlignment.fill,
+                  labelColor: AppColors.primary,
+                  unselectedLabelColor: AppColors.inkSoft,
                   indicatorColor: AppColors.accent,
                   indicatorWeight: 3,
+                  indicatorSize: TabBarIndicatorSize.tab,
+                  dividerColor: Colors.transparent,
                   labelStyle: const TextStyle(
-                    fontWeight: FontWeight.bold,
-                    fontSize: 13,
+                    fontWeight: FontWeight.w800,
+                    fontSize: 14,
+                  ),
+                  unselectedLabelStyle: const TextStyle(
+                    fontWeight: FontWeight.w600,
+                    fontSize: 14,
                   ),
                   tabs: [
-                    Tab(text: '전체 ($totalAll)'),
-                    Tab(text: '정회원 ($totalReg)'),
-                    Tab(text: '게스트 ($totalGuest)'),
+                    Tab(text: '전체 $totalAll'),
+                    Tab(text: '정회원 $totalReg'),
+                    Tab(text: '게스트 $totalGuest'),
                   ],
                 ),
               ),
-            ),
-          ),
-          body: Column(
-            children: [
               // 총무 인수인계 — 모든 회원에게 노출, 권한 없으면 안내
               _TreasurerTransferEntry(
                 canAccess: provider.canAccessTreasurerTransfer,
@@ -1559,6 +1506,101 @@ class _PointGuideRow extends StatelessWidget {
           ),
         ],
       ),
+    );
+  }
+}
+
+class _MembersHeader extends StatelessWidget {
+  final VoidCallback onJoinRequests;
+  final int pendingCount;
+  final VoidCallback onInviteRegular;
+  final bool showExcel;
+  final VoidCallback onExcel;
+  final VoidCallback onInviteGuest;
+
+  const _MembersHeader({
+    required this.onJoinRequests,
+    required this.pendingCount,
+    required this.onInviteRegular,
+    required this.showExcel,
+    required this.onExcel,
+    required this.onInviteGuest,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      color: AppColors.cream,
+      padding: const EdgeInsets.fromLTRB(20, 10, 8, 2),
+      child: Row(
+        children: [
+          const Expanded(
+            child: Text(
+              '회원 관리',
+              style: TextStyle(
+                fontSize: 20,
+                fontWeight: FontWeight.w800,
+                color: AppColors.ink,
+              ),
+            ),
+          ),
+          if (pendingCount > 0)
+            _HeaderIcon(
+              tooltip: '가입 신청',
+              onPressed: onJoinRequests,
+              icon: Icons.how_to_reg_outlined,
+              badge: pendingCount,
+            ),
+          _HeaderIcon(
+            tooltip: '정회원 초대',
+            onPressed: onInviteRegular,
+            icon: Icons.badge_outlined,
+          ),
+          if (showExcel)
+            _HeaderIcon(
+              tooltip: '엑셀 다운로드',
+              onPressed: onExcel,
+              icon: Icons.file_download_outlined,
+            ),
+          _HeaderIcon(
+            tooltip: '게스트 초대',
+            onPressed: onInviteGuest,
+            icon: Icons.person_add_alt_1_outlined,
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _HeaderIcon extends StatelessWidget {
+  final String tooltip;
+  final VoidCallback onPressed;
+  final IconData icon;
+  final int badge;
+
+  const _HeaderIcon({
+    required this.tooltip,
+    required this.onPressed,
+    required this.icon,
+    this.badge = 0,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return IconButton(
+      tooltip: tooltip,
+      onPressed: onPressed,
+      visualDensity: VisualDensity.compact,
+      padding: const EdgeInsets.all(8),
+      constraints: const BoxConstraints(minWidth: 40, minHeight: 40),
+      icon: badge <= 0
+          ? Icon(icon, color: AppColors.primary, size: 22)
+          : Badge(
+              label: Text('$badge'),
+              backgroundColor: AppColors.danger,
+              child: Icon(icon, color: AppColors.primary, size: 22),
+            ),
     );
   }
 }
