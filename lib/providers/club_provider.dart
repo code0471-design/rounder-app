@@ -463,7 +463,9 @@ class ClubProvider extends ChangeNotifier with WidgetsBindingObserver {
         .join(',');
     final duesPart = _duesPayments.map((p) => p.id).join(',');
     final waitPart = _waitingList.map((w) => '${w.scheduleId}:${w.memberId}').join(',');
-    return '$photoPart|$schedPart|$duesPart|$waitPart|${_announcements.length}';
+    final memberPart =
+        _members.map((m) => '${m.id}:${m.name}:${m.status}').join(',');
+    return '$photoPart|$schedPart|$duesPart|$waitPart|${_announcements.length}|$memberPart';
   }
 
   static String _leftClubsPrefsKey(String authUserId) =>
@@ -4139,13 +4141,26 @@ class ClubProvider extends ChangeNotifier with WidgetsBindingObserver {
       if (_legacyMockClubIds.contains(club.id)) continue;
       _freshClubIds.add(club.id);
       final existing = membersForClub(club.id);
+      final iAmCreator = club.creatorId.isEmpty ||
+          _userIdsMatch(club.creatorId, currentUserId) ||
+          (_persistAuthUserId != null &&
+              _userIdsMatch(club.creatorId, _persistAuthUserId));
+
       if (existing.isNotEmpty) {
         if (club.memberCount != existing.length) {
           _setMemberCount(club.id, existing.length);
           changed = true;
         }
+        if (ensureMyRosterRow(club.id)) changed = true;
         continue;
       }
+
+      // 초대 가입자는 명단이 비어 있어도 생성자 행을 만들면 안 된다.
+      if (!iAmCreator) {
+        if (ensureMyRosterRow(club.id)) changed = true;
+        continue;
+      }
+
       final creatorId = 'm_creator_${club.id}';
       final role = ClubMemberRole.normalize(club.myRole);
       _members.add(Member(
@@ -4176,6 +4191,44 @@ class ClubProvider extends ChangeNotifier with WidgetsBindingObserver {
     }
     if (changed) _persistImmediately();
     return changed;
+  }
+
+  /// 초대 가입이 userId 그대로 들어가 명단에 안 보이던 행을 `m_{clubId}_{userId}`로 보정한다.
+  bool ensureMyRosterRow(String clubId) {
+    final uid = currentUserId.trim();
+    if (uid.isEmpty || _legacyMockClubIds.contains(clubId)) return false;
+    final rid = Member.rosterId(clubId, uid);
+    if (_members.any((m) => m.id == rid)) return false;
+
+    final club = _myClubs.where((c) => c.id == clubId).firstOrNull;
+    final iAmCreator = club != null &&
+        (club.creatorId.isEmpty ||
+            _userIdsMatch(club.creatorId, uid) ||
+            (_persistAuthUserId != null &&
+                _userIdsMatch(club.creatorId, _persistAuthUserId)));
+    if (iAmCreator && _members.any((m) => m.id == 'm_creator_$clubId')) {
+      return false;
+    }
+
+    final orphan = _members.where((m) => m.id == uid).firstOrNull;
+    final role = ClubMemberRole.normalize(
+      club?.myRole ?? ClubMemberRole.regular,
+    );
+    _members.add(Member(
+      id: rid,
+      name: orphan?.name ?? currentUserName,
+      gender: orphan?.gender ?? '남',
+      memberType: ClubMemberRole.memberTypeForRole(role),
+      role: role,
+      phone: orphan?.phone,
+      handicap: orphan?.handicap,
+      joinDate: orphan?.joinDate ?? DateTime.now(),
+      status: '활성',
+      referrerId: orphan?.referrerId,
+      referrerName: orphan?.referrerName,
+    ));
+    _members.removeWhere((m) => m.id == uid);
+    return true;
   }
 
   void _setMemberCount(String clubId, int count) {
@@ -4318,11 +4371,6 @@ class ClubProvider extends ChangeNotifier with WidgetsBindingObserver {
       debugPrint('[ClubProvider] joinViaInvite blocked — invalid clubId');
       return false;
     }
-    if (isMyClub(clubId)) {
-      debugPrint('[ClubProvider] joinViaInvite — already member of $clubId');
-      return true;
-    }
-
     final userId = currentUserId;
     final userName = (displayName != null && displayName.trim().isNotEmpty)
         ? displayName.trim()
@@ -4330,6 +4378,7 @@ class ClubProvider extends ChangeNotifier with WidgetsBindingObserver {
     final role = asGuest ? ClubMemberRole.guest : ClubMemberRole.regular;
     final memberType =
         asGuest ? ClubMemberRole.guest : ClubMemberRole.regular;
+    final rosterId = Member.rosterId(clubId, userId);
 
     Club? club = _myClubs.where((c) => c.id == clubId).firstOrNull ??
         _allClubs.where((c) => c.id == clubId).firstOrNull ??
@@ -4357,8 +4406,12 @@ class ClubProvider extends ChangeNotifier with WidgetsBindingObserver {
       createdAt: DateTime.now(),
     );
 
+    if (!_legacyMockClubIds.contains(clubId)) {
+      _freshClubIds.add(clubId);
+    }
+
     final member = Member(
-      id: userId,
+      id: rosterId,
       name: userName,
       gender: '남',
       memberType: memberType,
@@ -4369,11 +4422,27 @@ class ClubProvider extends ChangeNotifier with WidgetsBindingObserver {
       referrerName: referrerName,
     );
 
-    final alreadyListed = _members.any(
-      (m) => m.id == userId || m.id == 'm_${clubId}_$userId',
-    );
+    // 예전 초대 가입은 userId 그대로 넣어서 명단 필터에 안 걸렸다. 고쳐서 다시 넣는다.
+    _members.removeWhere((m) => m.id == userId);
+
+    final alreadyListed = _members.any((m) => m.id == rosterId);
     if (!alreadyListed) {
       _members.add(member);
+    }
+    try {
+      AppDependencies.instance.mockDataStore?.addMember(
+        clubId: clubId,
+        member: member,
+        alsoAsIds: [userId],
+        bumpCount: !alreadyListed,
+      );
+    } catch (_) {}
+
+    if (isMyClub(clubId) && alreadyListed) {
+      debugPrint('[ClubProvider] joinViaInvite — already member of $clubId');
+      notifyListeners();
+      _persistImmediately();
+      return true;
     }
 
     final joinedClub = club.copyWith(
@@ -4783,7 +4852,7 @@ class ClubProvider extends ChangeNotifier with WidgetsBindingObserver {
     // 회원으로 자동 등록 (직책 = 권한)
     // 신규 모임 필터: m_{clubId}_* 또는 m_creator_{clubId}
     final newMember = Member(
-      id: 'm_${req.clubId}_${req.userId}',
+      id: Member.rosterId(req.clubId, req.userId),
       name: req.userName,
       gender: req.userGender,
       memberType: assignedType,

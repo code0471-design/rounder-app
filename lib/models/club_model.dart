@@ -292,6 +292,10 @@ class Member {
   final String? referrerId;   // 게스트 소개자 memberId
   final String? referrerName; // 게스트 소개자 이름
 
+  /// 신규 모임 명단 필터(`membersForClub`)에 맞는 ID. `userId` 그대로 넣으면 목록에 안 나온다.
+  static String rosterId(String clubId, String userId) =>
+      'm_${clubId}_$userId';
+
   Member({
     required this.id,
     required this.name,

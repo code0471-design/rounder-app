@@ -163,18 +163,7 @@ class MockClubRepository implements ClubRepository {
     if (_isMemberAnyKey(clubId, _userAliases(userId))) return;
     _store.addMember(
       clubId: clubId,
-      member: Member(
-        id: userId,
-        name: member.name,
-        gender: member.gender,
-        memberType: member.memberType,
-        role: member.role,
-        handicap: member.handicap,
-        joinDate: member.joinDate ?? DateTime.now(),
-        status: member.status,
-        referrerId: member.referrerId,
-        referrerName: member.referrerName,
-      ),
+      member: member,
       alsoAsIds: _userAliases(userId).toList(),
     );
   }

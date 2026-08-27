@@ -54,6 +54,21 @@ class ClubOpsSync {
         if (localSettings.isEmpty && remoteSettings.isNotEmpty) {
           slice['duesSettings'] = remoteSettings;
         }
+        // 초대 가입자가 자기 명단만 들고 올리면 기존 회원이 지워진다 → 합친다
+        final localMembers = slice['members'] as List? ?? const [];
+        final remoteMembers = remote['members'] as List? ?? const [];
+        slice['members'] = _mergeById(remoteMembers, localMembers);
+
+        final localSchedules = slice['schedules'] as List? ?? const [];
+        final remoteSchedules = remote['schedules'] as List? ?? const [];
+        if (localSchedules.isEmpty && remoteSchedules.isNotEmpty) {
+          slice['schedules'] = remoteSchedules;
+        }
+        final localAnnounce = slice['announcements'] as List? ?? const [];
+        final remoteAnnounce = remote['announcements'] as List? ?? const [];
+        if (localAnnounce.isEmpty && remoteAnnounce.isNotEmpty) {
+          slice['announcements'] = remoteAnnounce;
+        }
       }
 
       await _db
@@ -460,16 +475,11 @@ class ClubOpsSync {
       remote['adNotifications'] as List? ?? const [],
     );
 
-    // members: drop club-scoped, add remote
-    final members = <dynamic>[
-      ...(encoded['members'] as List? ?? []).where((e) {
-        if (e is! Map) return true;
-        final id = e['id'] as String? ?? '';
-        return id != 'm_creator_$clubId' && !id.startsWith('m_${clubId}_');
-      }),
-      ..._asDynamicMaps(remote['members']),
-    ];
-    encoded['members'] = members;
+    // members: 합집합. 원격만 쓰면 초대 가입 직후 로컬 명단이 사라진다.
+    encoded['members'] = _mergeById(
+      encoded['members'] as List? ?? const [],
+      _asDynamicMaps(remote['members']),
+    );
 
     // groupAssignments: replace keys for this club's schedules
     final ga = Map<String, dynamic>.from(

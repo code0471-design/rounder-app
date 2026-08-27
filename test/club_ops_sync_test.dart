@@ -126,6 +126,94 @@ void main() {
     expect(merged.members.any((m) => m.id == 'm_c_test_u2'), isTrue);
   });
 
+  test('원격 명단에 없어도 로컬 초대 가입 회원은 유지한다', () {
+    final local = ClubDataBundle(
+      selectedClubIndex: 0,
+      freshClubIds: {'c_test'},
+      myClubs: [
+        Club(
+          id: 'c_test',
+          name: '테스트',
+          myRole: '정회원',
+          memberCount: 1,
+          region: '서울',
+          industry: 'IT',
+          teamCount: 4,
+        ),
+      ],
+      allClubs: const [],
+      joinRequests: const [],
+      members: [
+        Member(
+          id: Member.rosterId('c_test', 'kakao_1'),
+          name: '초대가입',
+          gender: '남',
+          memberType: '정회원',
+          role: '정회원',
+          joinDate: DateTime(2026, 8, 27),
+          status: '활성',
+        ),
+      ],
+      activities: const [],
+      announcements: const [],
+      appNotifications: const [],
+      duesSettings: const [],
+      duesPayments: const [],
+      paymentRequests: const [],
+      transactions: const [],
+      schedules: const [],
+      photos: const [],
+      groupAssignments: const {},
+      adApplications: const [],
+      adNotifications: const [],
+      sponsorApplications: const [],
+      pointEvents: const {},
+      awardRecords: const [],
+      thankYouMessages: const [],
+      waitingList: const [],
+      alimtalkSettings: const {},
+    );
+
+    final remote = <String, dynamic>{
+      'clubId': 'c_test',
+      'members': [
+        {
+          'id': 'm_creator_c_test',
+          'name': '총무',
+          'gender': '남',
+          'memberType': '정회원',
+          'role': '총무',
+          'joinDate': DateTime(2024, 1, 1).toIso8601String(),
+          'status': '활성',
+        },
+      ],
+      'schedules': <dynamic>[],
+      'announcements': <dynamic>[],
+      'activities': <dynamic>[],
+      'duesSettings': <dynamic>[],
+      'duesPayments': <dynamic>[],
+      'paymentRequests': <dynamic>[],
+      'transactions': <dynamic>[],
+      'photos': <dynamic>[],
+      'groupAssignments': <String, dynamic>{},
+      'waitingList': <dynamic>[],
+      'alimtalkSettings': <String, dynamic>{},
+      'adApplications': <dynamic>[],
+      'adNotifications': <dynamic>[],
+      'sponsorApplications': <dynamic>[],
+      'awardRecords': <dynamic>[],
+      'thankYouMessages': <dynamic>[],
+      'pointEvents': <String, dynamic>{},
+    };
+
+    final merged = ClubOpsSync.applyRemoteSlice(local, 'c_test', remote);
+    expect(merged.members.any((m) => m.id == 'm_creator_c_test'), isTrue);
+    expect(
+      merged.members.any((m) => m.id == Member.rosterId('c_test', 'kakao_1')),
+      isTrue,
+    );
+  });
+
   test('원격 납부가 비어 있어도 로컬 회비 납부 내역은 유지한다', () {
     final local = ClubDataBundle(
       selectedClubIndex: 0,
