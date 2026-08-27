@@ -24,7 +24,6 @@ class _SplashScreenState extends State<SplashScreen> {
   }
 
   Future<void> _run() async {
-    String? bootstrapNote;
     var autoLoggedIn = false;
 
     try {
@@ -58,7 +57,6 @@ class _SplashScreenState extends State<SplashScreen> {
                   );
             }
           } catch (e, st) {
-            bootstrapNote = e.toString();
             debugPrint('[SplashScreen] Firestore bootstrap 실패: $e\n$st');
           }
         } else {
@@ -78,7 +76,6 @@ class _SplashScreenState extends State<SplashScreen> {
         }
       }
     } catch (e, st) {
-      bootstrapNote = e.toString();
       debugPrint('[SplashScreen] splash flow error: $e\n$st');
     }
 
@@ -98,18 +95,6 @@ class _SplashScreenState extends State<SplashScreen> {
         ? '/admin'
         : (autoLoggedIn ? '/main' : '/login');
     await Navigator.of(context).pushReplacementNamed(route);
-
-    if (bootstrapNote != null && mounted) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content: Text(
-            'Firestore 연결 지연/실패 — 오프라인으로 계속합니다.',
-            style: TextStyle(fontSize: 12),
-          ),
-          duration: Duration(seconds: 4),
-        ),
-      );
-    }
   }
 
   @override

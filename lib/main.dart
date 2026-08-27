@@ -31,7 +31,7 @@ Future<void> main() async {
     if (Firebase.apps.isEmpty) {
       await Firebase.initializeApp(
         options: DefaultFirebaseOptions.currentPlatform,
-      );
+      ).timeout(const Duration(seconds: 8));
     }
     PushNotificationService.registerBackgroundHandler();
   } catch (e) {

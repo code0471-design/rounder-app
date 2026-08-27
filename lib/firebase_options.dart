@@ -69,6 +69,8 @@ class DefaultFirebaseOptions {
     projectId: 'rounder-staging',
     storageBucket: 'rounder-staging.firebasestorage.app',
     iosBundleId: 'com.golfrounder.golfRounder',
+    iosClientId:
+        '909216389322-jfgbktkrvk7ulhtdc8u63el6ubk2i7n3.apps.googleusercontent.com',
   );
 
   static const FirebaseOptions macos = FirebaseOptions(

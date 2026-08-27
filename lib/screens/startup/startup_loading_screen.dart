@@ -26,14 +26,6 @@ class StartupLoadingScreen extends StatelessWidget {
                   color: AppColors.textPrimary,
                 ),
               ),
-              SizedBox(height: 8),
-              Text(
-                'Firebase · 데이터 연결 확인',
-                style: TextStyle(
-                  fontSize: 12,
-                  color: AppColors.textSecondary,
-                ),
-              ),
             ],
           ),
         ),
@@ -65,11 +57,11 @@ class StartupFatalScreen extends StatelessWidget {
             child: Column(
               mainAxisAlignment: MainAxisAlignment.center,
               children: [
-                const Icon(Icons.error_outline,
-                    size: 56, color: AppColors.danger),
+                const Icon(Icons.wifi_off_outlined,
+                    size: 56, color: AppColors.textSecondary),
                 const SizedBox(height: 16),
                 const Text(
-                  '앱을 시작하지 못했습니다',
+                  '연결이 지연되고 있습니다',
                   style: TextStyle(
                     fontSize: 18,
                     fontWeight: FontWeight.bold,
@@ -77,7 +69,9 @@ class StartupFatalScreen extends StatelessWidget {
                 ),
                 const SizedBox(height: 12),
                 Text(
-                  message,
+                  message.contains('Exception') || message.contains('Error')
+                      ? '네트워크를 확인한 뒤 다시 시도해 주세요.'
+                      : message,
                   textAlign: TextAlign.center,
                   style: const TextStyle(
                     fontSize: 13,

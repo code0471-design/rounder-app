@@ -63,6 +63,12 @@
 	<string>라운딩 사진 업로드를 위해 사진 보관함에 접근합니다.</string>
 	<key>NSCameraUsageDescription</key>
 	<string>스코어카드 인식과 사진 촬영을 위해 카메라에 접근합니다.</string>
+	<key>NSUserNotificationsUsageDescription</key>
+	<string>모임 일정, 공지, 회비 안내를 받기 위해 알림을 사용합니다.</string>
+	<key>GIDClientID</key>
+	<string>909216389322-jfgbktkrvk7ulhtdc8u63el6ubk2i7n3.apps.googleusercontent.com</string>
+	<key>GIDServerClientID</key>
+	<string>909216389322-3jp0348rm4d575jpl3rv0ngaj8proea6.apps.googleusercontent.com</string>
 	<key>UIBackgroundModes</key>
 	<array>
 		<string>fetch</string>

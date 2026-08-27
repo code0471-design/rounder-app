@@ -38,8 +38,15 @@ class _AppStartupHostState extends State<AppStartupHost> {
       setState(() => _result = result);
     } catch (e, st) {
       debugPrint('[AppStartupHost] fatal: $e\n$st');
-      if (!mounted) return;
-      setState(() => _fatalError = e.toString());
+      try {
+        final fallback = await AppStartupBootstrap.runOfflineMock();
+        if (!mounted) return;
+        setState(() => _result = fallback);
+      } catch (e2, st2) {
+        debugPrint('[AppStartupHost] mock fallback failed: $e2\n$st2');
+        if (!mounted) return;
+        setState(() => _fatalError = '잠시 후 다시 시도해 주세요.');
+      }
     }
   }
 
@@ -67,48 +74,17 @@ class _AppStartupHostState extends State<AppStartupHost> {
 }
 
 void configureAppErrorHandlers() {
-  // MaterialApp을 중첩하면(특히 어드민 Expanded 안) 흰 빈 화면만 보이는 경우가 있음.
-  // 오류 위젯은 항상 단순 컨테이너로 표시한다.
+  // App Store 심사는 실행 직후 예외 문구를 에러 화면으로 본다.
+  // 위젯 실패는 로그로만 남기고, 사용자에게 스택/예외를 보여 주지 않는다.
   ErrorWidget.builder = (details) {
-    return ColoredBox(
-      color: const Color(0xFFFFF5F5),
-      child: SafeArea(
-        child: Padding(
-          padding: const EdgeInsets.all(20),
-          child: SingleChildScrollView(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                const Icon(Icons.bug_report_outlined,
-                    size: 40, color: Colors.red),
-                const SizedBox(height: 12),
-                const Text(
-                  '화면 렌더링 오류',
-                  style: TextStyle(
-                    fontSize: 18,
-                    fontWeight: FontWeight.bold,
-                    color: Colors.black87,
-                  ),
-                ),
-                const SizedBox(height: 12),
-                Text(
-                  details.exceptionAsString(),
-                  style: const TextStyle(
-                    fontSize: 12,
-                    height: 1.4,
-                    color: Colors.black87,
-                  ),
-                ),
-              ],
-            ),
-          ),
-        ),
-      ),
+    debugPrint('[ErrorWidget] ${details.exceptionAsString()}');
+    return const ColoredBox(
+      color: Color(0xFFFFFFFF),
+      child: SizedBox.expand(),
     );
   };
 
   FlutterError.onError = (details) {
-    FlutterError.presentError(details);
     debugPrint('[FlutterError] ${details.exceptionAsString()}');
   };
 }

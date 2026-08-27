@@ -62,7 +62,11 @@ abstract final class PushNotificationService {
       registerBackgroundHandler();
 
       const androidInit = AndroidInitializationSettings('@mipmap/ic_launcher');
-      const iosInit = DarwinInitializationSettings();
+      const iosInit = DarwinInitializationSettings(
+        requestAlertPermission: false,
+        requestBadgePermission: false,
+        requestSoundPermission: false,
+      );
       await _local.initialize(
         const InitializationSettings(android: androidInit, iOS: iosInit),
       );
@@ -78,9 +82,6 @@ abstract final class PushNotificationService {
       );
 
       final messaging = FirebaseMessaging.instance;
-      await messaging.requestPermission(alert: true, badge: true, sound: true);
-      await androidPlugin?.requestNotificationsPermission();
-
       if (defaultTargetPlatform == TargetPlatform.iOS) {
         await messaging.setForegroundNotificationPresentationOptions(
           alert: true,
@@ -107,6 +108,21 @@ abstract final class PushNotificationService {
     }
   }
 
+  static Future<void> _ensurePermission() async {
+    try {
+      await FirebaseMessaging.instance.requestPermission(
+        alert: true,
+        badge: true,
+        sound: true,
+      );
+      final androidPlugin = _local.resolvePlatformSpecificImplementation<
+          AndroidFlutterLocalNotificationsPlugin>();
+      await androidPlugin?.requestNotificationsPermission();
+    } catch (e) {
+      debugPrint('[Push] permission skip: $e');
+    }
+  }
+
   static Future<void> bindUserIds(Iterable<String> userIds) async {
     if (!HqRemoteSettings.available) return;
     await init();
@@ -118,6 +134,7 @@ abstract final class PushNotificationService {
     _boundIds
       ..clear()
       ..addAll(ids);
+    unawaited(_ensurePermission());
 
     try {
       final token = await FirebaseMessaging.instance.getToken();
