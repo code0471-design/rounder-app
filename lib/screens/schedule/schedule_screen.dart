@@ -9,6 +9,7 @@ import '../group_assignment/group_assignment_screen.dart';
 import '../records/score_award_screen.dart';
 import 'round_photo_widgets.dart';
 import '../../widgets/ad_banner.dart';
+import '../../widgets/golf_course_field.dart';
 
 // ════════════════════════════════════════════════════════════
 //  보험 관련 상수
@@ -2829,12 +2830,14 @@ class _ScheduleFormSheetState extends State<_ScheduleFormSheet> {
                     ),
                     const SizedBox(height: 16),
 
-                    // 골프장 이름
+                    // 골프장 이름 — 입력 시 목록에서 고르면 주소가 따라옴
                     _FormField(
                       label: '골프장 이름 *',
-                      child: TextFormField(
-                        controller: _courseCtrl,
-                        decoration: _deco('예: 레이크사이드CC'),
+                      child: GolfCourseNameField(
+                        courseController: _courseCtrl,
+                        addressController: _addressCtrl,
+                        extras: golfCoursesFromSchedules(widget.provider.schedules),
+                        decoration: _deco('골프장 이름 입력'),
                         validator: (v) =>
                             v == null || v.trim().isEmpty ? '골프장을 입력하세요' : null,
                       ),

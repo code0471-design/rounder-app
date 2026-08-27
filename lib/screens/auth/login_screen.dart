@@ -120,56 +120,63 @@ class _LoginScreenState extends State<LoginScreen> {
               const Spacer(flex: 2),
               Consumer<AuthProvider>(
                 builder: (_, auth, __) {
-                  final hint = auth.lastLoginHint();
-                  if (hint.isEmpty) return const SizedBox.shrink();
+                  final last = auth.lastLoginMethod;
                   return Padding(
-                    padding: const EdgeInsets.only(bottom: 14),
-                    child: Text(
-                      hint,
-                      textAlign: TextAlign.center,
-                      style: TextStyle(
-                        fontSize: 13,
-                        fontWeight: FontWeight.w600,
-                        color: Colors.grey.shade700,
-                      ),
+                    padding: EdgeInsets.only(
+                      top: (last == null || last.isEmpty) ? 0 : 18,
+                    ),
+                    child: Column(
+                      children: [
+                        _RecentLoginButton(
+                          showRecent: last == 'kakao',
+                          child: _SocialLoginButton(
+                            label: '카카오로 시작하기',
+                            backgroundColor: const Color(0xFFFEE500),
+                            foregroundColor: const Color(0xFF191919),
+                            borderColor: null,
+                            loading: _loading && _active == SocialProvider.kakao,
+                            enabled: !_loading,
+                            leading: _KakaoMark(),
+                            onPressed: () => _signIn(SocialProvider.kakao),
+                          ),
+                        ),
+                        const SizedBox(height: 12),
+                        _RecentLoginButton(
+                          showRecent: last == 'google',
+                          child: _SocialLoginButton(
+                            label: '구글로 시작하기',
+                            backgroundColor: Colors.white,
+                            foregroundColor: const Color(0xFF1F1F1F),
+                            borderColor: const Color(0xFFDADCE0),
+                            loading: _loading && _active == SocialProvider.google,
+                            enabled: !_loading,
+                            leading: _GoogleMark(),
+                            onPressed: () => _signIn(SocialProvider.google),
+                          ),
+                        ),
+                        if (showApple) ...[
+                          const SizedBox(height: 12),
+                          _RecentLoginButton(
+                            showRecent: last == 'apple',
+                            child: _SocialLoginButton(
+                              label: 'Apple로 시작하기',
+                              backgroundColor: Colors.black,
+                              foregroundColor: Colors.white,
+                              borderColor: null,
+                              loading:
+                                  _loading && _active == SocialProvider.apple,
+                              enabled: !_loading,
+                              leading: const Icon(Icons.apple,
+                                  size: 22, color: Colors.white),
+                              onPressed: () => _signIn(SocialProvider.apple),
+                            ),
+                          ),
+                        ],
+                      ],
                     ),
                   );
                 },
               ),
-              _SocialLoginButton(
-                label: '카카오로 시작하기',
-                backgroundColor: const Color(0xFFFEE500),
-                foregroundColor: const Color(0xFF191919),
-                borderColor: null,
-                loading: _loading && _active == SocialProvider.kakao,
-                enabled: !_loading,
-                leading: _KakaoMark(),
-                onPressed: () => _signIn(SocialProvider.kakao),
-              ),
-              const SizedBox(height: 12),
-              _SocialLoginButton(
-                label: '구글로 시작하기',
-                backgroundColor: Colors.white,
-                foregroundColor: const Color(0xFF1F1F1F),
-                borderColor: const Color(0xFFDADCE0),
-                loading: _loading && _active == SocialProvider.google,
-                enabled: !_loading,
-                leading: _GoogleMark(),
-                onPressed: () => _signIn(SocialProvider.google),
-              ),
-              if (showApple) ...[
-                const SizedBox(height: 12),
-                _SocialLoginButton(
-                  label: 'Apple로 시작하기',
-                  backgroundColor: Colors.black,
-                  foregroundColor: Colors.white,
-                  borderColor: null,
-                  loading: _loading && _active == SocialProvider.apple,
-                  enabled: !_loading,
-                  leading: const Icon(Icons.apple, size: 22, color: Colors.white),
-                  onPressed: () => _signIn(SocialProvider.apple),
-                ),
-              ],
               const Spacer(flex: 1),
               TextButton(
                 onPressed: () {
@@ -188,6 +195,88 @@ class _LoginScreenState extends State<LoginScreen> {
       ),
     );
   }
+}
+
+class _RecentLoginButton extends StatelessWidget {
+  final bool showRecent;
+  final Widget child;
+
+  const _RecentLoginButton({
+    required this.showRecent,
+    required this.child,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    if (!showRecent) return child;
+    return Stack(
+      clipBehavior: Clip.none,
+      children: [
+        child,
+        const Positioned(
+          right: 10,
+          top: -16,
+          child: _RecentUseBubble(),
+        ),
+      ],
+    );
+  }
+}
+
+class _RecentUseBubble extends StatelessWidget {
+  const _RecentUseBubble();
+
+  @override
+  Widget build(BuildContext context) {
+    return Column(
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        Container(
+          padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
+          decoration: BoxDecoration(
+            color: const Color(0xFF1B4D3E),
+            borderRadius: BorderRadius.circular(8),
+            boxShadow: const [
+              BoxShadow(
+                color: Color(0x33000000),
+                blurRadius: 6,
+                offset: Offset(0, 2),
+              ),
+            ],
+          ),
+          child: const Text(
+            '최근사용',
+            style: TextStyle(
+              color: Colors.white,
+              fontSize: 11,
+              fontWeight: FontWeight.w800,
+              height: 1.1,
+            ),
+          ),
+        ),
+        CustomPaint(
+          size: const Size(12, 6),
+          painter: _BubbleTailPainter(),
+        ),
+      ],
+    );
+  }
+}
+
+class _BubbleTailPainter extends CustomPainter {
+  @override
+  void paint(Canvas canvas, Size size) {
+    final paint = Paint()..color = const Color(0xFF1B4D3E);
+    final path = Path()
+      ..moveTo(0, 0)
+      ..lineTo(size.width / 2, size.height)
+      ..lineTo(size.width, 0)
+      ..close();
+    canvas.drawPath(path, paint);
+  }
+
+  @override
+  bool shouldRepaint(covariant CustomPainter oldDelegate) => false;
 }
 
 class _SocialLoginButton extends StatelessWidget {
