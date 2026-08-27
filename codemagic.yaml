@@ -1,15 +1,13 @@
 # Codemagic: Android Play AAB + optional iOS build.
 # Select workflow "Android release AAB" for Play Console upload.
 # Version comes from pubspec.yaml (e.g. 1.0.0+30) — do NOT hardcode --build-number.
-# iOS TestFlight publishing temporarily disabled so yaml validates without
-# matching an App Store Connect API key name. Re-enable later with:
-#   integrations: { app_store_connect: <exact key name from Codemagic Integrations> }
-#   publishing.app_store_connect.auth: integration
 workflows:
   ios-first:
     name: iOS first (Android optional)
     instance_type: mac_mini_m2
     max_build_duration: 90
+    integrations:
+      app_store_connect: CodemagicTeam
     environment:
       flutter: stable
       xcode: latest
@@ -51,6 +49,11 @@ workflows:
       - build/**/outputs/**/*.aab
       - build/ios/ipa/*.ipa
       - /tmp/xcodebuild_logs/*.log
+    publishing:
+      app_store_connect:
+        auth: integration
+        submit_to_testflight: true
+        # 심사는 Connect에서 수동 제출 (자동 App Store 제출은 끔)
 
   # Sideload build for testing on a device without waiting for Play propagation.
   android-release-apk:
