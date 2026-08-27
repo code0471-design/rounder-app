@@ -287,8 +287,8 @@ class _InviteSendScreenState extends State<InviteSendScreen> {
                 SizedBox(height: 6),
                 Text(
                   '• 초대장 보내기를 누르면 카카오톡·문자 등 공유 앱을 고를 수 있습니다\n'
-                  '• 초대 링크는 발급 후 7일간 유효합니다\n'
-                  '• 가입 신청 시 총무에게 승인 알림이 발송됩니다',
+                  '• 받는 사람은 라운더(골프 모임) 앱에서 링크를 엽니다\n'
+                  '• 초대 링크는 발급 후 7일간 유효합니다',
                   style: TextStyle(
                       fontSize: 11, color: Color(0xFF92400E), height: 1.7),
                 ),

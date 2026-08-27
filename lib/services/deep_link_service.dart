@@ -5,6 +5,7 @@ import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 
+import '../config/invite_links.dart';
 import '../models/club_model.dart';
 import '../models/user_model.dart';
 import '../navigation/app_navigator.dart';
@@ -81,13 +82,13 @@ class DeepLinkService {
 
   /// 로그인/회원가입 전에 초대 링크만 기억
   void queue(Uri uri) {
-    if (uri.scheme != 'rounder') return;
+    if (uri.scheme != 'rounder' && !InviteLinks.isInviteHttps(uri)) return;
     _pending = uri;
-    debugPrint('[DeepLink] queued host=${uri.host}');
+    debugPrint('[DeepLink] queued host=${uri.host} path=${uri.path}');
   }
 
   void handle(Uri uri) {
-    if (uri.scheme != 'rounder') {
+    if (uri.scheme != 'rounder' && !InviteLinks.isInviteHttps(uri)) {
       debugPrint('[DeepLink] ignore scheme=${uri.scheme}');
       return;
     }
@@ -106,7 +107,7 @@ class DeepLinkService {
     final host = uri.host.toLowerCase();
     final q = uri.queryParameters;
 
-    if (host == 'invite') {
+    if (InviteLinks.isInviteUri(uri)) {
       await _openInvite(context, q);
       return;
     }

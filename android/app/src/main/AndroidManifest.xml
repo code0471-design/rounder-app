@@ -35,6 +35,19 @@
                 <category android:name="android.intent.category.BROWSABLE"/>
                 <data android:scheme="rounder"/>
             </intent-filter>
+            <intent-filter android:label="rounder-invite">
+                <action android:name="android.intent.action.VIEW"/>
+                <category android:name="android.intent.category.DEFAULT"/>
+                <category android:name="android.intent.category.BROWSABLE"/>
+                <data
+                    android:scheme="https"
+                    android:host="rounder-f6019.web.app"
+                    android:pathPrefix="/invite"/>
+                <data
+                    android:scheme="https"
+                    android:host="rounder-staging.web.app"
+                    android:pathPrefix="/invite"/>
+            </intent-filter>
         </activity>
         <activity
             android:name="com.kakao.sdk.flutter.AuthCodeCustomTabsActivity"

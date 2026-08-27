@@ -1,3 +1,5 @@
+import '../config/invite_links.dart';
+
 // ════════════════════════════════════════════════════════════
 //  ROUNDER — User Model
 // ════════════════════════════════════════════════════════════
@@ -121,29 +123,29 @@ class InviteToken {
   bool get isValid => !isExpired && !isUsed;
   bool get isGuestInvite => inviteType == InviteMemberType.guest;
 
-  /// 앱 딥링크 URL
-  String get deepLink {
-    final name = Uri.encodeComponent(clubName);
-    final inviter = Uri.encodeComponent(inviterName);
-    final type = inviteType == InviteMemberType.guest ? 'guest' : 'regular';
-    final buf = StringBuffer(
-      'rounder://invite?token=$token&club=$clubId&name=$name&inviter=$inviter&type=$type',
-    );
-    if (referrerId != null && referrerId!.isNotEmpty) {
-      buf.write('&referrer=${Uri.encodeComponent(referrerId!)}');
-    }
-    if (referrerName != null && referrerName!.isNotEmpty) {
-      buf.write('&referrerName=${Uri.encodeComponent(referrerName!)}');
-    }
-    if (guestName != null && guestName!.isNotEmpty) {
-      buf.write('&guest=${Uri.encodeComponent(guestName!)}');
-    }
-    return buf.toString();
+  Map<String, String> get _query {
+    return {
+      'token': token,
+      'club': clubId,
+      'name': clubName,
+      'inviter': inviterName,
+      'type': inviteType == InviteMemberType.guest ? 'guest' : 'regular',
+      if (referrerId != null && referrerId!.isNotEmpty) 'referrer': referrerId!,
+      if (referrerName != null && referrerName!.isNotEmpty)
+        'referrerName': referrerName!,
+      if (guestName != null && guestName!.isNotEmpty) 'guest': guestName!,
+    };
   }
 
-  /// 카카오 공유용 웹 URL (실제 배포 시 도메인으로 교체)
-  String get webUrl =>
-      'https://rounder.app/invite?token=$token&club=$clubId';
+  /// 앱 딥링크 URL
+  String get deepLink =>
+      Uri(scheme: 'rounder', host: 'invite', queryParameters: _query)
+          .toString();
+
+  /// 카카오 등에서 열리는 우리 초대 페이지. rounder.app(다른 앱)이 아니다.
+  String get webUrl => Uri.parse('${InviteLinks.webOrigin}/invite')
+      .replace(queryParameters: _query)
+      .toString();
 
   /// 카카오 알림톡 메시지 템플릿
   String kakaoMessage(String clubName) {
@@ -158,7 +160,7 @@ $webUrl
     }
     return '''[ROUNDER] $inviterName님이 '$clubName' 골프 모임에 초대했습니다!
 
-앱에서 초대를 확인해 주세요. (7일 이내 유효)
+아래 링크를 눌러 라운더 앱에서 가입하세요. (7일 이내 유효)
 $webUrl
 
 #ROUNDER #골프모임 #초대''';

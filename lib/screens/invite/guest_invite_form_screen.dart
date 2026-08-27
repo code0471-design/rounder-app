@@ -294,10 +294,10 @@ class _GuestInviteFormScreenState extends State<GuestInviteFormScreen> {
                     SizedBox(height: 6),
                     Text(
                       '• 초대장 보내기를 누르면 카카오톡·문자 등 공유 앱을 고를 수 있습니다\n'
+                      '• 받는 사람은 라운더(골프 모임) 앱에서 링크를 엽니다\n'
                       '• 초대 링크는 발급 후 7일간 유효합니다\n'
-                      '• 링크로 가입 신청 시 게스트 등급으로 자동 접수됩니다\n'
-                      '• 추천인 정보가 저장되어 조편성 시 함께 배정될 수 있습니다\n'
-                      '• 가입 신청 후 총무 승인이 필요합니다',
+                      '• 링크로 들어오면 게스트로 바로 가입됩니다\n'
+                      '• 추천인 정보가 저장되어 조편성 시 함께 배정될 수 있습니다',
                       style: TextStyle(
                           fontSize: 11,
                           color: Color(0xFF92400E),
