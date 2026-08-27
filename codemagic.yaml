@@ -12,8 +12,8 @@ workflows:
       flutter: stable
       xcode: latest
       cocoapods: default
-      # Application env: SOLAPI_API_KEY, SOLAPI_API_SECRET 필수.
-      # SOLAPI_OTP_TEMPLATE_ID 기본 SythWc9qhK / SENDER 기본 01045110471 / PFID 기본값 있음
+      groups:
+        - solapi
       android_signing:
         - rounder_upload
       ios_signing:
@@ -74,6 +74,8 @@ workflows:
     max_build_duration: 60
     environment:
       flutter: stable
+      groups:
+        - solapi
       android_signing:
         - rounder_upload
     scripts:
@@ -102,6 +104,8 @@ workflows:
     max_build_duration: 60
     environment:
       flutter: stable
+      groups:
+        - solapi
       android_signing:
         - rounder_upload
     scripts:
