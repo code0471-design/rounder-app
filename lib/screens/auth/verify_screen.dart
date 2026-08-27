@@ -63,7 +63,7 @@ class _VerifyScreenState extends State<VerifyScreen> {
   Future<void> _sendSms() async {
     final auth = context.read<AuthProvider>();
     try {
-      await auth.sendSmsCode(widget.phone);
+      await auth.sendSmsCode(widget.phone, name: widget.name);
       _startResendTimer();
       if (mounted) setState(() => _smsError = null);
     } catch (e) {

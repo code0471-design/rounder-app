@@ -352,16 +352,20 @@ class AuthProvider extends ChangeNotifier {
     return user;
   }
 
-  /// 소셜 로그인 후 휴대폰 번호 등록 (본인인증 완료 시)
+  /// 소셜 로그인 후 이름·휴대폰 번호 등록 (본인인증 완료 시)
   Future<AppUser?> attachPhoneToCurrentUser({
     required String phone,
     required VerifyMethod verifyMethod,
+    String? name,
   }) async {
     final current = _currentUser;
     if (current == null) return null;
 
     final formatted = formatPhone(phone);
     if (_normalizePhone(formatted).length < 10) return null;
+
+    final trimmedName = name?.trim() ?? '';
+    if (trimmedName.isNotEmpty && trimmedName.length < 2) return null;
 
     // 다른 계정에 이미 쓰인 번호인지 확인
     final occupied = findUserByPhone(formatted);
@@ -370,6 +374,7 @@ class AuthProvider extends ChangeNotifier {
     }
 
     final updated = current.copyWith(
+      name: trimmedName.isNotEmpty ? trimmedName : null,
       phone: formatted,
       isVerified: true,
       verifyMethod: verifyMethod,
@@ -436,6 +441,7 @@ class AuthProvider extends ChangeNotifier {
         if (existing.replaceAll(RegExp(r'[^0-9]'), '').length >= 10) continue;
         batch.set(doc.reference, {
           'phone': user.phone,
+          if (user.name.trim().isNotEmpty) 'name': user.name.trim(),
           'updated_at': FieldValue.serverTimestamp(),
         }, SetOptions(merge: true));
         writes++;
@@ -492,7 +498,7 @@ class AuthProvider extends ChangeNotifier {
     return n.toString().padLeft(4, '0');
   }
 
-  Future<void> sendSmsCode(String phone) async {
+  Future<void> sendSmsCode(String phone, {String? name}) async {
     _isVerifying = true;
     _pendingPhone = phone;
     _smsCodeSent = false;
@@ -525,7 +531,11 @@ class AuthProvider extends ChangeNotifier {
 
     final code = _generateOtpCode();
     _smsCode = code;
-    final result = await solapi.sendOtpAlimtalk(to: phone, code: code);
+    final result = await solapi.sendOtpAlimtalk(
+      to: phone,
+      code: code,
+      name: name,
+    );
     if (!result.success) {
       _isVerifying = false;
       notifyListeners();

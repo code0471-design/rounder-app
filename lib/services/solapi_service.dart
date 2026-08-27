@@ -121,6 +121,7 @@ class SolapiService {
   Future<SolapiResult> sendOtpAlimtalk({
     required String to,
     required String code,
+    String? name,
   }) async {
     if (!isConfigured) {
       return SolapiResult.error('SOLAPI API Key가 설정되지 않았습니다.');
@@ -134,8 +135,15 @@ class SolapiService {
       );
     }
 
-    final smsText = '[라운더] 인증번호는 $code 입니다. 3분 내에 입력해 주세요.';
+    final displayName = (name ?? '').trim();
+    final smsText = displayName.isEmpty
+        ? '[라운더] 인증번호는 $code 입니다. 3분 내에 입력해 주세요.'
+        : '[라운더] $displayName님 인증번호는 $code 입니다. 3분 내에 입력해 주세요.';
     final allowSmsFallback = hasSenderPhone;
+    final variables = <String, String>{
+      '#{인증번호}': code,
+      if (displayName.isNotEmpty) '#{이름}': displayName,
+    };
     final message = <String, dynamic>{
       'to': normalizePhone(to),
       'text': smsText,
@@ -143,9 +151,7 @@ class SolapiService {
       'kakaoOptions': {
         'pfId': kakaoPfId,
         'templateId': otpTemplateId.trim(),
-        'variables': {
-          '#{인증번호}': code,
-        },
+        'variables': variables,
         // OTP만: 카톡 미연동 등 알림톡 실패 시 SMS 대체
         'disableSms': !allowSmsFallback,
       },
