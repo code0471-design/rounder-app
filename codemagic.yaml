@@ -12,6 +12,8 @@ workflows:
       flutter: stable
       xcode: latest
       cocoapods: default
+      # Application env: SOLAPI_API_KEY, SOLAPI_API_SECRET 필수.
+      # SOLAPI_OTP_TEMPLATE_ID 기본 SythWc9qhK / SENDER 기본 01045110471 / PFID 기본값 있음
       android_signing:
         - rounder_upload
       ios_signing:
@@ -33,7 +35,12 @@ workflows:
           BUILD_NUMBER=${VERSION_LINE##*+}
           echo "Android version: $BUILD_NAME+$BUILD_NUMBER"
           flutter build appbundle --release --android-skip-build-dependency-validation \
-            --build-name="$BUILD_NAME" --build-number="$BUILD_NUMBER"
+            --build-name="$BUILD_NAME" --build-number="$BUILD_NUMBER" \
+            --dart-define=SOLAPI_API_KEY="$SOLAPI_API_KEY" \
+            --dart-define=SOLAPI_API_SECRET="$SOLAPI_API_SECRET" \
+            --dart-define=SOLAPI_OTP_TEMPLATE_ID="${SOLAPI_OTP_TEMPLATE_ID:-SythWc9qhK}" \
+            --dart-define=SOLAPI_KAKAO_PF_ID="$SOLAPI_KAKAO_PF_ID" \
+            --dart-define=SOLAPI_SENDER_PHONE="${SOLAPI_SENDER_PHONE:-01045110471}"
       - name: Build iOS IPA
         script: |
           VERSION_LINE=$(grep '^version:' pubspec.yaml | head -1 | tr -d ' ')
@@ -44,6 +51,11 @@ workflows:
           flutter build ipa --release \
             --build-name="$BUILD_NAME" \
             --build-number="$BUILD_NUMBER" \
+            --dart-define=SOLAPI_API_KEY="$SOLAPI_API_KEY" \
+            --dart-define=SOLAPI_API_SECRET="$SOLAPI_API_SECRET" \
+            --dart-define=SOLAPI_OTP_TEMPLATE_ID="${SOLAPI_OTP_TEMPLATE_ID:-SythWc9qhK}" \
+            --dart-define=SOLAPI_KAKAO_PF_ID="$SOLAPI_KAKAO_PF_ID" \
+            --dart-define=SOLAPI_SENDER_PHONE="${SOLAPI_SENDER_PHONE:-01045110471}" \
             --export-options-plist=/Users/builder/export_options.plist
     artifacts:
       - build/**/outputs/**/*.aab
@@ -75,7 +87,12 @@ workflows:
           BUILD_NUMBER=${VERSION_LINE##*+}
           echo "APK version: $BUILD_NAME+$BUILD_NUMBER"
           flutter build apk --release --android-skip-build-dependency-validation \
-            --build-name="$BUILD_NAME" --build-number="$BUILD_NUMBER"
+            --build-name="$BUILD_NAME" --build-number="$BUILD_NUMBER" \
+            --dart-define=SOLAPI_API_KEY="$SOLAPI_API_KEY" \
+            --dart-define=SOLAPI_API_SECRET="$SOLAPI_API_SECRET" \
+            --dart-define=SOLAPI_OTP_TEMPLATE_ID="${SOLAPI_OTP_TEMPLATE_ID:-SythWc9qhK}" \
+            --dart-define=SOLAPI_KAKAO_PF_ID="$SOLAPI_KAKAO_PF_ID" \
+            --dart-define=SOLAPI_SENDER_PHONE="${SOLAPI_SENDER_PHONE:-01045110471}"
     artifacts:
       - build/**/outputs/**/*.apk
 
@@ -99,7 +116,13 @@ workflows:
           BUILD_NUMBER=${VERSION_LINE##*+}
           echo "AAB version: $BUILD_NAME+$BUILD_NUMBER"
           flutter build appbundle --release --android-skip-build-dependency-validation \
-            --build-name="$BUILD_NAME" --build-number="$BUILD_NUMBER" 2>&1 | tee /tmp/rounder_aab.log
+            --build-name="$BUILD_NAME" --build-number="$BUILD_NUMBER" \
+            --dart-define=SOLAPI_API_KEY="$SOLAPI_API_KEY" \
+            --dart-define=SOLAPI_API_SECRET="$SOLAPI_API_SECRET" \
+            --dart-define=SOLAPI_OTP_TEMPLATE_ID="${SOLAPI_OTP_TEMPLATE_ID:-SythWc9qhK}" \
+            --dart-define=SOLAPI_KAKAO_PF_ID="$SOLAPI_KAKAO_PF_ID" \
+            --dart-define=SOLAPI_SENDER_PHONE="${SOLAPI_SENDER_PHONE:-01045110471}" \
+            2>&1 | tee /tmp/rounder_aab.log
           status=${PIPESTATUS[0]}
           if [ $status -ne 0 ]; then
             echo "===== What went wrong (excerpt) ====="

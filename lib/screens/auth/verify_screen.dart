@@ -10,8 +10,7 @@ import '../../theme/app_theme.dart';
 import '../../widgets/business_info_footer.dart';
 
 // ════════════════════════════════════════════════════════════
-//  VerifyScreen — 휴대폰 문자 인증
-//  인증번호 발송 → 4자리 입력 → 확인
+//  VerifyScreen — 휴대폰 인증 (카카오 알림톡 인증번호)
 // ════════════════════════════════════════════════════════════
 class VerifyScreen extends StatefulWidget {
   final String name;
@@ -61,12 +60,21 @@ class _VerifyScreenState extends State<VerifyScreen> {
     super.dispose();
   }
 
-  // ── 인증번호 발송 ────────────────────────────────────────
+  // ── 인증번호 발송 (카카오 알림톡) ─────────────────────────
   Future<void> _sendSms() async {
     final auth = context.read<AuthProvider>();
-    await auth.sendSmsCode(widget.phone);
-    _startResendTimer();
-    if (mounted) setState(() => _smsError = null);
+    try {
+      await auth.sendSmsCode(widget.phone);
+      _startResendTimer();
+      if (mounted) setState(() => _smsError = null);
+    } catch (e) {
+      if (!mounted) return;
+      setState(() {
+        _smsError = e is StateError
+            ? e.message
+            : '인증번호 알림톡 발송에 실패했습니다. 다시 시도해 주세요.';
+      });
+    }
   }
 
   void _startResendTimer() {
@@ -96,7 +104,7 @@ class _VerifyScreenState extends State<VerifyScreen> {
     } else {
       setState(() {
         _smsError = kDebugMode
-            ? '인증번호가 올바르지 않습니다.\n(디버그) 코드: 1234'
+            ? '인증번호가 올바르지 않습니다.\n(디버그·미설정 시) 코드: 1234'
             : '인증번호가 올바르지 않습니다';
       });
     }
@@ -206,10 +214,10 @@ class _VerifyScreenState extends State<VerifyScreen> {
                       const SizedBox(height: 6),
                       Text(
                         kDebugMode
-                            ? '• 입력한 번호로 인증문자를 보냅니다\n'
+                            ? '• 입력한 번호로 카카오 알림톡 인증번호를 보냅니다\n'
                                 '• 번호는 알림톡·모임 연락에 사용됩니다\n'
-                                '• (디버그) SMS 인증번호: 1234'
-                            : '• 입력한 번호로 인증문자를 보냅니다\n'
+                                '• (디버그·미설정 시) 코드: 1234'
+                            : '• 입력한 번호로 카카오 알림톡 인증번호를 보냅니다\n'
                                 '• 번호는 알림톡·모임 연락에 사용됩니다',
                         style: const TextStyle(
                             fontSize: 11,
@@ -324,7 +332,7 @@ class _SmsSection extends StatelessWidget {
                       child: CircularProgressIndicator(
                           color: Colors.white, strokeWidth: 2))
                   : const Icon(Icons.send_outlined, size: 18),
-              label: Text(auth.isVerifying ? '발송 중...' : 'SMS 인증번호 발송'),
+              label: Text(auth.isVerifying ? '발송 중...' : '알림톡 인증번호 발송'),
               style: ElevatedButton.styleFrom(
                 backgroundColor: AppColors.primary,
                 foregroundColor: Colors.white,

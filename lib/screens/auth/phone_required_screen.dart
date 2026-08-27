@@ -77,7 +77,9 @@ class _PhoneRequiredScreenState extends State<PhoneRequiredScreen> {
       if (!mounted) return;
       setState(() {
         _busy = false;
-        _error = '인증번호 발송에 실패했습니다. 다시 시도해 주세요.';
+        _error = e is StateError
+            ? e.message
+            : '인증번호 알림톡 발송에 실패했습니다. 다시 시도해 주세요.';
       });
     }
   }
@@ -88,7 +90,7 @@ class _PhoneRequiredScreenState extends State<PhoneRequiredScreen> {
     if (!ok) {
       setState(() {
         _error = kDebugMode
-            ? '인증번호가 올바르지 않습니다.\n(디버그) 코드: 1234'
+            ? '인증번호가 올바르지 않습니다.\n(디버그·미설정 시) 코드: 1234'
             : '인증번호가 올바르지 않습니다';
       });
       return;
@@ -193,7 +195,7 @@ class _PhoneRequiredScreenState extends State<PhoneRequiredScreen> {
                 ),
                 const SizedBox(height: 8),
                 const Text(
-                  '알림톡·모임 연락을 위해 번호가 필요해요.\n입력 후 간단히 인증만 하면 바로 시작할 수 있어요.',
+                  '알림톡·모임 연락을 위해 번호가 필요해요.\n카카오 알림톡으로 인증번호를 보내 드릴게요.',
                   style: TextStyle(
                     fontSize: 13,
                     height: 1.45,
@@ -248,7 +250,7 @@ class _PhoneRequiredScreenState extends State<PhoneRequiredScreen> {
                       FilteringTextInputFormatter.digitsOnly,
                     ],
                     decoration: InputDecoration(
-                      hintText: '인증번호 4자리',
+                      hintText: '알림톡 인증번호 4자리',
                       counterText: '',
                       filled: true,
                       fillColor: Colors.white,

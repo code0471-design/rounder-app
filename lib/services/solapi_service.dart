@@ -1,7 +1,8 @@
 // ════════════════════════════════════════════════════════════
 //  SolapiService — SOLAPI 알림톡 (어드민 발송용)
-//  라운더는 알림톡 실패 시 문자 대체발송을 하지 않는다.
-//  Key는 --dart-define 또는 추후 .env 연동. 미설정 시 발송 차단.
+//  어드민 알림톡: 실패 시 문자 대체 없음 (disableSms: true).
+//  가입 OTP만: 알림톡 실패 시 등록 발신번호로 SMS 대체.
+//  Key는 --dart-define. 미설정 시 발송 차단.
 // ════════════════════════════════════════════════════════════
 import 'dart:convert';
 import 'dart:math';
@@ -37,15 +38,28 @@ class SolapiService {
 
   static const _apiKey = String.fromEnvironment('SOLAPI_API_KEY');
   static const _apiSecret = String.fromEnvironment('SOLAPI_API_SECRET');
-  static const senderPhone = String.fromEnvironment('SOLAPI_SENDER_PHONE');
+
+  /// OTP 알림톡 실패 시 SMS 발신번호 (솔라피 사전등록). 기본: 01045110471
+  static const senderPhone = String.fromEnvironment(
+    'SOLAPI_SENDER_PHONE',
+    defaultValue: '01045110471',
+  );
   static const kakaoPfId = String.fromEnvironment(
     'SOLAPI_KAKAO_PF_ID',
     defaultValue: 'KA01PF260819163601284VyeVGcfZZWg',
   );
 
+  /// 휴대폰 인증번호 알림톡 템플릿 ID/코드 (솔라피 콘솔)
+  /// 템플릿 변수명: #{인증번호}
+  static const otpTemplateId = String.fromEnvironment(
+    'SOLAPI_OTP_TEMPLATE_ID',
+    defaultValue: 'SythWc9qhK',
+  );
+
   bool get isConfigured => _apiKey.isNotEmpty && _apiSecret.isNotEmpty;
-  bool get hasSenderPhone => senderPhone.isNotEmpty;
+  bool get hasSenderPhone => normalizePhone(senderPhone).isNotEmpty;
   bool get hasKakaoChannel => kakaoPfId.isNotEmpty;
+  bool get hasOtpTemplate => otpTemplateId.trim().isNotEmpty;
 
   static String normalizePhone(String phone) =>
       phone.replaceAll(RegExp(r'[^0-9]'), '');
@@ -72,7 +86,6 @@ class SolapiService {
     };
   }
 
-  /// 라운더는 알림톡 실패 시 문자를 보내지 않는다. 내부 테스트용으로만 남긴다.
   Map<String, dynamic> buildSmsMessage({
     required String to,
     required String text,
@@ -85,6 +98,7 @@ class SolapiService {
     };
   }
 
+  /// 어드민 등 일반 알림톡 — 문자 대체 없음.
   Map<String, dynamic> buildAlimtalkMessage({
     required String to,
     required String templateId,
@@ -101,6 +115,42 @@ class SolapiService {
         'disableSms': true,
       },
     };
+  }
+
+  /// 가입·번호 등록 OTP: 알림톡 우선, 실패 시 SMS(등록 발신번호).
+  Future<SolapiResult> sendOtpAlimtalk({
+    required String to,
+    required String code,
+  }) async {
+    if (!isConfigured) {
+      return SolapiResult.error('SOLAPI API Key가 설정되지 않았습니다.');
+    }
+    if (!hasKakaoChannel) {
+      return SolapiResult.error('카카오 채널(PFID)이 설정되지 않았습니다.');
+    }
+    if (!hasOtpTemplate) {
+      return SolapiResult.error(
+        '인증번호 알림톡 템플릿(SOLAPI_OTP_TEMPLATE_ID)이 없습니다.',
+      );
+    }
+
+    final smsText = '[라운더] 인증번호는 $code 입니다. 3분 내에 입력해 주세요.';
+    final allowSmsFallback = hasSenderPhone;
+    final message = <String, dynamic>{
+      'to': normalizePhone(to),
+      'text': smsText,
+      if (allowSmsFallback) 'from': normalizePhone(senderPhone),
+      'kakaoOptions': {
+        'pfId': kakaoPfId,
+        'templateId': otpTemplateId.trim(),
+        'variables': {
+          '#{인증번호}': code,
+        },
+        // OTP만: 카톡 미연동 등 알림톡 실패 시 SMS 대체
+        'disableSms': !allowSmsFallback,
+      },
+    };
+    return sendManyRaw([message]);
   }
 
   Future<SolapiResult> sendManyRaw(List<Map<String, dynamic>> messages) async {

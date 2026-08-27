@@ -1,15 +1,18 @@
 import 'dart:async';
+import 'dart:math';
 
-import 'package:flutter/material.dart';
+import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:flutter/foundation.dart';
 import 'package:shared_preferences/shared_preferences.dart';
+
+import '../core/firebase/firestore_paths.dart';
+import '../data/repositories/mock/mock_data_store.dart';
+import '../di/app_dependencies.dart';
 import '../models/user_model.dart';
 import '../services/firebase_auth_bridge.dart';
 import '../services/push_notification_service.dart';
 import '../services/social_auth_service.dart';
-import '../di/app_dependencies.dart';
-import '../data/repositories/mock/mock_data_store.dart';
-import 'package:cloud_firestore/cloud_firestore.dart';
-import '../core/firebase/firestore_paths.dart';
+import '../services/solapi_service.dart';
 
 // ════════════════════════════════════════════════════════════
 //  AuthProvider — 로그인 / 자동로그인 / 세션 관리
@@ -481,15 +484,54 @@ class AuthProvider extends ChangeNotifier {
   }
 
   // ════════════════════════════════════════════════════════
-  //  SMS 인증
+  //  휴대폰 인증번호 (카카오 알림톡 — 문자/PASS 미사용)
   // ════════════════════════════════════════════════════════
 
+  String _generateOtpCode() {
+    final n = Random.secure().nextInt(10000);
+    return n.toString().padLeft(4, '0');
+  }
+
   Future<void> sendSmsCode(String phone) async {
-    _isVerifying  = true;
+    _isVerifying = true;
     _pendingPhone = phone;
-    _smsCode      = '1234';
+    _smsCodeSent = false;
     notifyListeners();
-    await Future.delayed(const Duration(seconds: 1));
+
+    final solapi = SolapiService.instance;
+    final canSend = solapi.isConfigured &&
+        solapi.hasKakaoChannel &&
+        solapi.hasOtpTemplate;
+
+    if (!canSend) {
+      if (kDebugMode) {
+        _smsCode = '1234';
+        debugPrint(
+          '[Auth] 알림톡 OTP 설정 없음 — 디버그 코드 1234 '
+          '(Key/PFID/SOLAPI_OTP_TEMPLATE_ID 확인)',
+        );
+        await Future.delayed(const Duration(milliseconds: 400));
+        _smsCodeSent = true;
+        _isVerifying = false;
+        notifyListeners();
+        return;
+      }
+      _isVerifying = false;
+      notifyListeners();
+      throw StateError(
+        '알림톡 인증 설정이 아직 준비되지 않았습니다. 잠시 후 다시 시도해 주세요.',
+      );
+    }
+
+    final code = _generateOtpCode();
+    _smsCode = code;
+    final result = await solapi.sendOtpAlimtalk(to: phone, code: code);
+    if (!result.success) {
+      _isVerifying = false;
+      notifyListeners();
+      throw StateError(result.errorMessage ?? '인증번호 알림톡 발송에 실패했습니다.');
+    }
+
     _smsCodeSent = true;
     _isVerifying = false;
     notifyListeners();
