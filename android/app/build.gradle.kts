@@ -55,9 +55,11 @@ android {
 
     signingConfigs {
         create("release") {
-            // Codemagic exports CI=true and CM_KEYSTORE_* during android_signing
-            if (System.getenv("CI") == "true") {
-                storeFile = file(System.getenv("CM_KEYSTORE_PATH")!!)
+            // Codemagic android_signing exports CM_KEYSTORE_*.
+            // ios-first 등 키스토어 없는 CI에서는 NPE 내지 말고 로컬 key.properties로 폴백.
+            val cmPath = System.getenv("CM_KEYSTORE_PATH")
+            if (System.getenv("CI") == "true" && !cmPath.isNullOrBlank()) {
+                storeFile = file(cmPath)
                 storePassword = System.getenv("CM_KEYSTORE_PASSWORD")
                 keyAlias = System.getenv("CM_KEY_ALIAS")
                 keyPassword = System.getenv("CM_KEY_PASSWORD")
