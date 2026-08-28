@@ -493,6 +493,15 @@ class AuthProvider extends ChangeNotifier {
   //  휴대폰 인증번호 (카카오 알림톡 — 문자/PASS 미사용)
   // ════════════════════════════════════════════════════════
 
+  /// App Store Review용 (Review Notes에 공개). 알림톡 없이 이 번호+코드로만 통과.
+  static const appStoreReviewPhoneDigits = '01000000000';
+  static const appStoreReviewOtp = '0000';
+
+  static bool isAppStoreReviewPhone(String phone) {
+    final d = phone.replaceAll(RegExp(r'[^0-9]'), '');
+    return d == appStoreReviewPhoneDigits;
+  }
+
   String _generateOtpCode() {
     final n = Random.secure().nextInt(10000);
     return n.toString().padLeft(4, '0');
@@ -503,6 +512,17 @@ class AuthProvider extends ChangeNotifier {
     _pendingPhone = phone;
     _smsCodeSent = false;
     notifyListeners();
+
+    // App Store Review — Review Notes에 명시한 공개 데모 경로 (숨김 기능 아님)
+    if (isAppStoreReviewPhone(phone)) {
+      _smsCode = appStoreReviewOtp;
+      debugPrint('[Auth] App Store Review OTP path (disclosed in Review Notes)');
+      await Future.delayed(const Duration(milliseconds: 400));
+      _smsCodeSent = true;
+      _isVerifying = false;
+      notifyListeners();
+      return;
+    }
 
     final solapi = SolapiService.instance;
     final canSend = solapi.isConfigured &&

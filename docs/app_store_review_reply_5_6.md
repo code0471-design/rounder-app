@@ -1,31 +1,49 @@
-# App Review Reply — Guideline 5.6 (Social login rebuild)
+# App Store Review — Guideline 5.6 + phone demo path
 
-## What changed
-We removed development-only test account shortcuts and non-functional social buttons.
-The App Store build now uses real OAuth only:
+## Must resubmit a new build
+Reply alone is **not enough**. The binary under review must include the
+disclosed App Store Review phone OTP path. Upload a new build, then reply.
 
-1. Kakao Login (Kakao SDK)
-2. Google Sign-In
-3. Sign in with Apple (required on iOS)
+Expected version: check `pubspec.yaml` (e.g. `1.0.0+56`).
 
-There is no phone/SMS login and no hidden demo bypass in the production UI.
+## Disclosed demo credentials (also paste into App Store Connect Review Notes)
 
-## How to review (recommended)
-Please use **Sign in with Apple** on the login screen.
-A new reviewer account is created automatically on first sign-in.
-You can then create/join a club and review home, schedule, members, and finance.
+- Name: `App Review`
+- Phone: `010-0000-0000`
+- Verification code: `0000`
+  (Tap “Get code” / 인증번호 받기 first, then enter `0000`. No Kakao/SMS is sent for this number.)
 
-Kakao may require a Korean Kakao account and may not be available on all review devices.
-Google requires Google Sign-In / Firebase OAuth client configuration for this bundle ID.
+## Review steps
+1. Sign in with Apple (preferred).
+2. On the name/phone screen, enter name `App Review` and phone `010-0000-0000`.
+3. Tap send code, enter `0000`, complete.
+4. Create or join a club; review Home, Schedule, Members, Finance.
 
-## Demo notes for App Store Connect fields
-- Sign-in required: Yes
-- Username / Password: N/A (use Sign in with Apple)
-- Notes: paste the “How to review” section above
+## Resolution Center reply (English)
 
-## Developer checklist before resubmit
-1. Apple Developer → App ID `com.golfrounder.golfRounder` → enable **Sign In with Apple**
-2. Kakao Developers → native app key → set `KAKAO_NATIVE_APP_KEY` (xcconfig + dart-define)
-3. Firebase / Google Cloud → iOS OAuth client for bundle ID → `GOOGLE_IOS_CLIENT_ID` (+ server client ID)
-4. Register iOS app in Firebase (current ios firebase_options is still placeholder)
-5. Codemagic build with dart-defines, upload build, reply in App Review, resubmit
+```text
+Hello App Review Team,
+
+Thank you for the Guideline 5.6 feedback.
+
+We do not intentionally hide any features. There is no private/hidden mode and no undisclosed functionality.
+
+After Sign in with Apple, all users (including reviewers) register a name and phone number for club contact and Kakao Alimtalk. This is a normal onboarding step, not a hidden feature.
+
+We have uploaded a new build that includes a **disclosed App Review demo path** (also in Review Notes):
+
+1. Sign in with Apple
+2. Name: App Review
+3. Phone: 010-0000-0000
+4. Tap send verification code, then enter: 0000
+
+You can then access the full app (club create/join, schedule, members, finance).
+
+Please re-review this new build. We fully comply with the App Store Review Guidelines and Developer Code of Conduct.
+
+Best regards,
+```
+
+## Korean short note for Royce
+회신만 보내지 말고, 이 코드가 들어있는 **새 IPA를 TestFlight/심사에 올린 뒤** 위 영문을 회신하세요.
+Review Notes에도 Phone `010-0000-0000` / Code `0000`를 넣으세요.
