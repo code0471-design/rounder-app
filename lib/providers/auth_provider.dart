@@ -537,6 +537,19 @@ class AuthProvider extends ChangeNotifier {
       name: name,
     );
     if (!result.success) {
+      // 임시: 템플릿 검수 전 로컬 테스트용. 릴리스(kDebugMode=false)에는 적용 안 됨.
+      if (kDebugMode) {
+        _smsCode = '1234';
+        debugPrint(
+          '[Auth] 알림톡 발송 실패 — 디버그 임시 코드 1234 '
+          '(${result.errorMessage})',
+        );
+        await Future.delayed(const Duration(milliseconds: 400));
+        _smsCodeSent = true;
+        _isVerifying = false;
+        notifyListeners();
+        return;
+      }
       _isVerifying = false;
       notifyListeners();
       throw StateError(result.errorMessage ?? '인증번호 알림톡 발송에 실패했습니다.');
