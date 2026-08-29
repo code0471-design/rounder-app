@@ -236,7 +236,7 @@ class _PhoneRequiredScreenState extends State<PhoneRequiredScreen> {
                   enabled: !_busy && !_codeSent,
                   textInputAction: TextInputAction.next,
                   decoration: InputDecoration(
-                    hintText: '실명 또는 모임에서 쓸 이름',
+                    hintText: '이름',
                     prefixIcon: const Icon(Icons.person_outline),
                     filled: true,
                     fillColor: Colors.white,
