@@ -1,49 +1,54 @@
-# App Store Review — Guideline 5.6 + phone demo path
+# App Store Review — demo phone path (Guideline 2.1 / 5.6)
 
-## Must resubmit a new build
-Reply alone is **not enough**. The binary under review must include the
-disclosed App Store Review phone OTP path. Upload a new build, then reply.
+## Must upload a new build
+Reply alone is not enough if the binary does not match Review Notes.
+Expected version: check `pubspec.yaml` (e.g. `1.0.0+57`).
 
-Expected version: check `pubspec.yaml` (e.g. `1.0.0+56`).
+## Important
+This app has **no username/password login**.
+Demo access is: **Sign in with Apple** → name/phone screen → demo phone + code.
 
-## Disclosed demo credentials (also paste into App Store Connect Review Notes)
+## Review Notes (paste into App Store Connect)
 
-- Name: `App Review`
-- Phone: `010-0000-0000`
-- Verification code: `0000`
-  (Tap “Get code” / 인증번호 받기 first, then enter `0000`. No Kakao/SMS is sent for this number.)
+```text
+DEMO ACCESS (no username/password — social login only)
 
-## Review steps
-1. Sign in with Apple (preferred).
-2. On the name/phone screen, enter name `App Review` and phone `010-0000-0000`.
-3. Tap send code, enter `0000`, complete.
-4. Create or join a club; review Home, Schedule, Members, Finance.
+1) On the login screen, tap “Sign in with Apple” and complete Apple ID sign-in.
+2) On the next screen (name + phone), enter:
+   - Name: App Review
+   - Phone: 010-0000-0000   (eleven digits: 010 0000 0000)
+3) Tap the button to send verification code (인증번호 받기).
+4) Enter verification code: 0000
+5) You will enter the app and can create/join a club; review Home, Schedule, Members, Finance.
 
-## Resolution Center reply (English)
+Notes:
+- Do NOT look for a username/password field.
+- Kakao Alimtalk is not sent for 010-0000-0000; code 0000 works offline for App Review only.
+- Phone may also be typed as 01000000000.
+```
+
+## Resolution Center reply (Guideline 2.1)
 
 ```text
 Hello App Review Team,
 
-Thank you for the Guideline 5.6 feedback.
+Thank you for the Guideline 2.1 feedback.
 
-We do not intentionally hide any features. There is no private/hidden mode and no undisclosed functionality.
+ROUNDER does not use username/password login. Access is via Sign in with Apple (or Kakao/Google), then a name/phone registration step for club contact.
 
-After Sign in with Apple, all users (including reviewers) register a name and phone number for club contact and Kakao Alimtalk. This is a normal onboarding step, not a hidden feature.
+Please use this disclosed App Review demo path (also in Review Notes) on the new build:
 
-We have uploaded a new build that includes a **disclosed App Review demo path** (also in Review Notes):
+1. Tap “Sign in with Apple” on the login screen (there is no username/password field).
+2. On the name/phone screen enter:
+   - Name: App Review
+   - Phone: 010-0000-0000  (please use all zeros: 010-0000-0000)
+3. Tap send verification code, then enter: 0000
 
-1. Sign in with Apple
-2. Name: App Review
-3. Phone: 010-0000-0000
-4. Tap send verification code, then enter: 0000
+This demo phone does not require Kakao delivery; code 0000 is accepted for App Review so you can access full features (club create/join, schedule, members, finance).
 
-You can then access the full app (club create/join, schedule, members, finance).
+We apologize for the earlier confusion if the phone was entered as 010-0000-000 (one digit short). The correct number is 010-0000-0000.
 
-Please re-review this new build. We fully comply with the App Store Review Guidelines and Developer Code of Conduct.
+Please re-review the new build.
 
 Best regards,
 ```
-
-## Korean short note for Royce
-회신만 보내지 말고, 이 코드가 들어있는 **새 IPA를 TestFlight/심사에 올린 뒤** 위 영문을 회신하세요.
-Review Notes에도 Phone `010-0000-0000` / Code `0000`를 넣으세요.

@@ -494,12 +494,22 @@ class AuthProvider extends ChangeNotifier {
   // ════════════════════════════════════════════════════════
 
   /// App Store Review용 (Review Notes에 공개). 알림톡 없이 이 번호+코드로만 통과.
+  /// 정식: 010-0000-0000 → 01000000000
+  /// 심사팀이 적는 010-0000-000(0 하나 부족)도 허용.
   static const appStoreReviewPhoneDigits = '01000000000';
+  static const appStoreReviewPhoneDigitsAlt = '0100000000';
   static const appStoreReviewOtp = '0000';
 
   static bool isAppStoreReviewPhone(String phone) {
     final d = phone.replaceAll(RegExp(r'[^0-9]'), '');
-    return d == appStoreReviewPhoneDigits;
+    if (d == appStoreReviewPhoneDigits || d == appStoreReviewPhoneDigitsAlt) {
+      return true;
+    }
+    // 010 + 나머지 전부 0 (10~11자리) — 심사 데모 번호로 취급
+    return d.length >= 10 &&
+        d.length <= 11 &&
+        d.startsWith('010') &&
+        d.substring(3).replaceAll('0', '').isEmpty;
   }
 
   String _generateOtpCode() {
