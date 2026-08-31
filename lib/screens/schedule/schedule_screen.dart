@@ -10,6 +10,8 @@ import '../records/score_award_screen.dart';
 import 'round_photo_widgets.dart';
 import '../../widgets/ad_banner.dart';
 import '../../widgets/golf_course_field.dart';
+import '../../utils/reservation_sms_parser.dart';
+import '../../widgets/reservation_sms_fill_banner.dart';
 
 // ════════════════════════════════════════════════════════════
 //  보험 관련 상수
@@ -2680,6 +2682,46 @@ class _ScheduleFormSheetState extends State<_ScheduleFormSheet> {
     }
   }
 
+
+  void _applyReservationParse(ReservationSmsParse parsed) {
+    setState(() {
+      if (parsed.date != null) _selectedDate = parsed.date;
+      if (parsed.hour != null) {
+        _teeTime = TimeOfDay(
+          hour: parsed.hour!,
+          minute: parsed.minute ?? 0,
+        );
+      }
+      if (parsed.courseName != null && parsed.courseName!.trim().isNotEmpty) {
+        _courseCtrl.text = parsed.courseName!.trim();
+      }
+      if (parsed.address != null && parsed.address!.trim().isNotEmpty) {
+        _addressCtrl.text = parsed.address!.trim();
+      }
+      if (_titleCtrl.text.trim().isEmpty &&
+          parsed.titleHint != null &&
+          parsed.titleHint!.trim().isNotEmpty) {
+        _titleCtrl.text = parsed.titleHint!.trim();
+      }
+      if (parsed.teamCount != null) {
+        _teamCount = parsed.teamCount!;
+        _capacityCtrl.text = '${_teamCount * 4}';
+      }
+    });
+    final bits = <String>[];
+    if (parsed.date != null) bits.add('날짜');
+    if (parsed.hour != null) bits.add('시간');
+    if (parsed.courseName != null && parsed.courseName!.trim().isNotEmpty) {
+      bits.add('골프장');
+    }
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: Text('${bits.join(' · ')}을 채웠습니다. 확인하고 등록하세요.'),
+        behavior: SnackBarBehavior.floating,
+      ),
+    );
+  }
+
   void _setTeamCount(int next) {
     if (next < 1 || next > 30) return;
     setState(() {
@@ -2753,6 +2795,11 @@ class _ScheduleFormSheetState extends State<_ScheduleFormSheet> {
                   controller: ctrl,
                   padding: const EdgeInsets.all(20),
                   children: [
+                    if (!_isEdit)
+                      ReservationSmsFillBanner(
+                        extras: golfCoursesFromSchedules(widget.provider.schedules),
+                        onFilled: _applyReservationParse,
+                      ),
                     // 일정 제목
                     _FormField(
                       label: '일정 제목 *',

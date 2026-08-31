@@ -133,4 +133,16 @@ void main() {
         isTrue);
     expect(body.contains('_PhotoSection(schedule: schedule)'), isTrue);
   });
+
+  test('일정 등록에 예약 문자 붙여넣기가 있어야 한다', () {
+    expect(source.contains('ReservationSmsFillBanner'), isTrue,
+        reason: '일정 등록 예약 문자 배너가 사라짐');
+    expect(source.contains('_applyReservationParse'), isTrue);
+    expect(source.contains('if (!_isEdit)'), isTrue,
+        reason: '예약 문자는 신규 등록에서만 보여야 함');
+    final banner = File('lib/widgets/reservation_sms_fill_banner.dart')
+        .readAsStringSync();
+    expect(banner.contains('예약 문자 붙여넣기'), isTrue);
+    expect(banner.contains('parseReservationSms'), isTrue);
+  });
 }
