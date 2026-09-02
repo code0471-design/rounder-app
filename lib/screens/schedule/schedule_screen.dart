@@ -4094,7 +4094,7 @@ class _PhotoSection extends StatelessWidget {
 
 
 // ── 일정 라운딩 사진첩 (전체보기) ──
-class _SchedulePhotoAlbumScreen extends StatelessWidget {
+class _SchedulePhotoAlbumScreen extends StatefulWidget {
   final String scheduleId;
   final String title;
   final List<RoundPhoto> photos;
@@ -4105,28 +4105,136 @@ class _SchedulePhotoAlbumScreen extends StatelessWidget {
   });
 
   @override
+  State<_SchedulePhotoAlbumScreen> createState() =>
+      _SchedulePhotoAlbumScreenState();
+}
+
+class _SchedulePhotoAlbumScreenState extends State<_SchedulePhotoAlbumScreen> {
+  bool _selecting = false;
+  final Set<String> _selected = <String>{};
+
+  void _toggleSelectMode() {
+    setState(() {
+      _selecting = !_selecting;
+      if (!_selecting) _selected.clear();
+    });
+  }
+
+  void _toggleId(String id) {
+    setState(() {
+      if (_selected.contains(id)) {
+        _selected.remove(id);
+      } else {
+        _selected.add(id);
+      }
+    });
+  }
+
+  Future<void> _deleteSelected(ClubProvider provider, List<RoundPhoto> live) async {
+    final targets = live
+        .where((p) => _selected.contains(p.id) && provider.canDeletePhoto(p))
+        .map((p) => p.id)
+        .toList();
+    if (targets.isEmpty) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('삭제할 수 있는 사진이 없습니다'),
+          behavior: SnackBarBehavior.floating,
+        ),
+      );
+      return;
+    }
+    final ok = await showDialog<bool>(
+      context: context,
+      builder: (dialogCtx) => AlertDialog(
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+        title: const Text('사진 삭제'),
+        content: Text('선택한 ${targets.length}장을 삭제할까요?'),
+        actions: [
+          TextButton(
+              onPressed: () => Navigator.pop(dialogCtx, false),
+              child: const Text('취소')),
+          TextButton(
+              onPressed: () => Navigator.pop(dialogCtx, true),
+              child: const Text('삭제',
+                  style: TextStyle(color: AppColors.danger))),
+        ],
+      ),
+    );
+    if (ok != true || !mounted) return;
+    final n = provider.deletePhotos(targets);
+    if (!mounted) return;
+    setState(() {
+      _selected.clear();
+      _selecting = false;
+    });
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: Text(n > 0 ? '$n장 삭제했습니다' : '삭제하지 못했습니다'),
+        behavior: SnackBarBehavior.floating,
+      ),
+    );
+  }
+
+  @override
   Widget build(BuildContext context) {
     return Consumer<ClubProvider>(
       builder: (context, provider, _) {
-        final live = provider.photosOf(scheduleId);
+        final live = provider.photosOf(widget.scheduleId);
+        final canBulk = live.any(provider.canDeletePhoto);
         return Scaffold(
           backgroundColor: AppColors.background,
           appBar: AppBar(
             backgroundColor: Colors.white,
             elevation: 0,
             leading: IconButton(
-              icon: const Icon(Icons.arrow_back_ios_new,
-                  size: 18, color: AppColors.textPrimary),
-              onPressed: () => Navigator.pop(context),
+              icon: Icon(
+                _selecting ? Icons.close : Icons.arrow_back_ios_new,
+                size: 18,
+                color: AppColors.textPrimary,
+              ),
+              onPressed: () {
+                if (_selecting) {
+                  _toggleSelectMode();
+                } else {
+                  Navigator.pop(context);
+                }
+              },
             ),
             title: Text(
-              '$title · ${live.length}장',
+              _selecting
+                  ? '선택 ${_selected.length}장'
+                  : '${widget.title} · ${live.length}장',
               style: const TextStyle(
                 fontSize: 16,
                 fontWeight: FontWeight.bold,
                 color: AppColors.textPrimary,
               ),
             ),
+            actions: [
+              if (live.isNotEmpty && canBulk)
+                TextButton(
+                  onPressed: _toggleSelectMode,
+                  child: Text(
+                    _selecting ? '취소' : '선택',
+                    style: const TextStyle(
+                      color: AppColors.primary,
+                      fontWeight: FontWeight.w600,
+                    ),
+                  ),
+                ),
+              if (_selecting && _selected.isNotEmpty)
+                TextButton(
+                  onPressed: () => _deleteSelected(provider, live),
+                  child: const Text(
+                    '삭제',
+                    style: TextStyle(
+                      color: AppColors.danger,
+                      fontWeight: FontWeight.w700,
+                    ),
+                  ),
+                ),
+            ],
           ),
           body: live.isEmpty
               ? const Center(
@@ -4146,22 +4254,75 @@ class _SchedulePhotoAlbumScreen extends StatelessWidget {
                   itemCount: live.length,
                   itemBuilder: (context, index) {
                     final photo = live[index];
+                    final selected = _selected.contains(photo.id);
                     return GestureDetector(
                       onTap: () {
+                        if (_selecting) {
+                          if (!provider.canDeletePhoto(photo)) {
+                            ScaffoldMessenger.of(context).showSnackBar(
+                              const SnackBar(
+                                content: Text('이 사진은 삭제할 수 없습니다'),
+                                behavior: SnackBarBehavior.floating,
+                              ),
+                            );
+                            return;
+                          }
+                          _toggleId(photo.id);
+                          return;
+                        }
                         Navigator.push(
                           context,
                           MaterialPageRoute(
                             builder: (_) => _SchedulePhotoViewer(
-                              scheduleId: scheduleId,
+                              scheduleId: widget.scheduleId,
                               photos: live,
                               initialIndex: index,
                             ),
                           ),
                         );
                       },
-                      child: ClipRRect(
-                        borderRadius: BorderRadius.circular(8),
-                        child: RoundPhotoView(imageUrl: photo.imageUrl),
+                      onLongPress: () {
+                        if (!provider.canDeletePhoto(photo)) return;
+                        if (!_selecting) {
+                          setState(() {
+                            _selecting = true;
+                            _selected
+                              ..clear()
+                              ..add(photo.id);
+                          });
+                        } else {
+                          _toggleId(photo.id);
+                        }
+                      },
+                      child: Stack(
+                        fit: StackFit.expand,
+                        children: [
+                          ClipRRect(
+                            borderRadius: BorderRadius.circular(8),
+                            child: RoundPhotoView(imageUrl: photo.imageUrl),
+                          ),
+                          if (_selecting)
+                            Positioned(
+                              top: 6,
+                              right: 6,
+                              child: Container(
+                                width: 22,
+                                height: 22,
+                                decoration: BoxDecoration(
+                                  shape: BoxShape.circle,
+                                  color: selected
+                                      ? AppColors.primary
+                                      : Colors.black45,
+                                  border: Border.all(
+                                      color: Colors.white, width: 1.5),
+                                ),
+                                child: selected
+                                    ? const Icon(Icons.check,
+                                        size: 14, color: Colors.white)
+                                    : null,
+                              ),
+                            ),
+                        ],
                       ),
                     );
                   },
@@ -4284,14 +4445,8 @@ class _SchedulePhotoViewerState extends State<_SchedulePhotoViewer> {
       );
       return;
     }
-    setState(() => _syncFromProvider(provider));
-    if (_photos.isEmpty) {
-      Navigator.pop(context);
-      return;
-    }
-    if (_controller.hasClients) {
-      _controller.jumpToPage(_current);
-    }
+    // 삭제 후 목록(앨범)으로 복귀
+    Navigator.pop(context);
   }
 
   @override

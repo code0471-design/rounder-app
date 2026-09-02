@@ -145,4 +145,12 @@ void main() {
     expect(banner.contains('예약 문자 붙여넣기'), isTrue);
     expect(banner.contains('parseReservationSms'), isTrue);
   });
+
+  test('일정 갤러리는 다중 선택 삭제와 삭제 후 목록 복귀가 있어야 한다', () {
+    expect(source.contains('deletePhotos'), isTrue,
+        reason: '여러 장 삭제 API 호출이 없음');
+    expect(source.contains('_selecting'), isTrue, reason: '앨범 선택 모드가 없음');
+    expect(source.contains('삭제 후 목록(앨범)으로 복귀'), isTrue,
+        reason: '뷰어 삭제 후 목록 복귀 주석/동작이 없음');
+  });
 }

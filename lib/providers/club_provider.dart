@@ -5293,7 +5293,9 @@ class ClubProvider extends ChangeNotifier with WidgetsBindingObserver {
   /// 특정 일정의 사진 목록 (최신순)
   List<RoundPhoto> photosOf(String scheduleId) {
     final list = _photos
-        .where((p) => p.scheduleId == scheduleId)
+        .where((p) =>
+            p.scheduleId == scheduleId &&
+            !ClubOpsSync.isPhotoDeleted(p.id))
         .toList();
     list.sort((a, b) => b.takenAt.compareTo(a.takenAt));
     return list;
@@ -5304,7 +5306,9 @@ class ClubProvider extends ChangeNotifier with WidgetsBindingObserver {
     final clubId = selectedClub.id;
     final scheduleIds = schedules.map((s) => s.id).toSet();
     final list = _photos
-        .where((p) => p.clubId == clubId || scheduleIds.contains(p.scheduleId))
+        .where((p) =>
+            !ClubOpsSync.isPhotoDeleted(p.id) &&
+            (p.clubId == clubId || scheduleIds.contains(p.scheduleId)))
         .toList();
     list.sort((a, b) => b.takenAt.compareTo(a.takenAt));
     return list;
@@ -5374,13 +5378,24 @@ class ClubProvider extends ChangeNotifier with WidgetsBindingObserver {
     final photo = _photos[idx];
     if (!canDeletePhoto(photo)) return false;
     final clubId = photo.clubId;
+    // watch merge가 삭제분을 되살리기 전에 먼저 표시
+    ClubOpsSync.markPhotoDeleted(photoId);
     _photos.removeAt(idx);
-    _persistImmediately();
     notifyListeners();
+    _persistImmediately();
     if (clubId != null && clubId.isNotEmpty) {
       unawaited(ClubOpsSync.deletePhotoDoc(clubId, photoId));
     }
     return true;
+  }
+
+  /// 여러 사진 삭제. 실제 지워진 개수 반환.
+  int deletePhotos(Iterable<String> photoIds) {
+    var n = 0;
+    for (final id in photoIds.toSet()) {
+      if (deletePhoto(id)) n++;
+    }
+    return n;
   }
 
   /// 사진 캡션 수정 (본인만)

@@ -245,10 +245,19 @@ class ClubOpsSync {
 
   static final Set<String> _deletedPhotoIds = {};
 
+  /// 로컬 삭제 직후 원격 watch가 사진을 되살리지 않게 동기적으로 표시.
+  static void markPhotoDeleted(String photoId) {
+    if (photoId.isEmpty) return;
+    _deletedPhotoIds.add(photoId);
+  }
+
+  static bool isPhotoDeleted(String photoId) =>
+      photoId.isNotEmpty && _deletedPhotoIds.contains(photoId);
+
   /// 로컬 삭제 직후 Firestore에서도 바로 지워 원격 watch가 사진을 되살리지 않게 한다.
   static Future<void> deletePhotoDoc(String clubId, String photoId) async {
     if (!_enabled || clubId.isEmpty || photoId.isEmpty) return;
-    _deletedPhotoIds.add(photoId);
+    markPhotoDeleted(photoId);
     try {
       await _db.collection(FirestorePaths.clubPhotos(clubId)).doc(photoId).delete();
       debugPrint('[ClubOpsSync] deleted photo $photoId club=$clubId');
