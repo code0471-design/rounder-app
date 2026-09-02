@@ -69,6 +69,11 @@ class ClubOpsSync {
         if (localAnnounce.isEmpty && remoteAnnounce.isNotEmpty) {
           slice['announcements'] = remoteAnnounce;
         }
+        final localTx = slice['transactions'] as List? ?? const [];
+        final remoteTx = remote['transactions'] as List? ?? const [];
+        if (localTx.isEmpty && remoteTx.isNotEmpty) {
+          slice['transactions'] = remoteTx;
+        }
       }
 
       await _db
@@ -428,9 +433,11 @@ class ClubOpsSync {
       encoded['paymentRequests'] as List?,
       remote['paymentRequests'] as List?,
     );
-    encoded['transactions'] = replaceClubList(
+    // 회비와 동일: 잔고용 거래는 id 합집합. 원격이 비면 로컬 수입/지출 유지
+    encoded['transactions'] = _mergeClubScopedById(
       encoded['transactions'] as List?,
       remote['transactions'] as List?,
+      clubId,
     );
     // photos 키 없음 = 사진 컬렉션 fetch 실패 → 로컬 유지 (덮어쓰기 금지)
     if (remote.containsKey('photos')) {

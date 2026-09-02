@@ -71,14 +71,20 @@ class _LoginScreenState extends State<LoginScreen> {
     try {
       final profile = await SocialAuthService.signIn(provider);
       if (!mounted) return;
-      await context.read<AuthProvider>().loginWithSocial(profile);
+      final auth = context.read<AuthProvider>();
+      await auth.loginWithSocial(profile);
       if (!mounted) return;
+      final needsPhone = auth.needsPhoneNumber;
+      // 이름·전화 입력은 모임 동기화보다 먼저 — 스피너만 길게 돌지 않게
+      if (needsPhone) {
+        Navigator.of(context).pushReplacementNamed('/phone-required');
+        // ignore: unawaited_futures
+        _syncClubProvider();
+        return;
+      }
       await _syncClubProvider();
       if (!mounted) return;
-      final needsPhone = context.read<AuthProvider>().needsPhoneNumber;
-      Navigator.of(context).pushReplacementNamed(
-        needsPhone ? '/phone-required' : '/main',
-      );
+      Navigator.of(context).pushReplacementNamed('/main');
     } catch (e) {
       if (!mounted) return;
       final msg = e is SocialAuthException
