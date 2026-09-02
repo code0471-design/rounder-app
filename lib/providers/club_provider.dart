@@ -1258,6 +1258,7 @@ class ClubProvider extends ChangeNotifier with WidgetsBindingObserver {
     final authUserId = _persistAuthUserId;
     if (authUserId == null) return;
     _stampOrphanDuesClubIds();
+    _stampOrphanTransactionClubIds();
     final bundle = _exportBundle();
     await ClubPersistence.save(authUserId, bundle);
     if (_applyingCloudOps) return;
@@ -2136,9 +2137,14 @@ class ClubProvider extends ChangeNotifier with WidgetsBindingObserver {
   /// 현재 선택 모임의 거래 내역
   List<Transaction> get _scopedTransactions {
     final clubId = selectedClub.id;
+    final aliases = clubIdAliases(clubId);
     final filtered = _selectedHasLegacyMock
-        ? _transactions.where((t) => t.clubId == null || t.clubId == clubId)
-        : _transactions.where((t) => t.clubId == clubId);
+        ? _transactions.where(
+            (t) => t.clubId == null || aliases.contains(t.clubId),
+          )
+        : _transactions.where(
+            (t) => t.clubId != null && aliases.contains(t.clubId),
+          );
     final result = filtered.toList();
     result.sort((a, b) => b.date.compareTo(a.date));
     return result;
@@ -2439,6 +2445,8 @@ class ClubProvider extends ChangeNotifier with WidgetsBindingObserver {
       final periodPart = (setting.type == DuesType.monthly && month != null)
           ? '${month}월 '
           : '';
+      // 잔고 스코프는 selectedClub 기준 — setting.clubId 불일치로 잔고 미반영 방지
+      final txClubId = selectedClub.id;
       _transactions.add(Transaction(
         id: 'tx_${DateTime.now().millisecondsSinceEpoch}',
         type: TxType.income,
@@ -2449,7 +2457,7 @@ class ClubProvider extends ChangeNotifier with WidgetsBindingObserver {
         recordedBy: currentUserName,
         source: TxSource.dues,
         duesPaymentId: paymentId,
-        clubId: setting.clubId ?? selectedClub.id,
+        clubId: txClubId,
       ));
     }
 
@@ -2457,11 +2465,14 @@ class ClubProvider extends ChangeNotifier with WidgetsBindingObserver {
     final setIdx = _duesSettings.indexWhere((d) => d.id == duesSettingId);
     if (setIdx >= 0) {
       final s = _duesSettings[setIdx];
-      if (s.clubId == null || s.clubId!.isEmpty) {
+      if (s.clubId == null ||
+          s.clubId!.isEmpty ||
+          !clubIdAliases(selectedClub.id).contains(s.clubId)) {
         _duesSettings[setIdx] = s.copyWith(clubId: selectedClub.id);
       }
     }
 
+    _stampOrphanTransactionClubIds();
     _persistImmediately();
     notifyListeners();
   }
@@ -5352,13 +5363,23 @@ class ClubProvider extends ChangeNotifier with WidgetsBindingObserver {
     return name.isNotEmpty && name == currentUserName.trim();
   }
 
-  /// 사진 삭제 (본인 사진만). 성공 시 true.
+  /// 사진 삭제 가능 — 본인 또는 운영진(회장·부회장·총무)
+  bool canDeletePhoto(RoundPhoto photo) =>
+      isOwnPhoto(photo) || isClubExecutive;
+
+  /// 사진 삭제. 성공 시 true.
   bool deletePhoto(String photoId) {
-    final before = _photos.length;
-    _photos.removeWhere((p) => p.id == photoId && isOwnPhoto(p));
-    if (_photos.length == before) return false;
+    final idx = _photos.indexWhere((p) => p.id == photoId);
+    if (idx < 0) return false;
+    final photo = _photos[idx];
+    if (!canDeletePhoto(photo)) return false;
+    final clubId = photo.clubId;
+    _photos.removeAt(idx);
     _persistImmediately();
     notifyListeners();
+    if (clubId != null && clubId.isNotEmpty) {
+      unawaited(ClubOpsSync.deletePhotoDoc(clubId, photoId));
+    }
     return true;
   }
 
@@ -6941,6 +6962,44 @@ class ClubProvider extends ChangeNotifier with WidgetsBindingObserver {
       final d = _duesSettings[i];
       if (d.clubId == null || d.clubId!.isEmpty) {
         _duesSettings[i] = d.copyWith(clubId: clubId);
+      }
+    }
+  }
+
+  /// clubId 없는 회비 수입 거래에 현재 모임을 붙여 잔고에 잡히게 한다.
+  void _stampOrphanTransactionClubIds() {
+    if (_myClubs.isEmpty) return;
+    final clubId = selectedClub.id;
+    final settingIds = _duesSettings
+        .where((d) => d.clubId == null || clubIdAliases(clubId).contains(d.clubId))
+        .map((d) => d.id)
+        .toSet();
+    final paymentIds = _duesPayments
+        .where((p) => settingIds.contains(p.duesSettingId))
+        .map((p) => p.id)
+        .toSet();
+    for (var i = 0; i < _transactions.length; i++) {
+      final t = _transactions[i];
+      if (t.clubId != null && t.clubId!.isNotEmpty) continue;
+      final linked = t.duesPaymentId != null &&
+          paymentIds.contains(t.duesPaymentId);
+      final duesSource = t.source == TxSource.dues ||
+          t.source == TxSource.openingBalance ||
+          t.source == TxSource.carryover;
+      if (linked || (duesSource && _selectedHasLegacyMock)) {
+        _transactions[i] = Transaction(
+          id: t.id,
+          type: t.type,
+          amount: t.amount,
+          category: t.category,
+          title: t.title,
+          memo: t.memo,
+          date: t.date,
+          recordedBy: t.recordedBy,
+          source: t.source,
+          duesPaymentId: t.duesPaymentId,
+          clubId: clubId,
+        );
       }
     }
   }

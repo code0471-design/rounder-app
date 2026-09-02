@@ -272,9 +272,15 @@ class DeepLinkService {
       final clubs = context.read<ClubProvider>();
       if (clubs.isMyClub(resolvedClubId)) {
         await PendingInviteStore.clear();
-        debugPrint('[DeepLink] invite skip — already member $resolvedClubId');
+        debugPrint('[DeepLink] invite — already member, open club $resolvedClubId');
         _lastInviteKey = inviteKey;
         _lastInviteAt = now;
+        await _openClubRoom(
+          context,
+          clubs,
+          clubId: resolvedClubId,
+          initialTab: 0,
+        );
         return;
       }
     }

@@ -897,7 +897,7 @@ class _PaymentStatusTabState extends State<_PaymentStatusTab> {
                                   fontSize: 13, fontWeight: FontWeight.w500),
                             ),
                             Text(
-                              '이전 납부 또는 현금 별도 관리 시 선택',
+                              '체크하면 납부 ✓만 되고 현 회비 잔고는 그대로입니다',
                               style: TextStyle(
                                   fontSize: 11,
                                   color: AppColors.textSecondary),

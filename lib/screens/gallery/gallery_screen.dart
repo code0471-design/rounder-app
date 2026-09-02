@@ -993,7 +993,7 @@ class _PhotoViewerScreenState extends State<_PhotoViewerScreen> {
       if (!ok) {
         ScaffoldMessenger.of(context).showSnackBar(
           const SnackBar(
-            content: Text('본인이 올린 사진만 삭제할 수 있습니다'),
+            content: Text('사진을 삭제할 수 없습니다. 본인 사진이거나 운영진만 삭제할 수 있습니다'),
             behavior: SnackBarBehavior.floating,
           ),
         );

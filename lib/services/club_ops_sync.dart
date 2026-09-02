@@ -243,6 +243,20 @@ class ClubOpsSync {
 
   // ── helpers ─────────────────────────────────────────────
 
+  static final Set<String> _deletedPhotoIds = {};
+
+  /// 로컬 삭제 직후 Firestore에서도 바로 지워 원격 watch가 사진을 되살리지 않게 한다.
+  static Future<void> deletePhotoDoc(String clubId, String photoId) async {
+    if (!_enabled || clubId.isEmpty || photoId.isEmpty) return;
+    _deletedPhotoIds.add(photoId);
+    try {
+      await _db.collection(FirestorePaths.clubPhotos(clubId)).doc(photoId).delete();
+      debugPrint('[ClubOpsSync] deleted photo $photoId club=$clubId');
+    } catch (e) {
+      debugPrint('[ClubOpsSync] photo delete fail $photoId: $e');
+    }
+  }
+
   static Future<void> _pushPhotos(
     String clubId,
     List<dynamic> photos,
@@ -255,6 +269,7 @@ class ClubOpsSync {
       final m = Map<String, dynamic>.from(raw);
       final id = m['id'] as String?;
       if (id == null || id.isEmpty) continue;
+      if (_deletedPhotoIds.contains(id)) continue;
       keepIds.add(id);
       var imageUrl = m['imageUrl'] as String? ?? '';
       // 초대형 data URI는 문서 한도 초과 → 메타만 남기고 본문은 생략 표시
@@ -274,9 +289,10 @@ class ClubOpsSync {
       }
     }
     for (final d in existing.docs) {
-      if (!keepIds.contains(d.id)) {
+      if (!keepIds.contains(d.id) || _deletedPhotoIds.contains(d.id)) {
         try {
           await d.reference.delete();
+          _deletedPhotoIds.remove(d.id);
         } catch (_) {}
       }
     }
@@ -653,6 +669,7 @@ class ClubOpsSync {
 
     final merged = <Map<String, dynamic>>[];
     for (final id in {...localById.keys, ...remoteById.keys}) {
+      if (_deletedPhotoIds.contains(id)) continue;
       final local = localById[id];
       final remote = remoteById[id];
       if (remote == null) {
@@ -660,6 +677,9 @@ class ClubOpsSync {
         continue;
       }
       if (local == null) {
+        // 로컬에서 지운 직후 원격 스냅샷이 늦게 오면 되살리지 않음
+        // (다른 기기 신규 업로드는 로컬에 없는 remote-only → 유지)
+        // 방금 삭제한 id는 위에서 skip. 그 외 remote-only는 추가.
         merged.add(remote);
         continue;
       }
