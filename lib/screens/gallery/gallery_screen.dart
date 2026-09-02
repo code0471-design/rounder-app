@@ -99,6 +99,7 @@ class _GalleryScreenState extends State<GalleryScreen>
           schedule: canonical,
           photos: photos,
           folderId: folderId,
+          scheduleIds: ids,
         ));
       }
     }
@@ -286,11 +287,13 @@ class _GalleryAlbum {
   final RoundSchedule schedule;
   final List<RoundPhoto> photos;
   final String folderId;
+  final Set<String> scheduleIds;
 
   const _GalleryAlbum({
     required this.schedule,
     required this.photos,
     required this.folderId,
+    required this.scheduleIds,
   });
 }
 
@@ -302,50 +305,58 @@ class _AllPhotosScreen extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return Scaffold(
-      backgroundColor: AppColors.background,
-      appBar: AppBar(
-        backgroundColor: Colors.white,
-        elevation: 0,
-        leading: IconButton(
-          icon: const Icon(Icons.arrow_back_ios_new,
-              size: 18, color: AppColors.textPrimary),
-          onPressed: () => Navigator.pop(context),
-        ),
-        title: Text(
-          '전체 사진 · ${photos.length}장',
-          style: const TextStyle(
-            fontSize: 16,
-            fontWeight: FontWeight.bold,
-            color: AppColors.textPrimary,
+    return Consumer<ClubProvider>(
+      builder: (context, provider, _) {
+        final live = provider.clubPhotos;
+        return Scaffold(
+          backgroundColor: AppColors.background,
+          appBar: AppBar(
+            backgroundColor: Colors.white,
+            elevation: 0,
+            leading: IconButton(
+              icon: const Icon(Icons.arrow_back_ios_new,
+                  size: 18, color: AppColors.textPrimary),
+              onPressed: () => Navigator.pop(context),
+            ),
+            title: Text(
+              '전체 사진 · ${live.length}장',
+              style: const TextStyle(
+                fontSize: 16,
+                fontWeight: FontWeight.bold,
+                color: AppColors.textPrimary,
+              ),
+            ),
           ),
-        ),
-      ),
-      body: GridView.builder(
-        padding: const EdgeInsets.all(12),
-        gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
-          crossAxisCount: 3,
-          crossAxisSpacing: 4,
-          mainAxisSpacing: 4,
-        ),
-        itemCount: photos.length,
-        itemBuilder: (context, index) {
-          return _PhotoTile(
-            photo: photos[index],
-            onTap: () {
-              Navigator.push(
-                context,
-                MaterialPageRoute(
-                  builder: (_) => _PhotoViewerScreen(
-                    photos: photos,
-                    initialIndex: index,
+          body: live.isEmpty
+              ? const Center(child: Text('사진이 없습니다'))
+              : GridView.builder(
+                  padding: const EdgeInsets.all(12),
+                  gridDelegate:
+                      const SliverGridDelegateWithFixedCrossAxisCount(
+                    crossAxisCount: 3,
+                    crossAxisSpacing: 4,
+                    mainAxisSpacing: 4,
                   ),
+                  itemCount: live.length,
+                  itemBuilder: (context, index) {
+                    return _PhotoTile(
+                      photo: live[index],
+                      onTap: () {
+                        Navigator.push(
+                          context,
+                          MaterialPageRoute(
+                            builder: (_) => _PhotoViewerScreen(
+                              photos: live,
+                              initialIndex: index,
+                            ),
+                          ),
+                        );
+                      },
+                    );
+                  },
                 ),
-              );
-            },
-          );
-        },
-      ),
+        );
+      },
     );
   }
 }
@@ -538,88 +549,284 @@ class _RoundFolder extends StatelessWidget {
 }
 
 /// 라운딩별 사진첩 (모임명 탭 진입)
-class _RoundAlbumScreen extends StatelessWidget {
+class _RoundAlbumScreen extends StatefulWidget {
   final _GalleryAlbum album;
 
   const _RoundAlbumScreen({required this.album});
 
   @override
+  State<_RoundAlbumScreen> createState() => _RoundAlbumScreenState();
+}
+
+class _RoundAlbumScreenState extends State<_RoundAlbumScreen> {
+  bool _selecting = false;
+  final Set<String> _selected = <String>{};
+
+  List<RoundPhoto> _livePhotos(ClubProvider provider) {
+    final ids = widget.album.scheduleIds;
+    final list = provider.clubPhotos
+        .where((p) => ids.contains(p.scheduleId))
+        .toList()
+      ..sort((a, b) => b.takenAt.compareTo(a.takenAt));
+    return list;
+  }
+
+  void _toggleSelectMode() {
+    setState(() {
+      _selecting = !_selecting;
+      if (!_selecting) _selected.clear();
+    });
+  }
+
+  void _toggleId(String id) {
+    setState(() {
+      if (_selected.contains(id)) {
+        _selected.remove(id);
+      } else {
+        _selected.add(id);
+      }
+    });
+  }
+
+  Future<void> _deleteSelected(
+      ClubProvider provider, List<RoundPhoto> live) async {
+    final targets = live
+        .where((p) => _selected.contains(p.id) && provider.canDeletePhoto(p))
+        .map((p) => p.id)
+        .toList();
+    if (targets.isEmpty) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('삭제할 수 있는 사진이 없습니다'),
+          behavior: SnackBarBehavior.floating,
+        ),
+      );
+      return;
+    }
+    final ok = await showDialog<bool>(
+      context: context,
+      builder: (dialogCtx) => AlertDialog(
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+        title: const Text('사진 삭제'),
+        content: Text('선택한 ${targets.length}장을 삭제할까요?'),
+        actions: [
+          TextButton(
+              onPressed: () => Navigator.pop(dialogCtx, false),
+              child: const Text('취소')),
+          TextButton(
+              onPressed: () => Navigator.pop(dialogCtx, true),
+              child: const Text('삭제',
+                  style: TextStyle(color: AppColors.danger))),
+        ],
+      ),
+    );
+    if (ok != true || !mounted) return;
+    final n = provider.deletePhotos(targets);
+    if (!mounted) return;
+    setState(() {
+      _selected.clear();
+      _selecting = false;
+    });
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: Text(n > 0 ? '$n장 삭제했습니다' : '삭제하지 못했습니다'),
+        behavior: SnackBarBehavior.floating,
+      ),
+    );
+  }
+
+  @override
   Widget build(BuildContext context) {
-    final photos = album.photos;
-    final d = album.schedule.roundDate;
+    final d = widget.album.schedule.roundDate;
     final dateLabel =
         '${d.year}.${d.month.toString().padLeft(2, '0')}.${d.day.toString().padLeft(2, '0')}';
 
-    return Scaffold(
-      backgroundColor: AppColors.background,
-      appBar: AppBar(
-        backgroundColor: Colors.white,
-        elevation: 0,
-        leading: IconButton(
-          icon: const Icon(Icons.arrow_back_ios_new,
-              size: 18, color: AppColors.textPrimary),
-          onPressed: () => Navigator.pop(context),
-        ),
-        title: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Text(
-              album.schedule.displayTitle,
-              style: const TextStyle(
-                fontSize: 16,
-                fontWeight: FontWeight.bold,
+    return Consumer<ClubProvider>(
+      builder: (context, provider, _) {
+        final photos = _livePhotos(provider);
+        final canBulk = photos.any(provider.canDeletePhoto);
+        return Scaffold(
+          backgroundColor: AppColors.background,
+          appBar: AppBar(
+            backgroundColor: Colors.white,
+            elevation: 0,
+            leading: IconButton(
+              icon: Icon(
+                _selecting ? Icons.close : Icons.arrow_back_ios_new,
+                size: 18,
                 color: AppColors.textPrimary,
               ),
+              onPressed: () {
+                if (_selecting) {
+                  _toggleSelectMode();
+                } else {
+                  Navigator.pop(context);
+                }
+              },
             ),
-            Text(
-              '$dateLabel · ${photos.length}장',
-              style: const TextStyle(
-                fontSize: 12,
-                color: AppColors.textSecondary,
-                fontWeight: FontWeight.w400,
-              ),
+            title: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  _selecting
+                      ? '선택 ${_selected.length}장'
+                      : widget.album.schedule.displayTitle,
+                  style: const TextStyle(
+                    fontSize: 16,
+                    fontWeight: FontWeight.bold,
+                    color: AppColors.textPrimary,
+                  ),
+                ),
+                if (!_selecting)
+                  Text(
+                    '$dateLabel · ${photos.length}장',
+                    style: const TextStyle(
+                      fontSize: 12,
+                      color: AppColors.textSecondary,
+                      fontWeight: FontWeight.w400,
+                    ),
+                  ),
+              ],
             ),
-          ],
-        ),
-      ),
-      body: photos.isEmpty
-          ? const Center(
-              child: Column(
-                mainAxisAlignment: MainAxisAlignment.center,
-                children: [
-                  Icon(Icons.photo_album_outlined,
-                      size: 48, color: AppColors.textSecondary),
-                  SizedBox(height: 12),
-                  Text('아직 사진이 없습니다',
-                      style: TextStyle(color: AppColors.textSecondary)),
-                ],
-              ),
-            )
-          : GridView.builder(
-              padding: const EdgeInsets.all(12),
-              gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
-                crossAxisCount: 3,
-                crossAxisSpacing: 4,
-                mainAxisSpacing: 4,
-              ),
-              itemCount: photos.length,
-              itemBuilder: (context, index) {
-                return _PhotoTile(
-                  photo: photos[index],
-                  onTap: () {
-                    Navigator.push(
-                      context,
-                      MaterialPageRoute(
-                        builder: (_) => _PhotoViewerScreen(
-                          photos: photos,
-                          initialIndex: index,
-                        ),
+            actions: [
+              if (photos.isNotEmpty && canBulk)
+                TextButton(
+                  onPressed: _toggleSelectMode,
+                  child: Text(
+                    _selecting ? '취소' : '선택',
+                    style: const TextStyle(
+                      color: AppColors.primary,
+                      fontWeight: FontWeight.w600,
+                    ),
+                  ),
+                ),
+              if (_selecting && _selected.isNotEmpty)
+                TextButton(
+                  onPressed: () => _deleteSelected(provider, photos),
+                  child: const Text(
+                    '삭제',
+                    style: TextStyle(
+                      color: AppColors.danger,
+                      fontWeight: FontWeight.w700,
+                    ),
+                  ),
+                ),
+            ],
+          ),
+          body: photos.isEmpty
+              ? const Center(
+                  child: Column(
+                    mainAxisAlignment: MainAxisAlignment.center,
+                    children: [
+                      Icon(Icons.photo_album_outlined,
+                          size: 48, color: AppColors.textSecondary),
+                      SizedBox(height: 12),
+                      Text('아직 사진이 없습니다',
+                          style: TextStyle(color: AppColors.textSecondary)),
+                    ],
+                  ),
+                )
+              : GridView.builder(
+                  padding: const EdgeInsets.all(12),
+                  gridDelegate:
+                      const SliverGridDelegateWithFixedCrossAxisCount(
+                    crossAxisCount: 3,
+                    crossAxisSpacing: 4,
+                    mainAxisSpacing: 4,
+                  ),
+                  itemCount: photos.length,
+                  itemBuilder: (context, index) {
+                    final photo = photos[index];
+                    final selected = _selected.contains(photo.id);
+                    return GestureDetector(
+                      onTap: () {
+                        if (_selecting) {
+                          if (!provider.canDeletePhoto(photo)) {
+                            ScaffoldMessenger.of(context).showSnackBar(
+                              const SnackBar(
+                                content: Text('이 사진은 삭제할 수 없습니다'),
+                                behavior: SnackBarBehavior.floating,
+                              ),
+                            );
+                            return;
+                          }
+                          _toggleId(photo.id);
+                          return;
+                        }
+                        Navigator.push(
+                          context,
+                          MaterialPageRoute(
+                            builder: (_) => _PhotoViewerScreen(
+                              photos: photos,
+                              initialIndex: index,
+                              scheduleIds: widget.album.scheduleIds,
+                            ),
+                          ),
+                        );
+                      },
+                      onLongPress: () {
+                        if (!provider.canDeletePhoto(photo)) return;
+                        if (!_selecting) {
+                          setState(() {
+                            _selecting = true;
+                            _selected
+                              ..clear()
+                              ..add(photo.id);
+                          });
+                        } else {
+                          _toggleId(photo.id);
+                        }
+                      },
+                      child: Stack(
+                        fit: StackFit.expand,
+                        children: [
+                          ClipRRect(
+                            borderRadius: BorderRadius.circular(4),
+                            child: RoundPhotoView(
+                              imageUrl: photo.imageUrl,
+                              fit: BoxFit.cover,
+                              error: const Center(
+                                child: Icon(Icons.broken_image_outlined,
+                                    color: AppColors.textSecondary),
+                              ),
+                            ),
+                          ),
+                          if (_selecting)
+                            Positioned.fill(
+                              child: ColoredBox(
+                                color: selected
+                                    ? AppColors.primary.withValues(alpha: 0.25)
+                                    : Colors.transparent,
+                              ),
+                            ),
+                          if (_selecting)
+                            Positioned(
+                              top: 6,
+                              right: 6,
+                              child: Container(
+                                width: 22,
+                                height: 22,
+                                decoration: BoxDecoration(
+                                  shape: BoxShape.circle,
+                                  color: selected
+                                      ? AppColors.primary
+                                      : Colors.black45,
+                                  border: Border.all(
+                                      color: Colors.white, width: 1.5),
+                                ),
+                                child: selected
+                                    ? const Icon(Icons.check,
+                                        size: 14, color: Colors.white)
+                                    : null,
+                              ),
+                            ),
+                        ],
                       ),
                     );
                   },
-                );
-              },
-            ),
+                ),
+        );
+      },
     );
   }
 }
@@ -708,9 +915,13 @@ class _EmptyGallery extends StatelessWidget {
 class _PhotoViewerScreen extends StatefulWidget {
   final List<RoundPhoto> photos;
   final int initialIndex;
+  final Set<String>? scheduleIds;
 
-  const _PhotoViewerScreen(
-      {required this.photos, required this.initialIndex});
+  const _PhotoViewerScreen({
+    required this.photos,
+    required this.initialIndex,
+    this.scheduleIds,
+  });
 
   @override
   State<_PhotoViewerScreen> createState() => _PhotoViewerScreenState();
@@ -736,189 +947,235 @@ class _PhotoViewerScreenState extends State<_PhotoViewerScreen> {
     super.dispose();
   }
 
+  List<RoundPhoto> _livePhotos(ClubProvider provider) {
+    final ids = widget.scheduleIds;
+    if (ids == null || ids.isEmpty) {
+      return provider.clubPhotos;
+    }
+    return provider.clubPhotos
+        .where((p) => ids.contains(p.scheduleId))
+        .toList()
+      ..sort((a, b) => b.takenAt.compareTo(a.takenAt));
+  }
+
   @override
   Widget build(BuildContext context) {
-    final photo = _photos[_current];
+    return Consumer<ClubProvider>(
+      builder: (context, provider, _) {
+        final live = _livePhotos(provider);
+        final liveKey = live.map((p) => p.id).join('|');
+        final localKey = _photos.map((p) => p.id).join('|');
+        if (liveKey != localKey) {
+          WidgetsBinding.instance.addPostFrameCallback((_) {
+            if (!mounted) return;
+            final prevId = (_photos.isNotEmpty && _current < _photos.length)
+                ? _photos[_current].id
+                : null;
+            setState(() {
+              _photos = List<RoundPhoto>.from(live);
+              if (_photos.isEmpty) {
+                _current = 0;
+              } else {
+                var next = prevId == null
+                    ? 0
+                    : _photos.indexWhere((p) => p.id == prevId);
+                if (next < 0) {
+                  next = _current.clamp(0, _photos.length - 1);
+                }
+                _current = next;
+              }
+            });
+            if (_photos.isEmpty) {
+              Navigator.pop(context);
+            } else if (_pageController.hasClients) {
+              _pageController.jumpToPage(_current);
+            }
+          });
+        }
+        if (_photos.isEmpty) {
+          return const Scaffold(
+            backgroundColor: Colors.black,
+            body: SizedBox.shrink(),
+          );
+        }
+        final photo = _photos[_current.clamp(0, _photos.length - 1)];
 
-    return Scaffold(
-      backgroundColor: Colors.black,
-      body: Stack(
-        children: [
-          // ── 이미지 슬라이더 ──
-          GestureDetector(
-            onTap: () => setState(() => _showInfo = !_showInfo),
-            child: PageView.builder(
-              controller: _pageController,
-              itemCount: _photos.length,
-              onPageChanged: (i) => setState(() => _current = i),
-              itemBuilder: (_, i) {
-                final p = _photos[i];
-                return Hero(
-                  tag: 'photo_${p.id}',
-                  child: InteractiveViewer(
-                    child: RoundPhotoView(
-                      imageUrl: p.imageUrl,
-                      fit: BoxFit.contain,
-                      error: const Center(
-                        child: Icon(Icons.broken_image_outlined,
-                            color: Colors.white30, size: 60),
-                      ),
-                    ),
-                  ),
-                );
-              },
-            ),
-          ),
-
-          // ── 상단 앱바 ──
-          AnimatedOpacity(
-            opacity: _showInfo ? 1.0 : 0.0,
-            duration: const Duration(milliseconds: 200),
-            child: Container(
-              decoration: BoxDecoration(
-                gradient: LinearGradient(
-                  begin: Alignment.topCenter,
-                  end: Alignment.bottomCenter,
-                  colors: [
-                    Colors.black.withValues(alpha: 0.7),
-                    Colors.transparent,
-                  ],
-                ),
-              ),
-              child: SafeArea(
-                child: Padding(
-                  padding: const EdgeInsets.symmetric(
-                      horizontal: 8, vertical: 4),
-                  child: Row(
-                    children: [
-                      IconButton(
-                        icon: const Icon(Icons.arrow_back,
-                            color: Colors.white),
-                        onPressed: () => Navigator.pop(context),
-                      ),
-                      Expanded(
-                        child: Text(
-                          '${_current + 1} / ${_photos.length}',
-                          textAlign: TextAlign.center,
-                          style: const TextStyle(
-                              color: Colors.white,
-                              fontSize: 14,
-                              fontWeight: FontWeight.w600),
-                        ),
-                      ),
-                      Consumer<ClubProvider>(
-                        builder: (_, provider, __) {
-                          final isOwn = provider.isOwnPhoto(photo);
-                          if (!isOwn) return const SizedBox(width: 48);
-                          return Row(
-                            mainAxisSize: MainAxisSize.min,
-                            children: [
-                              IconButton(
-                                icon: const Icon(Icons.edit_outlined,
-                                    color: Colors.white70),
-                                onPressed: () =>
-                                    _editCaption(context, provider, photo),
-                              ),
-                              IconButton(
-                                icon: const Icon(Icons.delete_outline,
-                                    color: Colors.white70),
-                                onPressed: () =>
-                                    _confirmDelete(context, provider, photo),
-                              ),
-                            ],
-                          );
-                        },
-                      ),
-                    ],
-                  ),
-                ),
-              ),
-            ),
-          ),
-
-          // ── 하단 캡션 & 정보 ──
-          Positioned(
-            left: 0,
-            right: 0,
-            bottom: 0,
-            child: AnimatedOpacity(
-              opacity: _showInfo ? 1.0 : 0.0,
-              duration: const Duration(milliseconds: 200),
-              child: Container(
-                decoration: BoxDecoration(
-                  gradient: LinearGradient(
-                    begin: Alignment.bottomCenter,
-                    end: Alignment.topCenter,
-                    colors: [
-                      Colors.black.withValues(alpha: 0.75),
-                      Colors.transparent,
-                    ],
-                  ),
-                ),
-                padding: const EdgeInsets.fromLTRB(20, 30, 20, 24),
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  mainAxisSize: MainAxisSize.min,
-                  children: [
-                    if (photo.caption != null)
-                      Text(
-                        photo.caption!,
-                        style: const TextStyle(
-                            color: Colors.white,
-                            fontSize: 14,
-                            fontWeight: FontWeight.w500,
-                            height: 1.4),
-                      ),
-                    const SizedBox(height: 6),
-                    Row(
-                      children: [
-                        const Icon(Icons.person_outline,
-                            color: Colors.white60, size: 13),
-                        const SizedBox(width: 4),
-                        Text(
-                          photo.uploaderName,
-                          style: const TextStyle(
-                              color: Colors.white60, fontSize: 12),
-                        ),
-                        const SizedBox(width: 12),
-                        const Icon(Icons.schedule,
-                            color: Colors.white60, size: 13),
-                        const SizedBox(width: 4),
-                        Text(
-                          _formatDate(photo.takenAt),
-                          style: const TextStyle(
-                              color: Colors.white60, fontSize: 12),
-                        ),
-                      ],
-                    ),
-                    if (widget.photos.length > 1) ...[
-                      const SizedBox(height: 12),
-                      Row(
-                        mainAxisAlignment: MainAxisAlignment.center,
-                        children: List.generate(
-                          widget.photos.length.clamp(0, 10),
-                          (i) => Container(
-                            width: i == _current ? 16 : 6,
-                            height: 6,
-                            margin:
-                                const EdgeInsets.symmetric(horizontal: 2),
-                            decoration: BoxDecoration(
-                              color: i == _current
-                                  ? Colors.white
-                                  : Colors.white38,
-                              borderRadius: BorderRadius.circular(3),
-                            ),
+        return Scaffold(
+          backgroundColor: Colors.black,
+          body: Stack(
+            children: [
+              GestureDetector(
+                onTap: () => setState(() => _showInfo = !_showInfo),
+                child: PageView.builder(
+                  controller: _pageController,
+                  itemCount: _photos.length,
+                  onPageChanged: (i) => setState(() => _current = i),
+                  itemBuilder: (_, i) {
+                    final p = _photos[i];
+                    return Hero(
+                      tag: 'photo_${p.id}',
+                      child: InteractiveViewer(
+                        child: RoundPhotoView(
+                          imageUrl: p.imageUrl,
+                          fit: BoxFit.contain,
+                          error: const Center(
+                            child: Icon(Icons.broken_image_outlined,
+                                color: Colors.white30, size: 60),
                           ),
                         ),
                       ),
-                    ],
-                  ],
+                    );
+                  },
                 ),
               ),
-            ),
+              AnimatedOpacity(
+                opacity: _showInfo ? 1.0 : 0.0,
+                duration: const Duration(milliseconds: 200),
+                child: Container(
+                  decoration: BoxDecoration(
+                    gradient: LinearGradient(
+                      begin: Alignment.topCenter,
+                      end: Alignment.bottomCenter,
+                      colors: [
+                        Colors.black.withValues(alpha: 0.7),
+                        Colors.transparent,
+                      ],
+                    ),
+                  ),
+                  child: SafeArea(
+                    child: Padding(
+                      padding: const EdgeInsets.symmetric(
+                          horizontal: 8, vertical: 4),
+                      child: Row(
+                        children: [
+                          IconButton(
+                            icon: const Icon(Icons.arrow_back,
+                                color: Colors.white),
+                            onPressed: () => Navigator.pop(context),
+                          ),
+                          Expanded(
+                            child: Text(
+                              '${_current + 1} / ${_photos.length}',
+                              textAlign: TextAlign.center,
+                              style: const TextStyle(
+                                  color: Colors.white,
+                                  fontSize: 14,
+                                  fontWeight: FontWeight.w600),
+                            ),
+                          ),
+                          if (provider.canDeletePhoto(photo) ||
+                              provider.isOwnPhoto(photo))
+                            Row(
+                              mainAxisSize: MainAxisSize.min,
+                              children: [
+                                if (provider.isOwnPhoto(photo))
+                                  IconButton(
+                                    icon: const Icon(Icons.edit_outlined,
+                                        color: Colors.white70),
+                                    onPressed: () =>
+                                        _editCaption(context, provider, photo),
+                                  ),
+                                if (provider.canDeletePhoto(photo))
+                                  IconButton(
+                                    icon: const Icon(Icons.delete_outline,
+                                        color: Colors.white70),
+                                    onPressed: () => _confirmDelete(
+                                        context, provider, photo),
+                                  ),
+                              ],
+                            )
+                          else
+                            const SizedBox(width: 48),
+                        ],
+                      ),
+                    ),
+                  ),
+                ),
+              ),
+              Positioned(
+                left: 0,
+                right: 0,
+                bottom: 0,
+                child: AnimatedOpacity(
+                  opacity: _showInfo ? 1.0 : 0.0,
+                  duration: const Duration(milliseconds: 200),
+                  child: Container(
+                    decoration: BoxDecoration(
+                      gradient: LinearGradient(
+                        begin: Alignment.bottomCenter,
+                        end: Alignment.topCenter,
+                        colors: [
+                          Colors.black.withValues(alpha: 0.75),
+                          Colors.transparent,
+                        ],
+                      ),
+                    ),
+                    padding: const EdgeInsets.fromLTRB(20, 30, 20, 24),
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        if (photo.caption != null)
+                          Text(
+                            photo.caption!,
+                            style: const TextStyle(
+                                color: Colors.white,
+                                fontSize: 14,
+                                fontWeight: FontWeight.w500,
+                                height: 1.4),
+                          ),
+                        const SizedBox(height: 6),
+                        Row(
+                          children: [
+                            const Icon(Icons.person_outline,
+                                color: Colors.white60, size: 13),
+                            const SizedBox(width: 4),
+                            Text(
+                              photo.uploaderName,
+                              style: const TextStyle(
+                                  color: Colors.white60, fontSize: 12),
+                            ),
+                            const SizedBox(width: 12),
+                            const Icon(Icons.schedule,
+                                color: Colors.white60, size: 13),
+                            const SizedBox(width: 4),
+                            Text(
+                              _formatDate(photo.takenAt),
+                              style: const TextStyle(
+                                  color: Colors.white60, fontSize: 12),
+                            ),
+                          ],
+                        ),
+                        if (_photos.length > 1) ...[
+                          const SizedBox(height: 12),
+                          Row(
+                            mainAxisAlignment: MainAxisAlignment.center,
+                            children: List.generate(
+                              _photos.length.clamp(0, 10),
+                              (i) => Container(
+                                width: i == _current ? 16 : 6,
+                                height: 6,
+                                margin: const EdgeInsets.symmetric(
+                                    horizontal: 2),
+                                decoration: BoxDecoration(
+                                  color: i == _current
+                                      ? Colors.white
+                                      : Colors.white38,
+                                  borderRadius: BorderRadius.circular(3),
+                                ),
+                              ),
+                            ),
+                          ),
+                        ],
+                      ],
+                    ),
+                  ),
+                ),
+              ),
+            ],
           ),
-        ],
-      ),
+        );
+      },
     );
   }
 
@@ -959,9 +1216,8 @@ class _PhotoViewerScreenState extends State<_PhotoViewerScreen> {
     if (ok == true) {
       provider.updatePhotoCaption(photo.id, ctrl.text);
       if (!mounted) return;
-      final idx = provider.clubPhotos.indexWhere((p) => p.id == photo.id);
       setState(() {
-        if (idx != -1) _photos[_current] = provider.clubPhotos[idx];
+        _photos = List<RoundPhoto>.from(_livePhotos(provider));
       });
     }
   }
@@ -999,6 +1255,7 @@ class _PhotoViewerScreenState extends State<_PhotoViewerScreen> {
         );
         return;
       }
+      // 목록(앨범)으로 복귀 — 앨범이 Consumer로 최신 목록을 그림
       Navigator.pop(context);
     }
   }
