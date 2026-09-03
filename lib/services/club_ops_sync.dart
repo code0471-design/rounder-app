@@ -25,6 +25,12 @@ class ClubOpsSync {
       AppDependencies.instance.isInitialized &&
       !AppDependencies.instance.isOfflineMockMode;
 
+  /// Firestore 문서 ~1MiB 한도 직전. 이 값을 넘기면 push가 실패할 수 있다.
+  static const int opsBundleSoftLimitBytes = 900000;
+
+  /// data URI 사진이 이 글자 수를 넘으면 Firestore에는 메타만 올린다.
+  static const int photoDataUriMaxChars = 700000;
+
   /// 로컬 전체 번들에서 한 모임의 운영 데이터만 잘라 Firestore에 저장.
   static Future<void> pushClubOps({
     required String clubId,
@@ -76,16 +82,45 @@ class ClubOpsSync {
         }
       }
 
+      final bundleBytes = estimateJsonBytes(slice);
+      if (bundleBytes > opsBundleSoftLimitBytes) {
+        debugPrint(
+          '[ClubOpsSync] WARNING ops bundle ${bundleBytes}B > '
+          '$opsBundleSoftLimitBytes soft limit club=$clubId '
+          '(schedules=${(slice['schedules'] as List?)?.length ?? 0} '
+          'dues=${(slice['duesPayments'] as List?)?.length ?? 0} '
+          'tx=${(slice['transactions'] as List?)?.length ?? 0}) — '
+          'Firestore ~1MB doc limit may reject this push',
+        );
+      }
+
       await _db
           .doc(FirestorePaths.clubOpsBundle(clubId))
           .set(slice, SetOptions(merge: false));
 
       // 사진은 문서 1MB 한도 때문에 건별 저장
       await _pushPhotos(clubId, photos);
-      debugPrint('[ClubOpsSync] pushed club=$clubId');
+      debugPrint(
+        '[ClubOpsSync] pushed club=$clubId bytes=$bundleBytes photos=${photos.length}',
+      );
     } catch (e, st) {
       debugPrint('[ClubOpsSync] pushClubOps fail ($clubId): $e\n$st');
     }
+  }
+
+  /// 사진 Firestore 문서용 — 초대형 data URI는 메타만 남긴다.
+  @visibleForTesting
+  static Map<String, dynamic> preparePhotoMapForFirestore(
+    Map<String, dynamic> raw,
+  ) {
+    final m = Map<String, dynamic>.from(raw);
+    final imageUrl = m['imageUrl'] as String? ?? '';
+    if (imageUrl.startsWith('data:') &&
+        imageUrl.length > photoDataUriMaxChars) {
+      m['imageUrl'] = '';
+      m['imageOmitted'] = true;
+    }
+    return m;
   }
 
   /// 내 모임들 + 데이터가 있는 클럽 id 전부 전부 push.
@@ -275,24 +310,22 @@ class ClubOpsSync {
     final keepIds = <String>{};
     for (final raw in photos) {
       if (raw is! Map) continue;
-      final m = Map<String, dynamic>.from(raw);
-      final id = m['id'] as String?;
+      final prepared = preparePhotoMapForFirestore(
+        Map<String, dynamic>.from(raw),
+      );
+      final id = prepared['id'] as String?;
       if (id == null || id.isEmpty) continue;
       if (_deletedPhotoIds.contains(id)) continue;
       keepIds.add(id);
-      var imageUrl = m['imageUrl'] as String? ?? '';
-      // 초대형 data URI는 문서 한도 초과 → 메타만 남기고 본문은 생략 표시
-      if (imageUrl.startsWith('data:') && imageUrl.length > 700000) {
+      if (prepared['imageOmitted'] == true) {
         debugPrint(
           '[ClubOpsSync] photo $id too large for Firestore, meta only',
         );
-        m['imageUrl'] = '';
-        m['imageOmitted'] = true;
       }
-      m['clubId'] = clubId;
-      m['updatedAt'] = FieldValue.serverTimestamp();
+      prepared['clubId'] = clubId;
+      prepared['updatedAt'] = FieldValue.serverTimestamp();
       try {
-        await col.doc(id).set(m, SetOptions(merge: true));
+        await col.doc(id).set(prepared, SetOptions(merge: true));
       } catch (e) {
         debugPrint('[ClubOpsSync] photo push fail $id: $e');
       }

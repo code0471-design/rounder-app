@@ -1,0 +1,37 @@
+---
+description: 동기화·공통 기반 수정 시 리그래션 필수 (Royce)
+alwaysApply: true
+---
+
+# 리그래션 — 매번 프롬프트에 적을 필요 없음
+
+Royce는 리그래션을 이미 강조한다. **에이전트가 기본으로 지킨다.**
+
+## 언제 발동
+
+아래를 고치면 “기능 한 줄 수정”으로 끝내지 않는다.
+
+- `ClubOpsSync` / `ClubDataCodec` / `_persistImmediately` / ops bundle merge·push
+- Auth 로그인·전화 OTP·`FirebaseAuthBridge`
+- 회비·잔고·거래 (`duesPayments`, `transactions`, `totalBalance`, `recordPayment`)
+- 일정 등록·참석·조편성·예약 문자 붙여넣기
+
+## 필수
+
+1. **짝 필드**: 한쪽만 보호하고 다른 쪽을 `replace`로 덮지 말 것.  
+   예: `duesPayments` merge 보호 → **`transactions`(잔고)도 동일 정책**.
+2. **회귀 테스트**: 해당 버그/보호 케이스를 `test/`에 추가하거나 기존 테스트 확장.  
+   예: “원격 빈 목록이 로컬 납부·잔고 거래를 지우지 않는다”.
+3. **수동 확인 안내**: 푸시 후 Royce에게 **새 빌드 + 핵심 1~2개만** 재확인하라고 명시.  
+   (전체 앱 재테스트 요구 금지. 동기화 고쳤으면 최소: 납부 ✓ + 잔고 숫자)
+4. **“예전에 됐다” 가정 금지**: 스테이징 pull/watch가 로컬을 덮는 경로를 항상 의심.
+
+## 금지
+
+- 동기화 merge 전략을 바꾸고 관련 테스트 없이 “고쳤다”고 말함
+- 납부만 확인하고 잔고·거래는 안 봄
+- 사용자가 매 채팅마다 “리그래션 조심”을 말해야 하는 상태
+
+## 푸시 전 한 줄
+
+`ClubOpsSync`/재무 관련이면: `flutter test test/club_ops_sync_test.dart` (또는 추가한 테스트) 돌리고 통과한 뒤에만 푸시.

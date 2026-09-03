@@ -1,11 +1,18 @@
 ---
-description: 라운더 휴대폰 인증은 SMS 문자만 (다날/PASS 금지)
+description: 라운더 휴대폰 인증은 카카오 알림톡 OTP (다날/PASS 금지, SMS는 실패 시에만)
 alwaysApply: true
 ---
 
 # 휴대폰 인증 정책
 
-- **SMS 문자 인증번호만** 사용한다.
+- **기본: 카카오 알림톡으로 인증번호**를 보낸다.
 - **다날 / 포트원 PASS / 통신사 본인인증은 쓰지 않는다.**
-- `phone_required_screen` · `verify_screen`에 PASS 선택 UI를 다시 넣지 말 것.
-- 실발송은 Solapi 등 문자 API로 연동한다 (목 코드 `1234`는 개발용).
+- `phone_required_screen`에서 **이름 + 전화번호** 수집 (PASS·SMS 선택 UI 금지).
+- OTP 알림톡 변수: `#{인증번호}` 필수, 이름 있으면 `#{이름}`도 전달.
+- 발송: Solapi 알림톡 + `SOLAPI_OTP_TEMPLATE_ID` (기본 `UnnQDOxu0b`, 변수 `#{이름}`·`#{인증번호}`).
+  - 콘솔에 `KA01TP…` ID가 따로 있으면 그걸로 `--dart-define` 덮어쓰기.
+- **알림톡 실패(카톡 미연동 등) 시에만** 솔라피 등록 발신번호로 SMS 대체.
+  - 기본 발신: `01045110471` (`SOLAPI_SENDER_PHONE`으로 덮어쓰기 가능).
+  - 어드민 알림톡·일반 모임 알림은 SMS 대체 없음 (`disableSms: true`).
+- App Store 심사: 공개 데모 번호 `010-0000-0000` + 코드 `0000` (Review Notes에 명시, 숨김 아님).
+- Key/템플릿 없을 때 디버그만 코드 `1234` (릴리스는 발송 실패로 안내).
