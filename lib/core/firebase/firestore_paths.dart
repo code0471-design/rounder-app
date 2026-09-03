@@ -18,6 +18,10 @@ abstract final class FirestorePaths {
   /// 모임 운영 스냅샷 (일정·공지·회비·조편성 등) — 테스터 공유용
   static const ops = 'ops';
   static const opsBundleDoc = 'bundle';
+  /// 연도별 일정·조편성 overflow (`sch_2026`)
+  static const opsSchedulePrefix = 'sch_';
+  /// 연도별 회비·장부 overflow (`led_2026`)
+  static const opsLedgerPrefix = 'led_';
   static const photos = 'photos';
   static const userOps = 'user_ops';
 
@@ -25,6 +29,12 @@ abstract final class FirestorePaths {
 
   static String clubOpsBundle(String clubId) =>
       '${clubDoc(clubId)}/$ops/$opsBundleDoc';
+
+  static String clubOpsScheduleYear(String clubId, int year) =>
+      '${clubDoc(clubId)}/$ops/$opsSchedulePrefix$year';
+
+  static String clubOpsLedgerYear(String clubId, int year) =>
+      '${clubDoc(clubId)}/$ops/$opsLedgerPrefix$year';
 
   static String clubPhotos(String clubId) => '${clubDoc(clubId)}/$photos';
 

@@ -7,6 +7,7 @@ import 'package:flutter/foundation.dart';
 import '../core/firebase/firestore_paths.dart';
 import '../di/app_dependencies.dart';
 import 'club_data_codec.dart';
+import 'club_ops_overflow.dart';
 
 /// 모임 운영 데이터를 rounder-staging Firestore에 공유한다.
 ///
@@ -50,6 +51,7 @@ class ClubOpsSync {
           await _db.doc(FirestorePaths.clubOpsBundle(clubId)).get();
       if (existing.exists && existing.data() != null) {
         final remote = Map<String, dynamic>.from(existing.data()!);
+        await _attachOverflowDocs(clubId, remote);
         final localPayments = slice['duesPayments'] as List? ?? const [];
         final remotePayments = remote['duesPayments'] as List? ?? const [];
         if (localPayments.isEmpty && remotePayments.isNotEmpty) {
@@ -82,17 +84,36 @@ class ClubOpsSync {
         }
       }
 
+      final previousYears = ClubOpsOverflow.overflowIndex(
+        scheduleYears: const [],
+        ledgerYears: const [],
+      );
+      if (existing.exists && existing.data() != null) {
+        final prev = existing.data()!['overflowYears'];
+        if (prev is Map) {
+          previousYears['sch'] = ClubOpsOverflow.yearsOf(prev['sch']);
+          previousYears['led'] = ClubOpsOverflow.yearsOf(prev['led']);
+        }
+      }
+
+      final schYears = ClubOpsOverflow.splitScheduleYears(slice);
+      final ledYears = ClubOpsOverflow.splitLedgerYears(slice);
+      ClubOpsOverflow.stripHeavyFields(slice);
+      slice['overflowYears'] = ClubOpsOverflow.overflowIndex(
+        scheduleYears: schYears.keys,
+        ledgerYears: ledYears.keys,
+      );
+
       final bundleBytes = estimateJsonBytes(slice);
       if (bundleBytes > opsBundleSoftLimitBytes) {
         debugPrint(
           '[ClubOpsSync] WARNING ops bundle ${bundleBytes}B > '
           '$opsBundleSoftLimitBytes soft limit club=$clubId '
-          '(schedules=${(slice['schedules'] as List?)?.length ?? 0} '
-          'dues=${(slice['duesPayments'] as List?)?.length ?? 0} '
-          'tx=${(slice['transactions'] as List?)?.length ?? 0}) — '
-          'Firestore ~1MB doc limit may reject this push',
+          'after overflow split — Firestore ~1MB doc limit may reject this push',
         );
       }
+
+      await _pushOverflowDocs(clubId, schYears, ledYears, previousYears);
 
       await _db
           .doc(FirestorePaths.clubOpsBundle(clubId))
@@ -188,6 +209,7 @@ class ClubOpsSync {
         return null;
       }
       final remote = Map<String, dynamic>.from(snap.data()!);
+      await _attachOverflowDocs(clubId, remote);
       final photosSnap =
           await _db.collection(FirestorePaths.clubPhotos(clubId)).get();
       remote['photos'] = photosSnap.docs.map((d) {
@@ -249,6 +271,7 @@ class ClubOpsSync {
       if (!snap.exists || snap.data() == null) return;
       final remote = Map<String, dynamic>.from(snap.data()!);
       try {
+        await _attachOverflowDocs(clubId, remote);
         final photosSnap =
             await _db.collection(FirestorePaths.clubPhotos(clubId)).get();
         remote['photos'] = photosSnap.docs.map((d) {
@@ -474,10 +497,12 @@ class ClubOpsSync {
         .whereType<String>()
         .toSet();
 
-    encoded['schedules'] = replaceClubList(
-      encoded['schedules'] as List?,
-      remote['schedules'] as List?,
-    );
+    if (remote.containsKey('schedules')) {
+      encoded['schedules'] = replaceClubList(
+        encoded['schedules'] as List?,
+        remote['schedules'] as List?,
+      );
+    }
     encoded['announcements'] = replaceClubList(
       encoded['announcements'] as List?,
       remote['announcements'] as List?,
@@ -487,16 +512,20 @@ class ClubOpsSync {
       remote['duesSettings'] as List?,
       clubId,
     );
-    encoded['paymentRequests'] = replaceClubList(
-      encoded['paymentRequests'] as List?,
-      remote['paymentRequests'] as List?,
-    );
+    if (remote.containsKey('paymentRequests')) {
+      encoded['paymentRequests'] = replaceClubList(
+        encoded['paymentRequests'] as List?,
+        remote['paymentRequests'] as List?,
+      );
+    }
     // 회비와 동일: 잔고용 거래는 id 합집합. 원격이 비면 로컬 수입/지출 유지
-    encoded['transactions'] = _mergeClubScopedById(
-      encoded['transactions'] as List?,
-      remote['transactions'] as List?,
-      clubId,
-    );
+    if (remote.containsKey('transactions')) {
+      encoded['transactions'] = _mergeClubScopedById(
+        encoded['transactions'] as List?,
+        remote['transactions'] as List?,
+        clubId,
+      );
+    }
     // photos 키 없음 = 사진 컬렉션 fetch 실패 → 로컬 유지 (덮어쓰기 금지)
     if (remote.containsKey('photos')) {
       encoded['photos'] = _mergeClubPhotos(
@@ -514,11 +543,13 @@ class ClubOpsSync {
       remote['sponsorApplications'] as List?,
     );
 
-    encoded['duesPayments'] = _mergeDuesPayments(
-      encoded['duesPayments'] as List?,
-      remote['duesPayments'] as List?,
-      remote['duesSettings'] as List?,
-    );
+    if (remote.containsKey('duesPayments')) {
+      encoded['duesPayments'] = _mergeDuesPayments(
+        encoded['duesPayments'] as List?,
+        remote['duesPayments'] as List?,
+        remote['duesSettings'] as List?,
+      );
+    }
 
     final awards = <dynamic>[
       ...(encoded['awardRecords'] as List? ?? []).where(
@@ -761,4 +792,86 @@ class ClubOpsSync {
   /// 디버그/테스트용 JSON 크기
   static int estimateJsonBytes(Map<String, dynamic> m) =>
       utf8.encode(jsonEncode(m)).length;
+
+  static Future<void> _pushOverflowDocs(
+    String clubId,
+    Map<int, Map<String, dynamic>> schYears,
+    Map<int, Map<String, dynamic>> ledYears,
+    Map<String, dynamic> previousYears,
+  ) async {
+    for (final entry in schYears.entries) {
+      await _db
+          .doc(FirestorePaths.clubOpsScheduleYear(clubId, entry.key))
+          .set({
+        ...entry.value,
+        'updatedAt': FieldValue.serverTimestamp(),
+      }, SetOptions(merge: false));
+    }
+    for (final entry in ledYears.entries) {
+      await _db.doc(FirestorePaths.clubOpsLedgerYear(clubId, entry.key)).set({
+        ...entry.value,
+        'updatedAt': FieldValue.serverTimestamp(),
+      }, SetOptions(merge: false));
+    }
+
+    final keepSch = schYears.keys.toSet();
+    final keepLed = ledYears.keys.toSet();
+    for (final year in ClubOpsOverflow.yearsOf(previousYears['sch'])) {
+      if (keepSch.contains(year)) continue;
+      try {
+        await _db.doc(FirestorePaths.clubOpsScheduleYear(clubId, year)).delete();
+      } catch (_) {}
+    }
+    for (final year in ClubOpsOverflow.yearsOf(previousYears['led'])) {
+      if (keepLed.contains(year)) continue;
+      try {
+        await _db.doc(FirestorePaths.clubOpsLedgerYear(clubId, year)).delete();
+      } catch (_) {}
+    }
+  }
+
+  static Future<void> _attachOverflowDocs(
+    String clubId,
+    Map<String, dynamic> remote,
+  ) async {
+    final index = remote['overflowYears'];
+    if (index is! Map) return;
+
+    final schYears = ClubOpsOverflow.yearsOf(index['sch']);
+    final ledYears = ClubOpsOverflow.yearsOf(index['led']);
+    if (schYears.isEmpty && ledYears.isEmpty) return;
+
+    try {
+      var schLoaded = 0;
+      var ledLoaded = 0;
+      for (final year in schYears) {
+        final snap =
+            await _db.doc(FirestorePaths.clubOpsScheduleYear(clubId, year)).get();
+        if (!snap.exists || snap.data() == null) continue;
+        ClubOpsOverflow.mergeSidecarIntoRemote(remote, snap.data()!);
+        schLoaded++;
+      }
+      for (final year in ledYears) {
+        final snap =
+            await _db.doc(FirestorePaths.clubOpsLedgerYear(clubId, year)).get();
+        if (!snap.exists || snap.data() == null) continue;
+        ClubOpsOverflow.mergeSidecarIntoRemote(remote, snap.data()!);
+        ledLoaded++;
+      }
+      // 인덱스는 있는데 사이드카가 없으면 빈 배열로 로컬 일정을 지우지 않는다.
+      if (schYears.isNotEmpty && schLoaded == 0) {
+        for (final key in ClubOpsOverflow.scheduleKeys) {
+          remote.remove(key);
+        }
+      }
+      if (ledYears.isNotEmpty && ledLoaded == 0) {
+        for (final key in ClubOpsOverflow.ledgerKeys) {
+          remote.remove(key);
+        }
+      }
+    } catch (e) {
+      debugPrint('[ClubOpsSync] overflow attach fail club=$clubId: $e');
+      ClubOpsOverflow.markOverflowUnavailable(remote);
+    }
+  }
 }

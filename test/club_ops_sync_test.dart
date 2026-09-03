@@ -126,6 +126,81 @@ void main() {
     expect(merged.members.any((m) => m.id == 'm_c_test_u2'), isTrue);
   });
 
+  test('overflow attach 실패로 키가 없으면 로컬 일정·장부를 유지한다', () {
+    final local = ClubDataBundle(
+      selectedClubIndex: 0,
+      freshClubIds: {'c_test'},
+      myClubs: [
+        Club(
+          id: 'c_test',
+          name: '테스트',
+          myRole: '총무',
+          memberCount: 1,
+          region: '서울',
+          industry: 'IT',
+          teamCount: 4,
+        ),
+      ],
+      allClubs: const [],
+      joinRequests: const [],
+      members: const [],
+      activities: const [],
+      announcements: const [],
+      appNotifications: const [],
+      duesSettings: const [],
+      duesPayments: [
+        DuesPayment(
+          id: 'pay_keep',
+          memberId: 'm1',
+          memberName: '홍',
+          duesSettingId: 'ds_club_1',
+          amount: 10000,
+          paidAt: DateTime(2026, 1, 5),
+          recordedBy: '총무',
+        ),
+      ],
+      paymentRequests: const [],
+      transactions: const [],
+      schedules: [
+        RoundSchedule(
+          id: 's_keep',
+          clubId: 'c_test',
+          title: '로컬유지',
+          roundDate: DateTime(2026, 8, 1),
+          teeTime: '07:00',
+          courseName: 'A',
+          teamCount: 4,
+          status: ScheduleStatus.upcoming,
+          createdBy: '홍길동',
+        ),
+      ],
+      photos: const [],
+      groupAssignments: const {},
+      adApplications: const [],
+      adNotifications: const [],
+      sponsorApplications: const [],
+      pointEvents: const {},
+      awardRecords: const [],
+      thankYouMessages: const [],
+      waitingList: const [],
+      alimtalkSettings: const {},
+    );
+
+    final remote = <String, dynamic>{
+      'clubId': 'c_test',
+      'overflowYears': {
+        'sch': [2026],
+        'led': [2026],
+      },
+      'announcements': <dynamic>[],
+      'members': <dynamic>[],
+    };
+
+    final merged = ClubOpsSync.applyRemoteSlice(local, 'c_test', remote);
+    expect(merged.schedules.any((s) => s.id == 's_keep'), isTrue);
+    expect(merged.duesPayments.any((p) => p.id == 'pay_keep'), isTrue);
+  });
+
   test('원격 명단에 없어도 로컬 초대 가입 회원은 유지한다', () {
     final local = ClubDataBundle(
       selectedClubIndex: 0,

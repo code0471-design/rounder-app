@@ -142,11 +142,30 @@ void showAddScheduleSheet(BuildContext context, ClubProvider provider) {
 // ════════════════════════════════════════════════════════════
 //  일정 목록
 // ════════════════════════════════════════════════════════════
-class _ScheduleList extends StatelessWidget {
+class _ScheduleList extends StatefulWidget {
   final List<RoundSchedule> schedules;
   final bool isPast;
   final String? clubId;
   const _ScheduleList({required this.schedules, required this.isPast, this.clubId});
+
+  @override
+  State<_ScheduleList> createState() => _ScheduleListState();
+}
+
+class _ScheduleListState extends State<_ScheduleList> {
+  static const _pageSize = 40;
+  int _visible = 40;
+
+  List<RoundSchedule> get schedules => widget.schedules;
+  bool get isPast => widget.isPast;
+
+  @override
+  void didUpdateWidget(covariant _ScheduleList oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (oldWidget.schedules.length != widget.schedules.length) {
+      _visible = isPast ? _pageSize : widget.schedules.length;
+    }
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -172,17 +191,34 @@ class _ScheduleList extends StatelessWidget {
     }
 
     // 광고 배너 OFF (런칭) — AdBanner 복구 금지
+    final showAll = !isPast;
+    final take = showAll ? schedules.length : _visible.clamp(0, schedules.length);
+    final visible = schedules.take(take).toList();
+    final hasMore = isPast && take < schedules.length;
+
     return RefreshIndicator(
       color: AppColors.primary,
       onRefresh: () async =>
           await Future.delayed(const Duration(milliseconds: 500)),
       child: ListView.separated(
         padding: const EdgeInsets.fromLTRB(16, 8, 16, 100),
-        itemCount: schedules.length,
+        itemCount: visible.length + (hasMore ? 1 : 0),
         separatorBuilder: (_, __) => const SizedBox(height: 14),
         itemBuilder: (context, i) {
+          if (hasMore && i == visible.length) {
+            return TextButton(
+              onPressed: () => setState(() => _visible += _pageSize),
+              child: Text(
+                '지난 일정 더 보기 (${schedules.length - take}건)',
+                style: const TextStyle(
+                  fontWeight: FontWeight.w700,
+                  color: AppColors.sageDeep,
+                ),
+              ),
+            );
+          }
           return _ScheduleCard(
-            schedule: schedules[i],
+            schedule: visible[i],
             isPast: isPast,
           );
         },
