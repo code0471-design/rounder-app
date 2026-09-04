@@ -45,6 +45,9 @@ app.*.map.json
 /android/app/profile
 /android/app/release
 
+# Codemagic local Solapi dart-defines (keys)
+/solapi_defines.json
+
 # Android release signing (never commit)
 **/android/key.properties
 **/*.jks

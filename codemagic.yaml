@@ -24,6 +24,8 @@ workflows:
     scripts:
       - name: Get packages
         script: flutter pub get
+      - name: Check Solapi env
+        script: python3 tool/write_solapi_defines.py
       - name: Set up iOS code signing
         script: xcode-project use-profiles
       - name: Build Android (non-blocking)
@@ -34,20 +36,10 @@ workflows:
           BUILD_NAME=${BUILD_NAME%%+*}
           BUILD_NUMBER=${VERSION_LINE##*+}
           echo "Android version: $BUILD_NAME+$BUILD_NUMBER"
+          python3 tool/write_solapi_defines.py
           flutter build appbundle --release --android-skip-build-dependency-validation \
             --build-name="$BUILD_NAME" --build-number="$BUILD_NUMBER" \
-            --dart-define=SOLAPI_API_KEY="$SOLAPI_API_KEY" \
-            --dart-define=SOLAPI_API_SECRET="$SOLAPI_API_SECRET" \
-            --dart-define=SOLAPI_OTP_TEMPLATE_ID="${SOLAPI_OTP_TEMPLATE_ID:-KA01TP260827200825010BAkqpx4TyCt}" \
-            --dart-define=SOLAPI_TEMPLATE_ID_SCHEDULE_UPLOAD="${SOLAPI_TEMPLATE_ID_SCHEDULE_UPLOAD:-KA01TP260819165935819h6YMQUQnxD6}" \
-            --dart-define=SOLAPI_TEMPLATE_ID_SCHEDULE_CHANGE="${SOLAPI_TEMPLATE_ID_SCHEDULE_CHANGE:-KA01TP260819170717941dD6OSJifLZy}" \
-            --dart-define=SOLAPI_TEMPLATE_ID_D1="${SOLAPI_TEMPLATE_ID_D1:-KA01TP260819170856743YpkKVjb5WfS}" \
-            --dart-define=SOLAPI_TEMPLATE_ID_SCHEDULE_CANCEL="${SOLAPI_TEMPLATE_ID_SCHEDULE_CANCEL:-KA01TP260819170942410EzVbYmO06U2}" \
-            --dart-define=SOLAPI_TEMPLATE_ID_DUES_NUDGE="${SOLAPI_TEMPLATE_ID_DUES_NUDGE:-KA01TP2608191713271305WAQ7IzWNzo}" \
-            --dart-define=SOLAPI_TEMPLATE_ID_DUES_REQUEST="${SOLAPI_TEMPLATE_ID_DUES_REQUEST:-KA01TP260819171813223rmS1ByutYaw}" \
-            --dart-define=SOLAPI_TEMPLATE_ID_GROUP_FINALIZE="${SOLAPI_TEMPLATE_ID_GROUP_FINALIZE:-KA01TP260819170319298NrCEHKRX6u3}" \
-            --dart-define=SOLAPI_KAKAO_PF_ID="$SOLAPI_KAKAO_PF_ID" \
-            --dart-define=SOLAPI_SENDER_PHONE="${SOLAPI_SENDER_PHONE:-01045110471}"
+            --dart-define-from-file=solapi_defines.json
       - name: Build iOS IPA
         script: |
           VERSION_LINE=$(grep '^version:' pubspec.yaml | head -1 | tr -d ' ')
@@ -55,21 +47,11 @@ workflows:
           BUILD_NAME=${BUILD_NAME%%+*}
           BUILD_NUMBER=${VERSION_LINE##*+}
           echo "iOS version: $BUILD_NAME+$BUILD_NUMBER"
+          python3 tool/write_solapi_defines.py
           flutter build ipa --release \
             --build-name="$BUILD_NAME" \
             --build-number="$BUILD_NUMBER" \
-            --dart-define=SOLAPI_API_KEY="$SOLAPI_API_KEY" \
-            --dart-define=SOLAPI_API_SECRET="$SOLAPI_API_SECRET" \
-            --dart-define=SOLAPI_OTP_TEMPLATE_ID="${SOLAPI_OTP_TEMPLATE_ID:-KA01TP260827200825010BAkqpx4TyCt}" \
-            --dart-define=SOLAPI_TEMPLATE_ID_SCHEDULE_UPLOAD="${SOLAPI_TEMPLATE_ID_SCHEDULE_UPLOAD:-KA01TP260819165935819h6YMQUQnxD6}" \
-            --dart-define=SOLAPI_TEMPLATE_ID_SCHEDULE_CHANGE="${SOLAPI_TEMPLATE_ID_SCHEDULE_CHANGE:-KA01TP260819170717941dD6OSJifLZy}" \
-            --dart-define=SOLAPI_TEMPLATE_ID_D1="${SOLAPI_TEMPLATE_ID_D1:-KA01TP260819170856743YpkKVjb5WfS}" \
-            --dart-define=SOLAPI_TEMPLATE_ID_SCHEDULE_CANCEL="${SOLAPI_TEMPLATE_ID_SCHEDULE_CANCEL:-KA01TP260819170942410EzVbYmO06U2}" \
-            --dart-define=SOLAPI_TEMPLATE_ID_DUES_NUDGE="${SOLAPI_TEMPLATE_ID_DUES_NUDGE:-KA01TP2608191713271305WAQ7IzWNzo}" \
-            --dart-define=SOLAPI_TEMPLATE_ID_DUES_REQUEST="${SOLAPI_TEMPLATE_ID_DUES_REQUEST:-KA01TP260819171813223rmS1ByutYaw}" \
-            --dart-define=SOLAPI_TEMPLATE_ID_GROUP_FINALIZE="${SOLAPI_TEMPLATE_ID_GROUP_FINALIZE:-KA01TP260819170319298NrCEHKRX6u3}" \
-            --dart-define=SOLAPI_KAKAO_PF_ID="$SOLAPI_KAKAO_PF_ID" \
-            --dart-define=SOLAPI_SENDER_PHONE="${SOLAPI_SENDER_PHONE:-01045110471}" \
+            --dart-define-from-file=solapi_defines.json \
             --export-options-plist=/Users/builder/export_options.plist
     artifacts:
       - build/**/outputs/**/*.aab
@@ -95,6 +77,8 @@ workflows:
     scripts:
       - name: Get packages
         script: flutter pub get
+      - name: Check Solapi env
+        script: python3 tool/write_solapi_defines.py
       - name: Build release APK
         script: |
           VERSION_LINE=$(grep '^version:' pubspec.yaml | head -1 | tr -d ' ')
@@ -102,20 +86,10 @@ workflows:
           BUILD_NAME=${BUILD_NAME%%+*}
           BUILD_NUMBER=${VERSION_LINE##*+}
           echo "APK version: $BUILD_NAME+$BUILD_NUMBER"
+          python3 tool/write_solapi_defines.py
           flutter build apk --release --android-skip-build-dependency-validation \
             --build-name="$BUILD_NAME" --build-number="$BUILD_NUMBER" \
-            --dart-define=SOLAPI_API_KEY="$SOLAPI_API_KEY" \
-            --dart-define=SOLAPI_API_SECRET="$SOLAPI_API_SECRET" \
-            --dart-define=SOLAPI_OTP_TEMPLATE_ID="${SOLAPI_OTP_TEMPLATE_ID:-KA01TP260827200825010BAkqpx4TyCt}" \
-            --dart-define=SOLAPI_TEMPLATE_ID_SCHEDULE_UPLOAD="${SOLAPI_TEMPLATE_ID_SCHEDULE_UPLOAD:-KA01TP260819165935819h6YMQUQnxD6}" \
-            --dart-define=SOLAPI_TEMPLATE_ID_SCHEDULE_CHANGE="${SOLAPI_TEMPLATE_ID_SCHEDULE_CHANGE:-KA01TP260819170717941dD6OSJifLZy}" \
-            --dart-define=SOLAPI_TEMPLATE_ID_D1="${SOLAPI_TEMPLATE_ID_D1:-KA01TP260819170856743YpkKVjb5WfS}" \
-            --dart-define=SOLAPI_TEMPLATE_ID_SCHEDULE_CANCEL="${SOLAPI_TEMPLATE_ID_SCHEDULE_CANCEL:-KA01TP260819170942410EzVbYmO06U2}" \
-            --dart-define=SOLAPI_TEMPLATE_ID_DUES_NUDGE="${SOLAPI_TEMPLATE_ID_DUES_NUDGE:-KA01TP2608191713271305WAQ7IzWNzo}" \
-            --dart-define=SOLAPI_TEMPLATE_ID_DUES_REQUEST="${SOLAPI_TEMPLATE_ID_DUES_REQUEST:-KA01TP260819171813223rmS1ByutYaw}" \
-            --dart-define=SOLAPI_TEMPLATE_ID_GROUP_FINALIZE="${SOLAPI_TEMPLATE_ID_GROUP_FINALIZE:-KA01TP260819170319298NrCEHKRX6u3}" \
-            --dart-define=SOLAPI_KAKAO_PF_ID="$SOLAPI_KAKAO_PF_ID" \
-            --dart-define=SOLAPI_SENDER_PHONE="${SOLAPI_SENDER_PHONE:-01045110471}"
+            --dart-define-from-file=solapi_defines.json
     artifacts:
       - build/**/outputs/**/*.apk
 
@@ -132,6 +106,8 @@ workflows:
     scripts:
       - name: Get packages
         script: flutter pub get
+      - name: Check Solapi env
+        script: python3 tool/write_solapi_defines.py
       - name: Build release AAB
         script: |
           set +e
@@ -140,20 +116,10 @@ workflows:
           BUILD_NAME=${BUILD_NAME%%+*}
           BUILD_NUMBER=${VERSION_LINE##*+}
           echo "AAB version: $BUILD_NAME+$BUILD_NUMBER"
+          python3 tool/write_solapi_defines.py
           flutter build appbundle --release --android-skip-build-dependency-validation \
             --build-name="$BUILD_NAME" --build-number="$BUILD_NUMBER" \
-            --dart-define=SOLAPI_API_KEY="$SOLAPI_API_KEY" \
-            --dart-define=SOLAPI_API_SECRET="$SOLAPI_API_SECRET" \
-            --dart-define=SOLAPI_OTP_TEMPLATE_ID="${SOLAPI_OTP_TEMPLATE_ID:-KA01TP260827200825010BAkqpx4TyCt}" \
-            --dart-define=SOLAPI_TEMPLATE_ID_SCHEDULE_UPLOAD="${SOLAPI_TEMPLATE_ID_SCHEDULE_UPLOAD:-KA01TP260819165935819h6YMQUQnxD6}" \
-            --dart-define=SOLAPI_TEMPLATE_ID_SCHEDULE_CHANGE="${SOLAPI_TEMPLATE_ID_SCHEDULE_CHANGE:-KA01TP260819170717941dD6OSJifLZy}" \
-            --dart-define=SOLAPI_TEMPLATE_ID_D1="${SOLAPI_TEMPLATE_ID_D1:-KA01TP260819170856743YpkKVjb5WfS}" \
-            --dart-define=SOLAPI_TEMPLATE_ID_SCHEDULE_CANCEL="${SOLAPI_TEMPLATE_ID_SCHEDULE_CANCEL:-KA01TP260819170942410EzVbYmO06U2}" \
-            --dart-define=SOLAPI_TEMPLATE_ID_DUES_NUDGE="${SOLAPI_TEMPLATE_ID_DUES_NUDGE:-KA01TP2608191713271305WAQ7IzWNzo}" \
-            --dart-define=SOLAPI_TEMPLATE_ID_DUES_REQUEST="${SOLAPI_TEMPLATE_ID_DUES_REQUEST:-KA01TP260819171813223rmS1ByutYaw}" \
-            --dart-define=SOLAPI_TEMPLATE_ID_GROUP_FINALIZE="${SOLAPI_TEMPLATE_ID_GROUP_FINALIZE:-KA01TP260819170319298NrCEHKRX6u3}" \
-            --dart-define=SOLAPI_KAKAO_PF_ID="$SOLAPI_KAKAO_PF_ID" \
-            --dart-define=SOLAPI_SENDER_PHONE="${SOLAPI_SENDER_PHONE:-01045110471}" \
+            --dart-define-from-file=solapi_defines.json \
             2>&1 | tee /tmp/rounder_aab.log
           status=${PIPESTATUS[0]}
           if [ $status -ne 0 ]; then

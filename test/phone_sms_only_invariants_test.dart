@@ -73,6 +73,17 @@ void main() {
     expect(solapi.contains('sendOtpAlimtalk'), isTrue);
     expect(solapi.contains('[라운더]'), isTrue);
     expect(codemagic.contains('UnnQDOxu0b'), isFalse);
+    expect(codemagic.contains('tool/write_solapi_defines.py'), isTrue);
+    expect(codemagic.contains('--dart-define-from-file=solapi_defines.json'), isTrue);
+    expect(codemagic.contains('--dart-define=SOLAPI_API_KEY='), isFalse);
+
+    final solapiDefines =
+        File('tool/write_solapi_defines.py').readAsStringSync();
+    expect(solapiDefines.contains('KA01TP260827200825010BAkqpx4TyCt'), isTrue);
+    expect(solapiDefines.contains('KA01TP2608272010352785egDZKZOntL'), isTrue);
+    expect(solapiDefines.contains('SOLAPI_API_KEY length='), isTrue);
+    expect(solapiDefines.contains('solapi group missing'), isTrue);
+    expect(solapiDefines.contains('OneClub/legacy'), isTrue);
     expect(
       SolapiService.templateIdForHqType(HqAlimtalkCatalog.groupFinalizeId),
       'KA01TP260819170319298NrCEHKRX6u3',
