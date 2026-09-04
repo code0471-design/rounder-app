@@ -29,4 +29,26 @@ void main() {
     expect(provider.contains('DuesSetting? currentHomeDuesSetting'), isTrue);
     expect(provider.contains('if (clubPrimaryDuesType != DuesType.monthly) return 0;'), isTrue);
   });
+
+  test('모임 홈 헤더는 원클럽형 썸네일·가로 초대 버튼이다', () {
+    expect(room.contains('class _ClubThumb'), isTrue);
+    expect(room.contains('assets/icons/rounder_ball_crop.png'), isTrue);
+    expect(room.contains('Color(0xFFF7F8FA)'), isTrue);
+    expect(room.contains('Color(0xFF6B7280)'), isTrue);
+    expect(room.contains('_ClubThumb(club: club, size: 80)'), isTrue);
+    expect(room.contains("label: '정회원 초대하기'"), isTrue);
+    expect(room.contains("label: '게스트 초대하기'"), isTrue);
+    expect(room.contains('Icons.badge_outlined'), isFalse);
+    expect(
+      room.indexOf('_ClubThumb(club: club, size: 80)'),
+      lessThan(room.indexOf("label: '정회원 초대하기'")),
+    );
+  });
+
+  test('독촉하기는 전월 미납과 같은 줄이다', () {
+    final unpaid = room.indexOf("'전월 미납 \$prevUnpaid명'");
+    final nudge = room.indexOf("'독촉하기'");
+    expect(unpaid, greaterThan(0));
+    expect(nudge, greaterThan(unpaid));
+  });
 }

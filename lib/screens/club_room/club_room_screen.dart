@@ -1,4 +1,5 @@
 import 'dart:async';
+import 'dart:convert';
 
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
@@ -26,10 +27,9 @@ import '../members/treasurer_transfer_screen.dart';
 import '../alimtalk/alimtalk_settings_screen.dart';
 import '../group_assignment/group_assignment_screen.dart';
 
-// ── 초대 버튼 (정회원/게스트 공용 칩 버튼) ──
+// ── 초대 버튼 (원클럽과 동일 크기·위치, 아이콘 없음) ──
 class _InviteChipButton extends StatelessWidget {
   final String label;
-  final IconData icon;
   final Color bgColor;
   final Color borderColor;
   final Color textColor;
@@ -37,7 +37,6 @@ class _InviteChipButton extends StatelessWidget {
 
   const _InviteChipButton({
     required this.label,
-    required this.icon,
     required this.bgColor,
     required this.borderColor,
     required this.textColor,
@@ -49,23 +48,82 @@ class _InviteChipButton extends StatelessWidget {
     return GestureDetector(
       onTap: onTap,
       child: Container(
-        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 7),
+        padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 6),
         decoration: BoxDecoration(
           color: bgColor,
-          borderRadius: BorderRadius.circular(10),
-          border: Border.all(color: borderColor),
+          borderRadius: BorderRadius.circular(8),
+          border: Border.all(color: borderColor, width: 1),
         ),
-        child: Row(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            Icon(icon, size: 13, color: textColor),
-            const SizedBox(width: 5),
-            Text(label,
-                style: TextStyle(
-                    fontSize: 11,
-                    fontWeight: FontWeight.bold,
-                    color: textColor)),
-          ],
+        child: Text(
+          label,
+          textAlign: TextAlign.center,
+          style: TextStyle(
+            fontSize: 10,
+            fontWeight: FontWeight.w700,
+            color: textColor,
+            height: 1.1,
+            letterSpacing: -0.2,
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+class _ClubThumb extends StatelessWidget {
+  final Club club;
+  final double size;
+  const _ClubThumb({required this.club, this.size = 80});
+
+  static const _defaultGolf = 'assets/icons/rounder_ball_crop.png';
+
+  @override
+  Widget build(BuildContext context) {
+    final url = club.imageUrl?.trim() ?? '';
+    Widget child;
+    if (url.startsWith('data:image')) {
+      try {
+        child = Image.memory(
+          base64Decode(url.split(',').last),
+          fit: BoxFit.cover,
+          errorBuilder: (_, __, ___) => _fallback(),
+        );
+      } catch (_) {
+        child = _fallback();
+      }
+    } else if (url.startsWith('http://') || url.startsWith('https://')) {
+      child = Image.network(
+        url,
+        fit: BoxFit.cover,
+        errorBuilder: (_, __, ___) => _fallback(),
+      );
+    } else {
+      child = _fallback();
+    }
+
+    return Container(
+      width: size,
+      height: size,
+      decoration: BoxDecoration(
+        color: const Color(0xFFF7F8FA),
+        borderRadius: BorderRadius.circular(14),
+        border: Border.all(color: const Color(0xFF6B7280), width: 2),
+      ),
+      child: ClipRRect(
+        borderRadius: BorderRadius.circular(12),
+        child: child,
+      ),
+    );
+  }
+
+  Widget _fallback() {
+    return const ColoredBox(
+      color: Color(0xFFF7F8FA),
+      child: Padding(
+        padding: EdgeInsets.all(8),
+        child: Image(
+          image: AssetImage(_defaultGolf),
+          fit: BoxFit.contain,
         ),
       ),
     );
@@ -610,13 +668,14 @@ class ClubHomeTab extends StatelessWidget {
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                const SizedBox(height: 16),
-                // 모임 이름 + 초대 버튼
+                const SizedBox(height: 14),
                 Padding(
-                  padding: const EdgeInsets.fromLTRB(16, 0, 16, 0),
+                  padding: const EdgeInsets.symmetric(horizontal: 16),
                   child: Row(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
+                      _ClubThumb(club: club, size: 80),
+                      const SizedBox(width: 12),
                       Expanded(
                         child: Column(
                           crossAxisAlignment: CrossAxisAlignment.start,
@@ -624,54 +683,55 @@ class ClubHomeTab extends StatelessWidget {
                             Text(
                               club.name,
                               style: const TextStyle(
-                                fontSize: 22,
-                                fontWeight: FontWeight.bold,
+                                fontSize: 19,
+                                fontWeight: FontWeight.w600,
                                 color: AppColors.textPrimary,
+                                height: 1.25,
+                                letterSpacing: -0.5,
                               ),
                             ),
-                            const SizedBox(height: 4),
+                            const SizedBox(height: 3),
                             Text(
-                              '${club.region} · ${club.industry} · ${club.memberCount}명',
+                              '${club.region} · ${club.industry} · ${provider.activeMembers.isNotEmpty ? provider.activeMembers.length : club.memberCount}명',
                               style: const TextStyle(
-                                  fontSize: 13,
-                                  color: AppColors.textSecondary),
+                                  fontSize: 12,
+                                  fontWeight: FontWeight.w500,
+                                  color: Color(0xFF9CA3AF)),
+                            ),
+                            const SizedBox(height: 8),
+                            Row(
+                              children: [
+                                _InviteChipButton(
+                                  label: '정회원 초대하기',
+                                  bgColor: const Color(0xFF111827),
+                                  borderColor: const Color(0xFF111827),
+                                  textColor: Colors.white,
+                                  onTap: () => Navigator.push(
+                                    context,
+                                    MaterialPageRoute(
+                                      builder: (_) =>
+                                          InviteSendScreen(club: club),
+                                    ),
+                                  ),
+                                ),
+                                const SizedBox(width: 6),
+                                _InviteChipButton(
+                                  label: '게스트 초대하기',
+                                  bgColor: Colors.white,
+                                  borderColor: const Color(0xFFD1D5DB),
+                                  textColor: const Color(0xFF111827),
+                                  onTap: () => Navigator.push(
+                                    context,
+                                    MaterialPageRoute(
+                                      builder: (_) =>
+                                          GuestInviteFormScreen(club: club),
+                                    ),
+                                  ),
+                                ),
+                              ],
                             ),
                           ],
                         ),
-                      ),
-                      // 회원 초대 버튼 — 정회원 초대 / 게스트 초대 분리
-                      Column(
-                        crossAxisAlignment: CrossAxisAlignment.end,
-                        mainAxisSize: MainAxisSize.min,
-                        children: [
-                          _InviteChipButton(
-                            label: '정회원 초대하기',
-                            icon: Icons.badge_outlined,
-                            bgColor: const Color(0xFFFEF08A),
-                            borderColor: const Color(0xFFFACC15),
-                            textColor: const Color(0xFF92400E),
-                            onTap: () => Navigator.push(
-                              context,
-                              MaterialPageRoute(
-                                builder: (_) => InviteSendScreen(club: club),
-                              ),
-                            ),
-                          ),
-                          const SizedBox(height: 6),
-                          _InviteChipButton(
-                            label: '게스트 초대하기',
-                            icon: Icons.person_add_alt_1_outlined,
-                            bgColor: AppColors.primary.withValues(alpha: 0.10),
-                            borderColor: AppColors.primary.withValues(alpha: 0.35),
-                            textColor: AppColors.primary,
-                            onTap: () => Navigator.push(
-                              context,
-                              MaterialPageRoute(
-                                builder: (_) => GuestInviteFormScreen(club: club),
-                              ),
-                            ),
-                          ),
-                        ],
                       ),
                     ],
                   ),
@@ -2458,28 +2518,48 @@ class _FinanceSummaryCard extends StatelessWidget {
                                       fontSize: 13,
                                       color: AppColors.textSecondary)),
                         ),
-                        if (canNudge)
-                          GestureDetector(
-                            onTap: () =>
-                                _showPaymentReminderSheet(context, provider),
-                            child: const Text('독촉하기',
-                                style: TextStyle(
-                                    fontSize: 12,
-                                    fontWeight: FontWeight.w700,
-                                    color: Color(0xFF2563EB))),
-                          ),
                       ],
                     ),
                     if (isMonthly) ...[
                       const SizedBox(height: 4),
-                      Text(
-                        '전월 미납 $prevUnpaid명',
-                        style: TextStyle(
-                            fontSize: 12,
-                            fontWeight: FontWeight.w600,
-                            color: prevUnpaid > 0
-                                ? AppColors.danger
-                                : AppColors.textSecondary),
+                      Row(
+                        children: [
+                          Expanded(
+                            child: Text(
+                              '전월 미납 $prevUnpaid명',
+                              style: TextStyle(
+                                  fontSize: 12,
+                                  fontWeight: FontWeight.w600,
+                                  color: prevUnpaid > 0
+                                      ? AppColors.danger
+                                      : AppColors.textSecondary),
+                            ),
+                          ),
+                          if (canNudge)
+                            GestureDetector(
+                              onTap: () =>
+                                  _showPaymentReminderSheet(context, provider),
+                              child: const Text('독촉하기',
+                                  style: TextStyle(
+                                      fontSize: 12,
+                                      fontWeight: FontWeight.w700,
+                                      color: Color(0xFF2563EB))),
+                            ),
+                        ],
+                      ),
+                    ] else if (canNudge) ...[
+                      const SizedBox(height: 4),
+                      Align(
+                        alignment: Alignment.centerRight,
+                        child: GestureDetector(
+                          onTap: () =>
+                              _showPaymentReminderSheet(context, provider),
+                          child: const Text('독촉하기',
+                              style: TextStyle(
+                                  fontSize: 12,
+                                  fontWeight: FontWeight.w700,
+                                  color: Color(0xFF2563EB))),
+                        ),
                       ),
                     ],
                   ] else
