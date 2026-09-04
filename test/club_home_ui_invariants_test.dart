@@ -34,7 +34,6 @@ void main() {
 
   test('모임 홈 헤더는 원클럽형 썸네일·가로 초대 버튼이다', () {
     expect(room.contains('class _ClubThumb'), isTrue);
-    expect(room.contains('assets/icons/rounder_ball_crop.png'), isTrue);
     expect(room.contains('Color(0xFFF7F8FA)'), isTrue);
     expect(room.contains('Color(0xFF6B7280)'), isTrue);
     expect(room.contains('_ClubThumb(club: club, size: 80)'), isTrue);
@@ -45,6 +44,22 @@ void main() {
       room.indexOf('_ClubThumb(club: club, size: 80)'),
       lessThan(room.indexOf("label: '정회원 초대하기'")),
     );
+  });
+
+  test('모임 기본 썸네일은 라운더 로고가 아니라 골프 핀이다', () {
+    expect(room.contains('Icons.golf_course_rounded'), isTrue);
+    expect(room.contains('rounder_ball_crop.png'), isFalse);
+    expect(room.contains('rounder_logo'), isFalse);
+  });
+
+  test('홈 다음 일정 디데이 원은 충분히 크다', () {
+    final dday = room.indexOf("days == 0 ? 'D-day'");
+    expect(dday, greaterThan(0));
+    final circle = room.substring(dday - 500, dday);
+    expect(circle.contains('width: 82'), isTrue);
+    expect(circle.contains('height: 82'), isTrue);
+    expect(room.contains('fontSize: days == 0 ? 16 : 13'), isTrue);
+    expect(room.contains('fontSize: 27'), isTrue);
   });
 
   test('독촉하기는 전월 미납과 같은 줄이다', () {

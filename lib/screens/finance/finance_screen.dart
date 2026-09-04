@@ -39,6 +39,7 @@ class _SplitMoneyRow extends StatelessWidget {
   final Color dividerColor;
   final Widget? leftExtra;
   final Color? panelColor;
+  final Color? borderColor;
 
   const _SplitMoneyRow({
     required this.leftLabel,
@@ -54,6 +55,7 @@ class _SplitMoneyRow extends StatelessWidget {
     required this.dividerColor,
     this.leftExtra,
     this.panelColor,
+    this.borderColor,
   });
 
   @override
@@ -62,7 +64,6 @@ class _SplitMoneyRow extends StatelessWidget {
       crossAxisAlignment: CrossAxisAlignment.center,
       children: [
         Expanded(
-          flex: 11,
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
@@ -95,7 +96,6 @@ class _SplitMoneyRow extends StatelessWidget {
             margin: const EdgeInsets.symmetric(horizontal: 12),
             color: dividerColor),
         Expanded(
-          flex: 9,
           child: Column(
             children: [
               _flowLine(topLabel, topValue, topColor),
@@ -109,13 +109,14 @@ class _SplitMoneyRow extends StatelessWidget {
         ),
       ],
     );
-    if (panelColor == null) return body;
+    if (panelColor == null && borderColor == null) return body;
     return Container(
       width: double.infinity,
       padding: const EdgeInsets.fromLTRB(14, 14, 14, 12),
       decoration: BoxDecoration(
         color: panelColor,
         borderRadius: BorderRadius.circular(14),
+        border: borderColor == null ? null : Border.all(color: borderColor!),
       ),
       child: body,
     );
@@ -1737,9 +1738,9 @@ class _TransactionTabState extends State<_TransactionTab> {
               ),
               const SizedBox(height: 14),
 
-              // 월 요약
+              // 월 요약 — 좌측은 그 달의 순변동(변동액)
               _SplitMoneyRow(
-                leftLabel: '잔액',
+                leftLabel: '변동액',
                 leftValue: '${_fmtSigned(totalIncome - totalExpense)}원',
                 leftColor: AppColors.ink,
                 labelColor: const Color(0xFF9CA3AF),
@@ -1751,6 +1752,7 @@ class _TransactionTabState extends State<_TransactionTab> {
                 bottomColor: AppColors.danger,
                 dividerColor: const Color(0xFFE5E7EB),
                 panelColor: Colors.white,
+                borderColor: const Color(0xFFE5E7EB),
               ),
               const SizedBox(height: 14),
 
@@ -5359,18 +5361,14 @@ class _YearlyReport extends StatelessWidget {
         ),
         const SizedBox(height: 16),
 
-        // ── 보고서 헤더 ──
-        _ReportHeader(
-          title: '$year년 연간 결산보고',
-          subtitle: '${provider.selectedClub.name} · '
-              '${year}년 1월 1일 ~ 12월 31일',
-          icon: Icons.bar_chart_rounded,
-          color: const Color(0xFF6A1B9A),
+        // ── 연간 요약 (연도·모임명 + 변동액) ──
+        _YearlyHeroCard(
+          year: year,
+          clubName: provider.selectedClub.name,
+          income: income,
+          expense: expense,
+          net: net,
         ),
-        const SizedBox(height: 14),
-
-        // ── 연간 요약 ──
-        _SummaryCards(income: income, expense: expense, net: net),
         const SizedBox(height: 14),
 
         // ── 연간 잔고 흐름 ──
@@ -5586,7 +5584,7 @@ class _ReportHeader extends StatelessWidget {
   }
 }
 
-// ── 요약 카드 3분할 ──
+// ── 요약 카드 — 왼쪽 변동액 / 오른쪽 총수입·총지출 ──
 class _SummaryCards extends StatelessWidget {
   final int income, expense, net;
   const _SummaryCards(
@@ -5596,94 +5594,106 @@ class _SummaryCards extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return Row(
-      children: [
-        Expanded(
-          child: _StatCard(
-            label: '총 수입',
-            amount: income,
-            color: AppColors.primaryLight,
-            bgColor: const Color(0xFFE8F5E9),
-            icon: Icons.arrow_drop_up_rounded,
-            prefix: '+',
-          ),
-        ),
-        const SizedBox(width: 8),
-        Expanded(
-          child: _StatCard(
-            label: '총 지출',
-            amount: expense,
-            color: const Color(0xFFC62828),
-            bgColor: const Color(0xFFFFEBEE),
-            icon: Icons.arrow_drop_down_rounded,
-            prefix: '-',
-          ),
-        ),
-        const SizedBox(width: 8),
-        Expanded(
-          child: _StatCard(
-            label: '변동액',
-            amount: net,
-            color: net >= 0 ? AppColors.primary : const Color(0xFFE65100),
-            bgColor:
-                net >= 0 ? const Color(0xFFE3F2FD) : const Color(0xFFFFF3E0),
-            icon: Icons.account_balance_wallet_rounded,
-            prefix: net > 0 ? '+' : (net < 0 ? '-' : ''),
-          ),
-        ),
-      ],
+    return _SplitMoneyRow(
+      leftLabel: '변동액',
+      leftValue: '${net > 0 ? '+' : ''}${_fmtSigned(net)}원',
+      leftColor: net >= 0 ? AppColors.primary : const Color(0xFFE65100),
+      labelColor: const Color(0xFF6B7280),
+      topLabel: '총 수입',
+      topValue: '+${_fmt(income)}원',
+      topColor: AppColors.primaryLight,
+      bottomLabel: '총 지출',
+      bottomValue: '-${_fmt(expense)}원',
+      bottomColor: const Color(0xFFC62828),
+      dividerColor: const Color(0xFFE5E7EB),
+      panelColor: const Color(0xFFF8FAFC),
+      borderColor: const Color(0xFFE5E7EB),
     );
   }
 }
 
-class _StatCard extends StatelessWidget {
-  final String label, prefix;
-  final int amount;
-  final Color color, bgColor;
-  final IconData icon;
+// ── 연 결산 히어로 카드 (연도·모임명 + 변동액 요약) ──
+class _YearlyHeroCard extends StatelessWidget {
+  final int year;
+  final String clubName;
+  final int income, expense, net;
 
-  const _StatCard({
-    required this.label,
-    required this.amount,
-    required this.color,
-    required this.bgColor,
-    required this.icon,
-    required this.prefix,
+  const _YearlyHeroCard({
+    required this.year,
+    required this.clubName,
+    required this.income,
+    required this.expense,
+    required this.net,
   });
 
   @override
   Widget build(BuildContext context) {
     return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 12),
+      padding: const EdgeInsets.all(14),
       decoration: BoxDecoration(
-        color: bgColor,
-        borderRadius: BorderRadius.circular(14),
-        border: Border.all(color: color.withValues(alpha: 0.2)),
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(16),
+        border: Border.all(color: const Color(0xFFE5E7EB)),
       ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Row(
-            children: [
-              Icon(icon, color: color, size: 20),
-              const SizedBox(width: 2),
-              Text(label,
-                  style: TextStyle(
-                      fontSize: 10,
-                      color: color,
-                      fontWeight: FontWeight.w600)),
-            ],
-          ),
-          const SizedBox(height: 6),
-          Text(
-            '$prefix${_fmt(amount.abs())}',
-            style: TextStyle(
-                fontSize: 14,
-                fontWeight: FontWeight.w800,
-                color: color),
-          ),
-          Text('원', style: TextStyle(fontSize: 9, color: color)),
-        ],
+      child: Container(
+        padding: const EdgeInsets.fromLTRB(14, 14, 14, 12),
+        decoration: BoxDecoration(
+          color: const Color(0xFFF3F0FF),
+          borderRadius: BorderRadius.circular(12),
+        ),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Row(
+              children: [
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text('$year년 연간 결산보고',
+                          style: const TextStyle(
+                              fontSize: 12,
+                              fontWeight: FontWeight.w700,
+                              color: Color(0xFF7C3AED))),
+                      const SizedBox(height: 6),
+                      Text(clubName,
+                          style: const TextStyle(
+                              fontSize: 20,
+                              fontWeight: FontWeight.w800,
+                              color: AppColors.ink)),
+                    ],
+                  ),
+                ),
+                Container(
+                  width: 48,
+                  height: 48,
+                  decoration: BoxDecoration(
+                    color: Colors.white,
+                    borderRadius: BorderRadius.circular(12),
+                  ),
+                  child: const Icon(Icons.pie_chart_outline,
+                      color: Color(0xFF7C3AED), size: 26),
+                ),
+              ],
+            ),
+            const SizedBox(height: 14),
+            _SplitMoneyRow(
+              leftLabel: '변동액',
+              leftValue: '${net > 0 ? '+' : ''}${_fmtSigned(net)}원',
+              leftColor: net >= 0
+                  ? const Color(0xFF2563EB)
+                  : const Color(0xFFE53935),
+              labelColor: const Color(0xFF6B7280),
+              topLabel: '총수입',
+              topValue: '+${_fmt(income)}원',
+              topColor: const Color(0xFF2563EB),
+              bottomLabel: '총지출',
+              bottomValue: '-${_fmt(expense)}원',
+              bottomColor: const Color(0xFFE53935),
+              dividerColor: const Color(0xFFDDD6FE),
+            ),
+          ],
+        ),
       ),
     );
   }

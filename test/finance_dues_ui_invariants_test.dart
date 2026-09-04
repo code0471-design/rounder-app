@@ -55,6 +55,38 @@ void main() {
     expect(finance.contains('panelColor: Colors.white'), isTrue);
   });
 
+  test('잔고 카드는 좌우 1:1이다 (왼쪽이 넓지 않다)', () {
+    // 왼쪽 잔고가 넓어서 오른쪽 수입/지출 금액이 줄어들던 문제
+    expect(finance.contains('flex: 11'), isFalse);
+    expect(finance.contains('flex: 9'), isFalse);
+  });
+
+  test('수입/지출 월 요약은 변동액이고 테두리가 있다', () {
+    expect(finance.contains("leftLabel: '변동액'"), isTrue);
+    expect(finance.contains("leftLabel: '잔액'"), isFalse);
+    expect(finance.contains('borderColor: const Color(0xFFE5E7EB)'), isTrue);
+  });
+
+  test('결산보고는 원클럽형 — 변동액 요약 + 연 결산 히어로 카드', () {
+    expect(finance.contains('class _YearlyHeroCard'), isTrue);
+    expect(finance.contains('연간 결산보고'), isTrue);
+    expect(finance.contains('class _SummaryCards'), isTrue);
+    // 3분할 _StatCard 대신 _SplitMoneyRow 재사용
+    expect(finance.contains('class _StatCard'), isFalse);
+    final summary = finance.substring(
+      finance.indexOf('class _SummaryCards'),
+      finance.indexOf('class _SummaryCards') + 900,
+    );
+    expect(summary.contains('_SplitMoneyRow'), isTrue);
+    expect(summary.contains("leftLabel: '변동액'"), isTrue);
+    expect(summary.contains("topLabel: '총 수입'"), isTrue);
+    expect(summary.contains("bottomLabel: '총 지출'"), isTrue);
+    // 월 결산은 기간 선택 + 헤더 + 요약 + 잔고 흐름
+    expect(finance.contains('class _ReportPeriodSelector'), isTrue);
+    expect(finance.contains('class _BalanceFlowCard'), isTrue);
+    expect(finance.contains('class _MonthlyTable'), isTrue);
+  });
+
   test('월↔연 전환은 로컬만 남기지 않고 persist 한다', () {
     expect(provider.contains('void switchPrimaryDuesType'), isTrue);
     expect(provider.contains('_persistImmediately();'), isTrue);

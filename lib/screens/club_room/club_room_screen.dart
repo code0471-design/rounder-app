@@ -75,8 +75,6 @@ class _ClubThumb extends StatelessWidget {
   final double size;
   const _ClubThumb({required this.club, this.size = 80});
 
-  static const _defaultGolf = 'assets/icons/rounder_ball_crop.png';
-
   @override
   Widget build(BuildContext context) {
     final url = club.imageUrl?.trim() ?? '';
@@ -116,14 +114,15 @@ class _ClubThumb extends StatelessWidget {
     );
   }
 
+  /// 사진 없을 때 — 라운더 로고 대신 그린 위 핀(깃발)
   Widget _fallback() {
-    return const ColoredBox(
-      color: Color(0xFFF7F8FA),
-      child: Padding(
-        padding: EdgeInsets.all(8),
-        child: Image(
-          image: AssetImage(_defaultGolf),
-          fit: BoxFit.contain,
+    return ColoredBox(
+      color: const Color(0xFFF7F8FA),
+      child: Center(
+        child: Icon(
+          Icons.golf_course_rounded,
+          size: size * 0.54,
+          color: AppColors.primary,
         ),
       ),
     );
@@ -1016,13 +1015,13 @@ class ClubHomeTab extends StatelessWidget {
               ),
               const SizedBox(width: 10),
               Container(
-                width: 68,
-                height: 68,
+                width: 82,
+                height: 82,
                 decoration: BoxDecoration(
                   shape: BoxShape.circle,
                   color: Colors.white,
                   border: Border.all(
-                      color: const Color(0xFFE53935), width: 2.6),
+                      color: const Color(0xFFE53935), width: 3),
                 ),
                 child: Column(
                   mainAxisAlignment: MainAxisAlignment.center,
@@ -1031,18 +1030,18 @@ class ClubHomeTab extends StatelessWidget {
                       days == 0 ? 'D-day' : (days < 0 ? 'D+' : 'D-day'),
                       style: TextStyle(
                         color: const Color(0xFFE53935),
-                        fontSize: days == 0 ? 13 : 11,
+                        fontSize: days == 0 ? 16 : 13,
                         fontWeight: FontWeight.w800,
                         height: 1,
                       ),
                     ),
                     if (days != 0) ...[
-                      const SizedBox(height: 2),
+                      const SizedBox(height: 3),
                       Text(
                         days > 0 ? '-${days.abs()}' : '+${days.abs()}',
                         style: const TextStyle(
                           color: Color(0xFF111827),
-                          fontSize: 22,
+                          fontSize: 27,
                           fontWeight: FontWeight.w900,
                           height: 1,
                         ),
