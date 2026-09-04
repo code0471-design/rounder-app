@@ -741,46 +741,11 @@ class ClubHomeTab extends StatelessWidget {
                       ),
                     ),
                   ),
-                if (provider.nextUpcomingSchedule == null) ...[
-                  // 일정 없음 — 중복 empty 카드 대신 1개만 표시
-                  Padding(
-                    padding: const EdgeInsets.symmetric(horizontal: 16),
-                    child: AppCard(
-                      padding: const EdgeInsets.all(20),
-                      child: EmptyState(
-                        icon: Icons.golf_course_outlined,
-                        title: '예정된 라운딩이 없습니다',
-                        subtitle: provider.canCreateSchedule
-                            ? '새 라운딩 일정을 만들어 회원들을 초대해 보세요'
-                            : '임원이 새 일정을 등록하면 여기에 표시됩니다',
-                        action: provider.canCreateSchedule
-                            ? ElevatedButton.icon(
-                                onPressed: () =>
-                                    openAddScheduleSheet(context, provider),
-                                icon: const Icon(Icons.add, size: 18),
-                                label: const Text('일정 추가하기',
-                                    style: TextStyle(
-                                        fontWeight: FontWeight.w700)),
-                                style: ElevatedButton.styleFrom(
-                                  backgroundColor: AppColors.primary,
-                                  foregroundColor: Colors.white,
-                                  elevation: 0,
-                                  padding: const EdgeInsets.symmetric(
-                                      horizontal: 24, vertical: 13),
-                                  shape: RoundedRectangleBorder(
-                                      borderRadius:
-                                          BorderRadius.circular(AppRadius.lg)),
-                                ),
-                              )
-                            : null,
-                      ),
-                    ),
-                  ),
-                ] else ...[
-                  Padding(
-                    padding: const EdgeInsets.symmetric(horizontal: 16),
-                    child: _buildNextRoundSection(context, provider),
-                  ),
+                Padding(
+                  padding: const EdgeInsets.symmetric(horizontal: 16),
+                  child: _buildNextRoundSection(context, provider),
+                ),
+                if (provider.upcomingSchedules.isNotEmpty) ...[
                   const SizedBox(height: 12),
                   Padding(
                     padding: const EdgeInsets.symmetric(horizontal: 16),
@@ -861,147 +826,172 @@ class ClubHomeTab extends StatelessWidget {
 
   Widget _buildNextRoundSection(
       BuildContext context, ClubProvider provider) {
-    final nextSchedule = provider.nextUpcomingSchedule!;
-    final roundDate = nextSchedule.roundDate;
-    final dDayText = DDayUtils.format(roundDate);
-    final days = DDayUtils.daysFromToday(roundDate);
-    final dDayColor = days == 0
-        ? AppColors.danger
-        : days <= 3
-            ? AppColors.warning
-            : AppColors.sageDeep;
+    final nextSchedule = provider.nextUpcomingSchedule;
+
+    if (provider.upcomingSchedules.isEmpty) {
+      return Column(
+        children: [
+          Container(
+            padding: const EdgeInsets.all(16),
+            decoration: BoxDecoration(
+              color: Colors.grey.shade50,
+              borderRadius: BorderRadius.circular(16),
+              border: Border.all(color: Colors.grey.shade200),
+            ),
+            child: Row(
+              children: [
+                Container(
+                  width: 44,
+                  height: 44,
+                  decoration: BoxDecoration(
+                    color: Colors.grey.shade200,
+                    shape: BoxShape.circle,
+                  ),
+                  child: Icon(Icons.event_busy,
+                      size: 22, color: Colors.grey.shade400),
+                ),
+                const SizedBox(width: 14),
+                Text(
+                  '예정된 모임이 없습니다',
+                  style: TextStyle(
+                      fontSize: 15,
+                      fontWeight: FontWeight.w600,
+                      color: Colors.grey.shade500),
+                ),
+              ],
+            ),
+          ),
+          if (provider.canCreateSchedule)
+            TextButton.icon(
+              onPressed: () => openAddScheduleSheet(context, provider),
+              icon: const Icon(Icons.add, size: 18),
+              label: const Text('일정 추가하기',
+                  style: TextStyle(fontWeight: FontWeight.w700)),
+            ),
+        ],
+      );
+    }
+
+    final date = nextSchedule!.roundDate;
+    final days = DDayUtils.daysFromToday(date);
+    var title = nextSchedule.displayTitle.trim();
+    if (title.isEmpty) title = '${date.month}월 정기 모임';
+    if (title.length >= 2 &&
+        ((title.startsWith('<') && title.endsWith('>')) ||
+            (title.startsWith('〈') && title.endsWith('〉')))) {
+      title = title.substring(1, title.length - 1).trim();
+    }
+    final place = nextSchedule.courseName.isNotEmpty
+        ? nextSchedule.courseName
+        : '장소 미정';
 
     final card = Container(
-      padding: const EdgeInsets.all(18),
+      padding: const EdgeInsets.fromLTRB(16, 12, 14, 14),
       decoration: BoxDecoration(
+        borderRadius: BorderRadius.circular(16),
         gradient: const LinearGradient(
-          colors: [Color(0xFF3182F6), Color(0xFF1B64DA)],
           begin: Alignment.topLeft,
           end: Alignment.bottomRight,
+          colors: [
+            Color(0xFF3B6FE0),
+            Color(0xFF16368F),
+          ],
         ),
-        borderRadius: BorderRadius.circular(AppRadius.lg),
-        boxShadow: [
-          BoxShadow(
-            color: AppColors.sageDeep.withValues(alpha: 0.25),
-            blurRadius: 16,
-            offset: const Offset(0, 6),
-          ),
-        ],
       ),
-      child: Row(
+      child: Column(
         children: [
-          Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Row(
-                  children: [
-                    const Text('다음 라운딩',
-                        style: TextStyle(
-                            color: Colors.white70, fontSize: 12)),
-                    const SizedBox(width: 6),
-                    Container(
-                      padding: const EdgeInsets.symmetric(
-                          horizontal: 6, vertical: 1),
-                      decoration: BoxDecoration(
-                        color: Colors.white.withValues(alpha: 0.18),
-                        borderRadius: BorderRadius.circular(10),
-                      ),
-                      child: const Row(
-                        mainAxisSize: MainAxisSize.min,
-                        children: [
-                          Icon(Icons.touch_app_rounded,
-                              size: 9, color: Colors.white70),
-                          SizedBox(width: 2),
-                          Text('탭하여 보기',
-                              style: TextStyle(
-                                  color: Colors.white70,
-                                  fontSize: 9,
-                                  fontWeight: FontWeight.w500)),
-                        ],
-                      ),
-                    ),
-                  ],
+          Row(
+            children: [
+              const Text('다음 일정',
+                  style: TextStyle(
+                      color: Color(0xFFC5D4F5),
+                      fontSize: 12,
+                      fontWeight: FontWeight.w600)),
+              const Spacer(),
+              Container(
+                padding:
+                    const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+                decoration: BoxDecoration(
+                  color: Colors.black.withValues(alpha: 0.18),
+                  borderRadius: BorderRadius.circular(20),
+                  border: Border.all(
+                      color: Colors.white.withValues(alpha: 0.35), width: 0.8),
                 ),
-                const SizedBox(height: 4),
-                Text(
-                  nextSchedule.displayTitle,
-                  style: const TextStyle(
-                      color: Colors.white,
-                      fontSize: 15,
-                      fontWeight: FontWeight.w600),
-                ),
-                const SizedBox(height: 10),
-                // 장소·시간 — 가장 중요
-                Row(
-                  children: [
-                    const Icon(Icons.place_rounded,
-                        size: 18, color: Colors.white),
-                    const SizedBox(width: 6),
-                    Expanded(
-                      child: Text(
-                        nextSchedule.courseName,
-                        style: const TextStyle(
-                          color: Colors.white,
-                          fontSize: 18,
-                          fontWeight: FontWeight.w800,
-                          height: 1.2,
-                        ),
-                        maxLines: 1,
-                        overflow: TextOverflow.ellipsis,
-                      ),
-                    ),
-                  ],
-                ),
-                const SizedBox(height: 6),
-                Row(
-                  children: [
-                    const Icon(Icons.schedule_rounded,
-                        size: 18, color: Colors.white),
-                    const SizedBox(width: 6),
-                    Expanded(
-                      child: Text(
-                        '${roundDate.month}월 ${roundDate.day}일  ${nextSchedule.teeTime}',
-                        style: const TextStyle(
-                          color: Colors.white,
-                          fontSize: 17,
-                          fontWeight: FontWeight.w800,
-                          height: 1.2,
-                        ),
-                        maxLines: 1,
-                        overflow: TextOverflow.ellipsis,
-                      ),
-                    ),
-                  ],
-                ),
-              ],
-            ),
+                child: const Text('자세히 보기',
+                    style: TextStyle(
+                        color: Colors.white,
+                        fontSize: 10,
+                        fontWeight: FontWeight.w600)),
+              ),
+            ],
           ),
-          // D-day 원
-          Container(
-            width: 72,
-            height: 72,
-            decoration: BoxDecoration(
-              shape: BoxShape.circle,
-              color: dDayColor.withValues(alpha: 0.9),
-              boxShadow: [
-                BoxShadow(
-                  color: dDayColor.withValues(alpha: 0.4),
-                  blurRadius: 10,
-                  offset: const Offset(0, 3),
-                ),
-              ],
-            ),
-            child: Center(
-              child: Text(
-                dDayText,
-                style: TextStyle(
-                  color: Colors.white,
-                  fontSize: days > 9 ? 16 : 20,
-                  fontWeight: FontWeight.w900,
+          const SizedBox(height: 10),
+          Row(
+            children: [
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      title,
+                      style: const TextStyle(
+                          color: Colors.white,
+                          fontSize: 20,
+                          fontWeight: FontWeight.w800,
+                          height: 1.2,
+                          letterSpacing: -0.3),
+                    ),
+                    const SizedBox(height: 6),
+                    Text(
+                      '$place · ${date.month}월 ${date.day}일',
+                      style: const TextStyle(
+                          color: Color(0xFFD4DCF0),
+                          fontSize: 13,
+                          fontWeight: FontWeight.w500),
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                    ),
+                  ],
                 ),
               ),
-            ),
+              const SizedBox(width: 10),
+              Container(
+                width: 68,
+                height: 68,
+                decoration: BoxDecoration(
+                  shape: BoxShape.circle,
+                  color: Colors.white,
+                  border: Border.all(
+                      color: const Color(0xFFE53935), width: 2.6),
+                ),
+                child: Column(
+                  mainAxisAlignment: MainAxisAlignment.center,
+                  children: [
+                    Text(
+                      days == 0 ? 'D-day' : (days < 0 ? 'D+' : 'D-day'),
+                      style: TextStyle(
+                        color: const Color(0xFFE53935),
+                        fontSize: days == 0 ? 13 : 11,
+                        fontWeight: FontWeight.w800,
+                        height: 1,
+                      ),
+                    ),
+                    if (days != 0) ...[
+                      const SizedBox(height: 2),
+                      Text(
+                        days > 0 ? '-${days.abs()}' : '+${days.abs()}',
+                        style: const TextStyle(
+                          color: Color(0xFF111827),
+                          fontSize: 22,
+                          fontWeight: FontWeight.w900,
+                          height: 1,
+                        ),
+                      ),
+                    ],
+                  ],
+                ),
+              ),
+            ],
           ),
         ],
       ),
@@ -1073,78 +1063,83 @@ class _AttendanceCard extends StatelessWidget {
         final noResponse = prov.regularMembers
             .where((m) => !respondedIds.contains(m.id))
             .length;
-        final myRes = prov.myResponse(nextSchedule.id);
-
-        return AppCard(
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Row(
-                mainAxisAlignment: MainAxisAlignment.spaceBetween,
+        Widget mini(String status, String countLabel, Color fg) {
+          return Expanded(
+            child: Container(
+              padding: const EdgeInsets.symmetric(vertical: 10),
+              decoration: BoxDecoration(
+                color: Colors.white,
+                borderRadius: BorderRadius.circular(9),
+                border: Border.all(color: const Color(0xFFE5E7EB), width: 1),
+              ),
+              child: Column(
                 children: [
-                  const Text('참석 현황',
+                  Text(status,
+                      style: const TextStyle(
+                          fontSize: 12,
+                          fontWeight: FontWeight.w600,
+                          color: Color(0xFF9CA3AF))),
+                  const SizedBox(height: 6),
+                  Text(countLabel,
                       style: TextStyle(
-                        fontSize: 17,
-                        fontWeight: FontWeight.w800,
-                        color: AppColors.textPrimary,
-                      )),
-                  _MyResponseBadge(
-                    response: myRes?.response,
-                    waiting: prov.myWaitingEntry(nextSchedule.id),
-                    onTap: onTap,
-                  ),
-                ],
-              ),
-              const SizedBox(height: 14),
-              Row(
-                children: [
-                  _AttStat(
-                    '참석',
-                    confirmed,
-                    AppColors.success,
-                    AppColors.attendBg,
-                    guestIncluded: guestAttend,
-                  ),
-                  const SizedBox(width: 8),
-                  _AttStat('불참', declined, AppColors.danger,
-                      AppColors.absentBg),
-                  const SizedBox(width: 8),
-                  _AttStat('미답변', noResponse, AppColors.textSecondary,
-                      AppColors.surfaceVariant),
-                ],
-              ),
-              if (onTap != null) ...[
-                const SizedBox(height: 14),
-                Material(
-                  color: AppColors.sage.withValues(alpha: 0.12),
-                  borderRadius: BorderRadius.circular(10),
-                  child: InkWell(
-                    onTap: onTap,
-                    borderRadius: BorderRadius.circular(10),
-                    child: const Padding(
-                      padding:
-                          EdgeInsets.symmetric(horizontal: 12, vertical: 12),
-                      child: Row(
-                        mainAxisAlignment: MainAxisAlignment.center,
-                        children: [
-                          Text(
-                            '참석 응답 · 명단 보기',
-                            style: TextStyle(
-                              fontSize: 15,
-                              color: AppColors.sageDeep,
-                              fontWeight: FontWeight.w700,
-                            ),
-                          ),
-                          SizedBox(width: 4),
-                          Icon(Icons.chevron_right_rounded,
-                              size: 20, color: AppColors.sageDeep),
-                        ],
-                      ),
+                          fontSize: 22,
+                          fontWeight: FontWeight.w800,
+                          height: 1,
+                          color: fg)),
+                  if (status == '참석' && guestAttend > 0) ...[
+                    const SizedBox(height: 4),
+                    Text(
+                      '게스트 $guestAttend명 포함',
+                      style: const TextStyle(
+                          fontSize: 10,
+                          fontWeight: FontWeight.w600,
+                          color: Color(0xFF9CA3AF)),
                     ),
-                  ),
+                  ],
+                ],
+              ),
+            ),
+          );
+        }
+
+        return GestureDetector(
+          onTap: onTap,
+          child: Container(
+            padding: const EdgeInsets.fromLTRB(14, 14, 14, 14),
+            decoration: BoxDecoration(
+              color: Colors.white,
+              borderRadius: BorderRadius.circular(16),
+              border: Border.all(color: const Color(0xFFE5E7EB), width: 1),
+            ),
+            child: Column(
+              children: [
+                const Row(
+                  children: [
+                    Text('참석 현황',
+                        style: TextStyle(
+                            fontSize: 15,
+                            fontWeight: FontWeight.w800,
+                            color: AppColors.ink)),
+                    Spacer(),
+                    Text('참석 응답 · 명단 보기 >',
+                        style: TextStyle(
+                            fontSize: 12,
+                            color: Color(0xFF3B82F6),
+                            fontWeight: FontWeight.w700)),
+                  ],
+                ),
+                const SizedBox(height: 12),
+                Row(
+                  children: [
+                    mini('참석', '$confirmed', const Color(0xFF2563EB)),
+                    const SizedBox(width: 8),
+                    mini('불참', '$declined', const Color(0xFFE53935)),
+                    const SizedBox(width: 8),
+                    mini('미답변', '$noResponse', const Color(0xFF6B7280)),
+                  ],
                 ),
               ],
-            ],
+            ),
           ),
         );
       },
@@ -1202,134 +1197,6 @@ class _MemberSection extends StatelessWidget {
             }).toList(),
           ),
         ],
-      ),
-    );
-  }
-}
-
-// ── 내 응답 배지 (참석현황 카드 헤더) ──
-class _MyResponseBadge extends StatelessWidget {
-  final String? response; // '참석' | '불참' | null(미응답)
-  final WaitingEntry? waiting;
-  final VoidCallback? onTap;
-  const _MyResponseBadge({
-    required this.response,
-    this.waiting,
-    this.onTap,
-  });
-
-  @override
-  Widget build(BuildContext context) {
-    late final Color color;
-    late final Color bg;
-    late final IconData icon;
-    late final String label;
-
-    if (waiting != null) {
-      color = AppColors.warning;
-      bg = AppColors.warning.withValues(alpha: 0.12);
-      icon = Icons.hourglass_top_rounded;
-      label = waiting!.status == WaitingStatus.notified
-          ? '내 응답 · 참석 가능'
-          : '내 응답 · 대기중';
-    } else {
-      switch (response) {
-        case '참석':
-          color = AppColors.success;
-          bg = AppColors.attendBg;
-          icon = Icons.check_circle_rounded;
-          label = '내 응답 · 참석';
-          break;
-        case '불참':
-          color = AppColors.danger;
-          bg = AppColors.absentBg;
-          icon = Icons.cancel_rounded;
-          label = '내 응답 · 불참';
-          break;
-        default:
-          color = AppColors.textSecondary;
-          bg = AppColors.surfaceVariant;
-          icon = Icons.help_rounded;
-          label = '내 응답 · 미답변';
-      }
-    }
-
-    return Material(
-      color: bg,
-      borderRadius: BorderRadius.circular(20),
-      child: InkWell(
-        borderRadius: BorderRadius.circular(20),
-        onTap: onTap,
-        child: Padding(
-          padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
-          child: Row(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              Icon(icon, size: 14, color: color),
-              const SizedBox(width: 4),
-              Text(
-                label,
-                style: TextStyle(
-                  fontSize: 12,
-                  fontWeight: FontWeight.w700,
-                  color: color,
-                ),
-              ),
-            ],
-          ),
-        ),
-      ),
-    );
-  }
-}
-
-class _AttStat extends StatelessWidget {
-  final String label;
-  final int count;
-  final Color color;
-  final Color bgColor;
-  final int guestIncluded;
-  const _AttStat(this.label, this.count, this.color, this.bgColor,
-      {this.guestIncluded = 0});
-
-  @override
-  Widget build(BuildContext context) {
-    return Expanded(
-      child: Container(
-        padding: const EdgeInsets.symmetric(vertical: 14, horizontal: 6),
-        decoration: BoxDecoration(
-          color: bgColor,
-          borderRadius: BorderRadius.circular(AppRadius.md),
-          border: Border.all(color: color.withValues(alpha: 0.28)),
-        ),
-        child: Column(
-          children: [
-            Text('$count',
-                style: TextStyle(
-                    fontSize: 26,
-                    fontWeight: FontWeight.w800,
-                    color: color,
-                    height: 1.1)),
-            const SizedBox(height: 4),
-            Text(label,
-                style: TextStyle(
-                    fontSize: 14,
-                    fontWeight: FontWeight.w400,
-                    color: color)),
-            if (guestIncluded > 0) ...[
-              const SizedBox(height: 2),
-              Text(
-                '(게스트 $guestIncluded명 포함)',
-                style: TextStyle(
-                  fontSize: 10,
-                  fontWeight: FontWeight.w600,
-                  color: color.withValues(alpha: 0.9),
-                ),
-                textAlign: TextAlign.center,
-              ),
-            ],
-          ],
-        ),
       ),
     );
   }
@@ -2459,312 +2326,172 @@ class _FinanceSummaryCard extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final now = DateTime.now();
-    final isEmpty = provider.isSelectedClubFinanceEmpty;
     final isTreasurer = provider.isTreasurer;
-
-    // ── 회비/회계 미설정 빈 카드 ──
-    if (isEmpty) {
-      // Case A: 비총무 — 설정 유도/이동 없이 안내만
-      if (!isTreasurer) {
-        return AppCard(
-          child: EmptyState(
-            icon: Icons.account_balance_wallet_outlined,
-            title: '아직 회비 설정 전입니다',
-            subtitle: '총무가 최초 설정한 후 조회 가능합니다',
-          ),
-        );
-      }
-      // Case B: 총무 — 설정 유도 + 재무 탭 이동
-      return AppCard(
-        child: EmptyState(
-          icon: Icons.account_balance_wallet_outlined,
-          title: '회계 내역이 없습니다',
-          subtitle:
-              '회비설정 탭에서 설정하고 사용을 시작해요\n(예: 2026년 연회비 / 2026년 월회비 / 2026 투어 특별회비 등)',
-          onTap: onTap,
-        ),
-      );
-    }
-
-    final balance = provider.totalBalance;
-    final income = provider.monthlyIncome(now.year, now.month);
-    final expense = provider.monthlyExpense(now.year, now.month);
-    final isGuest = provider.isGuestMember;
-    final totalMembers = provider.regularMembers.length;
-    final hasUnpaid = provider.hasAnyUnpaidActiveDues(asOf: now);
-    final hasDues = provider.activeDuesSettings.isNotEmpty;
-    final paidCount = provider.paidCountForMonth(now.year, now.month);
-    final paidPct = totalMembers > 0
-        ? (paidCount / totalMembers * 100).round()
-        : 0;
-    final progressVal = totalMembers > 0 ? paidCount / totalMembers : 0.0;
-
-    // 재무 탭: 총무는 항상, 그 외는 회비 설정 완료 후에만 조회
     final canOpenFinance =
         isTreasurer || !provider.isFinanceSetupPending;
     final detailTap = canOpenFinance ? onTap : null;
+    final balance = provider.totalBalance;
+    final isGuest = provider.isGuestMember;
+    final totalMembers = provider.regularMembers.length;
+    final homeDues = provider.currentHomeDuesSetting(now.year, now.month);
+    final paidCount = provider.paidCountForMonth(now.year, now.month);
+    final prevUnpaid = provider.previousMonthUnpaidCount();
+    final isMonthly = homeDues?.type == DuesType.monthly;
+    final canNudge = ['회장', '부회장', '총무']
+        .contains(provider.selectedClub.myRole);
 
-    return Container(
-      decoration: AppCard.decoration(),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          // ── 헤더 ──
-          Padding(
-            padding: const EdgeInsets.fromLTRB(16, 14, 16, 10),
-            child: Row(
-              children: [
-                const Icon(Icons.account_balance_wallet_outlined,
-                    size: 16, color: AppColors.primary),
-                const SizedBox(width: 6),
-                const Text('회계 현황',
-                    style: TextStyle(
-                        fontSize: 14,
-                        fontWeight: FontWeight.bold,
-                        color: AppColors.textPrimary)),
-                const Spacer(),
-                if (detailTap != null)
-                  GestureDetector(
-                    onTap: detailTap,
-                    child: Row(
-                      mainAxisSize: MainAxisSize.min,
-                      children: [
-                        Text('상세 보기',
-                            style: TextStyle(
-                                fontSize: 11,
-                                color: AppColors.primary.withValues(alpha: 0.6),
-                                fontWeight: FontWeight.w500)),
-                        const SizedBox(width: 2),
-                        Icon(Icons.arrow_forward_ios,
-                            size: 10,
-                            color: AppColors.primary.withValues(alpha: 0.6)),
+    return GestureDetector(
+      onTap: detailTap,
+      child: Container(
+        padding: const EdgeInsets.fromLTRB(16, 16, 12, 16),
+        decoration: BoxDecoration(
+          color: Colors.white,
+          borderRadius: BorderRadius.circular(16),
+          border: Border.all(color: const Color(0xFFE5E7EB), width: 1),
+        ),
+        child: Row(
+          crossAxisAlignment: CrossAxisAlignment.center,
+          children: [
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Row(
+                    children: [
+                      const Text('현 회비 잔고',
+                          style: TextStyle(
+                              fontSize: 13,
+                              fontWeight: FontWeight.w700,
+                              color: AppColors.textSecondary)),
+                      if (isGuest) ...[
+                        const SizedBox(width: 4),
+                        const Icon(Icons.lock_outline,
+                            size: 11, color: AppColors.textTertiary),
                       ],
-                    ),
+                    ],
                   ),
-              ],
-            ),
-          ),
-          const Divider(height: 1, color: AppColors.divider),
-
-          // ── 잔고 강조 ──
-          Padding(
-            padding: const EdgeInsets.fromLTRB(16, 14, 16, 4),
-            child: Row(
-              crossAxisAlignment: CrossAxisAlignment.end,
-              children: [
-                Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Row(
-                      children: [
-                        const Text('현 회비 잔고',
+                  const SizedBox(height: 6),
+                  Row(
+                    crossAxisAlignment: CrossAxisAlignment.baseline,
+                    textBaseline: TextBaseline.alphabetic,
+                    children: [
+                      Flexible(
+                        child: FittedBox(
+                          fit: BoxFit.scaleDown,
+                          alignment: Alignment.centerLeft,
+                          child: Text(
+                            isGuest
+                                ? '*********'
+                                : (balance < 0
+                                    ? '-${_fmt(balance)}'
+                                    : _fmt(balance)),
+                            maxLines: 1,
                             style: TextStyle(
-                                fontSize: 12,
-                                color: AppColors.textSecondary)),
-                        if (isGuest) ...[
-                          const SizedBox(width: 4),
-                          const Icon(Icons.lock_outline,
-                              size: 11, color: AppColors.textTertiary),
-                        ],
-                      ],
+                                fontSize: 22,
+                                fontWeight: FontWeight.w600,
+                                color: !isGuest && balance < 0
+                                    ? const Color(0xFFC62828)
+                                    : AppColors.ink,
+                                height: 1.1,
+                                letterSpacing: -0.2),
+                          ),
+                        ),
+                      ),
+                      const Text(' 원',
+                          style: TextStyle(
+                              fontSize: 13,
+                              fontWeight: FontWeight.w700,
+                              color: AppColors.ink)),
+                    ],
+                  ),
+                ],
+              ),
+            ),
+            Container(
+              width: 1,
+              height: 48,
+              margin: const EdgeInsets.symmetric(horizontal: 12),
+              color: const Color(0xFFE5E7EB),
+            ),
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  if (homeDues != null) ...[
+                    Text(
+                      isMonthly ? '이달 ${homeDues.title}' : homeDues.title,
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                      style: const TextStyle(
+                          fontSize: 13,
+                          fontWeight: FontWeight.w700,
+                          color: AppColors.textSecondary),
                     ),
                     const SizedBox(height: 4),
                     Row(
-                      crossAxisAlignment: CrossAxisAlignment.baseline,
-                      textBaseline: TextBaseline.alphabetic,
+                      crossAxisAlignment: CrossAxisAlignment.center,
                       children: [
-                        Text(
-                          isGuest
-                              ? '*********'
-                              : (balance < 0
-                                  ? '-${_fmt(balance)}'
-                                  : _fmt(balance)),
-                          style: TextStyle(
-                              fontSize: 26,
-                              fontWeight: FontWeight.w800,
-                              color: !isGuest && balance < 0
-                                  ? const Color(0xFFC62828)
-                                  : AppColors.textPrimary),
+                        Expanded(
+                          child: totalMembers > 0
+                              ? Text.rich(
+                                  TextSpan(
+                                    children: [
+                                      TextSpan(
+                                        text: '$paidCount',
+                                        style: const TextStyle(
+                                            fontSize: 18,
+                                            fontWeight: FontWeight.w800,
+                                            color: Color(0xFF2563EB)),
+                                      ),
+                                      TextSpan(
+                                        text: '명 / $totalMembers명',
+                                        style: const TextStyle(
+                                            fontSize: 14,
+                                            fontWeight: FontWeight.w700,
+                                            color: AppColors.ink),
+                                      ),
+                                    ],
+                                  ),
+                                )
+                              : const Text('회원 없음',
+                                  style: TextStyle(
+                                      fontSize: 13,
+                                      color: AppColors.textSecondary)),
                         ),
-                        const SizedBox(width: 4),
-                        const Text('원',
-                            style: TextStyle(
-                                fontSize: 14,
-                                color: AppColors.textSecondary)),
+                        if (canNudge)
+                          GestureDetector(
+                            onTap: () =>
+                                _showPaymentReminderSheet(context, provider),
+                            child: const Text('독촉하기',
+                                style: TextStyle(
+                                    fontSize: 12,
+                                    fontWeight: FontWeight.w700,
+                                    color: Color(0xFF2563EB))),
+                          ),
                       ],
                     ),
-                  ],
-                ),
-                const Spacer(),
-                // 이달 +/- 요약
-                Column(
-                  crossAxisAlignment: CrossAxisAlignment.end,
-                  children: [
-                    Row(
-                      children: [
-                        const Icon(Icons.arrow_upward,
-                            size: 12, color: AppColors.success),
-                        Text(isGuest ? ' *****원' : ' +${_fmt(income)}원',
-                            style: const TextStyle(
-                                fontSize: 12,
-                                color: AppColors.success,
-                                fontWeight: FontWeight.w600)),
-                      ],
-                    ),
-                    const SizedBox(height: 2),
-                    Row(
-                      children: [
-                        const Icon(Icons.arrow_downward,
-                            size: 12, color: AppColors.danger),
-                        Text(isGuest ? ' *****원' : ' -${_fmt(expense)}원',
-                            style: const TextStyle(
-                                fontSize: 12,
-                                color: AppColors.danger,
-                                fontWeight: FontWeight.w600)),
-                      ],
-                    ),
-                    const SizedBox(height: 2),
-                    const Text('이달 기준',
-                        style: TextStyle(
-                            fontSize: 10,
-                            color: AppColors.textSecondary)),
-                  ],
-                ),
-              ],
-            ),
-          ),
-
-          const Divider(
-              height: 1,
-              color: AppColors.divider,
-              indent: 16,
-              endIndent: 16),
-
-          // ── 납부 현황 ──
-          Padding(
-            padding: const EdgeInsets.fromLTRB(16, 12, 16, 4),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Row(
-                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                  children: [
-                    const Text('이달 회비 납부',
+                    if (isMonthly) ...[
+                      const SizedBox(height: 4),
+                      Text(
+                        '전월 미납 $prevUnpaid명',
                         style: TextStyle(
                             fontSize: 12,
+                            fontWeight: FontWeight.w600,
+                            color: prevUnpaid > 0
+                                ? AppColors.danger
+                                : AppColors.textSecondary),
+                      ),
+                    ],
+                  ] else
+                    const Text('회비 미설정',
+                        style: TextStyle(
+                            fontSize: 13,
                             color: AppColors.textSecondary)),
-                    Text(
-                      totalMembers > 0
-                          ? '$paidCount명 / $totalMembers명 ($paidPct%)'
-                          : '회원 없음',
-                      style: const TextStyle(
-                          fontSize: 12,
-                          fontWeight: FontWeight.w600,
-                          color: AppColors.textPrimary),
-                    ),
-                  ],
-                ),
-                const SizedBox(height: 8),
-                // 프로그레스 바
-                ClipRRect(
-                  borderRadius: BorderRadius.circular(4),
-                  child: LinearProgressIndicator(
-                    value: progressVal,
-                    minHeight: 8,
-                    backgroundColor: AppColors.divider,
-                    valueColor: const AlwaysStoppedAnimation<Color>(
-                        AppColors.success),
-                  ),
-                ),
-                if (totalMembers > 0 && hasDues) ...[
-                  const SizedBox(height: 8),
-                  Align(
-                    alignment: Alignment.centerRight,
-                    child: hasUnpaid &&
-                            ['회장', '부회장', '총무']
-                                .contains(provider.selectedClub.myRole)
-                        ? Material(
-                            color: Colors.transparent,
-                            child: InkWell(
-                              onTap: () => _showPaymentReminderSheet(
-                                  context, provider),
-                              borderRadius:
-                                  BorderRadius.circular(AppRadius.lg),
-                              child: Container(
-                                padding: const EdgeInsets.symmetric(
-                                    horizontal: 12, vertical: 7),
-                                decoration: BoxDecoration(
-                                  color: AppColors.primary
-                                      .withValues(alpha: 0.08),
-                                  borderRadius:
-                                      BorderRadius.circular(AppRadius.lg),
-                                  border: Border.all(
-                                    color: AppColors.primary
-                                        .withValues(alpha: 0.22),
-                                  ),
-                                  boxShadow: AppShadows.soft,
-                                ),
-                                child: const Row(
-                                  mainAxisSize: MainAxisSize.min,
-                                  children: [
-                                    Icon(
-                                      Icons.notifications_active_outlined,
-                                      size: 14,
-                                      color: AppColors.primary,
-                                    ),
-                                    SizedBox(width: 5),
-                                    Text(
-                                      '독촉하기',
-                                      style: TextStyle(
-                                        fontSize: 12,
-                                        color: AppColors.primary,
-                                        fontWeight: FontWeight.w700,
-                                      ),
-                                    ),
-                                  ],
-                                ),
-                              ),
-                            ),
-                          )
-                        : !hasUnpaid
-                            ? Container(
-                                padding: const EdgeInsets.symmetric(
-                                    horizontal: 10, vertical: 5),
-                                decoration: BoxDecoration(
-                                  color: AppColors.success
-                                      .withValues(alpha: 0.1),
-                                  borderRadius: BorderRadius.circular(6),
-                                  border: Border.all(
-                                    color: AppColors.success
-                                        .withValues(alpha: 0.4),
-                                  ),
-                                ),
-                                child: const Row(
-                                  mainAxisSize: MainAxisSize.min,
-                                  children: [
-                                    Icon(Icons.check_circle_outline,
-                                        size: 12,
-                                        color: AppColors.success),
-                                    SizedBox(width: 4),
-                                    Text(
-                                      '완납',
-                                      style: TextStyle(
-                                        fontSize: 11,
-                                        color: AppColors.success,
-                                        fontWeight: FontWeight.w600,
-                                      ),
-                                    ),
-                                  ],
-                                ),
-                              )
-                            : const SizedBox.shrink(),
-                  ),
                 ],
-              ],
+              ),
             ),
-          ),
-          const SizedBox(height: 12),
-        ],
+          ],
+        ),
       ),
     );
   }

@@ -1923,6 +1923,39 @@ class ClubProvider extends ChangeNotifier with WidgetsBindingObserver {
         .firstWhere((_) => true, orElse: () => null);
   }
 
+  /// 홈 회계 카드용 — 이달 월회비, 없으면 올해 연회비. 특별회비는 제외.
+  DuesSetting? currentHomeDuesSetting(int year, int month) {
+    final monthly = currentMonthDuesSetting(year, month);
+    if (monthly != null) return monthly;
+    for (final d in activeDuesSettings) {
+      if (d.type == DuesType.annual &&
+          (d.year ?? d.createdAt.year) == year) {
+        return d;
+      }
+    }
+    return null;
+  }
+
+  /// 전월 월회비 미납 인원. 월회비 모임이 아니면 0.
+  int previousMonthUnpaidCount() {
+    if (clubPrimaryDuesType != DuesType.monthly) return 0;
+    final now = DateTime.now();
+    var y = now.year;
+    var m = now.month - 1;
+    if (m < 1) {
+      m = 12;
+      y--;
+    }
+    final setting = currentMonthDuesSetting(y, m);
+    if (setting == null) return 0;
+    final total = regularMembers.length;
+    final paid = paymentsOf(setting.id, year: y, month: m)
+        .map((p) => p.memberId)
+        .toSet()
+        .length;
+    return (total - paid).clamp(0, total);
+  }
+
   /// 이달 적용 회비 (월회비: 해당 연/월 기간 내 / 그 외: 활성 회비)
   List<DuesSetting> applicableDuesInMonth(int year, int month) =>
       activeDuesSettings.where((d) {
@@ -1992,22 +2025,21 @@ class ClubProvider extends ChangeNotifier with WidgetsBindingObserver {
     );
   }
 
-  /// 이달 월회비 납부자 수
+  /// 이달 회비 납부자 수 (홈·독촉용). 연회비는 연 단위.
   int paidCountForMonth(int year, int month) {
-    final setting = currentMonthDuesSetting(year, month);
+    final setting = currentHomeDuesSetting(year, month);
     if (setting == null) return 0;
-    return _duesPayments
-        .where((p) =>
-            p.duesSettingId == setting.id &&
-            p.paidAt.year == year &&
-            p.paidAt.month == month)
+    final monthFilter = setting.type == DuesType.monthly ? month : null;
+    return paymentsOf(setting.id, year: year, month: monthFilter)
         .map((p) => p.memberId)
         .toSet()
         .length;
   }
 
-  /// 이달 미납 회원 수 (활성 정회원 기준, 월회비만)
+  /// 이달 미납 회원 수 (활성 정회원 기준)
   int unpaidCountForMonth(int year, int month) {
+    final setting = currentHomeDuesSetting(year, month);
+    if (setting == null) return 0;
     final total = regularMembers.length;
     return (total - paidCountForMonth(year, month)).clamp(0, total);
   }
