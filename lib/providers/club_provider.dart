@@ -2554,8 +2554,10 @@ class ClubProvider extends ChangeNotifier with WidgetsBindingObserver {
       date: DateTime(toYear, 1, 1),
       recordedBy: '시스템',
       source: TxSource.carryover,
+      clubId: selectedClub.id,
     ));
     notifyListeners();
+    _persistImmediately();
   }
 
   // ════════════════════════════════════════════════════════

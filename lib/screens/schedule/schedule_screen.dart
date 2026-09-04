@@ -71,17 +71,17 @@ class _ScheduleScreenState extends State<ScheduleScreen>
                 ),
                 child: TabBar(
                   controller: _tab,
-                  labelColor: AppColors.sageDeep,
+                  labelColor: const Color(0xFF111827),
                   unselectedLabelColor: AppColors.inkSoft,
-                  indicatorColor: AppColors.sageDeep,
-                  indicatorWeight: 2,
+                  indicatorColor: AppColors.accent,
+                  indicatorWeight: 3,
                   indicatorSize: TabBarIndicatorSize.label,
                   dividerColor: Colors.transparent,
                   labelStyle: const TextStyle(
                       fontFamily: 'NanumGothic', fontSize: 15,
-                      fontWeight: FontWeight.w700),
+                      fontWeight: FontWeight.w800),
                   unselectedLabelStyle: const TextStyle(
-                      fontSize: 12, fontWeight: FontWeight.w500),
+                      fontSize: 15, fontWeight: FontWeight.w500),
                   tabs: const [
                     Tab(text: '예정 일정'),
                     Tab(text: '지난 일정'),
@@ -110,11 +110,13 @@ class _ScheduleScreenState extends State<ScheduleScreen>
           floatingActionButton: isAdmin
               ? FloatingActionButton.extended(
                   onPressed: () => showAddScheduleSheet(context, provider),
-                  backgroundColor: AppColors.sageDeep,
+                  backgroundColor: AppColors.accent,
                   foregroundColor: Colors.white,
-                  icon: const Icon(Icons.add),
+                  elevation: 2,
+                  icon: const Icon(Icons.add, color: Colors.white),
                   label: const Text('일정 등록',
-                      style: TextStyle(fontWeight: FontWeight.w600)),
+                      style: TextStyle(
+                          fontWeight: FontWeight.w800, color: Colors.white)),
                 )
               : null,
         );
@@ -212,7 +214,7 @@ class _ScheduleListState extends State<_ScheduleList> {
                 '지난 일정 더 보기 (${schedules.length - take}건)',
                 style: const TextStyle(
                   fontWeight: FontWeight.w700,
-                  color: AppColors.sageDeep,
+                  color: AppColors.accent,
                 ),
               ),
             );
@@ -230,247 +232,302 @@ class _ScheduleListState extends State<_ScheduleList> {
 // ════════════════════════════════════════════════════════════
 //  일정 카드
 // ════════════════════════════════════════════════════════════
-class _ScheduleCard extends StatelessWidget {
-  final RoundSchedule schedule;
-  final bool isPast;
-  const _ScheduleCard({required this.schedule, required this.isPast});
-
-  @override
-  Widget build(BuildContext context) {
-    final daysUntil = schedule.daysUntil;
-    final isClose = !isPast && daysUntil >= 0 && daysUntil <= 7;
-
-    // sched-card: 흰 배경, 20px 라운드, 연한 border
-    return GestureDetector(
-      onTap: () => Navigator.push(context,
-          MaterialPageRoute(builder: (_) => ScheduleDetailScreen(schedule: schedule))),
-      child: Container(
-        margin: EdgeInsets.zero,
-        decoration: BoxDecoration(
-          color: Colors.white,
-          borderRadius: BorderRadius.circular(20),
-          border: Border.all(color: Colors.black.withValues(alpha: 0.06)),
-        ),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            // ── sc-head: 제목 + d-circle ──
-            Padding(
-              padding: const EdgeInsets.fromLTRB(16, 16, 16, 0),
-              child: Row(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Expanded(
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        // 제목
-                        Text(
-                          schedule.title,
-                          style: TextStyle(
-                            fontFamily: 'NanumGothic',
-                            fontSize: 17, fontWeight: FontWeight.w800,
-                            color: isPast ? AppColors.inkSoft : AppColors.ink,
-                            height: 1.1, letterSpacing: -0.01 * 17,
-                          ),
-                        ),
-                        // 코스명
-                        const SizedBox(height: 6),
-                        Row(children: [
-                          Icon(Icons.golf_course, size: 12,
-                              color: isPast ? AppColors.inkSoft : AppColors.sage),
-                          const SizedBox(width: 5),
-                          Text(schedule.courseName,
-                              style: TextStyle(
-                                  fontSize: 11,
-                                  color: AppColors.inkSoft.withValues(alpha: 0.7))),
-                        ]),
-                        // 티오프 시간
-                        const SizedBox(height: 4),
-                        Row(children: [
-                          Icon(Icons.access_time, size: 12,
-                              color: AppColors.inkSoft.withValues(alpha: 0.7)),
-                          const SizedBox(width: 5),
-                          Text(
-                            '${_fmtDate(schedule.roundDate)}  ${schedule.teeTime} 티오프',
-                            style: TextStyle(
-                                fontSize: 11,
-                                color: AppColors.inkSoft.withValues(alpha: 0.7)),
-                          ),
-                        ]),
-                      ],
-                    ),
-                  ),
-                  const SizedBox(width: 12),
-                  // d-circle: 46×46 원형 D-day
-                  Container(
-                    width: 46, height: 46,
-                    decoration: BoxDecoration(
-                      shape: BoxShape.circle,
-                      color: isPast
-                          ? AppColors.inkSoft.withValues(alpha: 0.15)
-                          : isClose ? AppColors.sageDeep : AppColors.sage,
-                      boxShadow: isPast ? null : [
-                        BoxShadow(
-                          color: (isClose ? AppColors.sageDeep : AppColors.sage)
-                              .withValues(alpha: 0.5),
-                          blurRadius: 14, offset: const Offset(0, 6),
-                          spreadRadius: -6,
-                        ),
-                      ],
-                    ),
-                    child: Center(
-                      child: Text(
-                        isPast ? '완료' : schedule.dDayText,
-                        style: TextStyle(
-                          fontFamily: 'NanumGothic',
-                          color: isPast ? AppColors.inkSoft : Colors.white,
-                          fontSize: schedule.dDayText.length > 4 ? 10 : 15,
-                          fontWeight: FontWeight.w500,
-                        ),
-                      ),
-                    ),
-                  ),
-                ],
-              ),
-            ),
-
-            // sc-divider
-            Container(
-              height: 1,
-              margin: const EdgeInsets.fromLTRB(16, 12, 16, 0),
-              color: Colors.black.withValues(alpha: 0.08),
-            ),
-
-            // ── sc-stats: 참석 칩 + 응답 버튼 ──
-            Padding(
-              padding: const EdgeInsets.fromLTRB(16, 12, 16, 14),
-              child: Row(
-                children: [
-                  // chips — Consumer로 실시간 반영
-                  Consumer<ClubProvider>(
-                    builder: (_, prov, __) {
-                      final latest = prov.schedules.firstWhere(
-                        (s) => s.id == schedule.id,
-                        orElse: () => schedule,
-                      );
-                      final regular = prov.regularMembers.length;
-                      final guestIds = {
-                        for (final m in prov.guestMembers) m.id
-                      };
-                      final memberIds = {
-                        for (final m in prov.activeMembers) m.id
-                      };
-                      final valid = latest.responses
-                          .where((r) => memberIds.contains(r.memberId))
-                          .toList();
-                      final attend =
-                          valid.where((r) => r.response == '참석').length;
-                      final decline = valid
-                          .where((r) =>
-                              r.response == '불참' &&
-                              !guestIds.contains(r.memberId))
-                          .length;
-                      final respondedRegular = valid
-                          .where((r) =>
-                              (r.response == '참석' || r.response == '불참') &&
-                              !guestIds.contains(r.memberId))
-                          .map((r) => r.memberId)
-                          .toSet();
-                      final noRes =
-                          (regular - respondedRegular.length).clamp(0, regular);
-                      return Row(
-                        mainAxisSize: MainAxisSize.min,
-                        children: [
-                          _AttChip2('참석', attend, false, false),
-                          const SizedBox(width: 5),
-                          _AttChip2('미답변', noRes, true, false),
-                          const SizedBox(width: 5),
-                          _AttChip2('불참', decline, false, true),
-                        ],
-                      );
-                    },
-                  ),
-                  const Spacer(),
-                  // 응답 버튼
-                  if (!isPast)
-                    Consumer<ClubProvider>(
-                      builder: (ctx, prov, _) {
-                        final myRes = prov.myResponse(schedule.id);
-                        return _AttendButton(
-                          schedule: schedule,
-                          currentResponse: myRes?.response,
-                        );
-                      },
-                    ),
-                  if (isPast)
-                    Row(children: [
-                      const Icon(Icons.group_outlined, size: 13, color: AppColors.inkSoft),
-                      const SizedBox(width: 4),
-                      Text('${schedule.teamCount}팀',
-                          style: const TextStyle(fontSize: 11, color: AppColors.inkSoft)),
-                    ]),
-                ],
-              ),
-            ),
-
-            // 공지 띠 (sc-note 스타일: dashed top border)
-            if (schedule.notice != null && schedule.notice!.isNotEmpty)
-              Container(
-                width: double.infinity,
-                padding: const EdgeInsets.fromLTRB(16, 10, 16, 12),
-                decoration: BoxDecoration(
-                  border: Border(top: BorderSide(
-                      color: Colors.black.withValues(alpha: 0.15),
-                      style: BorderStyle.solid, width: 1)),
-                  borderRadius: const BorderRadius.only(
-                      bottomLeft: Radius.circular(20),
-                      bottomRight: Radius.circular(20)),
-                ),
-                child: Row(children: [
-                  const Icon(Icons.campaign_outlined, size: 13, color: AppColors.inkSoft),
-                  const SizedBox(width: 5),
-                  Expanded(
-                    child: Text(schedule.notice!,
-                        style: TextStyle(
-                            fontSize: 10,
-                            color: AppColors.inkSoft.withValues(alpha: 0.65))),
-                  ),
-                ]),
-              ),
-          ],
-        ),
-      ),
-    );
-  }
-
-  String _fmtDate(DateTime d) =>
-      '${d.month}월 ${d.day}일 (${['월', '화', '수', '목', '금', '토', '일'][d.weekday - 1]})';
-}
-
+class _ScheduleCard extends StatelessWidget {
+  final RoundSchedule schedule;
+  final bool isPast;
+  const _ScheduleCard({required this.schedule, required this.isPast});
+
+  @override
+  Widget build(BuildContext context) {
+    final d = schedule.roundDate;
+    final weekday = ['월', '화', '수', '목', '금', '토', '일'][d.weekday - 1];
+    final time = schedule.teeTime.trim();
+    final dateLine =
+        '${d.month}월 ${d.day}일 ($weekday)${time.isNotEmpty ? ' · $time' : ''}';
+    final hasNotice =
+        schedule.notice != null && schedule.notice!.trim().isNotEmpty;
+
+    return GestureDetector(
+      onTap: () => Navigator.push(context,
+          MaterialPageRoute(builder: (_) => ScheduleDetailScreen(schedule: schedule))),
+      child: Container(
+        margin: EdgeInsets.zero,
+        decoration: BoxDecoration(
+          color: Colors.white,
+          borderRadius: BorderRadius.circular(16),
+          border: Border.all(color: const Color(0xFFE5E7EB), width: 1),
+          boxShadow: [
+            BoxShadow(
+              color: Colors.black.withValues(alpha: 0.04),
+              blurRadius: 12,
+              offset: const Offset(0, 4),
+            ),
+          ],
+        ),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Padding(
+              padding: const EdgeInsets.fromLTRB(14, 14, 14, 12),
+              child: Row(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  _ScheduleDateTile(date: d, isPast: isPast),
+                  const SizedBox(width: 12),
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Row(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Expanded(
+                              child: Text(
+                                schedule.displayTitle,
+                                style: TextStyle(
+                                  fontSize: 16,
+                                  fontWeight: FontWeight.w800,
+                                  color: isPast ? AppColors.inkSoft : AppColors.ink,
+                                  height: 1.25,
+                                ),
+                              ),
+                            ),
+                            const SizedBox(width: 8),
+                            _ScheduleDdayBadge(
+                              label: isPast ? '완료' : schedule.dDayText,
+                              isPast: isPast,
+                            ),
+                          ],
+                        ),
+                        const SizedBox(height: 6),
+                        Text(
+                          dateLine,
+                          style: const TextStyle(
+                            fontSize: 12,
+                            fontWeight: FontWeight.w600,
+                            color: Color(0xFF4B5563),
+                          ),
+                        ),
+                        const SizedBox(height: 4),
+                        Row(children: [
+                          const Icon(Icons.location_on_outlined,
+                              size: 13, color: Color(0xFF9CA3AF)),
+                          const SizedBox(width: 3),
+                          Expanded(
+                            child: Text(
+                              schedule.courseName,
+                              maxLines: 1,
+                              overflow: TextOverflow.ellipsis,
+                              style: const TextStyle(
+                                  fontSize: 12, color: Color(0xFF9CA3AF)),
+                            ),
+                          ),
+                        ]),
+                      ],
+                    ),
+                  ),
+                ],
+              ),
+            ),
+            Container(
+              width: double.infinity,
+              padding: const EdgeInsets.fromLTRB(14, 10, 14, 12),
+              decoration: BoxDecoration(
+                color: const Color(0xFFF8F7F4),
+                border: const Border(
+                  top: BorderSide(color: Color(0xFFE5E7EB)),
+                ),
+                borderRadius: hasNotice
+                    ? BorderRadius.zero
+                    : const BorderRadius.vertical(bottom: Radius.circular(16)),
+              ),
+              child: Consumer<ClubProvider>(
+                builder: (_, prov, __) {
+                  final latest = prov.schedules.firstWhere(
+                    (s) => s.id == schedule.id,
+                    orElse: () => schedule,
+                  );
+                  final regular = prov.regularMembers.length;
+                  final guestIds = {
+                    for (final m in prov.guestMembers) m.id
+                  };
+                  final memberIds = {
+                    for (final m in prov.activeMembers) m.id
+                  };
+                  final valid = latest.responses
+                      .where((r) => memberIds.contains(r.memberId))
+                      .toList();
+                  final attend =
+                      valid.where((r) => r.response == '참석').length;
+                  final decline = valid
+                      .where((r) =>
+                          r.response == '불참' &&
+                          !guestIds.contains(r.memberId))
+                      .length;
+                  final respondedRegular = valid
+                      .where((r) =>
+                          (r.response == '참석' || r.response == '불참') &&
+                          !guestIds.contains(r.memberId))
+                      .map((r) => r.memberId)
+                      .toSet();
+                  final noRes =
+                      (regular - respondedRegular.length).clamp(0, regular);
+                  return Row(
+                    children: [
+                      Expanded(
+                        child: Wrap(
+                          spacing: 6,
+                          runSpacing: 6,
+                          children: [
+                            _AttChip2('참석', attend, const Color(0xFF2563EB)),
+                            _AttChip2('불참', decline, const Color(0xFFE53935)),
+                            _AttChip2('미답변', noRes, const Color(0xFF6B7280)),
+                          ],
+                        ),
+                      ),
+                      if (!isPast) ...[
+                        const SizedBox(width: 8),
+                        _AttendButton(
+                          schedule: schedule,
+                          currentResponse:
+                              prov.myResponse(schedule.id)?.response,
+                        ),
+                      ],
+                    ],
+                  );
+                },
+              ),
+            ),
+            if (hasNotice)
+              Container(
+                width: double.infinity,
+                padding: const EdgeInsets.fromLTRB(16, 10, 16, 12),
+                decoration: BoxDecoration(
+                  border: Border(
+                      top: BorderSide(
+                          color: Colors.black.withValues(alpha: 0.08))),
+                  borderRadius: const BorderRadius.vertical(
+                      bottom: Radius.circular(16)),
+                ),
+                child: Row(children: [
+                  const Icon(Icons.campaign_outlined,
+                      size: 13, color: AppColors.inkSoft),
+                  const SizedBox(width: 5),
+                  Expanded(
+                    child: Text(schedule.notice!,
+                        style: TextStyle(
+                            fontSize: 10,
+                            color: AppColors.inkSoft.withValues(alpha: 0.65))),
+                  ),
+                ]),
+              ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+class _ScheduleDateTile extends StatelessWidget {
+  final DateTime date;
+  final bool isPast;
+  const _ScheduleDateTile({required this.date, required this.isPast});
+
+  @override
+  Widget build(BuildContext context) {
+    final weekday = ['월', '화', '수', '목', '금', '토', '일'][date.weekday - 1];
+    return Container(
+      width: 52,
+      padding: const EdgeInsets.symmetric(vertical: 8),
+      decoration: BoxDecoration(
+        color: isPast ? const Color(0xFFF3F4F6) : const Color(0xFF111827),
+        borderRadius: BorderRadius.circular(12),
+      ),
+      child: Column(
+        children: [
+          Text(
+            '${date.month}월',
+            style: TextStyle(
+              fontSize: 10,
+              fontWeight: FontWeight.w700,
+              color: isPast ? const Color(0xFF9CA3AF) : AppColors.accent,
+              height: 1,
+            ),
+          ),
+          const SizedBox(height: 4),
+          Text(
+            '${date.day}',
+            style: TextStyle(
+              fontSize: 22,
+              fontWeight: FontWeight.w900,
+              color: isPast ? const Color(0xFF6B7280) : Colors.white,
+              height: 1,
+            ),
+          ),
+          const SizedBox(height: 4),
+          Text(
+            weekday,
+            style: TextStyle(
+              fontSize: 10,
+              fontWeight: FontWeight.w700,
+              color: isPast ? const Color(0xFF9CA3AF) : AppColors.accent,
+              height: 1,
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _ScheduleDdayBadge extends StatelessWidget {
+  final String label;
+  final bool isPast;
+  const _ScheduleDdayBadge({required this.label, required this.isPast});
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+      decoration: BoxDecoration(
+        color: isPast
+            ? const Color(0xFFF3F4F6)
+            : const Color(0xFFE53935).withValues(alpha: 0.08),
+        borderRadius: BorderRadius.circular(8),
+      ),
+      child: Text(
+        label,
+        style: TextStyle(
+          fontSize: 12,
+          fontWeight: FontWeight.w800,
+          color: isPast ? AppColors.inkSoft : const Color(0xFFE53935),
+        ),
+      ),
+    );
+  }
+}
+
 // chip 2 (디자인 사양: go=sage, maybe=amber, no=rose)
 class _AttChip2 extends StatelessWidget {
   final String label;
   final int count;
-  final bool isMaybe;
-  final bool isNo;
-  const _AttChip2(this.label, this.count, this.isMaybe, this.isNo);
+  final Color color;
+  const _AttChip2(this.label, this.count, this.color);
 
   @override
   Widget build(BuildContext context) {
-    Color bg, fg;
-    if (isNo) {
-      bg = AppColors.roseSoft; fg = const Color(0xFF8F5555);
-    } else if (isMaybe) {
-      bg = AppColors.amberSoft; fg = const Color(0xFF7A5A35);
-    } else {
-      bg = AppColors.sageDeep.withValues(alpha: 0.15); fg = AppColors.sageDeep;
-    }
     return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 9, vertical: 4),
-      decoration: BoxDecoration(color: bg, borderRadius: BorderRadius.circular(20)),
-      child: Text('$label $count',
-          style: TextStyle(fontSize: 10, fontWeight: FontWeight.w700, color: fg)),
+      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 6),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(8),
+        border: Border.all(color: const Color(0xFFE5E7EB)),
+      ),
+      child: Text(
+        '$label $count',
+        style: TextStyle(
+            fontSize: 11, fontWeight: FontWeight.w700, color: color),
+      ),
     );
   }
 }
@@ -509,33 +566,35 @@ class _AttendButton extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final responded = currentResponse != null;
-    final color = responded
-        ? (currentResponse == '참석'
-            ? AppColors.success
-            : currentResponse == '불참'
-                ? AppColors.danger
-                : AppColors.warning)
-        : AppColors.sageDeep;
+    final isAttend = currentResponse == '참석';
+    final isDecline = currentResponse == '불참';
+    final label = responded ? currentResponse! : '미답변';
 
     return GestureDetector(
       onTap: () => _showResponseSheet(context),
       child: Container(
-        padding: EdgeInsets.symmetric(horizontal: responded ? 14 : 12, vertical: 7),
+        padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
         decoration: BoxDecoration(
-          color: responded ? color.withValues(alpha: 0.13) : AppColors.sageDeep,
-          borderRadius: BorderRadius.circular(20),
-          border: responded ? Border.all(color: color, width: 1.5) : null,
-          boxShadow: responded ? [
-            BoxShadow(color: color.withValues(alpha: 0.2), blurRadius: 4, offset: const Offset(0, 1))
-          ] : null,
+          color: isAttend ? const Color(0xFF111827) : Colors.white,
+          borderRadius: BorderRadius.circular(10),
+          border: isAttend
+              ? null
+              : Border.all(
+                  color: isDecline
+                      ? const Color(0xFFE53935)
+                      : const Color(0xFF9CA3AF),
+                ),
         ),
         child: Text(
-          responded ? currentResponse! : '응답하기',
+          label,
           style: TextStyle(
-            fontSize: responded ? 18 : 12,
-            fontWeight: FontWeight.w700,
-            color: responded ? color : Colors.white,
-            letterSpacing: responded ? 0.3 : 0,
+            fontSize: 13,
+            fontWeight: FontWeight.w800,
+            color: isAttend
+                ? Colors.white
+                : isDecline
+                    ? const Color(0xFFE53935)
+                    : const Color(0xFF6B7280),
           ),
         ),
       ),

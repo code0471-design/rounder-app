@@ -42,6 +42,19 @@ void main() {
     expect(finance.contains("onTap: () => _showAddDuesSheet(context, provider)"), isFalse);
   });
 
+  test('재무 4탭은 원클럽형 텍스트 탭이다', () {
+    expect(finance.contains("Tab(text: '납부현황')"), isTrue);
+    expect(finance.contains("Tab(text: '수입/지출')"), isTrue);
+    expect(finance.contains("Tab(text: '결산보고')"), isTrue);
+    expect(finance.contains("Tab(text: '회비설정')"), isTrue);
+    expect(finance.contains('_FinanceTabLabel'), isFalse);
+    expect(finance.contains('회비를 설정하고 사용하세요'), isTrue);
+    expect(finance.contains("const Text('납부 O'"), isFalse);
+    expect(finance.contains('납부 \$paidCount'), isTrue);
+    expect(finance.contains("label: const Text('회비추가'"), isTrue);
+    expect(finance.contains('panelColor: Colors.white'), isTrue);
+  });
+
   test('월↔연 전환은 로컬만 남기지 않고 persist 한다', () {
     expect(provider.contains('void switchPrimaryDuesType'), isTrue);
     expect(provider.contains('_persistImmediately();'), isTrue);

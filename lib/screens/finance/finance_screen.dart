@@ -38,6 +38,7 @@ class _SplitMoneyRow extends StatelessWidget {
   final Color bottomColor;
   final Color dividerColor;
   final Widget? leftExtra;
+  final Color? panelColor;
 
   const _SplitMoneyRow({
     required this.leftLabel,
@@ -52,11 +53,12 @@ class _SplitMoneyRow extends StatelessWidget {
     required this.bottomColor,
     required this.dividerColor,
     this.leftExtra,
+    this.panelColor,
   });
 
   @override
   Widget build(BuildContext context) {
-    return Row(
+    final body = Row(
       crossAxisAlignment: CrossAxisAlignment.center,
       children: [
         Expanded(
@@ -106,6 +108,16 @@ class _SplitMoneyRow extends StatelessWidget {
           ),
         ),
       ],
+    );
+    if (panelColor == null) return body;
+    return Container(
+      width: double.infinity,
+      padding: const EdgeInsets.fromLTRB(14, 14, 14, 12),
+      decoration: BoxDecoration(
+        color: panelColor,
+        borderRadius: BorderRadius.circular(14),
+      ),
+      child: body,
     );
   }
 
@@ -243,6 +255,9 @@ class _FinanceScreenState extends State<FinanceScreen>
                 income: provider.monthlyIncome(now.year, now.month),
                 expense: provider.monthlyExpense(now.year, now.month),
                 hasCarryover: provider.hasCarryover(now.year),
+                prevYearBalance: provider.balanceAtYearEnd(now.year - 1),
+                isAdmin: isAdmin,
+                provider: provider,
               ),
               // ── 총무 최초 진입 가이드 ──
               if (isTreasurer && provider.isFinanceSetupPending)
@@ -261,25 +276,19 @@ class _FinanceScreenState extends State<FinanceScreen>
                   children: [
                     TabBar(
                       controller: _tab,
-                      labelColor: AppColors.sageDeep,
+                      labelColor: const Color(0xFF111827),
                       unselectedLabelColor: AppColors.inkSoft,
-                      indicatorColor: AppColors.sageDeep,
-                      indicatorWeight: 2.5,
-                      indicatorSize: TabBarIndicatorSize.label,
-                      labelPadding: const EdgeInsets.symmetric(horizontal: 4),
+                      indicatorColor: const Color(0xFF111827),
+                      indicatorWeight: 3,
                       labelStyle: const TextStyle(
-                          fontSize: 13,
-                          fontWeight: FontWeight.w600,
-                          height: 1.2),
+                          fontSize: 13, fontWeight: FontWeight.w800),
                       unselectedLabelStyle: const TextStyle(
-                          fontSize: 13,
-                          fontWeight: FontWeight.w500,
-                          height: 1.2),
+                          fontSize: 13, fontWeight: FontWeight.w500),
                       tabs: const [
-                        Tab(height: 46, child: _FinanceTabLabel('납부현황')),
-                        Tab(height: 46, child: _FinanceTabLabel('수입/지출')),
-                        Tab(height: 46, child: _FinanceTabLabel('결산보고')),
-                        Tab(height: 46, child: _FinanceTabLabel('회비설정')),
+                        Tab(text: '납부현황'),
+                        Tab(text: '수입/지출'),
+                        Tab(text: '결산보고'),
+                        Tab(text: '회비설정'),
                       ],
                     ),
                     if (showTabGuideBubble)
@@ -287,7 +296,7 @@ class _FinanceScreenState extends State<FinanceScreen>
                         right: 6,
                         top: 44,
                         child: _DuesSetupSpeechBubble(
-                          label: '회비설정에서 시작하세요',
+                          label: '회비를 설정하고 사용하세요',
                           tailUp: true,
                           onTap: () => _tab.animateTo(3),
                         ),
@@ -315,19 +324,6 @@ class _FinanceScreenState extends State<FinanceScreen>
   }
 }
 
-class _FinanceTabLabel extends StatelessWidget {
-  final String text;
-  const _FinanceTabLabel(this.text);
-
-  @override
-  Widget build(BuildContext context) {
-    return FittedBox(
-      fit: BoxFit.scaleDown,
-      child: Text(text, maxLines: 1, softWrap: false),
-    );
-  }
-}
-
 // ════════════════════════════════════════════════════════════
 //  상단 잔고 요약 카드
 // ════════════════════════════════════════════════════════════
@@ -336,12 +332,18 @@ class _BalanceSummaryCard extends StatelessWidget {
   final int income;
   final int expense;
   final bool hasCarryover;
+  final int prevYearBalance;
+  final bool isAdmin;
+  final ClubProvider provider;
 
   const _BalanceSummaryCard({
     required this.balance,
     required this.income,
     required this.expense,
     required this.hasCarryover,
+    required this.prevYearBalance,
+    required this.isAdmin,
+    required this.provider,
   });
 
   @override
@@ -351,38 +353,125 @@ class _BalanceSummaryCard extends StatelessWidget {
       width: double.infinity,
       color: AppColors.cream,
       padding: const EdgeInsets.fromLTRB(16, 10, 16, 4),
-      child: Container(
-        width: double.infinity,
-        padding: const EdgeInsets.fromLTRB(16, 16, 10, 16),
-        decoration: BoxDecoration(
-          color: const Color(0xFF0D1117),
-          borderRadius: BorderRadius.circular(16),
-        ),
-        child: _SplitMoneyRow(
-          leftLabel: '현 회비 잔고',
-          leftValue: '${_fmtSigned(balance)}원',
-          leftColor: Colors.white,
-          labelColor: const Color(0xFF9CA3AF),
-          topLabel: '이달 수입',
-          topValue: '+${_fmt(income)}원',
-          topColor: const Color(0xFF60A5FA),
-          bottomLabel: '이달 지출',
-          bottomValue: '-${_fmt(expense)}원',
-          bottomColor: const Color(0xFFF3A6A6),
-          dividerColor: const Color(0xFF374151),
-          leftExtra: hasCarryover
-              ? Padding(
-                  padding: const EdgeInsets.only(top: 4),
-                  child: Text('${now.year - 1}년 이월 포함',
-                      style: const TextStyle(
-                          fontSize: 10,
-                          color: AppColors.gold,
-                          fontWeight: FontWeight.w600)),
-                )
-              : null,
-        ),
+      child: Column(
+        children: [
+          if (!hasCarryover && prevYearBalance > 0 && isAdmin)
+            GestureDetector(
+              onTap: () => _confirmCarryover(context, now.year),
+              child: Container(
+                width: double.infinity,
+                margin: const EdgeInsets.only(bottom: 8),
+                padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
+                decoration: BoxDecoration(
+                  color: const Color(0xFF1A1D21),
+                  borderRadius: BorderRadius.circular(12),
+                ),
+                child: Row(children: [
+                  const Icon(Icons.info_outline, color: Colors.white70, size: 13),
+                  const SizedBox(width: 8),
+                  Expanded(
+                    child: Text(
+                      '${now.year - 1}년 잔액 ${_fmt(prevYearBalance)}원을 ${now.year}년으로 이월하시겠습니까?',
+                      style: const TextStyle(fontSize: 12,
+                          color: Colors.white, height: 1.35),
+                    ),
+                  ),
+                  const SizedBox(width: 8),
+                  Container(
+                    padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+                    decoration: BoxDecoration(
+                      color: AppColors.accent, borderRadius: BorderRadius.circular(20)),
+                    child: const Text('이월 실행',
+                        style: TextStyle(fontSize: 11, fontWeight: FontWeight.w700,
+                            color: Colors.black)),
+                  ),
+                ]),
+              ),
+            ),
+          Container(
+            width: double.infinity,
+            padding: const EdgeInsets.fromLTRB(16, 16, 10, 16),
+            decoration: BoxDecoration(
+              color: const Color(0xFF0D1117),
+              borderRadius: BorderRadius.circular(16),
+            ),
+            child: _SplitMoneyRow(
+              leftLabel: '현 회비 잔고',
+              leftValue: '${_fmtSigned(balance)}원',
+              leftColor: Colors.white,
+              labelColor: const Color(0xFF9CA3AF),
+              topLabel: '이달 수입',
+              topValue: '+${_fmt(income)}원',
+              topColor: const Color(0xFF60A5FA),
+              bottomLabel: '이달 지출',
+              bottomValue: '-${_fmt(expense)}원',
+              bottomColor: const Color(0xFFF3A6A6),
+              dividerColor: const Color(0xFF374151),
+              leftExtra: hasCarryover
+                  ? Padding(
+                      padding: const EdgeInsets.only(top: 4),
+                      child: Text('${now.year - 1}년 이월 포함',
+                          style: const TextStyle(
+                              fontSize: 10,
+                              color: AppColors.gold,
+                              fontWeight: FontWeight.w600)),
+                    )
+                  : null,
+            ),
+          ),
+        ],
       ),
     );
+  }
+
+  Future<void> _confirmCarryover(
+      BuildContext context, int toYear) async {
+    final confirm = await showDialog<bool>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(16)),
+        title: const Text('이월 잔액 등록',
+            style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold)),
+        content: Text(
+          '${toYear - 1}년 잔액 ${_fmt(prevYearBalance)}원을\n'
+          '${toYear}년 1월 1일자로 이월합니다.\n\n'
+          '수입/지출 내역에 "이월" 항목으로 자동 등록됩니다.',
+          style: const TextStyle(fontSize: 13, height: 1.6),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(ctx, false),
+            child: const Text('취소'),
+          ),
+          ElevatedButton(
+            onPressed: () => Navigator.pop(ctx, true),
+            style: ElevatedButton.styleFrom(
+                backgroundColor: AppColors.primary,
+                foregroundColor: Colors.white,
+                shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(10))),
+            child: const Text('이월 실행'),
+          ),
+        ],
+      ),
+    );
+    if (confirm == true) {
+      provider.addCarryover(
+          amount: prevYearBalance, toYear: toYear);
+      if (context.mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text(
+                '${_fmt(prevYearBalance)}원이 ${toYear}년으로 이월되었습니다'),
+            backgroundColor: AppColors.success,
+            behavior: SnackBarBehavior.floating,
+            shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(10)),
+          ),
+        );
+      }
+    }
   }
 }
 
@@ -657,15 +746,9 @@ class _PaymentStatusTabState extends State<_PaymentStatusTab> {
               Container(
                 padding: const EdgeInsets.all(16),
                 decoration: BoxDecoration(
-                  color: Colors.white,
-                  borderRadius: BorderRadius.circular(14),
-                  boxShadow: [
-                    BoxShadow(
-                      color: Colors.black.withValues(alpha: 0.05),
-                      blurRadius: 6,
-                      offset: const Offset(0, 2),
-                    ),
-                  ],
+                  color: const Color(0xFFFFFEFC),
+                  borderRadius: BorderRadius.circular(16),
+                  border: Border.all(color: const Color(0xFFE5E7EB)),
                 ),
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
@@ -756,15 +839,9 @@ class _PaymentStatusTabState extends State<_PaymentStatusTab> {
             // ── 회원별 납부 목록 ──
             Container(
               decoration: BoxDecoration(
-                color: Colors.white,
-                borderRadius: BorderRadius.circular(14),
-                boxShadow: [
-                  BoxShadow(
-                    color: Colors.black.withValues(alpha: 0.05),
-                    blurRadius: 6,
-                    offset: const Offset(0, 2),
-                  ),
-                ],
+                color: const Color(0xFFFFFEFC),
+                borderRadius: BorderRadius.circular(16),
+                border: Border.all(color: const Color(0xFFE5E7EB)),
               ),
               child: Column(
                 children: [
@@ -774,14 +851,14 @@ class _PaymentStatusTabState extends State<_PaymentStatusTab> {
                       children: [
                         if (widget.isAdmin) ...
                           [
-                            const Text('납부 O',
-                                style: TextStyle(
+                            Text('납부 $paidCount',
+                                style: const TextStyle(
                                     fontSize: 12,
                                     color: AppColors.success,
                                     fontWeight: FontWeight.bold)),
                             const SizedBox(width: 4),
-                            const Text('/ 미납',
-                                style: TextStyle(
+                            Text('/ 미납 ${totalCount - paidCount}',
+                                style: const TextStyle(
                                     fontSize: 12,
                                     color: AppColors.danger,
                                     fontWeight: FontWeight.bold)),
@@ -1661,35 +1738,19 @@ class _TransactionTabState extends State<_TransactionTab> {
               const SizedBox(height: 14),
 
               // 월 요약
-              Row(
-                children: [
-                  Expanded(
-                    child: _TxSummaryCard(
-                      label: '수입',
-                      amount: totalIncome,
-                      color: AppColors.success,
-                      icon: Icons.arrow_upward,
-                    ),
-                  ),
-                  const SizedBox(width: 10),
-                  Expanded(
-                    child: _TxSummaryCard(
-                      label: '지출',
-                      amount: totalExpense,
-                      color: AppColors.danger,
-                      icon: Icons.arrow_downward,
-                    ),
-                  ),
-                  const SizedBox(width: 10),
-                  Expanded(
-                    child: _TxSummaryCard(
-                      label: '변동액',
-                      amount: totalIncome - totalExpense,
-                      color: AppColors.primary,
-                      icon: Icons.account_balance_wallet_outlined,
-                    ),
-                  ),
-                ],
+              _SplitMoneyRow(
+                leftLabel: '잔액',
+                leftValue: '${_fmtSigned(totalIncome - totalExpense)}원',
+                leftColor: AppColors.ink,
+                labelColor: const Color(0xFF9CA3AF),
+                topLabel: '수입',
+                topValue: '+${_fmt(totalIncome)}원',
+                topColor: const Color(0xFF2563EB),
+                bottomLabel: '지출',
+                bottomValue: '-${_fmt(totalExpense)}원',
+                bottomColor: AppColors.danger,
+                dividerColor: const Color(0xFFE5E7EB),
+                panelColor: Colors.white,
               ),
               const SizedBox(height: 14),
 
@@ -1886,13 +1947,7 @@ class _TxTile extends StatelessWidget {
       decoration: BoxDecoration(
         color: Colors.white,
         borderRadius: BorderRadius.circular(12),
-        boxShadow: [
-          BoxShadow(
-            color: Colors.black.withValues(alpha: 0.04),
-            blurRadius: 4,
-            offset: const Offset(0, 1),
-          ),
-        ],
+        border: Border.all(color: const Color(0xFFE5E7EB)),
       ),
       child: Row(
         children: [
@@ -2023,7 +2078,7 @@ class _DuesSettingTab extends StatelessWidget {
                       : AppColors.textTertiary,
                   foregroundColor: Colors.white,
                   icon: const Icon(Icons.add),
-                  label: const Text('회비 추가',
+                  label: const Text('회비추가',
                       style: TextStyle(fontWeight: FontWeight.w600)),
                 ),
           body: Stack(

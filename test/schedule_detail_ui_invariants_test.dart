@@ -153,4 +153,14 @@ void main() {
     expect(source.contains('삭제 후 목록(앨범)으로 복귀'), isTrue,
         reason: '뷰어 삭제 후 목록 복귀 주석/동작이 없음');
   });
+
+  test('일정 카드는 날짜 타일과 일시·참석 푸터를 유지한다', () {
+    expect(source.contains('class _ScheduleDateTile'), isTrue);
+    expect(source.contains('class _ScheduleDdayBadge'), isTrue);
+    expect(source.contains('calendar_today_outlined'), isFalse);
+    expect(source.contains('class _AttendButton'), isTrue);
+    expect(source.contains("responded ? currentResponse! : '미답변'"), isTrue);
+    expect(source.contains("responded ? currentResponse! : '참석'"), isFalse);
+    expect(source.contains("responded ? currentResponse! : '응답하기'"), isFalse);
+  });
 }
