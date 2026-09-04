@@ -2216,20 +2216,20 @@ class _AccountSettingsTabState extends State<_AccountSettingsTab> {
             child: Text('취소', style: TextStyle(color: Colors.grey.shade600)),
           ),
           ElevatedButton(
-            onPressed: () {
+            onPressed: () async {
               Navigator.pop(context);
-              // mock: 탈퇴 완료 후 로그인 화면으로
+              final auth = context.read<AuthProvider>();
+              final clubs = context.read<ClubProvider>();
+              await clubs.withdrawFromApp();
+              await auth.withdrawAccount();
+              if (!context.mounted) return;
               ScaffoldMessenger.of(context).showSnackBar(
                 const SnackBar(
                   content: Text('탈퇴가 완료되었습니다. 이용해 주셔서 감사합니다.'),
                   backgroundColor: Colors.red,
                 ),
               );
-              Future.delayed(const Duration(seconds: 2), () {
-                if (context.mounted) {
-                  Navigator.of(context).pushNamedAndRemoveUntil('/login', (_) => false);
-                }
-              });
+              Navigator.of(context).pushNamedAndRemoveUntil('/login', (_) => false);
             },
             style: ElevatedButton.styleFrom(
               backgroundColor: Colors.red.shade400,

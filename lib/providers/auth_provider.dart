@@ -472,6 +472,35 @@ class AuthProvider extends ChangeNotifier {
     return false;
   }
 
+  /// 앱 탈퇴 — 전화번호·최근 로그인 표시를 지운 뒤 로그아웃.
+  Future<void> withdrawAccount() async {
+    final user = _currentUser;
+    try {
+      final deps = AppDependencies.instance;
+      if (user != null &&
+          deps.isInitialized &&
+          !deps.isOfflineMockMode) {
+        await FirebaseFirestore.instance
+            .collection(FirestorePaths.users)
+            .doc(user.id)
+            .set(
+          {
+            'phone': FieldValue.delete(),
+            'account_status': 'withdrawn',
+            'updated_at': FieldValue.serverTimestamp(),
+          },
+          SetOptions(merge: true),
+        );
+      }
+    } catch (e) {
+      debugPrint('[AuthProvider] withdraw wipe phone skip: $e');
+    }
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.remove(_kLastLoginMethod);
+    _lastLoginMethod = null;
+    await logoutAsync();
+  }
+
   /// 로그아웃 — 자동로그인 세션 삭제
   Future<void> logoutAsync() async {
     final loggedOutId = _currentUser?.id;

@@ -170,6 +170,30 @@ class ClubOpsSync {
   }
 
   /// 계정 단위 (인앱 알림 등)
+  static Future<void> deleteUserOps(String authUserId) async {
+    if (!_enabled || authUserId.isEmpty) return;
+    try {
+      await _db.doc(FirestorePaths.userOpsBundle(authUserId)).delete();
+    } catch (e) {
+      debugPrint('[ClubOpsSync] deleteUserOps fail: $e');
+    }
+  }
+
+  static Future<void> deleteUserMemberships(String userId) async {
+    if (!_enabled || userId.isEmpty) return;
+    try {
+      final snap = await _db
+          .collection(FirestorePaths.userMemberships)
+          .where('user_id', isEqualTo: userId)
+          .get();
+      for (final doc in snap.docs) {
+        await doc.reference.delete();
+      }
+    } catch (e) {
+      debugPrint('[ClubOpsSync] deleteUserMemberships fail: $e');
+    }
+  }
+
   static Future<void> pushUserOps({
     required ClubDataBundle bundle,
     String? authUserId,

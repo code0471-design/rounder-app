@@ -288,12 +288,14 @@ class ClubProvider extends ChangeNotifier with WidgetsBindingObserver {
       _importBundle(saved);
       _suppressPersist = false;
     } else {
-      final templates = switch (authUserId) {
-        'user_guest' => _guestClubs,
-        'user_other' => _otherMemberClubs,
-        _ => _adminClubs,
-      };
-      _myClubs.addAll(templates);
+      // 시드 계정만 템플릿. 카카오/구글/애플 계정은 빈 내 모임에서 시작.
+      if (authUserId == 'user_guest') {
+        _myClubs.addAll(_guestClubs);
+      } else if (authUserId == 'user_other') {
+        _myClubs.addAll(_otherMemberClubs);
+      } else if (authUserId == 'user_me' || authUserId == 'default') {
+        _myClubs.addAll(_adminClubs);
+      }
       _syncAccountClubRoles(authUserId);
       _syncAllNextRounds();
       _normalizeScheduleTitles();
@@ -5256,6 +5258,23 @@ class ClubProvider extends ChangeNotifier with WidgetsBindingObserver {
     }
     notifyListeners();
     return LeaveClubResult(success: true, treasurerVacated: wasTreasurer);
+  }
+
+  /// 앱 탈퇴 — 모든 모임에서 빠지고, 이 계정 로컬·원격 모임 목록을 지운다.
+  Future<void> withdrawFromApp() async {
+    final authId = _persistAuthUserId;
+    final clubIds = _myClubs.map((c) => c.id).toList();
+    for (final id in clubIds) {
+      await leaveClub(id);
+    }
+    if (authId != null && authId.isNotEmpty) {
+      await ClubOpsSync.deleteUserMemberships(authId);
+      await ClubOpsSync.deleteUserOps(authId);
+      await ClubPersistence.clear(authId);
+    }
+    _myClubs.clear();
+    _selectedClubIndex = 0;
+    notifyListeners();
   }
 
   // ════════════════════════════════════════════════════════
