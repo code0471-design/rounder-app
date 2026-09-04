@@ -1836,11 +1836,12 @@ class _InfoCard extends StatelessWidget {
       padding: const EdgeInsets.all(16),
       decoration: BoxDecoration(
         color: Colors.white,
-        borderRadius: BorderRadius.circular(14),
+        borderRadius: BorderRadius.circular(16),
+        border: Border.all(color: AppColors.divider),
         boxShadow: [
           BoxShadow(
-            color: Colors.black.withValues(alpha: 0.05),
-            blurRadius: 6,
+            color: AppColors.primary.withValues(alpha: 0.06),
+            blurRadius: 8,
             offset: const Offset(0, 2),
           ),
         ],
@@ -1850,22 +1851,22 @@ class _InfoCard extends StatelessWidget {
         children: [
           const Text('일정 정보',
               style: TextStyle(
-                  fontSize: 14,
-                  fontWeight: FontWeight.bold,
-                  color: AppColors.textPrimary)),
+                  fontSize: 15,
+                  fontWeight: FontWeight.w800,
+                  color: AppColors.ink)),
           const SizedBox(height: 12),
-          _InfoRow(Icons.golf_course, '골프장', schedule.courseName),
+          _InfoRow(Icons.golf_course_rounded, '골프장', schedule.courseName),
           if (schedule.courseAddress != null)
-            _InfoRow(Icons.location_on_outlined, '주소',
+            _InfoRow(Icons.place_rounded, '주소',
                 schedule.courseAddress!),
-          _InfoRow(Icons.access_time, '티오프', schedule.teeTime),
-          _InfoRow(Icons.group_outlined, '팀 수', '${schedule.teamCount}팀'),
+          _InfoRow(Icons.schedule_rounded, '티오프', schedule.teeTime),
+          _InfoRow(Icons.groups_rounded, '팀 수', '${schedule.teamCount}팀'),
           if (schedule.companionIds.isNotEmpty)
-            _InfoRow(Icons.people_alt_outlined, '동반자',
+            _InfoRow(Icons.people_alt_rounded, '동반자',
                 _companionNames(context, schedule.companionIds)),
           if (schedule.notice != null && schedule.notice!.isNotEmpty)
-            _InfoRow(Icons.campaign_outlined, '메모', schedule.notice!),
-          _InfoRow(Icons.person_outline, '등록자', schedule.createdBy),
+            _InfoRow(Icons.campaign_rounded, '메모', schedule.notice!),
+          _InfoRow(Icons.person_rounded, '등록자', schedule.createdBy),
         ],
       ),
     );
@@ -1891,22 +1892,41 @@ class _InfoRow extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Padding(
-      padding: const EdgeInsets.only(bottom: 10),
+      padding: const EdgeInsets.only(bottom: 12),
       child: Row(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Icon(icon, size: 16, color: AppColors.primary),
-          const SizedBox(width: 8),
+          Container(
+            width: 26,
+            height: 26,
+            decoration: BoxDecoration(
+              color: AppColors.primary.withValues(alpha: 0.08),
+              borderRadius: BorderRadius.circular(8),
+            ),
+            child: Icon(icon, size: 15, color: AppColors.primary),
+          ),
+          const SizedBox(width: 10),
           SizedBox(
-            width: 52,
-            child: Text(label,
-                style: const TextStyle(
-                    fontSize: 12, color: AppColors.textSecondary)),
+            width: 56,
+            child: Padding(
+              padding: const EdgeInsets.only(top: 4),
+              child: Text(label,
+                  style: const TextStyle(
+                      fontSize: 13,
+                      fontWeight: FontWeight.w600,
+                      color: AppColors.textSecondary)),
+            ),
           ),
           Expanded(
-            child: Text(value,
-                style: const TextStyle(
-                    fontSize: 13, color: AppColors.textPrimary)),
+            child: Padding(
+              padding: const EdgeInsets.only(top: 4),
+              child: Text(value,
+                  style: const TextStyle(
+                      fontSize: 14,
+                      fontWeight: FontWeight.w700,
+                      height: 1.35,
+                      color: AppColors.ink)),
+            ),
           ),
         ],
       ),
@@ -1980,11 +2000,12 @@ class _ReviewMemoCardState extends State<_ReviewMemoCard> {
           padding: const EdgeInsets.all(16),
           decoration: BoxDecoration(
             color: Colors.white,
-            borderRadius: BorderRadius.circular(14),
+            borderRadius: BorderRadius.circular(16),
+            border: Border.all(color: AppColors.divider),
             boxShadow: [
               BoxShadow(
-                color: Colors.black.withValues(alpha: 0.05),
-                blurRadius: 6,
+                color: AppColors.primary.withValues(alpha: 0.06),
+                blurRadius: 8,
                 offset: const Offset(0, 2),
               ),
             ],
@@ -1994,13 +2015,13 @@ class _ReviewMemoCardState extends State<_ReviewMemoCard> {
             children: [
               Row(
                 children: [
-                  const Icon(Icons.edit_note, size: 18, color: AppColors.primary),
+                  const Icon(Icons.edit_note_rounded, size: 18, color: AppColors.primary),
                   const SizedBox(width: 6),
                   const Text('라운딩 후기 · 메모',
                       style: TextStyle(
-                          fontSize: 14,
-                          fontWeight: FontWeight.bold,
-                          color: AppColors.textPrimary)),
+                          fontSize: 15,
+                          fontWeight: FontWeight.w800,
+                          color: AppColors.ink)),
                   const Spacer(),
                   if (!_editing)
                     TextButton(
@@ -2185,12 +2206,14 @@ class _RsvpWaitingCardState extends State<_RsvpWaitingCard> {
                 padding: const EdgeInsets.all(16),
                 decoration: BoxDecoration(
                   color: Colors.white,
-                  borderRadius: BorderRadius.circular(14),
+                  borderRadius: BorderRadius.circular(16),
+                  border: Border.all(color: AppColors.divider),
                   boxShadow: [
                     BoxShadow(
-                        color: Colors.black.withValues(alpha: 0.05),
-                        blurRadius: 6,
-                        offset: const Offset(0, 2)),
+                      color: AppColors.primary.withValues(alpha: 0.06),
+                      blurRadius: 8,
+                      offset: const Offset(0, 2),
+                    ),
                   ],
                 ),
                 child: Column(
@@ -2200,8 +2223,8 @@ class _RsvpWaitingCardState extends State<_RsvpWaitingCard> {
                       children: [
                         Icon(
                             schedule.isRsvpClosed
-                                ? Icons.lock_clock_outlined
-                                : Icons.timer_outlined,
+                                ? Icons.lock_clock_rounded
+                                : Icons.timer_rounded,
                             size: 18,
                             color: schedule.isRsvpClosed
                                 ? AppColors.danger
@@ -2209,9 +2232,9 @@ class _RsvpWaitingCardState extends State<_RsvpWaitingCard> {
                         const SizedBox(width: 6),
                         Text('참석 응답 마감',
                             style: const TextStyle(
-                                fontSize: 14,
-                                fontWeight: FontWeight.bold,
-                                color: AppColors.textPrimary)),
+                                fontSize: 15,
+                                fontWeight: FontWeight.w800,
+                                color: AppColors.ink)),
                         const Spacer(),
                         Text(
                           schedule.isRsvpClosed ? '마감됨' : '진행중',
@@ -2256,7 +2279,7 @@ class _RsvpWaitingCardState extends State<_RsvpWaitingCard> {
                                 ),
                               );
                             },
-                            icon: const Icon(Icons.notifications_active_outlined, size: 16),
+                            icon: const Icon(Icons.notifications_active_rounded, size: 16),
                             label: const Text('알림 보내기',
                                 style: TextStyle(fontSize: 12, fontWeight: FontWeight.w600)),
                             style: TextButton.styleFrom(
@@ -2276,12 +2299,14 @@ class _RsvpWaitingCardState extends State<_RsvpWaitingCard> {
                 padding: const EdgeInsets.all(16),
                 decoration: BoxDecoration(
                   color: Colors.white,
-                  borderRadius: BorderRadius.circular(14),
+                  borderRadius: BorderRadius.circular(16),
+                  border: Border.all(color: AppColors.divider),
                   boxShadow: [
                     BoxShadow(
-                        color: Colors.black.withValues(alpha: 0.05),
-                        blurRadius: 6,
-                        offset: const Offset(0, 2)),
+                      color: AppColors.primary.withValues(alpha: 0.06),
+                      blurRadius: 8,
+                      offset: const Offset(0, 2),
+                    ),
                   ],
                 ),
                 child: Column(
@@ -2294,9 +2319,9 @@ class _RsvpWaitingCardState extends State<_RsvpWaitingCard> {
                         const SizedBox(width: 6),
                         Text('대기 명단 (정원 ${schedule.maxCapacity}명)',
                             style: const TextStyle(
-                                fontSize: 14,
-                                fontWeight: FontWeight.bold,
-                                color: AppColors.textPrimary)),
+                                fontSize: 15,
+                                fontWeight: FontWeight.w800,
+                                color: AppColors.ink)),
                         const Spacer(),
                         Text('${waitList.length}명',
                             style: const TextStyle(
@@ -2448,9 +2473,10 @@ class _AttendanceCard extends StatelessWidget {
           decoration: BoxDecoration(
             color: Colors.white,
             borderRadius: BorderRadius.circular(16),
+            border: Border.all(color: AppColors.divider),
             boxShadow: [
               BoxShadow(
-                color: Colors.black.withValues(alpha: 0.06),
+                color: AppColors.primary.withValues(alpha: 0.06),
                 blurRadius: 8,
                 offset: const Offset(0, 2),
               ),
@@ -2474,9 +2500,9 @@ class _AttendanceCard extends StatelessWidget {
                     const SizedBox(width: 8),
                     const Text('참석 현황',
                         style: TextStyle(
-                            fontSize: 14,
-                            fontWeight: FontWeight.bold,
-                            color: AppColors.textPrimary)),
+                            fontSize: 15,
+                            fontWeight: FontWeight.w800,
+                            color: AppColors.ink)),
                     const Spacer(),
                     Text('정회원 $total명',
                         style: const TextStyle(
@@ -2639,7 +2665,7 @@ class _StatItem extends StatelessWidget {
             label,
             style: const TextStyle(
               fontSize: 12,
-              color: Color(0xFF999999),
+              color: AppColors.textTertiary,
               fontWeight: FontWeight.w500,
             ),
           ),
@@ -2655,7 +2681,7 @@ class _Divider extends StatelessWidget {
     return Container(
       width: 1,
       height: 32,
-      color: const Color(0xFFEEEEEE),
+      color: AppColors.divider,
     );
   }
 }
@@ -3932,9 +3958,10 @@ class _PhotoSection extends StatelessWidget {
           decoration: BoxDecoration(
             color: Colors.white,
             borderRadius: BorderRadius.circular(16),
+            border: Border.all(color: AppColors.divider),
             boxShadow: [
               BoxShadow(
-                color: Colors.black.withValues(alpha: 0.05),
+                color: AppColors.primary.withValues(alpha: 0.06),
                 blurRadius: 8,
                 offset: const Offset(0, 2),
               ),
@@ -3967,9 +3994,9 @@ class _PhotoSection extends StatelessWidget {
                           children: [
                             const Text('라운딩 사진',
                                 style: TextStyle(
-                                    fontSize: 14,
-                                    fontWeight: FontWeight.w700,
-                                    color: AppColors.textPrimary)),
+                                    fontSize: 15,
+                                    fontWeight: FontWeight.w800,
+                                    color: AppColors.ink)),
                             if (photos.isNotEmpty) ...[
                               const SizedBox(width: 6),
                               Container(
@@ -4084,7 +4111,7 @@ class _PhotoSection extends StatelessWidget {
               ] else ...[
                 const SizedBox(height: 16),
                 Material(
-                  color: const Color(0xFFF8F9FA),
+                  color: AppColors.surfaceVariant,
                   borderRadius: BorderRadius.circular(10),
                   child: InkWell(
                     onTap: () => _showUploadDialog(context, provider),
@@ -4101,7 +4128,7 @@ class _PhotoSection extends StatelessWidget {
                       ),
                       child: Column(
                         children: [
-                          Icon(Icons.add_photo_alternate_outlined,
+                          Icon(Icons.add_photo_alternate_rounded,
                               size: 36,
                               color: AppColors.textSecondary
                                   .withValues(alpha: 0.5)),
@@ -4859,7 +4886,7 @@ class _GroupViewBannerCard extends StatelessWidget {
                           '조편성 보기',
                           style: TextStyle(
                             fontSize: 16,
-                            fontWeight: FontWeight.bold,
+                            fontWeight: FontWeight.w800,
                             color: isFinalized
                                 ? Colors.white
                                 : _orangeDeep,
@@ -4947,7 +4974,7 @@ class _GroupViewBannerCard extends StatelessWidget {
                         Icons.chevron_right_rounded,
                         color: isFinalized
                             ? Colors.white.withValues(alpha: 0.7)
-                            : const Color(0xFF90A4AE),
+                            : AppColors.textTertiary,
                       ),
                     ],
                 ],
@@ -4983,20 +5010,20 @@ class _GroupViewBannerCard extends StatelessWidget {
                   padding: const EdgeInsets.symmetric(
                       horizontal: 12, vertical: 10),
                   decoration: BoxDecoration(
-                    color: const Color(0xFFF5F7FA),
+                    color: AppColors.surfaceVariant,
                     borderRadius: BorderRadius.circular(10),
                   ),
                   child: const Row(
                     children: [
                       Icon(Icons.lock_clock_rounded,
-                          size: 15, color: Color(0xFF90A4AE)),
+                          size: 15, color: AppColors.textTertiary),
                       SizedBox(width: 8),
                       Expanded(
                         child: Text(
                           '조편성이 확정되면 이름, 배정 조를 확인할 수 있습니다',
                           style: TextStyle(
                               fontSize: 12,
-                              color: Color(0xFF78909C),
+                              color: AppColors.textTertiary,
                               height: 1.4),
                         ),
                       ),
@@ -5138,13 +5165,13 @@ class _ScoreAwardBannerCard extends StatelessWidget {
           children: [
             Row(
               children: [
-                const Icon(Icons.emoji_events_outlined,
+                const Icon(Icons.emoji_events_rounded,
                     color: AppColors.primary, size: 18),
                 const SizedBox(width: 6),
                 Text(
                   isPast ? '라운딩 기록' : '스코어 & 시상',
                   style: const TextStyle(
-                    color: Color(0xFF999999),
+                    color: AppColors.textTertiary,
                     fontSize: 12,
                     fontWeight: FontWeight.w500,
                   ),
@@ -5171,9 +5198,9 @@ class _ScoreAwardBannerCard extends StatelessWidget {
             Text(
               isPast ? '스코어 & 시상 내역' : '스코어 & 시상 입력',
               style: const TextStyle(
-                color: Color(0xFF222222),
+                color: AppColors.ink,
                 fontSize: 18,
-                fontWeight: FontWeight.bold,
+                fontWeight: FontWeight.w800,
               ),
             ),
             const SizedBox(height: 4),
@@ -5182,7 +5209,7 @@ class _ScoreAwardBannerCard extends StatelessWidget {
                   ? '모든 회원이 스코어를 확인하고 시상 내역을 볼 수 있어요'
                   : '조를 선택하면 해당 조 멤버의 스코어를 입력할 수 있어요',
               style: const TextStyle(
-                color: Color(0xFF999999),
+                color: AppColors.textTertiary,
                 fontSize: 12,
               ),
             ),
@@ -5209,7 +5236,7 @@ class _ScoreAwardBannerCard extends StatelessWidget {
                             '스코어 입력',
                             style: TextStyle(
                               fontSize: 13,
-                              fontWeight: FontWeight.bold,
+                              fontWeight: FontWeight.w800,
                               color: AppColors.primaryDark,
                             ),
                           ),
@@ -5255,7 +5282,7 @@ class _ScoreAwardBannerCard extends StatelessWidget {
                             '시상 내역',
                             style: TextStyle(
                               fontSize: 13,
-                              fontWeight: FontWeight.bold,
+                              fontWeight: FontWeight.w800,
                               color: AppColors.primaryDark,
                             ),
                           ),

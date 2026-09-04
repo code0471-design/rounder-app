@@ -134,6 +134,48 @@ void main() {
     expect(body.contains('_PhotoSection(schedule: schedule)'), isTrue);
   });
 
+  test('일정 상세 카드는 리뉴얼 톤(흰 카드+divider 테두리+딥그린 그림자)으로 통일돼 있다', () {
+    int countOf(String needle) => source.split(needle).length - 1;
+    // 내 응답 / 조편성 / 참석 현황 / RSVP·대기 / 스코어 / 일정 정보 / 사진 / 후기
+    expect(countOf('border: Border.all(color: AppColors.divider),'),
+        greaterThanOrEqualTo(6),
+        reason: '카드 테두리가 다시 빠졌다 (radius 14 + 검정 그림자 옛 스타일 회귀)');
+    expect(countOf('color: AppColors.primary.withValues(alpha: 0.06),'),
+        greaterThanOrEqualTo(6),
+        reason: '카드 그림자가 딥그린 톤에서 검정으로 회귀');
+  });
+
+  test('상세 카드에 옛 회색·블루그레이 팔레트가 없어야 한다', () {
+    for (final hex in const [
+      '0xFF999999',
+      '0xFF222222',
+      '0xFFEEEEEE',
+      '0xFF90A4AE',
+      '0xFF78909C',
+      '0xFFF5F7FA',
+      '0xFFF8F9FA',
+    ]) {
+      expect(source.contains(hex), isFalse,
+          reason: '옛 팔레트 $hex 가 다시 들어옴 — AppColors를 쓸 것');
+    }
+  });
+
+  test('일정 정보 행은 rounded 아이콘을 쓴다', () {
+    expect(source.contains("_InfoRow(Icons.golf_course_rounded, '골프장'"), isTrue);
+    expect(source.contains("_InfoRow(Icons.schedule_rounded, '티오프'"), isTrue);
+    for (final old in const [
+      '_InfoRow(Icons.golf_course,',
+      '_InfoRow(Icons.access_time,',
+      '_InfoRow(Icons.group_outlined,',
+      '_InfoRow(Icons.person_outline,',
+      '_InfoRow(Icons.location_on_outlined,',
+      '_InfoRow(Icons.campaign_outlined,',
+      '_InfoRow(Icons.people_alt_outlined,',
+    ]) {
+      expect(source.contains(old), isFalse, reason: '옛 아이콘 회귀: $old');
+    }
+  });
+
   test('일정 등록에 예약 문자 붙여넣기가 있어야 한다', () {
     expect(source.contains('ReservationSmsFillBanner'), isTrue,
         reason: '일정 등록 예약 문자 배너가 사라짐');
