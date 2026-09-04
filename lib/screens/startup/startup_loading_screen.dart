@@ -1,8 +1,9 @@
 import 'package:flutter/material.dart';
 
 import '../../theme/app_theme.dart';
+import '../../widgets/rounder_logo.dart';
 
-/// Firebase/DI 실패 시 표시 (runApp 이전 단계)
+/// Firebase/DI 부트스트랩 — 인트로와 같은 가운데 로고
 class StartupLoadingScreen extends StatelessWidget {
   const StartupLoadingScreen({super.key});
 
@@ -12,23 +13,23 @@ class StartupLoadingScreen extends StatelessWidget {
       debugShowCheckedModeBanner: false,
       home: Scaffold(
         backgroundColor: Colors.white,
-        body: Center(
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              CircularProgressIndicator(color: AppColors.primary),
-              SizedBox(height: 20),
-              Text(
-                'ROUNDER 시작 중…',
-                style: TextStyle(
-                  fontSize: 15,
-                  fontWeight: FontWeight.w600,
-                  color: AppColors.textPrimary,
-                ),
-              ),
-            ],
-          ),
-        ),
+        body: _CenteredIntroLogo(),
+      ),
+    );
+  }
+}
+
+class _CenteredIntroLogo extends StatelessWidget {
+  const _CenteredIntroLogo();
+
+  @override
+  Widget build(BuildContext context) {
+    final h = MediaQuery.sizeOf(context).height;
+    return Center(
+      child: RounderLogo(
+        vertical: true,
+        height: h * 0.36,
+        width: h * 0.36,
       ),
     );
   }

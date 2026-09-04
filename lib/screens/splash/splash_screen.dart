@@ -4,6 +4,7 @@ import 'package:provider/provider.dart';
 import '../../di/app_dependencies.dart';
 import '../../providers/auth_provider.dart';
 import '../../providers/club_provider.dart';
+import '../../widgets/rounder_logo.dart';
 
 class SplashScreen extends StatefulWidget {
   const SplashScreen({super.key});
@@ -12,7 +13,12 @@ class SplashScreen extends StatefulWidget {
   State<SplashScreen> createState() => _SplashScreenState();
 }
 
-class _SplashScreenState extends State<SplashScreen> {
+class _SplashScreenState extends State<SplashScreen>
+    with SingleTickerProviderStateMixin {
+  late AnimationController _controller;
+  late Animation<double> _fade;
+  late Animation<double> _scale;
+
   @override
   void initState() {
     super.initState();
@@ -20,14 +26,31 @@ class _SplashScreenState extends State<SplashScreen> {
       statusBarColor: Colors.transparent,
       statusBarIconBrightness: Brightness.dark,
     ));
+
+    _controller = AnimationController(
+      vsync: this,
+      duration: const Duration(milliseconds: 900),
+    );
+    _fade = Tween<double>(begin: 0.0, end: 1.0).animate(
+      CurvedAnimation(
+        parent: _controller,
+        curve: const Interval(0.0, 0.7, curve: Curves.easeOut),
+      ),
+    );
+    _scale = Tween<double>(begin: 0.80, end: 1.0).animate(
+      CurvedAnimation(
+        parent: _controller,
+        curve: const Interval(0.0, 0.8, curve: Curves.easeOutBack),
+      ),
+    );
+
     _run();
   }
 
-  Future<void> _run() async {
+  Future<bool> _autoLoginAndHydrate() async {
     var autoLoggedIn = false;
-
     try {
-      if (!mounted) return;
+      if (!mounted) return false;
 
       final auth = context.read<AuthProvider>();
       autoLoggedIn = await auth.tryAutoLogin().timeout(
@@ -35,7 +58,7 @@ class _SplashScreenState extends State<SplashScreen> {
             onTimeout: () => false,
           );
 
-      if (!mounted) return;
+      if (!mounted) return autoLoggedIn;
 
       if (autoLoggedIn) {
         final userId = auth.currentUser!.id;
@@ -78,6 +101,17 @@ class _SplashScreenState extends State<SplashScreen> {
     } catch (e, st) {
       debugPrint('[SplashScreen] splash flow error: $e\n$st');
     }
+    return autoLoggedIn;
+  }
+
+  Future<void> _run() async {
+    await Future.delayed(const Duration(milliseconds: 200));
+    if (!mounted) return;
+    _controller.forward();
+
+    final loginFuture = _autoLoginAndHydrate();
+    await Future.delayed(const Duration(milliseconds: 1800));
+    var autoLoggedIn = await loginFuture;
 
     if (!mounted) return;
 
@@ -98,10 +132,42 @@ class _SplashScreenState extends State<SplashScreen> {
   }
 
   @override
+  void dispose() {
+    _controller.dispose();
+    super.dispose();
+  }
+
+  @override
   Widget build(BuildContext context) {
-    return const Scaffold(
-      backgroundColor: Color(0xFFFFFFFF),
-      body: SizedBox.expand(),
+    return AnnotatedRegion<SystemUiOverlayStyle>(
+      value: const SystemUiOverlayStyle(
+        statusBarColor: Colors.transparent,
+        statusBarIconBrightness: Brightness.dark,
+      ),
+      child: Scaffold(
+        backgroundColor: Colors.white,
+        body: SizedBox.expand(
+          child: AnimatedBuilder(
+            animation: _controller,
+            builder: (_, __) {
+              final h = MediaQuery.sizeOf(context).height;
+              return FadeTransition(
+                opacity: _fade,
+                child: Transform.scale(
+                  scale: _scale.value,
+                  child: Center(
+                    child: RounderLogo(
+                      vertical: true,
+                      height: h * 0.36,
+                      width: h * 0.36,
+                    ),
+                  ),
+                ),
+              );
+            },
+          ),
+        ),
+      ),
     );
   }
 }
