@@ -4,6 +4,8 @@ import 'package:firebase_core/firebase_core.dart';
 import 'package:flutter/foundation.dart';
 import 'package:intl/date_symbol_data_local.dart';
 
+import '../core/config/app_environment.dart';
+import '../core/config/firebase_env_guard.dart';
 import '../core/config/runtime_mode.dart';
 import '../di/app_dependencies.dart';
 import '../firebase_options.dart';
@@ -48,7 +50,15 @@ abstract final class AppStartupBootstrap {
         ).timeout(const Duration(seconds: 5));
       }
       firebaseReady = true;
-      debugPrint('[AppStartup] Firebase.initializeApp OK');
+      final envError = FirebaseEnvGuard.verify();
+      if (envError != null) {
+        debugPrint('[AppStartup] ENV MISMATCH\n$envError');
+        return AppStartupResult.envMismatch(envError);
+      }
+      debugPrint(
+        '[AppStartup] Firebase.initializeApp OK '
+        '(${AppEnv.label} / ${Firebase.app().options.projectId})',
+      );
       try {
         await Future.wait([
           HqPushCatalog.load(),
@@ -95,9 +105,11 @@ abstract final class AppStartupBootstrap {
       debugPrint('[AppStartup] date formatting skip: $e');
     }
 
-    // Web + USE_FIREBASE_WEB=true 성공 시 Staging 배너로 모드 표시
+    // 실연동 성공 표시 — 배너는 스테이징에서만 (운영은 사용자에게 노출 금지)
     if (firebaseReady && warning == null && RuntimeMode.useFirebaseWeb) {
-      return AppStartupResult.stagingFirebase();
+      return AppEnv.isProd
+          ? AppStartupResult.prodFirebase()
+          : AppStartupResult.stagingFirebase();
     }
 
     return AppStartupResult(

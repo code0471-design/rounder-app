@@ -1,6 +1,11 @@
 # Codemagic: Android Play AAB + optional iOS build.
 # Select workflow "Android release AAB" for Play Console upload.
 # Version comes from pubspec.yaml (e.g. 1.0.0+30) — do NOT hardcode --build-number.
+#
+# 백엔드 환경은 APP_ENV 로 정한다 (기본 staging).
+# 운영 빌드는 Codemagic 빌드 시작 화면에서 APP_ENV=prod 를 넘길 것.
+# tool/select_firebase_env.js 가 네이티브 설정을 바꾸고, --dart-define=APP_ENV 가
+# Dart 쪽 옵션을 맞춘다. 둘이 어긋나면 앱이 시작 시점에 막는다.
 workflows:
   ios-first:
     name: iOS first (Android optional)
@@ -12,6 +17,8 @@ workflows:
       flutter: stable
       xcode: latest
       cocoapods: default
+      vars:
+        APP_ENV: staging
       groups:
         - solapi
       android_signing:
@@ -24,6 +31,8 @@ workflows:
     scripts:
       - name: Get packages
         script: flutter pub get
+      - name: Select Firebase environment
+        script: node tool/select_firebase_env.js --env "$APP_ENV"
       - name: Check Solapi env
         script: python3 tool/write_solapi_defines.py
       - name: Set up iOS code signing
@@ -39,7 +48,7 @@ workflows:
           python3 tool/write_solapi_defines.py
           flutter build appbundle --release --android-skip-build-dependency-validation \
             --build-name="$BUILD_NAME" --build-number="$BUILD_NUMBER" \
-            --dart-define-from-file=solapi_defines.json
+            --dart-define=APP_ENV="$APP_ENV" --dart-define-from-file=solapi_defines.json
       - name: Build iOS IPA
         script: |
           VERSION_LINE=$(grep '^version:' pubspec.yaml | head -1 | tr -d ' ')
@@ -51,7 +60,7 @@ workflows:
           flutter build ipa --release \
             --build-name="$BUILD_NAME" \
             --build-number="$BUILD_NUMBER" \
-            --dart-define-from-file=solapi_defines.json \
+            --dart-define=APP_ENV="$APP_ENV" --dart-define-from-file=solapi_defines.json \
             --export-options-plist=/Users/builder/export_options.plist
     artifacts:
       - build/**/outputs/**/*.aab
@@ -70,6 +79,8 @@ workflows:
     max_build_duration: 60
     environment:
       flutter: stable
+      vars:
+        APP_ENV: staging
       groups:
         - solapi
       android_signing:
@@ -77,6 +88,8 @@ workflows:
     scripts:
       - name: Get packages
         script: flutter pub get
+      - name: Select Firebase environment
+        script: node tool/select_firebase_env.js --env "$APP_ENV"
       - name: Check Solapi env
         script: python3 tool/write_solapi_defines.py
       - name: Build release APK
@@ -89,7 +102,7 @@ workflows:
           python3 tool/write_solapi_defines.py
           flutter build apk --release --android-skip-build-dependency-validation \
             --build-name="$BUILD_NAME" --build-number="$BUILD_NUMBER" \
-            --dart-define-from-file=solapi_defines.json
+            --dart-define=APP_ENV="$APP_ENV" --dart-define-from-file=solapi_defines.json
     artifacts:
       - build/**/outputs/**/*.apk
 
@@ -99,6 +112,8 @@ workflows:
     max_build_duration: 60
     environment:
       flutter: stable
+      vars:
+        APP_ENV: staging
       groups:
         - solapi
       android_signing:
@@ -106,6 +121,8 @@ workflows:
     scripts:
       - name: Get packages
         script: flutter pub get
+      - name: Select Firebase environment
+        script: node tool/select_firebase_env.js --env "$APP_ENV"
       - name: Check Solapi env
         script: python3 tool/write_solapi_defines.py
       - name: Build release AAB
@@ -119,7 +136,7 @@ workflows:
           python3 tool/write_solapi_defines.py
           flutter build appbundle --release --android-skip-build-dependency-validation \
             --build-name="$BUILD_NAME" --build-number="$BUILD_NUMBER" \
-            --dart-define-from-file=solapi_defines.json \
+            --dart-define=APP_ENV="$APP_ENV" --dart-define-from-file=solapi_defines.json \
             2>&1 | tee /tmp/rounder_aab.log
           status=${PIPESTATUS[0]}
           if [ $status -ne 0 ]; then

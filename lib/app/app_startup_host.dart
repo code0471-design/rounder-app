@@ -69,6 +69,14 @@ class _AppStartupHostState extends State<AppStartupHost> {
       return StartupLoadingScreen(key: ValueKey(_attempt));
     }
 
+    // 환경 불일치 등 설정 오류는 Mock 으로 우회하지 않고 실행을 막는다.
+    if (result.fatal) {
+      return StartupFatalScreen(
+        message: result.errorDetail ?? result.warning ?? '앱을 실행할 수 없습니다.',
+        onRetry: _retry,
+      );
+    }
+
     return RounderApp(startup: result);
   }
 }

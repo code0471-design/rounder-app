@@ -1,0 +1,29 @@
+{
+  "project_info": {
+    "project_number": "399890870575",
+    "project_id": "rounder-f6019",
+    "storage_bucket": "rounder-f6019.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:399890870575:android:0524445ffa5f1738e6f1da",
+        "android_client_info": {
+          "package_name": "com.golfrounder.golf"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyDydqGGrRgZKbUkNTpSXRXa7MqE0zAfT_Q"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}
