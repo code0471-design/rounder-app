@@ -24,6 +24,119 @@ String _fmtSigned(int n) {
   return _fmt(n);
 }
 
+/// 왼쪽 잔고, 오른쪽 위 수입 / 아래 지출
+class _SplitMoneyRow extends StatelessWidget {
+  final String leftLabel;
+  final String leftValue;
+  final Color leftColor;
+  final Color labelColor;
+  final String topLabel;
+  final String topValue;
+  final Color topColor;
+  final String bottomLabel;
+  final String bottomValue;
+  final Color bottomColor;
+  final Color dividerColor;
+  final Widget? leftExtra;
+
+  const _SplitMoneyRow({
+    required this.leftLabel,
+    required this.leftValue,
+    required this.leftColor,
+    required this.labelColor,
+    required this.topLabel,
+    required this.topValue,
+    required this.topColor,
+    required this.bottomLabel,
+    required this.bottomValue,
+    required this.bottomColor,
+    required this.dividerColor,
+    this.leftExtra,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return Row(
+      crossAxisAlignment: CrossAxisAlignment.center,
+      children: [
+        Expanded(
+          flex: 11,
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text(leftLabel,
+                  style: TextStyle(
+                      fontSize: 12,
+                      fontWeight: FontWeight.w600,
+                      color: labelColor)),
+              const SizedBox(height: 6),
+              FittedBox(
+                fit: BoxFit.scaleDown,
+                alignment: Alignment.centerLeft,
+                child: Text(leftValue,
+                    maxLines: 1,
+                    style: TextStyle(
+                      fontSize: 20,
+                      fontWeight: FontWeight.w600,
+                      color: leftColor,
+                      height: 1.1,
+                      letterSpacing: -0.2,
+                    )),
+              ),
+              if (leftExtra != null) leftExtra!,
+            ],
+          ),
+        ),
+        Container(
+            width: 1,
+            height: 52,
+            margin: const EdgeInsets.symmetric(horizontal: 12),
+            color: dividerColor),
+        Expanded(
+          flex: 9,
+          child: Column(
+            children: [
+              _flowLine(topLabel, topValue, topColor),
+              Padding(
+                padding: const EdgeInsets.symmetric(vertical: 8),
+                child: Divider(height: 1, color: dividerColor),
+              ),
+              _flowLine(bottomLabel, bottomValue, bottomColor),
+            ],
+          ),
+        ),
+      ],
+    );
+  }
+
+  Widget _flowLine(String label, String value, Color color) {
+    return Row(
+      children: [
+        Text(label,
+            style: TextStyle(
+                fontSize: 11,
+                fontWeight: FontWeight.w600,
+                color: labelColor)),
+        const SizedBox(width: 8),
+        Expanded(
+          child: FittedBox(
+            fit: BoxFit.scaleDown,
+            alignment: Alignment.centerRight,
+            child: Text(value,
+                maxLines: 1,
+                textAlign: TextAlign.right,
+                style: TextStyle(
+                    fontSize: 13,
+                    fontWeight: FontWeight.w800,
+                    color: color,
+                    height: 1.1)),
+          ),
+        ),
+      ],
+    );
+  }
+}
+
 // ════════════════════════════════════════════════════════════
 //  FinanceScreen — 재무 탭
 // ════════════════════════════════════════════════════════════
@@ -129,6 +242,7 @@ class _FinanceScreenState extends State<FinanceScreen>
                 balance: provider.totalBalance,
                 income: provider.monthlyIncome(now.year, now.month),
                 expense: provider.monthlyExpense(now.year, now.month),
+                hasCarryover: provider.hasCarryover(now.year),
               ),
               // ── 총무 최초 진입 가이드 ──
               if (isTreasurer && provider.isFinanceSetupPending)
@@ -221,92 +335,52 @@ class _BalanceSummaryCard extends StatelessWidget {
   final int balance;
   final int income;
   final int expense;
+  final bool hasCarryover;
 
   const _BalanceSummaryCard({
     required this.balance,
     required this.income,
     required this.expense,
+    required this.hasCarryover,
   });
 
   @override
   Widget build(BuildContext context) {
+    final now = DateTime.now();
     return Container(
       width: double.infinity,
-      decoration: const BoxDecoration(
-        gradient: LinearGradient(
-          begin: Alignment.topCenter,
-          end: Alignment.bottomCenter,
-          colors: [AppColors.sageDeep, AppColors.sageDarker],
+      color: AppColors.cream,
+      padding: const EdgeInsets.fromLTRB(16, 10, 16, 4),
+      child: Container(
+        width: double.infinity,
+        padding: const EdgeInsets.fromLTRB(16, 16, 10, 16),
+        decoration: BoxDecoration(
+          color: const Color(0xFF0D1117),
+          borderRadius: BorderRadius.circular(16),
         ),
-      ),
-      clipBehavior: Clip.hardEdge,
-      child: Stack(
-        children: [
-          // 장식 원 (우측 상단)
-          Positioned(
-            right: -30, top: -20,
-            child: Container(
-              width: 140, height: 140,
-              decoration: BoxDecoration(
-                shape: BoxShape.circle,
-                gradient: RadialGradient(colors: [
-                  Colors.white.withValues(alpha: 0.08),
-                  Colors.transparent,
-                ]),
-              ),
-            ),
-          ),
-          Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Padding(
-                padding: const EdgeInsets.fromLTRB(20, 18, 20, 22),
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    // 라벨
-                    Row(children: [
-                      Text('현 회비 잔고',
-                          style: TextStyle(
-                              fontSize: 10, letterSpacing: 0.2 * 10,
-                              color: Colors.white.withValues(alpha: 0.7))),
-                    ]),
-                    // 금액 (큰 숫자)
-                    const SizedBox(height: 6),
-                    Row(
-                      crossAxisAlignment: CrossAxisAlignment.baseline,
-                      textBaseline: TextBaseline.alphabetic,
-                      children: [
-                        Text(_fmtSigned(balance),
-                            style: TextStyle(
-                              fontFamily: 'NanumGothic',
-                              fontSize: 42, fontWeight: FontWeight.w300,
-                              color: balance < 0
-                                  ? const Color(0xFFFFCDD2)
-                                  : Colors.white,
-                              letterSpacing: -0.02 * 42,
-                            )),
-                        const SizedBox(width: 4),
-                        Text('원',
-                            style: TextStyle(fontSize: 15,
-                                color: Colors.white.withValues(alpha: 0.75))),
-                      ],
-                    ),
-                    // 수입/지출 flow-row
-                    const SizedBox(height: 12),
-                    Row(children: [
-                      _FlowItem(label: '이달 수입', amount: income,
-                          valueColor: const Color(0xFFB8D4A5)),
-                      const SizedBox(width: 20),
-                      _FlowItem(label: '이달 지출', amount: expense,
-                          valueColor: const Color(0xFFE8B8B8)),
-                    ]),
-                  ],
-                ),
-              ),
-            ],
-          ),
-        ],
+        child: _SplitMoneyRow(
+          leftLabel: '현 회비 잔고',
+          leftValue: '${_fmtSigned(balance)}원',
+          leftColor: Colors.white,
+          labelColor: const Color(0xFF9CA3AF),
+          topLabel: '이달 수입',
+          topValue: '+${_fmt(income)}원',
+          topColor: const Color(0xFF60A5FA),
+          bottomLabel: '이달 지출',
+          bottomValue: '-${_fmt(expense)}원',
+          bottomColor: const Color(0xFFF3A6A6),
+          dividerColor: const Color(0xFF374151),
+          leftExtra: hasCarryover
+              ? Padding(
+                  padding: const EdgeInsets.only(top: 4),
+                  child: Text('${now.year - 1}년 이월 포함',
+                      style: const TextStyle(
+                          fontSize: 10,
+                          color: AppColors.gold,
+                          fontWeight: FontWeight.w600)),
+                )
+              : null,
+        ),
       ),
     );
   }
@@ -1935,7 +2009,7 @@ class _DuesSettingTab extends StatelessWidget {
         final settings = provider.allDuesSettings;
         final activeSettings = settings.where((s) => s.isActive).toList();
         final isTreasurer = provider.isTreasurer;
-        final showDuesBubble = isTreasurer && activeSettings.isEmpty;
+        final primaryKind = provider.clubPrimaryDuesType;
 
         return Scaffold(
           backgroundColor: AppColors.background,
@@ -2011,10 +2085,57 @@ class _DuesSettingTab extends StatelessWidget {
                 const SizedBox(height: 20),
               ],
 
+              if (isAdmin && primaryKind == null) ...[
+                const _SettingSectionLabel('모임 회비 종류'),
+                const SizedBox(height: 8),
+                const Text(
+                  '어떤 종류의 회비를 걷는 모임인지 선택하세요',
+                  style: TextStyle(fontSize: 12, color: AppColors.textSecondary),
+                ),
+                const SizedBox(height: 10),
+                _DuesKindChoiceCard(
+                  title: '월회비 모임',
+                  subtitle: '매달 회비를 걷습니다',
+                  icon: '📅',
+                  onTap: () => _openDuesForm(
+                    context,
+                    provider,
+                    initialType: DuesType.monthly,
+                    allowedTypes: const [DuesType.monthly, DuesType.special],
+                  ),
+                ),
+                _DuesKindChoiceCard(
+                  title: '연회비 모임',
+                  subtitle: '1년에 한 번 회비를 걷습니다',
+                  icon: '📆',
+                  onTap: () => _openDuesForm(
+                    context,
+                    provider,
+                    initialType: DuesType.annual,
+                    allowedTypes: const [DuesType.annual, DuesType.special],
+                  ),
+                ),
+                const SizedBox(height: 12),
+              ],
+
+              if (isAdmin && primaryKind != null) ...[
+                _PrimaryDuesKindBanner(
+                  kind: primaryKind,
+                  onSwitch: () => _confirmSwitchKind(
+                    context,
+                    provider,
+                    primaryKind == DuesType.monthly
+                        ? DuesType.annual
+                        : DuesType.monthly,
+                  ),
+                ),
+                const SizedBox(height: 16),
+              ],
+
               // 활성 회비
               const _SettingSectionLabel('활성 회비'),
               const SizedBox(height: 8),
-              if (activeSettings.isEmpty)
+              if (activeSettings.isEmpty && primaryKind != null)
                 Container(
                   width: double.infinity,
                   padding: const EdgeInsets.symmetric(vertical: 28, horizontal: 16),
@@ -2040,7 +2161,7 @@ class _DuesSettingTab extends StatelessWidget {
                       ),
                       SizedBox(height: 4),
                       Text(
-                        '아래 버튼으로 월회비·연회비를 추가하세요',
+                        '아래 버튼으로 회비와 특별회비를 추가하세요',
                         style: TextStyle(
                           fontSize: 12,
                           color: AppColors.inkSoft,
@@ -2080,15 +2201,6 @@ class _DuesSettingTab extends StatelessWidget {
               ],
             ],
           ),
-              // 총무 + 회비 미설정 → FAB를 가리키는 말풍선
-              if (showDuesBubble)
-                Positioned(
-                  right: 12,
-                  bottom: 72, // FAB 바로 위
-                  child: _DuesSetupSpeechBubble(
-                    onTap: () => _showAddDuesSheet(context, provider),
-                  ),
-                ),
             ],
           ),
         );
@@ -2096,12 +2208,118 @@ class _DuesSettingTab extends StatelessWidget {
     );
   }
 
+  void _confirmSwitchKind(
+      BuildContext context, ClubProvider provider, DuesType next) {
+    final from = next == DuesType.annual ? '월회비' : '연회비';
+    final to = next == DuesType.annual ? '연회비' : '월회비';
+    showDialog(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+        title: Text('$to 모임으로 변경',
+            style: const TextStyle(fontSize: 16, fontWeight: FontWeight.bold)),
+        content: Text(
+          '현재 $from 설정을 종료하고 $to 모임을 시작합니다.\n기존 납부 기록은 유지됩니다.',
+          style: const TextStyle(fontSize: 13, height: 1.5),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(ctx),
+            child: const Text('취소'),
+          ),
+          ElevatedButton(
+            onPressed: () {
+              Navigator.pop(ctx);
+              _openDuesForm(
+                context,
+                provider,
+                initialType: next,
+                allowedTypes: [next, DuesType.special],
+                onCreated: (created) {
+                  if (created.type == next) {
+                    provider.switchPrimaryDuesType(
+                      next,
+                      keepSettingId: created.id,
+                    );
+                  }
+                },
+              );
+            },
+            style: ElevatedButton.styleFrom(
+              backgroundColor: AppColors.sageDeep,
+              foregroundColor: Colors.white,
+            ),
+            child: Text('$to로 변경'),
+          ),
+        ],
+      ),
+    );
+  }
+
   void _showAddDuesSheet(BuildContext context, ClubProvider provider) {
+    final kind = provider.clubPrimaryDuesType;
+    if (kind == null) {
+      showModalBottomSheet(
+        context: context,
+        isScrollControlled: true,
+        backgroundColor: Colors.transparent,
+        builder: (sheetCtx) => _DuesKindChooserSheet(
+          onMonthly: () {
+            Navigator.pop(sheetCtx);
+            _openDuesForm(
+              context,
+              provider,
+              initialType: DuesType.monthly,
+              allowedTypes: const [DuesType.monthly, DuesType.special],
+            );
+          },
+          onAnnual: () {
+            Navigator.pop(sheetCtx);
+            _openDuesForm(
+              context,
+              provider,
+              initialType: DuesType.annual,
+              allowedTypes: const [DuesType.annual, DuesType.special],
+            );
+          },
+          onSpecial: () {
+            Navigator.pop(sheetCtx);
+            _openDuesForm(
+              context,
+              provider,
+              initialType: DuesType.special,
+              allowedTypes: const [DuesType.special],
+            );
+          },
+        ),
+      );
+      return;
+    }
+    _openDuesForm(
+      context,
+      provider,
+      initialType: kind,
+      allowedTypes: [kind, DuesType.special],
+    );
+  }
+
+  void _openDuesForm(
+    BuildContext context,
+    ClubProvider provider, {
+    DuesType? initialType,
+    List<DuesType>? allowedTypes,
+    ValueChanged<DuesSetting>? onCreated,
+  }) {
     showModalBottomSheet(
       context: context,
       isScrollControlled: true,
       backgroundColor: Colors.transparent,
-      builder: (_) => _DuesSettingFormSheet(provider: provider),
+      builder: (_) => _DuesSettingFormSheet(
+        provider: provider,
+        initialType: initialType,
+        allowedTypes: allowedTypes,
+        onCreated: onCreated,
+      ),
     );
   }
 
@@ -2112,7 +2330,176 @@ class _DuesSettingTab extends StatelessWidget {
       isScrollControlled: true,
       backgroundColor: Colors.transparent,
       builder: (_) =>
-          _DuesSettingFormSheet(provider: provider, editTarget: target),
+          _DuesSettingFormSheet(
+        provider: provider,
+        editTarget: target,
+        initialType: target.type,
+        allowedTypes: [target.type],
+      ),
+    );
+  }
+}
+
+class _PrimaryDuesKindBanner extends StatelessWidget {
+  final DuesType kind;
+  final VoidCallback onSwitch;
+  const _PrimaryDuesKindBanner({required this.kind, required this.onSwitch});
+
+  @override
+  Widget build(BuildContext context) {
+    final isMonthly = kind == DuesType.monthly;
+    return Container(
+      padding: const EdgeInsets.fromLTRB(14, 12, 12, 12),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(14),
+        border: Border.all(color: const Color(0xFFE5E7EB)),
+      ),
+      child: Row(
+        children: [
+          Text(isMonthly ? '📅' : '📆', style: const TextStyle(fontSize: 20)),
+          const SizedBox(width: 10),
+          Expanded(
+            child: Text(
+              isMonthly ? '월회비 모임' : '연회비 모임',
+              style: const TextStyle(fontSize: 14, fontWeight: FontWeight.w800),
+            ),
+          ),
+          GestureDetector(
+            onTap: onSwitch,
+            child: Text(
+              isMonthly ? '연회비로 변경' : '월회비로 변경',
+              style: const TextStyle(
+                  fontSize: 12,
+                  fontWeight: FontWeight.w600,
+                  color: Color(0xFF2563EB)),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _DuesKindChoiceCard extends StatelessWidget {
+  final String title;
+  final String subtitle;
+  final String icon;
+  final VoidCallback onTap;
+  const _DuesKindChoiceCard({
+    required this.title,
+    required this.subtitle,
+    required this.icon,
+    required this.onTap,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 8),
+      child: Material(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(14),
+        child: InkWell(
+          onTap: onTap,
+          borderRadius: BorderRadius.circular(14),
+          child: Container(
+            padding: const EdgeInsets.all(16),
+            decoration: BoxDecoration(
+              borderRadius: BorderRadius.circular(14),
+              border: Border.all(color: const Color(0xFFE5E7EB)),
+            ),
+            child: Row(
+              children: [
+                Text(icon, style: const TextStyle(fontSize: 22)),
+                const SizedBox(width: 12),
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(title,
+                          style: const TextStyle(
+                              fontSize: 15, fontWeight: FontWeight.w800)),
+                      const SizedBox(height: 2),
+                      Text(subtitle,
+                          style: const TextStyle(
+                              fontSize: 12, color: AppColors.textSecondary)),
+                    ],
+                  ),
+                ),
+                const Icon(Icons.chevron_right, color: AppColors.inkSoft),
+              ],
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+class _DuesKindChooserSheet extends StatelessWidget {
+  final VoidCallback onMonthly;
+  final VoidCallback onAnnual;
+  final VoidCallback onSpecial;
+  const _DuesKindChooserSheet({
+    required this.onMonthly,
+    required this.onAnnual,
+    required this.onSpecial,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      decoration: const BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
+      ),
+      padding: const EdgeInsets.fromLTRB(20, 12, 20, 28),
+      child: SingleChildScrollView(
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Center(
+              child: Container(
+                width: 40,
+                height: 4,
+                decoration: BoxDecoration(
+                  color: AppColors.divider,
+                  borderRadius: BorderRadius.circular(2),
+                ),
+              ),
+            ),
+            const SizedBox(height: 16),
+            const Text('회비 추가',
+                style: TextStyle(fontSize: 17, fontWeight: FontWeight.bold)),
+            const SizedBox(height: 6),
+            const Text(
+              '어떤 종류의 회비를 걷는 모임인지 선택하세요',
+              style: TextStyle(fontSize: 13, color: AppColors.textSecondary),
+            ),
+            const SizedBox(height: 16),
+            _DuesKindChoiceCard(
+              title: '월회비 모임',
+              subtitle: '매달 회비를 걷습니다',
+              icon: '📅',
+              onTap: onMonthly,
+            ),
+            _DuesKindChoiceCard(
+              title: '연회비 모임',
+              subtitle: '1년에 한 번 회비를 걷습니다',
+              icon: '📆',
+              onTap: onAnnual,
+            ),
+            _DuesKindChoiceCard(
+              title: '특별회비만 추가',
+              subtitle: '여행·행사 등 필요할 때만',
+              icon: '⭐',
+              onTap: onSpecial,
+            ),
+          ],
+        ),
+      ),
     );
   }
 }
@@ -3183,7 +3570,16 @@ final List<int> _duesYearOptions =
 class _DuesSettingFormSheet extends StatefulWidget {
   final ClubProvider provider;
   final DuesSetting? editTarget; // null = 추가 모드, non-null = 수정 모드
-  const _DuesSettingFormSheet({required this.provider, this.editTarget});
+  final DuesType? initialType;
+  final List<DuesType>? allowedTypes;
+  final ValueChanged<DuesSetting>? onCreated;
+  const _DuesSettingFormSheet({
+    required this.provider,
+    this.editTarget,
+    this.initialType,
+    this.allowedTypes,
+    this.onCreated,
+  });
 
   @override
   State<_DuesSettingFormSheet> createState() =>
@@ -3209,6 +3605,12 @@ class _DuesSettingFormSheetState extends State<_DuesSettingFormSheet> {
   int? _dueDayOfMonth = 25;
 
   bool get _isEditMode => widget.editTarget != null;
+
+  List<DuesType> get _visibleTypes {
+    final allowed = widget.allowedTypes;
+    if (allowed == null || allowed.isEmpty) return _duesTypeOrder;
+    return _duesTypeOrder.where(allowed.contains).toList();
+  }
 
   String get _titleHint {
     final y = DateTime.now().year;
@@ -3252,6 +3654,42 @@ class _DuesSettingFormSheetState extends State<_DuesSettingFormSheet> {
       _annualYear = DateTime.now().year;
       _dueDayOfMonth = 25;
       _dueDate = DateTime(DateTime.now().year, 3, 1);
+      if (widget.initialType != null) {
+        _applyType(widget.initialType!);
+      }
+    }
+  }
+
+  void _applyType(DuesType t) {
+    _type = t;
+    if (t != DuesType.monthly) {
+      _startMonth = null;
+      _endMonth = null;
+      _startYear = null;
+      _endYear = null;
+      _dueDayOfMonth = null;
+      _dueDate ??= DateTime(
+        DateTime.now().year,
+        t == DuesType.annual ? 3 : DateTime.now().month,
+        1,
+      );
+    } else {
+      _startMonth = 3;
+      _startYear ??= DateTime.now().year;
+      if (_noEndDate) {
+        _endMonth = null;
+        _endYear = null;
+      } else {
+        _endMonth = 11;
+        _endYear ??= DateTime.now().year;
+      }
+      _dueDayOfMonth ??= 25;
+      _dueDate = null;
+    }
+    if (t == DuesType.annual) {
+      _annualYear ??= DateTime.now().year;
+    } else {
+      _annualYear = null;
     }
   }
 
@@ -3316,88 +3754,59 @@ class _DuesSettingFormSheetState extends State<_DuesSettingFormSheet> {
                   controller: ctrl,
                   padding: const EdgeInsets.all(20),
                   children: [
-                    // 회비 유형
+                    if (!_isEditMode && _visibleTypes.length > 1) ...[
                     const Text('회비 유형',
                         style: TextStyle(
                             fontSize: 13, fontWeight: FontWeight.w600)),
                     const SizedBox(height: 10),
                     Row(
-                      children: _duesTypeOrder.map((t) {
-                        final sel = t == _type;
-                        return Expanded(
-                          child: GestureDetector(
-                            onTap: () => setState(() {
-                              _type = t;
-                              if (t != DuesType.monthly) {
-                                _startMonth = null;
-                                _endMonth = null;
-                                _startYear = null;
-                                _endYear = null;
-                                _dueDayOfMonth = null;
-                                _dueDate ??= DateTime(
-                                  DateTime.now().year,
-                                  t == DuesType.annual ? 3 : DateTime.now().month,
-                                  1,
-                                );
-                              } else {
-                                _startMonth = 3;
-                                _startYear ??= DateTime.now().year;
-                                if (_noEndDate) {
-                                  _endMonth = null;
-                                  _endYear = null;
-                                } else {
-                                  _endMonth = 11;
-                                  _endYear ??= DateTime.now().year;
-                                }
-                                _dueDayOfMonth ??= 25;
-                                _dueDate = null;
-                              }
-                              if (t == DuesType.annual) {
-                                _annualYear ??= DateTime.now().year;
-                              } else {
-                                _annualYear = null;
-                              }
-                            }),
-                            child: AnimatedContainer(
-                              duration: const Duration(milliseconds: 180),
-                              margin: EdgeInsets.only(
-                                  right: t != DuesType.special ? 8 : 0),
-                              padding: const EdgeInsets.symmetric(
-                                  vertical: 12),
-                              decoration: BoxDecoration(
-                                color: sel
-                                    ? AppColors.primary
-                                    : Colors.white,
-                                borderRadius: BorderRadius.circular(12),
-                                border: Border.all(
-                                    color: sel
-                                        ? AppColors.primary
-                                        : AppColors.divider,
-                                    width: 1.5),
-                              ),
-                              child: Column(
-                                children: [
-                                  Text(t.icon,
-                                      style: const TextStyle(fontSize: 18)),
-                                  const SizedBox(height: 4),
-                                  Text(
-                                    t.label,
-                                    style: TextStyle(
-                                      fontSize: 12,
-                                      fontWeight: FontWeight.w600,
-                                      color: sel
-                                          ? Colors.white
-                                          : AppColors.textPrimary,
+                      children: [
+                        for (var i = 0; i < _visibleTypes.length; i++)
+                          Expanded(
+                            child: GestureDetector(
+                              onTap: () =>
+                                  setState(() => _applyType(_visibleTypes[i])),
+                              child: AnimatedContainer(
+                                duration: const Duration(milliseconds: 180),
+                                margin: EdgeInsets.only(
+                                    right: i < _visibleTypes.length - 1 ? 8 : 0),
+                                padding: const EdgeInsets.symmetric(
+                                    vertical: 12),
+                                decoration: BoxDecoration(
+                                  color: _visibleTypes[i] == _type
+                                      ? AppColors.primary
+                                      : Colors.white,
+                                  borderRadius: BorderRadius.circular(12),
+                                  border: Border.all(
+                                      color: _visibleTypes[i] == _type
+                                          ? AppColors.primary
+                                          : AppColors.divider,
+                                      width: 1.5),
+                                ),
+                                child: Column(
+                                  children: [
+                                    Text(_visibleTypes[i].icon,
+                                        style: const TextStyle(fontSize: 18)),
+                                    const SizedBox(height: 4),
+                                    Text(
+                                      _visibleTypes[i].label,
+                                      style: TextStyle(
+                                        fontSize: 12,
+                                        fontWeight: FontWeight.w600,
+                                        color: _visibleTypes[i] == _type
+                                            ? Colors.white
+                                            : AppColors.textPrimary,
+                                      ),
                                     ),
-                                  ),
-                                ],
+                                  ],
+                                ),
                               ),
                             ),
                           ),
-                        );
-                      }).toList(),
+                      ],
                     ),
                     const SizedBox(height: 16),
+                    ],
 
                     // 제목
                     const Text('회비명 *',
@@ -3833,6 +4242,7 @@ class _DuesSettingFormSheetState extends State<_DuesSettingFormSheet> {
             : null,
       );
       widget.provider.addDuesSetting(setting);
+      widget.onCreated?.call(setting);
       Navigator.pop(context);
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(

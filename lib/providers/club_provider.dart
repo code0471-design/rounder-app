@@ -2542,6 +2542,19 @@ class ClubProvider extends ChangeNotifier with WidgetsBindingObserver {
   /// 회비(재무) 최초 세팅이 아직 안 된 상태
   bool get isFinanceSetupPending => activeDuesSettings.isEmpty;
 
+  /// 월회비 또는 연회비 중 모임이 쓰는 쪽. 둘 다 있으면 월회비.
+  DuesType? get clubPrimaryDuesType {
+    for (final d in activeDuesSettings) {
+      if (d.type == DuesType.monthly) return DuesType.monthly;
+      if (d.type == DuesType.annual) return DuesType.annual;
+    }
+    for (final d in allDuesSettings) {
+      if (d.type == DuesType.monthly) return DuesType.monthly;
+      if (d.type == DuesType.annual) return DuesType.annual;
+    }
+    return null;
+  }
+
   /// 초기 잔액 세팅
   /// [amount]    : 현재 회비 잔고 (원)
   /// [asOf]      : 기준 날짜 (예: 2025-01-01 또는 오늘)
@@ -2658,6 +2671,23 @@ class ClubProvider extends ChangeNotifier with WidgetsBindingObserver {
       notifyListeners();
       _persistImmediately();
     }
+  }
+
+  /// 월회비 ↔ 연회비 전환. 기존 주 회비는 종료하고 납부 기록은 유지.
+  void switchPrimaryDuesType(DuesType next, {String? keepSettingId}) {
+    if (next == DuesType.special) return;
+    for (final d in List<DuesSetting>.from(_scopedDuesSettings)) {
+      if (!d.isActive) continue;
+      if (keepSettingId != null && d.id == keepSettingId) continue;
+      if (d.type == DuesType.monthly || d.type == DuesType.annual) {
+        final idx = _duesSettings.indexWhere((x) => x.id == d.id);
+        if (idx != -1) {
+          _duesSettings[idx] = _duesSettings[idx].copyWith(isActive: false);
+        }
+      }
+    }
+    notifyListeners();
+    _persistImmediately();
   }
 
   /// 회비 설정 비활성화
