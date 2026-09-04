@@ -737,7 +737,10 @@ class ClubHomeTab extends StatelessWidget {
                 ),
                 const SizedBox(height: 16),
                 if (provider.isSelectedTreasurerVacant &&
-                    ['회장', '부회장'].contains(provider.selectedClub.myRole))
+                    (ClubMemberRole.hasRole(provider.selectedClub.myRole,
+                            ClubMemberRole.president) ||
+                        ClubMemberRole.hasRole(provider.selectedClub.myRole,
+                            ClubMemberRole.vicePresident)))
                   Padding(
                     padding: const EdgeInsets.fromLTRB(16, 0, 16, 12),
                     child: Material(
@@ -883,51 +886,94 @@ class ClubHomeTab extends StatelessWidget {
     );
   }
 
+  /// 일정 등록은 회장·부회장·총무만 — 그 외에는 안내만 띄운다.
+  void _showExecutiveOnlyDialog(BuildContext context) {
+    showDialog(
+      context: context,
+      useRootNavigator: true,
+      builder: (dialogCtx) => AlertDialog(
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+        title: const Row(
+          children: [
+            Icon(Icons.lock_outline, color: AppColors.danger, size: 20),
+            SizedBox(width: 8),
+            Text('권한 안내',
+                style: TextStyle(fontWeight: FontWeight.bold, fontSize: 16)),
+          ],
+        ),
+        content: const Text('임원만 일정을 등록할 수 있습니다.',
+            style: TextStyle(fontSize: 14, height: 1.6)),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.of(dialogCtx, rootNavigator: true).pop(),
+            child: const Text('확인',
+                style: TextStyle(color: AppColors.primary)),
+          ),
+        ],
+      ),
+    );
+  }
+
   Widget _buildNextRoundSection(
       BuildContext context, ClubProvider provider) {
     final nextSchedule = provider.nextUpcomingSchedule;
 
     if (provider.upcomingSchedules.isEmpty) {
-      return Column(
-        children: [
-          Container(
-            padding: const EdgeInsets.all(16),
-            decoration: BoxDecoration(
-              color: Colors.grey.shade50,
-              borderRadius: BorderRadius.circular(16),
-              border: Border.all(color: Colors.grey.shade200),
+      return Container(
+        width: double.infinity,
+        padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 30),
+        decoration: BoxDecoration(
+          color: Colors.grey.shade50,
+          borderRadius: BorderRadius.circular(16),
+          border: Border.all(color: Colors.grey.shade200),
+        ),
+        child: Column(
+          children: [
+            Container(
+              width: 84,
+              height: 84,
+              decoration: BoxDecoration(
+                color: Colors.grey.shade200,
+                shape: BoxShape.circle,
+              ),
+              child: Icon(Icons.event_busy,
+                  size: 42, color: Colors.grey.shade400),
             ),
-            child: Row(
-              children: [
-                Container(
-                  width: 44,
-                  height: 44,
-                  decoration: BoxDecoration(
-                    color: Colors.grey.shade200,
-                    shape: BoxShape.circle,
-                  ),
-                  child: Icon(Icons.event_busy,
-                      size: 22, color: Colors.grey.shade400),
-                ),
-                const SizedBox(width: 14),
-                Text(
-                  '예정된 모임이 없습니다',
-                  style: TextStyle(
-                      fontSize: 15,
-                      fontWeight: FontWeight.w600,
-                      color: Colors.grey.shade500),
-                ),
-              ],
+            const SizedBox(height: 18),
+            Text(
+              '예정된 일정이 없습니다',
+              style: TextStyle(
+                  fontSize: 18,
+                  fontWeight: FontWeight.w700,
+                  color: Colors.grey.shade600),
             ),
-          ),
-          if (provider.canCreateSchedule)
+            const SizedBox(height: 8),
+            Text(
+              '총무가 일정을 등록하면 이곳에 표시됩니다',
+              textAlign: TextAlign.center,
+              style: TextStyle(
+                  fontSize: 13,
+                  height: 1.4,
+                  fontWeight: FontWeight.w500,
+                  color: Colors.grey.shade500),
+            ),
+            const SizedBox(height: 18),
+            // 임원이 아니어도 버튼은 보여 주고, 누르면 권한 안내를 띄운다
             TextButton.icon(
-              onPressed: () => openAddScheduleSheet(context, provider),
-              icon: const Icon(Icons.add, size: 18),
+              onPressed: () {
+                if (!provider.canCreateSchedule) {
+                  _showExecutiveOnlyDialog(context);
+                  return;
+                }
+                openAddScheduleSheet(context, provider);
+              },
+              icon: const Icon(Icons.add, size: 20),
               label: const Text('일정 추가하기',
-                  style: TextStyle(fontWeight: FontWeight.w700)),
+                  style:
+                      TextStyle(fontSize: 15, fontWeight: FontWeight.w700)),
             ),
-        ],
+          ],
+        ),
       );
     }
 
@@ -2396,8 +2442,9 @@ class _FinanceSummaryCard extends StatelessWidget {
     final paidCount = provider.paidCountForMonth(now.year, now.month);
     final prevUnpaid = provider.previousMonthUnpaidCount();
     final isMonthly = homeDues?.type == DuesType.monthly;
-    final canNudge = ['회장', '부회장', '총무']
-        .contains(provider.selectedClub.myRole);
+    // 겸직('회장·총무')·직책 인수인계로 myRole과 회원 직책이 어긋난 모임에서도
+    // 독촉하기가 사라지지 않게 provider의 운영진 판정을 그대로 쓴다.
+    final canNudge = provider.isClubExecutive;
 
     return GestureDetector(
       onTap: detailTap,

@@ -16,7 +16,7 @@ void main() {
   test('홈 다음 일정·참석현황은 원클럽형 카드다', () {
     expect(room.contains("'다음 일정'"), isTrue);
     expect(room.contains("'자세히 보기'"), isTrue);
-    expect(room.contains('예정된 모임이 없습니다'), isTrue);
+    expect(room.contains('예정된 일정이 없습니다'), isTrue);
     expect(room.contains("'참석 응답 · 명단 보기 >'"), isTrue);
     expect(room.contains('upcomingSchedules.isNotEmpty'), isTrue);
   });
@@ -60,6 +60,23 @@ void main() {
     expect(circle.contains('height: 82'), isTrue);
     expect(room.contains('fontSize: days == 0 ? 16 : 13'), isTrue);
     expect(room.contains('fontSize: 27'), isTrue);
+  });
+
+  test('일정 없는 홈 카드는 크게, 부제와 등록 버튼까지 보여 준다', () {
+    expect(room.contains("'예정된 일정이 없습니다'"), isTrue);
+    expect(room.contains("'총무가 일정을 등록하면 이곳에 표시됩니다'"), isTrue);
+    expect(room.contains("'예정된 모임이 없습니다'"), isFalse);
+    // 임원이 아니어도 버튼을 감추지 않고 안내 팝업을 띄운다
+    expect(room.contains('if (provider.canCreateSchedule)\n'), isFalse);
+    expect(room.contains('_showExecutiveOnlyDialog(context)'), isTrue);
+    expect(room.contains("'임원만 일정을 등록할 수 있습니다.'"), isTrue);
+  });
+
+  test('직책 판정은 문자열 비교가 아니라 ClubMemberRole을 쓴다', () {
+    // 겸직('회장·총무')·인수인계로 myRole이 어긋난 모임에서 버튼이 사라지던 문제
+    expect(room.contains("['회장', '부회장', '총무']"), isFalse);
+    expect(room.contains("['회장', '부회장']"), isFalse);
+    expect(room.contains('final canNudge = provider.isClubExecutive'), isTrue);
   });
 
   test('독촉하기는 전월 미납과 같은 줄이다', () {
