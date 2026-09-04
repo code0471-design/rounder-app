@@ -7,6 +7,15 @@ alwaysApply: true
 
 Royce는 Codemagic 한 번에 ~20분이 든다. “올리세요”만 하고 버전 충돌 나면 같은 일을 반복하게 된다.
 
+## 사용한 versionCode로 친다 (Royce에게 묻지 말 것)
+
+Play Console API는 여기서 안 열린다. 대신 **이미 쓴 번호**를 기록하고, 그보다 큰 번호만 빌드하라고 한다.
+
+1. **`docs/play_last_version_code.txt`** 를 읽는다. 그 숫자(및 이하)는 Play에 있다.
+2. 이 채팅·커밋에서 이미 “Codemagic / Play에 +N 올리세요”라고 말했으면, 올렸는지 확인하지 말고 **N은 사용한 것으로** 친다. 그 위에 UI를 더 넣었으면 안내 전에 **N+1로 bump → 커밋 → 푸시**.
+3. Play가 “N 버전 코드는 이미 사용되었습니다”를 보여 주면 트래커를 N으로 고치고 **즉시 N+1** 푸시.
+4. pubspec `+code`가 트래커보다 크지 않으면, “빌드하세요”라고 말하기 **전에** +1 커밋·푸시부터 한다.
+
 ## 필수 (빌드/업로드를 안내하기 전)
 
 1. **`pubspec.yaml` `version:`** — `name+code` (예: `1.0.0+30`). Play에 이미 쓴 versionCode면 **먼저 +1 커밋·푸시**.
@@ -14,13 +23,12 @@ Royce는 Codemagic 한 번에 ~20분이 든다. “올리세요”만 하고 버
 3. **`android/app/build.gradle.kts`** — `versionCode`/`versionName`이 `flutter.versionCode`/`flutter.versionName`인지 확인 (하드코딩 금지).
 4. **원격 `codemagic-main`**에 버전 bump + yaml 수정이 **푸시된 뒤**에만 “Codemagic 돌리세요 / Play 올리세요”라고 말한다.
 5. 안내할 때 **기대 versionCode**를 한 줄로 명시하고, Codemagic 로그에 `AAB version: …+N`이 보이는지 확인하라고 적는다.
+6. **출시노트는 요청 없이 같이** 준다. 버전 bump·Codemagic/Play 안내와 같은 메시지에 한국어 + What’s New(영문)를 붙인다. Play 500자 이내, 테스터가 보는 문장만.
 
 ## 금지
 
 - pubspec만 올리고 Codemagic 고정값을 안 보고 업로드 안내
 - “일단 올려보세요” 후 충돌 나면 그때 버전 올리기
+- “N 올렸나요?”를 Royce에게 물어 빌드를 두 번 하게 만들기
 - 출시노트만 주고 버전/빌드 파이프라인은 미확인
-
-## 출시노트
-
-Play용 출시노트는 요청 시 주고, **버전 번호와 같이** 한 번에 맞춘다.
+- 버전/빌드만 안내하고 출시노트를 빼먹기
