@@ -120,6 +120,21 @@ final class MockDataStore extends ChangeNotifier {
     notifyListeners();
   }
 
+  void clearUserPhone(String userId) {
+    final i = appUsers.indexWhere((u) => u.id == userId);
+    if (i == -1) return;
+    final u = appUsers[i];
+    appUsers[i] = MockAppUser(
+      id: u.id,
+      name: u.name,
+      phone: '',
+      gender: u.gender,
+      createdAt: u.createdAt,
+    );
+    notifyListeners();
+    _schedulePersist();
+  }
+
   void upsertClub(
     Club club, {
     String moderationStatus = 'active',

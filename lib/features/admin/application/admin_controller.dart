@@ -140,6 +140,20 @@ class AdminController extends ChangeNotifier {
     }
   }
 
+  Future<void> resetMemberPhoneAuth(AdminMember member) async {
+    _busy = true;
+    notifyListeners();
+    try {
+      await _repo.resetMemberPhoneAuth(member.id);
+      _error = null;
+    } catch (e) {
+      _error = '$e';
+    } finally {
+      _busy = false;
+      notifyListeners();
+    }
+  }
+
   Future<void> toggleMemberBlock(AdminMember member) async {
     final next = member.status == 'blocked' ? 'normal' : 'blocked';
     _busy = true;

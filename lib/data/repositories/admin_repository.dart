@@ -8,4 +8,5 @@ abstract class AdminRepository {
 
   Future<void> updateClubModerationStatus(String clubId, String status);
   Future<void> updateMemberAccountStatus(String userId, String status);
+  Future<void> resetMemberPhoneAuth(String userId);
 }

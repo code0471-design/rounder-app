@@ -42,4 +42,8 @@ class FirestoreAdminRepository implements AdminRepository {
   @override
   Future<void> updateMemberAccountStatus(String userId, String status) =>
       _dataSource.updateMemberAccountStatus(userId, status);
+
+  @override
+  Future<void> resetMemberPhoneAuth(String userId) =>
+      _dataSource.resetMemberPhoneAuth(userId);
 }

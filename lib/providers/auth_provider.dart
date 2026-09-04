@@ -275,6 +275,7 @@ class AuthProvider extends ChangeNotifier {
 
     String remotePhone = '';
     String? remoteName;
+    var remoteUserRead = false;
     try {
       final deps = AppDependencies.instance;
       if (deps.isInitialized && !deps.isOfflineMockMode) {
@@ -282,6 +283,7 @@ class AuthProvider extends ChangeNotifier {
             .collection(FirestorePaths.users)
             .doc(profile.appUserId)
             .get();
+        remoteUserRead = true;
         final data = doc.data();
         if (data != null) {
           remotePhone = formatPhone((data['phone'] as String?) ?? '');
@@ -295,10 +297,16 @@ class AuthProvider extends ChangeNotifier {
       debugPrint('[AuthProvider] social login hydrate phone skip: $e');
     }
 
-    // 번호: Firestore > 메모리(이미 인증된 경우) > 빈 값
-    final resolvedPhone = !isPhoneMissing(remotePhone)
+    // Firestore를 읽었으면 그 번호가 비어 있어도 그대로 쓴다.
+    // (본사 인증 초기화 후 메모리/로컬에 남은 번호로 인증 화면을 건너뛰지 않게)
+    // 원격 조회 실패 시에만 메모리 번호를 쓴다.
+    final resolvedPhone = remoteUserRead
         ? remotePhone
-        : (memory != null && !isPhoneMissing(memory.phone) ? memory.phone : '');
+        : (!isPhoneMissing(remotePhone)
+            ? remotePhone
+            : (memory != null && !isPhoneMissing(memory.phone)
+                ? memory.phone
+                : ''));
 
     final resolvedName = () {
       if (profile.name.isNotEmpty && !isPlaceholderName(profile.name)) {
@@ -466,6 +474,16 @@ class AuthProvider extends ChangeNotifier {
 
   /// 로그아웃 — 자동로그인 세션 삭제
   Future<void> logoutAsync() async {
+    final loggedOutId = _currentUser?.id;
+    if (loggedOutId != null) {
+      final idx = _registeredUsers.indexWhere((u) => u.id == loggedOutId);
+      if (idx >= 0) {
+        _registeredUsers[idx] = _registeredUsers[idx].copyWith(
+          phone: '',
+          isVerified: false,
+        );
+      }
+    }
     _currentUser = null;
     _autoLogin   = false;
     _clearVerifyState();

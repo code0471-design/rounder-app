@@ -259,6 +259,21 @@ class FirestoreAdminDataSource {
     }
   }
 
+  /// 전화번호만 지운다. 다음 소셜 로그인 때 인증 화면이 다시 뜬다.
+  Future<void> resetMemberPhoneAuth(String userId) async {
+    try {
+      await _users.doc(userId).set(
+        {
+          'phone': FieldValue.delete(),
+          'updated_at': FieldValue.serverTimestamp(),
+        },
+        SetOptions(merge: true),
+      );
+    } on FirebaseException catch (e) {
+      throw NetworkDataException('인증 초기화 실패', cause: e);
+    }
+  }
+
   static int _asInt(dynamic v, {int fallback = 0}) {
     if (v == null) return fallback;
     if (v is int) return v;

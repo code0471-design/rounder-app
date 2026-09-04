@@ -475,6 +475,49 @@ class _AdminMembersScreenState extends State<AdminMembersScreen> {
     );
   }
 
+  void _resetPhoneAuth(AdminMember m) {
+    showDialog(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+        title: const Text('인증 초기화', style: AdminTextStyles.sectionTitle),
+        content: Text(
+          '${m.name}님의 등록 전화번호를 지웁니다.\n\n'
+          '그 사람이 앱에서 로그아웃한 뒤 다시 로그인하면 '
+          '이름·전화 인증(알림톡) 화면이 다시 뜹니다.\n'
+          '모임 명단은 그대로입니다.',
+          style: const TextStyle(fontSize: 14, color: AdminColors.textSecond),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(ctx),
+            child: const Text('취소'),
+          ),
+          ElevatedButton(
+            style: ElevatedButton.styleFrom(
+              backgroundColor: AdminColors.statusDanger,
+              shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(8)),
+            ),
+            onPressed: () async {
+              Navigator.pop(ctx);
+              await context.read<AdminController>().resetMemberPhoneAuth(m);
+              if (!context.mounted) return;
+              ScaffoldMessenger.of(context).showSnackBar(
+                SnackBar(
+                  content: Text('${m.name}님 인증을 초기화했습니다. 앱에서 로그아웃 후 다시 로그인해 주세요.'),
+                  backgroundColor: AdminColors.statusDanger,
+                  behavior: SnackBarBehavior.floating,
+                ),
+              );
+            },
+            child: const Text('초기화', style: TextStyle(color: Colors.white)),
+          ),
+        ],
+      ),
+    );
+  }
+
   void _toggleBlock(AdminMember m) {
     showDialog(
       context: context,
@@ -602,6 +645,13 @@ class _AdminMembersScreenState extends State<AdminMembersScreen> {
                     label: m.status == 'blocked' ? '차단 해제' : '계정 차단',
                     color: m.status == 'blocked' ? AdminColors.statusOk : AdminColors.statusDanger,
                     onTap: () => _toggleBlock(m),
+                  ),
+                  const SizedBox(height: 8),
+                  _detailActionBtn(
+                    icon: Icons.phonelink_erase_rounded,
+                    label: '인증 초기화',
+                    color: AdminColors.statusDanger,
+                    onTap: () => _resetPhoneAuth(m),
                   ),
                   const SizedBox(height: 8),
                   _detailActionBtn(

@@ -268,6 +268,11 @@ class MockAdminRepository implements AdminRepository {
     _store.setUserAccountStatus(userId, status);
   }
 
+  @override
+  Future<void> resetMemberPhoneAuth(String userId) async {
+    _store.clearUserPhone(userId);
+  }
+
   void dispose() {
     _store.removeListener(_emit);
     _clubsCtrl.close();
