@@ -151,27 +151,30 @@ class AuthProvider extends ChangeNotifier {
     }
 
     _currentUser = user;
-    // Firestore에 이미 번호가 있으면 로컬 세션 보강 (다른 기기에서 등록한 경우)
-    if (needsPhoneNumber) {
-      try {
-        final deps = AppDependencies.instance;
-        if (deps.isInitialized && !deps.isOfflineMockMode) {
-          final doc = await FirebaseFirestore.instance
-              .collection(FirestorePaths.users)
-              .doc(user.id)
-              .get();
-          final remotePhone = doc.data()?['phone'] as String?;
-          if (remotePhone != null && !isPhoneMissing(remotePhone)) {
-            final updated = user.copyWith(phone: formatPhone(remotePhone));
-            final idx = _registeredUsers.indexWhere((u) => u.id == updated.id);
-            if (idx >= 0) _registeredUsers[idx] = updated;
-            _currentUser = updated;
-            await prefs.setString(_kSavedPhone, updated.phone);
-          }
+    // 서버에 번호가 없으면 로컬에 남은 번호로 인증을 건너뛰지 않는다.
+    try {
+      final deps = AppDependencies.instance;
+      if (deps.isInitialized && !deps.isOfflineMockMode) {
+        final doc = await FirebaseFirestore.instance
+            .collection(FirestorePaths.users)
+            .doc(user.id)
+            .get();
+        final remotePhone =
+            formatPhone((doc.data()?['phone'] as String?) ?? '');
+        if (isPhoneMissing(remotePhone)) {
+          await logoutAsync();
+          return false;
         }
-      } catch (e) {
-        debugPrint('[AuthProvider] hydrate phone skip: $e');
+        if (_normalizePhone(user.phone) != _normalizePhone(remotePhone)) {
+          final updated = user.copyWith(phone: remotePhone);
+          final idx = _registeredUsers.indexWhere((u) => u.id == updated.id);
+          if (idx >= 0) _registeredUsers[idx] = updated;
+          _currentUser = updated;
+          await prefs.setString(_kSavedPhone, updated.phone);
+        }
       }
+    } catch (e) {
+      debugPrint('[AuthProvider] hydrate phone skip: $e');
     }
     await FirebaseAuthBridge.ensureSignedIn(_currentUser!);
     notifyListeners();

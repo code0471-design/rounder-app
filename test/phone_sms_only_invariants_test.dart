@@ -51,6 +51,7 @@ void main() {
     expect(auth.contains("appStoreReviewOtp = '0000'"), isTrue);
     expect(auth.contains('isAppStoreReviewPhone'), isTrue);
     expect(auth.contains('if (isAppStoreReviewPhone(phone))'), isTrue);
+    expect(auth.contains('서버에 번호가 없으면 로컬에 남은 번호로 인증을 건너뛰지 않는다'), isTrue);
   });
 
   test('OTP는 알림톡 우선, 승인된 KA01TP 8종, SMS 대체는 OTP만', () {
