@@ -851,7 +851,9 @@ class _AdminAlimtalkManagementTabState
           '카카오 채널(SOLAPI_KAKAO_PF_ID)이 설정되지 않았습니다.\n솔라피에서 채널 연동 후 PFID를 넣어주세요.');
       return;
     }
-    final templateId = template.solapiTemplateId?.trim() ?? '';
+    final templateId = (template.solapiTemplateId?.trim().isNotEmpty == true)
+        ? template.solapiTemplateId!.trim()
+        : (SolapiService.templateIdForAdminCatalog(template.id) ?? '');
     if (templateId.isEmpty) {
       _showResultSnackBar(false,
           '이 템플릿의 솔라피 templateId가 없습니다.\n문자 대체발송은 하지 않습니다.');
@@ -863,11 +865,29 @@ class _AdminAlimtalkManagementTabState
       return;
     }
     setState(() => _isSending = true);
+    final clubName = _targetType == 'club'
+        ? (context
+                .read<AdminController>()
+                .clubs
+                .where((c) => c.id == _selectedClubId)
+                .firstOrNull
+                ?.name ??
+            'ROUNDER')
+        : 'ROUNDER';
     final messages = targets.map((m) {
+      final name = m.name.trim().isEmpty ? '회원' : m.name.trim();
       return solapi.buildAlimtalkMessage(
         to: m.phone,
         templateId: templateId,
-        variables: {'#{이름}': m.name},
+        variables: {
+          '#{이름}': name,
+          '#{모임명}': clubName,
+          '#{일시}': '-',
+          '#{장소}': '-',
+          '#{금액}': '-',
+          '#{기한}': '-',
+          '#{사유}': '본사 안내',
+        },
       );
     }).toList();
     final result = await solapi.sendManyRaw(messages);

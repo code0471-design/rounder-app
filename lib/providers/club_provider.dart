@@ -18,6 +18,7 @@ import '../services/hq_alimtalk_catalog.dart';
 import '../services/hq_push_catalog.dart';
 import '../services/push_notification_service.dart';
 import '../services/shared_join_request_store.dart';
+import '../services/solapi_service.dart';
 
 // ════════════════════════════════════════════════════════════
 //  ClubProvider
@@ -2670,6 +2671,16 @@ class ClubProvider extends ChangeNotifier with WidgetsBindingObserver {
       targetId: setting.id,
       notifySelf: true,
     );
+    _dispatchClubAlimtalk(
+      hqTypeId: HqAlimtalkCatalog.duesRequestId,
+      members: regularMembers,
+      variablesFor: (m) => {
+        '#{모임명}': selectedClub.name,
+        '#{이름}': m.name.trim().isEmpty ? '회원' : m.name.trim(),
+        '#{금액}': '${setting.amount}',
+        '#{기한}': dueText.isEmpty ? '-' : dueText,
+      },
+    );
   }
 
   /// 총무 수동 회비 독촉
@@ -2693,6 +2704,17 @@ class ClubProvider extends ChangeNotifier with WidgetsBindingObserver {
         notifySelf: true,
       );
     }
+    final targets = activeMembers
+        .where((m) => memberIds.contains(m.id))
+        .toList();
+    _dispatchClubAlimtalk(
+      hqTypeId: HqAlimtalkCatalog.duesNudgeId,
+      members: targets,
+      variablesFor: (m) => {
+        '#{모임명}': selectedClub.name,
+        '#{이름}': m.name.trim().isEmpty ? '회원' : m.name.trim(),
+      },
+    );
   }
 
   /// 회비 설정 수정 (기간 변경 등)
@@ -3103,13 +3125,98 @@ class ClubProvider extends ChangeNotifier with WidgetsBindingObserver {
         .toList();
   }
 
-  /// mock 발송 — 참석여부 알림톡
+  /// 참석여부 알림톡 대상 — 정회원 전원 (등록자 본인 포함, 게스트 제외)
+  /// (발송은 [sendClubAlimtalk] / 알림톡 발송 화면)
   int sendAttendanceAlimtalk(String scheduleId) =>
       attendanceAlimtalkRecipients().length;
 
-  /// mock 발송 — 조편성 알림톡
+  /// 조편성 알림톡 대상 수
   int sendGroupAssignmentAlimtalk(String scheduleId) =>
       groupAlimtalkRecipients(scheduleId).length;
+
+  List<Member> groupAlimtalkRecipientMembers(String scheduleId) {
+    final byId = {for (final m in _members) m.id: m};
+    final out = <Member>[];
+    for (final r in groupAlimtalkRecipients(scheduleId)) {
+      final m = byId[r.memberId];
+      if (m != null) out.add(m);
+    }
+    return out;
+  }
+
+  List<Member> scheduleChangeAlimtalkRecipients(String scheduleId) {
+    final out = <Member>[...regularMembers];
+    final seen = {for (final m in out) m.id};
+    final schedule =
+        _schedules.where((s) => s.id == scheduleId).firstOrNull;
+    if (schedule == null) return out;
+    final guestById = {for (final m in guestMembers) m.id: m};
+    for (final r in schedule.responses) {
+      if (r.response != '참석') continue;
+      final g = guestById[r.memberId];
+      if (g == null || seen.contains(g.id)) continue;
+      seen.add(g.id);
+      out.add(g);
+    }
+    return out;
+  }
+
+  Future<SolapiResult> sendClubAlimtalk({
+    required String hqTypeId,
+    required List<Member> members,
+    required Map<String, String> Function(Member member) variablesFor,
+  }) async {
+    if (!isClubAlimtalkTypeEnabled(selectedClub.id, hqTypeId)) {
+      return SolapiResult.error('이 모임에서 해당 알림톡이 꺼져 있습니다.');
+    }
+    final templateId =
+        SolapiService.templateIdForHqType(hqTypeId)?.trim() ?? '';
+    if (templateId.isEmpty) {
+      return SolapiResult.error('알림톡 템플릿이 없습니다.');
+    }
+    final solapi = SolapiService.instance;
+    if (!solapi.isConfigured) {
+      return SolapiResult.error('SOLAPI API Key가 설정되지 않았습니다.');
+    }
+    if (!solapi.hasKakaoChannel) {
+      return SolapiResult.error('카카오 채널(PFID)이 설정되지 않았습니다.');
+    }
+    final enabled = await HqAlimtalkCatalog.isGloballyEnabled(hqTypeId);
+    if (!enabled) {
+      return SolapiResult.error('본사에서 해당 알림톡이 사용중지입니다.');
+    }
+    final messages = <Map<String, dynamic>>[];
+    for (final m in members) {
+      final phone = SolapiService.normalizePhone(m.phone ?? '');
+      if (phone.length < 10) continue;
+      messages.add(solapi.buildAlimtalkMessage(
+        to: phone,
+        templateId: templateId,
+        variables: variablesFor(m),
+      ));
+    }
+    if (messages.isEmpty) {
+      return SolapiResult.error('전화번호가 있는 발송 대상이 없습니다.');
+    }
+    final result = await solapi.sendManyRaw(messages);
+    debugPrint(
+      '[Alimtalk] $hqTypeId n=${messages.length} ok=${result.success} '
+      '${result.errorMessage ?? ''}',
+    );
+    return result;
+  }
+
+  void _dispatchClubAlimtalk({
+    required String hqTypeId,
+    required List<Member> members,
+    required Map<String, String> Function(Member member) variablesFor,
+  }) {
+    unawaited(sendClubAlimtalk(
+      hqTypeId: hqTypeId,
+      members: members,
+      variablesFor: variablesFor,
+    ));
+  }
 
   List<String> attendanceAlimtalkRecipientNames() {
     final names = attendanceAlimtalkRecipients().map((m) => m.name).toList();
@@ -3181,6 +3288,31 @@ class ClubProvider extends ChangeNotifier with WidgetsBindingObserver {
       _syncNextRound(schedule.clubId);
       notifyListeners();
       _persistImmediately();
+      final attendeeIds = {
+        for (final r in schedule.responses)
+          if (r.response == '참석') r.memberId,
+      };
+      final dateStr =
+          '${schedule.roundDate.month}월 ${schedule.roundDate.day}일';
+      final time = schedule.teeTime.trim();
+      final when = time.isEmpty ? dateStr : '$dateStr $time';
+      final place = schedule.courseName.trim().isEmpty
+          ? '장소 미정'
+          : schedule.courseName.trim();
+      _dispatchClubAlimtalk(
+        hqTypeId: HqAlimtalkCatalog.scheduleCancelId,
+        members: _members
+            .where((m) =>
+                m.status == '활성' && attendeeIds.contains(m.id))
+            .toList(),
+        variablesFor: (_) => {
+          '#{모임명}': selectedClub.name,
+          '#{일정명}': schedule.displayTitle,
+          '#{일시}': when,
+          '#{장소}': place,
+          '#{사유}': '일정이 취소되었습니다',
+        },
+      );
     }
   }
 

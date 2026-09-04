@@ -49,12 +49,66 @@ class SolapiService {
     defaultValue: 'KA01PF260819163601284VyeVGcfZZWg',
   );
 
-  /// 휴대폰 인증번호 알림톡 템플릿 ID/코드 (솔라피 콘솔)
-  /// 템플릿 변수명: #{인증번호}
+  /// 휴대폰 인증번호 알림톡 템플릿 ID (솔라피 콘솔, 2026-09-04 승인)
+  /// 템플릿 변수명: #{인증번호}, #{이름}
   static const otpTemplateId = String.fromEnvironment(
     'SOLAPI_OTP_TEMPLATE_ID',
-    defaultValue: 'UnnQDOxu0b',
+    defaultValue: 'KA01TP260827200825010BAkqpx4TyCt',
   );
+  static const scheduleUploadTemplateId = String.fromEnvironment(
+    'SOLAPI_TEMPLATE_ID_SCHEDULE_UPLOAD',
+    defaultValue: 'KA01TP260819165935819h6YMQUQnxD6',
+  );
+  static const scheduleChangeTemplateId = String.fromEnvironment(
+    'SOLAPI_TEMPLATE_ID_SCHEDULE_CHANGE',
+    defaultValue: 'KA01TP260819170717941dD6OSJifLZy',
+  );
+  static const d1ReminderTemplateId = String.fromEnvironment(
+    'SOLAPI_TEMPLATE_ID_D1',
+    defaultValue: 'KA01TP260819170856743YpkKVjb5WfS',
+  );
+  static const scheduleCancelTemplateId = String.fromEnvironment(
+    'SOLAPI_TEMPLATE_ID_SCHEDULE_CANCEL',
+    defaultValue: 'KA01TP260819170942410EzVbYmO06U2',
+  );
+  static const duesNudgeTemplateId = String.fromEnvironment(
+    'SOLAPI_TEMPLATE_ID_DUES_NUDGE',
+    defaultValue: 'KA01TP2608191713271305WAQ7IzWNzo',
+  );
+  static const duesRequestTemplateId = String.fromEnvironment(
+    'SOLAPI_TEMPLATE_ID_DUES_REQUEST',
+    defaultValue: 'KA01TP260819171813223rmS1ByutYaw',
+  );
+  static const groupFinalizeTemplateId = String.fromEnvironment(
+    'SOLAPI_TEMPLATE_ID_GROUP_FINALIZE',
+    defaultValue: 'KA01TP260819170319298NrCEHKRX6u3',
+  );
+
+  /// 어드민 본사 발송 카탈로그 id (T003…) → 솔라피 템플릿 ID
+  static String? templateIdForAdminCatalog(String catalogId) =>
+      switch (catalogId) {
+        'T003' => scheduleUploadTemplateId,
+        'T004' => d1ReminderTemplateId,
+        'T005' => duesRequestTemplateId,
+        'T006' => scheduleCancelTemplateId,
+        'T008' => duesNudgeTemplateId,
+        'T009' => scheduleChangeTemplateId,
+        'T010' => groupFinalizeTemplateId,
+        _ => null,
+      };
+
+  /// 모임 자동 알림톡 종류 id (atk_…) → 솔라피 템플릿 ID
+  static String? templateIdForHqType(String hqTypeId) =>
+      switch (hqTypeId) {
+        'atk_schedule_upload' => scheduleUploadTemplateId,
+        'atk_schedule_change' => scheduleChangeTemplateId,
+        'atk_d1_reminder' => d1ReminderTemplateId,
+        'atk_schedule_cancel' => scheduleCancelTemplateId,
+        'atk_dues_request' => duesRequestTemplateId,
+        'atk_dues_nudge' => duesNudgeTemplateId,
+        'atk_group_finalize' => groupFinalizeTemplateId,
+        _ => null,
+      };
 
   bool get isConfigured => _apiKey.isNotEmpty && _apiSecret.isNotEmpty;
   bool get hasSenderPhone => normalizePhone(senderPhone).isNotEmpty;

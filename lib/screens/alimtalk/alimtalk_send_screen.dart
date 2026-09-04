@@ -1,5 +1,8 @@
 import 'package:flutter/material.dart';
+import 'package:provider/provider.dart';
 import '../../models/club_model.dart';
+import '../../providers/club_provider.dart';
+import '../../services/hq_alimtalk_catalog.dart';
 import '../../theme/app_theme.dart';
 
 enum AlimtalkSendKind { attendance, groupAssignment, scheduleChanged }
@@ -58,22 +61,56 @@ class _AlimtalkSendScreenState extends State<AlimtalkSendScreen> {
     };
   }
 
+  String get _hqTypeId => switch (widget.kind) {
+        AlimtalkSendKind.attendance => HqAlimtalkCatalog.scheduleUploadId,
+        AlimtalkSendKind.groupAssignment => HqAlimtalkCatalog.groupFinalizeId,
+        AlimtalkSendKind.scheduleChanged => HqAlimtalkCatalog.scheduleChangeId,
+      };
+
   Future<void> _send() async {
     if (_sending || widget.recipientNames.isEmpty) return;
     setState(() => _sending = true);
-    await Future.delayed(const Duration(milliseconds: 600));
+    final provider = context.read<ClubProvider>();
+    final s = widget.schedule;
+    final dateStr = '${s.roundDate.month}월 ${s.roundDate.day}일 ${s.teeTime}'.trim();
+    final place =
+        s.courseName.trim().isEmpty ? '장소 미정' : s.courseName.trim();
+    final members = switch (widget.kind) {
+      AlimtalkSendKind.attendance => provider.attendanceAlimtalkRecipients(),
+      AlimtalkSendKind.groupAssignment =>
+        provider.groupAlimtalkRecipientMembers(s.id),
+      AlimtalkSendKind.scheduleChanged =>
+        provider.scheduleChangeAlimtalkRecipients(s.id),
+    };
+    final result = await provider.sendClubAlimtalk(
+      hqTypeId: _hqTypeId,
+      members: members,
+      variablesFor: (m) => {
+        '#{이름}': m.name.trim().isEmpty ? '회원' : m.name.trim(),
+        '#{모임명}': widget.clubName,
+        '#{일정명}': s.displayTitle,
+        '#{일시}': dateStr,
+        '#{장소}': place,
+      },
+    );
     if (!mounted) return;
     setState(() => _sending = false);
+    final ok = result.success;
     ScaffoldMessenger.of(context).showSnackBar(
       SnackBar(
         content: Text(
-            '${widget.recipientNames.length}명에게 $_title을 발송했습니다.'),
-        backgroundColor: AppColors.primary,
+          ok
+              ? '${result.requestedCount}명에게 $_title을 발송했습니다.'
+              : (result.errorMessage ?? '알림톡 발송에 실패했습니다.'),
+        ),
+        backgroundColor: ok ? AppColors.primary : AppColors.danger,
         behavior: SnackBarBehavior.floating,
         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
       ),
     );
-    Navigator.of(context, rootNavigator: true).pop(true);
+    if (ok) {
+      Navigator.of(context, rootNavigator: true).pop(true);
+    }
   }
 
   @override

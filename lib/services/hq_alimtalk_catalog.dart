@@ -22,6 +22,10 @@ class HqAlimtalkCatalog {
   static const scheduleUploadId = 'atk_schedule_upload';
   static const groupFinalizeId = 'atk_group_finalize';
   static const scheduleChangeId = 'atk_schedule_change';
+  static const d1ReminderId = 'atk_d1_reminder';
+  static const scheduleCancelId = 'atk_schedule_cancel';
+  static const duesRequestId = 'atk_dues_request';
+  static const duesNudgeId = 'atk_dues_nudge';
   static const joinResultId = 'atk_join_result'; // legacy — 초대 즉시가입으로 대체
   static const clubInviteId = 'atk_club_invite'; // legacy — 카톡 공유 초대로 대체
   static const _removedIds = {

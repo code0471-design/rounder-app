@@ -672,6 +672,19 @@ abstract final class AdminCatalog {
       preview:
           '{{이름}}님, {{모임명}} 회비가 미납 상태입니다.\n빠른 납부 부탁드립니다.',
     ),
+    AlimtalkTemplate(
+      id: 'T009',
+      name: '일정 변경 재참석 안내',
+      category: '모임',
+      preview:
+          '{{모임명}} {{일정명}} 일정이 변경되었습니다.\n변경 일시: {{일시}}\n변경 장소: {{장소}}\n다시 참석 여부를 알려주세요.',
+    ),
+    AlimtalkTemplate(
+      id: 'T010',
+      name: '조편성 확정',
+      category: '모임',
+      preview: '{{모임명}} {{일정명}} 조편성이 확정되었습니다.\n조 편성을 확인해 주세요.',
+    ),
   ];
 
   static const List<String> weekDays = ['월', '화', '수', '목', '금', '토', '일'];
