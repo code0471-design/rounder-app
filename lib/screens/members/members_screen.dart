@@ -6,11 +6,9 @@ import '../../providers/club_provider.dart';
 import '../../services/csv_download.dart';
 import '../../services/member_roster_csv.dart';
 import '../../theme/app_theme.dart';
-import '../../widgets/ad_banner.dart';
 import '../invite/invite_send_screen.dart';
 import '../invite/guest_invite_form_screen.dart';
 import 'member_detail_screen.dart';
-import 'member_form_screen.dart';
 import 'treasurer_transfer_screen.dart';
 
 class MembersScreen extends StatefulWidget {
@@ -117,85 +115,130 @@ class _MembersScreenState extends State<MembersScreen>
         final totalReg = provider.regularMembers.length;
         final totalGuest = provider.guestMembers.length;
 
+        final pending =
+            provider.pendingRequestsOf(provider.selectedClub.id);
+
         return Scaffold(
-          backgroundColor: AppColors.background,
+          backgroundColor: AppColors.cream,
           body: Column(
             children: [
-              _MembersHeader(
-                onJoinRequests: () => _showJoinRequests(context, provider),
-                pendingCount:
-                    provider.pendingRequestsOf(provider.selectedClub.id).length,
-                onInviteRegular: () {
-                  Navigator.push(
-                    context,
-                    MaterialPageRoute(
-                      builder: (_) =>
-                          InviteSendScreen(club: provider.selectedClub),
+              Padding(
+                padding: const EdgeInsets.fromLTRB(16, 10, 8, 0),
+                child: Row(
+                  children: [
+                    Expanded(
+                      child: Container(
+                        height: 40,
+                        decoration: BoxDecoration(
+                          color: Colors.white,
+                          borderRadius: BorderRadius.circular(12),
+                          border: Border.all(color: const Color(0xFFE5E7EB)),
+                        ),
+                        child: TabBar(
+                          controller: _tabController,
+                          indicator: BoxDecoration(
+                            color: const Color(0xFF111827),
+                            borderRadius: BorderRadius.circular(10),
+                          ),
+                          indicatorSize: TabBarIndicatorSize.tab,
+                          indicatorPadding: const EdgeInsets.all(3),
+                          labelColor: Colors.white,
+                          unselectedLabelColor: AppColors.ink,
+                          dividerColor: Colors.transparent,
+                          labelStyle: const TextStyle(
+                            fontWeight: FontWeight.w800,
+                            fontSize: 12,
+                          ),
+                          unselectedLabelStyle: const TextStyle(
+                            fontWeight: FontWeight.w600,
+                            fontSize: 12,
+                          ),
+                          tabs: [
+                            Tab(text: '전체 ($totalAll)'),
+                            Tab(text: '정회원 ($totalReg)'),
+                            Tab(text: '게스트 ($totalGuest)'),
+                          ],
+                        ),
+                      ),
                     ),
-                  );
-                },
-                showExcel: provider.isClubExecutive,
-                onExcel: () => _downloadExcel(
-                  context,
-                  provider,
-                  all: all,
-                  regular: regular,
-                  guests: guests,
-                ),
-                onInviteGuest: () {
-                  Navigator.push(
-                    context,
-                    MaterialPageRoute(
-                      builder: (_) =>
-                          GuestInviteFormScreen(club: provider.selectedClub),
+                    if (pending.isNotEmpty)
+                      IconButton(
+                        icon: Stack(
+                          clipBehavior: Clip.none,
+                          children: [
+                            const Icon(Icons.how_to_reg,
+                                color: AppColors.primary),
+                            Positioned(
+                              right: -4,
+                              top: -4,
+                              child: Container(
+                                width: 14,
+                                height: 14,
+                                decoration: const BoxDecoration(
+                                  color: AppColors.danger,
+                                  shape: BoxShape.circle,
+                                ),
+                                child: Center(
+                                  child: Text(
+                                    '${pending.length}',
+                                    style: const TextStyle(
+                                        color: Colors.white,
+                                        fontSize: 8,
+                                        fontWeight: FontWeight.bold),
+                                  ),
+                                ),
+                              ),
+                            ),
+                          ],
+                        ),
+                        tooltip: '가입 신청',
+                        onPressed: () =>
+                            _showJoinRequests(context, provider),
+                      ),
+                    IconButton(
+                      icon: const Icon(Icons.link, color: AppColors.primary),
+                      tooltip: '정회원 초대',
+                      onPressed: () {
+                        Navigator.push(
+                          context,
+                          MaterialPageRoute(
+                            builder: (_) => InviteSendScreen(
+                                club: provider.selectedClub),
+                          ),
+                        );
+                      },
                     ),
-                  );
-                },
-              ),
-              Container(
-                decoration: const BoxDecoration(
-                  color: AppColors.cream,
-                  border: Border(
-                    bottom: BorderSide(color: AppColors.divider),
-                  ),
-                ),
-                child: TabBar(
-                  controller: _tabController,
-                  isScrollable: false,
-                  tabAlignment: TabAlignment.fill,
-                  labelColor: AppColors.primary,
-                  unselectedLabelColor: AppColors.inkSoft,
-                  indicatorColor: AppColors.accent,
-                  indicatorWeight: 3,
-                  indicatorSize: TabBarIndicatorSize.tab,
-                  dividerColor: Colors.transparent,
-                  labelStyle: const TextStyle(
-                    fontWeight: FontWeight.w800,
-                    fontSize: 14,
-                  ),
-                  unselectedLabelStyle: const TextStyle(
-                    fontWeight: FontWeight.w600,
-                    fontSize: 14,
-                  ),
-                  tabs: [
-                    Tab(text: '전체 $totalAll'),
-                    Tab(text: '정회원 $totalReg'),
-                    Tab(text: '게스트 $totalGuest'),
+                    if (provider.isClubExecutive)
+                      IconButton(
+                        icon: const Icon(Icons.file_download_outlined,
+                            color: AppColors.primary),
+                        tooltip: '엑셀 다운로드',
+                        onPressed: () => _downloadExcel(
+                          context,
+                          provider,
+                          all: all,
+                          regular: regular,
+                          guests: guests,
+                        ),
+                      ),
+                    IconButton(
+                      icon: const Icon(Icons.person_add_alt_1_outlined,
+                          color: AppColors.primary),
+                      tooltip: '게스트 초대',
+                      onPressed: () {
+                        Navigator.push(
+                          context,
+                          MaterialPageRoute(
+                            builder: (_) => GuestInviteFormScreen(
+                                club: provider.selectedClub),
+                          ),
+                        );
+                      },
+                    ),
                   ],
                 ),
               ),
-              // 총무 인수인계 — 모든 회원에게 노출, 권한 없으면 안내
-              _TreasurerTransferEntry(
-                canAccess: provider.canAccessTreasurerTransfer,
-              ),
-              // 검색창
               _buildSearchBar(),
-              // 멤버십 포인트 TOP3 배너
-              _buildPointsRankingBanner(provider),
-              // 생일자 배너
-              if (provider.birthdayThisMonth.isNotEmpty)
-                _buildBirthdayBanner(provider.birthdayThisMonth),
-              // 탭 뷰
               Expanded(
                 child: TabBarView(
                   controller: _tabController,
@@ -217,16 +260,15 @@ class _MembersScreenState extends State<MembersScreen>
   // 검색창
   // ────────────────────────────────
   Widget _buildSearchBar() {
-    return Container(
-      color: Colors.white,
-      padding: const EdgeInsets.fromLTRB(16, 10, 16, 10),
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(16, 10, 16, 4),
       child: TextField(
         controller: _searchController,
         style: const TextStyle(fontSize: 14),
         decoration: InputDecoration(
           hintText: '이름으로 검색',
-          hintStyle: const TextStyle(color: AppColors.textSecondary, fontSize: 14),
-          prefixIcon: const Icon(Icons.search, color: AppColors.primary, size: 20),
+          hintStyle: const TextStyle(color: Color(0xFF9CA3AF), fontSize: 14),
+          prefixIcon: const Icon(Icons.search, color: Color(0xFF9CA3AF), size: 20),
           suffixIcon: _searchQuery.isNotEmpty
               ? IconButton(
                   icon: const Icon(Icons.clear, size: 18, color: AppColors.textSecondary),
@@ -234,11 +276,15 @@ class _MembersScreenState extends State<MembersScreen>
                 )
               : null,
           filled: true,
-          fillColor: AppColors.background,
+          fillColor: Colors.white,
           contentPadding: const EdgeInsets.symmetric(vertical: 10),
-          border: OutlineInputBorder(
-            borderRadius: BorderRadius.circular(12),
-            borderSide: BorderSide.none,
+          enabledBorder: OutlineInputBorder(
+            borderRadius: BorderRadius.circular(24),
+            borderSide: const BorderSide(color: Color(0xFFE5E7EB)),
+          ),
+          focusedBorder: OutlineInputBorder(
+            borderRadius: BorderRadius.circular(24),
+            borderSide: const BorderSide(color: AppColors.accent),
           ),
         ),
       ),
@@ -253,101 +299,78 @@ class _MembersScreenState extends State<MembersScreen>
     if (ranking.isEmpty) return const SizedBox.shrink();
     final top3 = ranking.take(3).toList();
 
-    // 순위 메달 색
-    const medals = ['🥇', '🥈', '🥉'];
-    final medalColors = [
-      AppColors.accent,
-      const Color(0xFF90A4AE),
-      const Color(0xFFBF8B40),
-    ];
-
     return GestureDetector(
       onTap: () => _showFullRankingSheet(provider),
       child: Container(
-        margin: const EdgeInsets.fromLTRB(12, 8, 12, 0),
-        padding: const EdgeInsets.fromLTRB(16, 14, 14, 14),
+        margin: const EdgeInsets.fromLTRB(16, 10, 16, 0),
+        padding: const EdgeInsets.fromLTRB(14, 14, 14, 8),
         decoration: BoxDecoration(
-          color: AppColors.surface,
-          borderRadius: BorderRadius.circular(AppRadius.lg),
-          border: Border.all(
-              color: AppColors.accent.withValues(alpha: 0.35), width: 1),
-          boxShadow: AppShadows.card,
+          color: Colors.white,
+          borderRadius: BorderRadius.circular(16),
+          border: Border.all(color: const Color(0xFFE5E7EB)),
         ),
-        child: Row(
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                const Text('🏅 멤버십 포인트',
-                    style: TextStyle(
-                        color: AppColors.accent,
-                        fontSize: 13,
-                        fontWeight: FontWeight.w700)),
-                const SizedBox(height: 4),
-                const Text('올해 랭킹',
-                    style: TextStyle(
-                        color: AppColors.textPrimary,
-                        fontSize: 16,
-                        fontWeight: FontWeight.bold)),
-              ],
-            ),
-            const SizedBox(width: 16),
-            Expanded(
-              child: Row(
-                children: List.generate(top3.length, (i) {
-                  final entry = top3[i];
-                  final memberId = entry.key;
-                  final pts = entry.value;
-                  final memberObj = provider.memberById(memberId);
-                  final name = memberObj?.name ?? memberId;
-                  return Expanded(
-                    child: Container(
-                      margin: EdgeInsets.only(left: i == 0 ? 0 : 6),
-                      padding: const EdgeInsets.symmetric(
-                          horizontal: 8, vertical: 8),
-                      decoration: BoxDecoration(
-                        color: AppColors.surfaceVariant,
-                        borderRadius: BorderRadius.circular(AppRadius.md),
-                        border: Border.all(color: AppColors.divider),
-                      ),
-                      child: Column(
-                        mainAxisSize: MainAxisSize.min,
-                        children: [
-                          Text(medals[i],
-                              style: const TextStyle(fontSize: 16)),
-                          const SizedBox(height: 4),
-                          Text(
-                            name.length > 4 ? name.substring(0, 4) : name,
+            const Text('올해 랭킹',
+                style: TextStyle(
+                    fontSize: 15,
+                    fontWeight: FontWeight.w800,
+                    color: AppColors.ink)),
+            const SizedBox(height: 8),
+            ...List.generate(top3.length, (i) {
+              final entry = top3[i];
+              final memberObj = provider.activeMembers
+                  .where((m) => m.id == entry.key)
+                  .firstOrNull;
+              final name = memberObj?.name ?? entry.key;
+              final medalColors = [
+                const Color(0xFFD4AF37),
+                const Color(0xFF9CA3AF),
+                const Color(0xFFBF8B40),
+              ];
+              return Column(
+                children: [
+                  if (i > 0)
+                    const Divider(height: 1, color: Color(0xFFE5E7EB)),
+                  Padding(
+                    padding: const EdgeInsets.symmetric(vertical: 10),
+                    child: Row(
+                      children: [
+                        Container(
+                          width: 26,
+                          height: 26,
+                          decoration: BoxDecoration(
+                            color: medalColors[i],
+                            shape: BoxShape.circle,
+                          ),
+                          child: Center(
+                            child: Text('${i + 1}',
+                                style: const TextStyle(
+                                    color: Colors.white,
+                                    fontSize: 12,
+                                    fontWeight: FontWeight.w800)),
+                          ),
+                        ),
+                        const SizedBox(width: 10),
+                        Expanded(
+                          child: Text(name,
+                              style: const TextStyle(
+                                  fontSize: 14,
+                                  fontWeight: FontWeight.w700,
+                                  color: AppColors.ink)),
+                        ),
+                        Text('${entry.value}P',
                             style: const TextStyle(
-                                color: AppColors.textPrimary,
-                                fontSize: 11,
-                                fontWeight: FontWeight.w700),
-                            overflow: TextOverflow.ellipsis,
-                          ),
-                          Text(
-                            '$pts P',
-                            style: TextStyle(
-                                color: medalColors[i],
-                                fontSize: 12,
-                                fontWeight: FontWeight.w800),
-                          ),
-                        ],
-                      ),
+                                fontSize: 14,
+                                fontWeight: FontWeight.w800,
+                                color: Color(0xFF2563EB))),
+                      ],
                     ),
-                  );
-                }),
-              ),
-            ),
-            const SizedBox(width: 8),
-            Column(
-              children: [
-                Icon(Icons.chevron_right,
-                    color: AppColors.textTertiary, size: 20),
-                Text('전체',
-                    style: TextStyle(
-                        color: AppColors.textTertiary, fontSize: 10)),
-              ],
-            ),
+                  ),
+                ],
+              );
+            }),
           ],
         ),
       ),
@@ -493,45 +516,6 @@ class _MembersScreenState extends State<MembersScreen>
   }
 
   // ────────────────────────────────
-  // 생일 배너
-  // ────────────────────────────────
-  Widget _buildBirthdayBanner(List<Member> members) {
-    final names = members.map((m) {
-      if (m.birthDate != null) {
-        final mm = m.birthDate!.month.toString().padLeft(2, '0');
-        final dd = m.birthDate!.day.toString().padLeft(2, '0');
-        return '${m.name} ($mm/$dd)';
-      }
-      return m.name;
-    }).join(', ');
-    return Container(
-      margin: const EdgeInsets.fromLTRB(12, 6, 12, 0),
-      padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
-      decoration: BoxDecoration(
-        color: const Color(0xFFFFF8E1),
-        borderRadius: BorderRadius.circular(10),
-        border: Border.all(color: AppColors.accent.withValues(alpha: 0.4)),
-      ),
-      child: Row(
-        children: [
-          const Text('🎂', style: TextStyle(fontSize: 16)),
-          const SizedBox(width: 8),
-          Expanded(
-            child: Text(
-              '이달의 생일자: $names',
-              style: const TextStyle(
-                fontSize: 13,
-                color: Color(0xFF8B6914),
-                fontWeight: FontWeight.w500,
-              ),
-            ),
-          ),
-        ],
-      ),
-    );
-  }
-
-  // ────────────────────────────────
   // 탭 컨텐츠 (섹션 구분 여부)
   // ────────────────────────────────
   Widget _buildTabContent(
@@ -539,21 +523,36 @@ class _MembersScreenState extends State<MembersScreen>
     ClubProvider provider, {
     required bool showSections,
   }) {
-    if (filtered.isEmpty) {
-      return _buildEmptyState();
-    }
+    final scrollHeader = <Widget>[
+      _buildPointsRankingBanner(provider),
+      _TreasurerTransferEntry(
+        canAccess: provider.canAccessTreasurerTransfer,
+      ),
+    ];
 
-    if (!showSections) {
-      // 게스트 탭: 섹션 없이 단순 목록
-      return ListView.builder(
-        padding: const EdgeInsets.fromLTRB(12, 8, 12, 16),
-        itemCount: filtered.length,
-        itemBuilder: (_, i) =>
-            _MemberCard(member: filtered[i], provider: provider),
+    if (filtered.isEmpty) {
+      return ListView(
+        padding: const EdgeInsets.fromLTRB(12, 0, 12, 16),
+        children: [
+          ...scrollHeader,
+          _buildEmptyState(),
+        ],
       );
     }
 
-    // 전체/정회원 탭: 임원진 / 정회원 / 게스트 섹션 분리
+    if (!showSections) {
+      return ListView(
+        padding: const EdgeInsets.fromLTRB(12, 0, 12, 16),
+        children: [
+          ...scrollHeader,
+          const SizedBox(height: 8),
+          ...filtered.map(
+            (m) => _MemberCard(member: m, provider: provider),
+          ),
+        ],
+      );
+    }
+
     final officers =
         filtered.where((m) => ClubMemberRole.isOfficer(m.role)).toList();
     final regular = filtered
@@ -565,18 +564,8 @@ class _MembersScreenState extends State<MembersScreen>
         .where((m) => m.memberType == ClubMemberRole.guest)
         .toList();
 
-    // 광고 배너 숨김
     final allItems = <Widget>[
-      // // ── 상단 광고 배너 (회원 슬롯 — 숨김) ──
-      // Padding(
-      //   padding: const EdgeInsets.fromLTRB(0, 4, 0, 10),
-      //   child: AdBanner(
-      //     type: AdBannerType.native,
-      //     adIndex: 2,
-      //     clubId: provider.selectedClub.id,
-      //     slotType: AdSlotType.member,
-      //   ),
-      // ),
+      ...scrollHeader,
       if (officers.isNotEmpty) ...[
         _SectionHeader(title: '임원진', count: officers.length),
         ...officers.map((m) => _MemberCard(member: m, provider: provider)),
@@ -592,7 +581,7 @@ class _MembersScreenState extends State<MembersScreen>
     ];
 
     return ListView(
-      padding: const EdgeInsets.fromLTRB(12, 8, 12, 16),
+      padding: const EdgeInsets.fromLTRB(12, 0, 12, 16),
       children: allItems,
     );
   }
@@ -601,9 +590,10 @@ class _MembersScreenState extends State<MembersScreen>
   // 빈 상태
   // ────────────────────────────────
   Widget _buildEmptyState() {
-    return Center(
+    return Padding(
+      padding: const EdgeInsets.symmetric(vertical: 48),
       child: Column(
-        mainAxisAlignment: MainAxisAlignment.center,
+        mainAxisSize: MainAxisSize.min,
         children: [
           Icon(Icons.people_outline,
               size: 56, color: AppColors.textSecondary.withValues(alpha: 0.4)),
@@ -616,22 +606,6 @@ class _MembersScreenState extends State<MembersScreen>
         ],
       ),
     );
-  }
-
-  // ────────────────────────────────
-  // 회원 등록 화면 이동
-  // ────────────────────────────────
-  Future<void> _navigateToAddMember(
-      BuildContext context, ClubProvider provider) async {
-    final result = await Navigator.push<Member>(
-      context,
-      MaterialPageRoute(
-        builder: (_) => const MemberFormScreen(),
-      ),
-    );
-    if (result != null) {
-      provider.addMember(result);
-    }
   }
 
   // ────────────────────────────────
@@ -676,10 +650,9 @@ class _SectionHeader extends StatelessWidget {
           Text(
             title,
             style: const TextStyle(
-              fontSize: 13,
-              fontWeight: FontWeight.bold,
-              color: AppColors.textSecondary,
-              letterSpacing: 0.3,
+              fontSize: 15,
+              fontWeight: FontWeight.w800,
+              color: AppColors.ink,
             ),
           ),
           const SizedBox(width: 6),
@@ -735,14 +708,9 @@ class _MemberCard extends StatelessWidget {
     return Container(
       margin: const EdgeInsets.only(bottom: 8),
       decoration: BoxDecoration(
+        color: Colors.white,
         borderRadius: BorderRadius.circular(12),
-        boxShadow: [
-          BoxShadow(
-            color: Colors.black.withValues(alpha: 0.05),
-            blurRadius: 4,
-            offset: const Offset(0, 1),
-          ),
-        ],
+        border: Border.all(color: const Color(0xFFE5E7EB)),
       ),
       child: ClipRRect(
         borderRadius: BorderRadius.circular(12),
@@ -762,62 +730,75 @@ class _MemberCard extends StatelessWidget {
             },
             splashColor: AppColors.mintBright.withValues(alpha: 0.2),
             highlightColor: AppColors.mintPale.withValues(alpha: 0.3),
-        child: Padding(
-          padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
-          child: Row(
-            children: [
-              // 아바타 (프로필 사진 or 이니셜)
-              _buildAvatar(avatarBg, avatarFg),
-              const SizedBox(width: 12),
-              // 이름 + 배지 + 서브텍스트
-              Expanded(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Row(
+            child: Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+              child: Row(
+                children: [
+                  _buildAvatar(avatarBg, avatarFg),
+                  const SizedBox(width: 12),
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
+                        Row(
+                          children: [
+                            Text(
+                              member.name,
+                              style: const TextStyle(
+                                fontWeight: FontWeight.w800,
+                                fontSize: 15,
+                                color: AppColors.ink,
+                              ),
+                            ),
+                            const SizedBox(width: 6),
+                            if (isOfficer)
+                              Text(member.role,
+                                  style: const TextStyle(
+                                      fontSize: 13,
+                                      fontWeight: FontWeight.w600,
+                                      color: Color(0xFF9CA3AF))),
+                            if (isGuest) _GuestBadge(),
+                          ],
+                        ),
+                        const SizedBox(height: 3),
                         Text(
-                          member.name,
+                          provider.selectedClub.name,
                           style: const TextStyle(
-                            fontWeight: FontWeight.bold,
-                            fontSize: 15,
-                            color: AppColors.textPrimary,
+                            fontSize: 12,
+                            color: Color(0xFF9CA3AF),
                           ),
                         ),
-                        const SizedBox(width: 6),
-                        // 직책 배지 (임원)
-                        if (isOfficer) _RoleBadge(member.role),
-                        // 게스트 배지
-                        if (isGuest) _GuestBadge(),
                       ],
                     ),
-                    const SizedBox(height: 3),
-                    Text(
-                      _subtitle(member),
-                      style: const TextStyle(
-                        fontSize: 12,
-                        color: AppColors.textSecondary,
+                  ),
+                  Column(
+                    crossAxisAlignment: CrossAxisAlignment.end,
+                    children: [
+                      Text(
+                        member.age > 0
+                            ? '${member.age}세 · ${member.gender}'
+                            : member.gender,
+                        style: const TextStyle(
+                            fontSize: 12, color: Color(0xFF6B7280)),
                       ),
-                    ),
-                  ],
-                ),
+                      if (member.address != null &&
+                          member.address!.isNotEmpty) ...[
+                        const SizedBox(height: 2),
+                        Text(
+                          member.address!,
+                          style: const TextStyle(
+                              fontSize: 12, color: Color(0xFF9CA3AF)),
+                        ),
+                      ],
+                    ],
+                  ),
+                ],
               ),
-              // 시상 횟수 + 멤버십 포인트 뱃지
-              _buildStatBadges(),
-              const SizedBox(width: 6),
-              // 화살표
-              const Icon(
-                Icons.chevron_right,
-                color: AppColors.textSecondary,
-                size: 20,
-              ),
-            ],
+            ),
           ),
         ),
-        ),  // InkWell
-        ),  // Material
-      ),    // ClipRRect
-    );      // Container (shadow)
+      ),
+    );
   }
 
   /// 프로필 사진 or 이니셜 아바타
@@ -840,101 +821,6 @@ class _MemberCard extends StatelessWidget {
           fontSize: 18,
           fontWeight: FontWeight.bold,
           color: avatarFg,
-        ),
-      ),
-    );
-  }
-
-  /// 시상 횟수 + 멤버십 포인트 뱃지
-  Widget _buildStatBadges() {
-    final awardCount = provider.getMemberAwardCount(member.id);
-    final points = provider.getMembershipPoints(member.id);
-
-    return Column(
-      mainAxisSize: MainAxisSize.min,
-      crossAxisAlignment: CrossAxisAlignment.end,
-      children: [
-        // 시상 횟수 뱃지
-        if (awardCount > 0)
-          Container(
-            padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
-            decoration: BoxDecoration(
-              color: Colors.amber.withValues(alpha: 0.12),
-              borderRadius: BorderRadius.circular(8),
-              border: Border.all(color: Colors.amber.withValues(alpha: 0.3)),
-            ),
-            child: Row(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                const Text('🏆', style: TextStyle(fontSize: 9)),
-                const SizedBox(width: 2),
-                Text(
-                  '$awardCount회',
-                  style: TextStyle(
-                    fontSize: 10,
-                    fontWeight: FontWeight.bold,
-                    color: Colors.amber.shade700,
-                  ),
-                ),
-              ],
-            ),
-          ),
-        if (awardCount > 0) const SizedBox(height: 3),
-        // 멤버십 포인트 뱃지
-        Container(
-          padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
-          decoration: BoxDecoration(
-            color: points >= 0
-                ? AppColors.primary.withValues(alpha: 0.08)
-                : AppColors.danger.withValues(alpha: 0.08),
-            borderRadius: BorderRadius.circular(8),
-            border: Border.all(
-              color: points >= 0
-                  ? AppColors.primary.withValues(alpha: 0.2)
-                  : AppColors.danger.withValues(alpha: 0.2),
-            ),
-          ),
-          child: Text(
-            '${points >= 0 ? '+' : ''}$points P',
-            style: TextStyle(
-              fontSize: 10,
-              fontWeight: FontWeight.bold,
-              color: points >= 0 ? AppColors.primary : AppColors.danger,
-            ),
-          ),
-        ),
-      ],
-    );
-  }
-
-  String _subtitle(Member m) {
-    final parts = <String>[];
-    if (m.handicap != null) parts.add('핸디캡 ${m.handicap!.toStringAsFixed(0)}');
-    if (m.birthDate != null && m.age > 0) parts.add('${m.age}세');
-    parts.add(m.gender);
-    return parts.join(' · ');
-  }
-}
-
-// ── 직책 배지 ──
-class _RoleBadge extends StatelessWidget {
-  final String role;
-  const _RoleBadge(this.role);
-
-  @override
-  Widget build(BuildContext context) {
-    return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
-      decoration: BoxDecoration(
-        color: AppColors.primary,
-        borderRadius: BorderRadius.circular(4),
-      ),
-      child: Text(
-        role,
-        style: const TextStyle(
-          color: Colors.white,
-          fontSize: 10,
-          fontWeight: FontWeight.bold,
         ),
       ),
     );
@@ -1510,101 +1396,6 @@ class _PointGuideRow extends StatelessWidget {
   }
 }
 
-class _MembersHeader extends StatelessWidget {
-  final VoidCallback onJoinRequests;
-  final int pendingCount;
-  final VoidCallback onInviteRegular;
-  final bool showExcel;
-  final VoidCallback onExcel;
-  final VoidCallback onInviteGuest;
-
-  const _MembersHeader({
-    required this.onJoinRequests,
-    required this.pendingCount,
-    required this.onInviteRegular,
-    required this.showExcel,
-    required this.onExcel,
-    required this.onInviteGuest,
-  });
-
-  @override
-  Widget build(BuildContext context) {
-    return Container(
-      color: AppColors.cream,
-      padding: const EdgeInsets.fromLTRB(20, 10, 8, 2),
-      child: Row(
-        children: [
-          const Expanded(
-            child: Text(
-              '회원 관리',
-              style: TextStyle(
-                fontSize: 20,
-                fontWeight: FontWeight.w800,
-                color: AppColors.ink,
-              ),
-            ),
-          ),
-          if (pendingCount > 0)
-            _HeaderIcon(
-              tooltip: '가입 신청',
-              onPressed: onJoinRequests,
-              icon: Icons.how_to_reg_outlined,
-              badge: pendingCount,
-            ),
-          _HeaderIcon(
-            tooltip: '정회원 초대',
-            onPressed: onInviteRegular,
-            icon: Icons.badge_outlined,
-          ),
-          if (showExcel)
-            _HeaderIcon(
-              tooltip: '엑셀 다운로드',
-              onPressed: onExcel,
-              icon: Icons.file_download_outlined,
-            ),
-          _HeaderIcon(
-            tooltip: '게스트 초대',
-            onPressed: onInviteGuest,
-            icon: Icons.person_add_alt_1_outlined,
-          ),
-        ],
-      ),
-    );
-  }
-}
-
-class _HeaderIcon extends StatelessWidget {
-  final String tooltip;
-  final VoidCallback onPressed;
-  final IconData icon;
-  final int badge;
-
-  const _HeaderIcon({
-    required this.tooltip,
-    required this.onPressed,
-    required this.icon,
-    this.badge = 0,
-  });
-
-  @override
-  Widget build(BuildContext context) {
-    return IconButton(
-      tooltip: tooltip,
-      onPressed: onPressed,
-      visualDensity: VisualDensity.compact,
-      padding: const EdgeInsets.all(8),
-      constraints: const BoxConstraints(minWidth: 40, minHeight: 40),
-      icon: badge <= 0
-          ? Icon(icon, color: AppColors.primary, size: 22)
-          : Badge(
-              label: Text('$badge'),
-              backgroundColor: AppColors.danger,
-              child: Icon(icon, color: AppColors.primary, size: 22),
-            ),
-    );
-  }
-}
-
 /// 총무 인수인계 진입 — 모든 회원에게 노출, 권한 없으면 안내
 class _TreasurerTransferEntry extends StatelessWidget {
   final bool canAccess;
@@ -1612,91 +1403,94 @@ class _TreasurerTransferEntry extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return Material(
-      color: Colors.white,
-      child: InkWell(
-        onTap: () {
-          if (!canAccess) {
-            showDialog(
-              context: context,
-              builder: (_) => AlertDialog(
-                shape: RoundedRectangleBorder(
-                    borderRadius: BorderRadius.circular(16)),
-                title: const Text('접근 제한',
-                    style: TextStyle(
-                        fontSize: 16, fontWeight: FontWeight.bold)),
-                content: const Text(
-                  '총무만 접근할 수 있는 메뉴입니다.',
-                  style: TextStyle(fontSize: 14, height: 1.5),
-                ),
-                actions: [
-                  TextButton(
-                    onPressed: () => Navigator.pop(context),
-                    child: const Text('확인'),
+    return Container(
+      margin: const EdgeInsets.fromLTRB(16, 10, 16, 0),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(color: const Color(0xFFE5E7EB)),
+      ),
+      child: Material(
+        color: Colors.transparent,
+        child: InkWell(
+          borderRadius: BorderRadius.circular(12),
+          onTap: () {
+            if (!canAccess) {
+              showDialog(
+                context: context,
+                builder: (_) => AlertDialog(
+                  shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(16)),
+                  title: const Text('접근 제한',
+                      style: TextStyle(
+                          fontSize: 16, fontWeight: FontWeight.bold)),
+                  content: const Text(
+                    '총무만 접근할 수 있는 메뉴입니다.',
+                    style: TextStyle(fontSize: 14, height: 1.5),
                   ),
-                ],
-              ),
-            );
-            return;
-          }
-          Navigator.push(
-            context,
-            MaterialPageRoute(
-              builder: (_) => const TreasurerTransferScreen(),
-            ),
-          );
-        },
-        child: Container(
-          width: double.infinity,
-          padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
-          decoration: const BoxDecoration(
-            border: Border(
-              bottom: BorderSide(color: Color(0xFFEEEEEE)),
-            ),
-          ),
-          child: Row(
-            children: [
-              Container(
-                width: 36,
-                height: 36,
-                decoration: BoxDecoration(
-                  color: AppColors.primary.withValues(alpha: 0.1),
-                  borderRadius: BorderRadius.circular(10),
-                ),
-                child: const Icon(Icons.swap_horiz_rounded,
-                    color: AppColors.primary, size: 20),
-              ),
-              const SizedBox(width: 12),
-              const Expanded(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Text(
-                      '총무 인수인계',
-                      style: TextStyle(
-                        fontSize: 14,
-                        fontWeight: FontWeight.w700,
-                        color: AppColors.textPrimary,
-                      ),
-                    ),
-                    SizedBox(height: 2),
-                    Text(
-                      '총무 권한을 다른 회원에게 이전합니다',
-                      style: TextStyle(
-                        fontSize: 11,
-                        color: AppColors.textSecondary,
-                      ),
+                  actions: [
+                    TextButton(
+                      onPressed: () => Navigator.pop(context),
+                      child: const Text('확인'),
                     ),
                   ],
                 ),
+              );
+              return;
+            }
+            Navigator.push(
+              context,
+              MaterialPageRoute(
+                builder: (_) => const TreasurerTransferScreen(),
               ),
-              Icon(
-                Icons.chevron_right,
-                color: canAccess
-                    ? AppColors.textSecondary
-                    : AppColors.textSecondary.withValues(alpha: 0.5),
-              ),
-            ],
+            );
+          },
+          child: Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+            child: Row(
+              children: [
+                Container(
+                  width: 36,
+                  height: 36,
+                  decoration: BoxDecoration(
+                    color: AppColors.primary.withValues(alpha: 0.1),
+                    borderRadius: BorderRadius.circular(10),
+                  ),
+                  child: const Icon(Icons.swap_horiz_rounded,
+                      color: AppColors.primary, size: 20),
+                ),
+                const SizedBox(width: 12),
+                const Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        '총무 인수인계',
+                        style: TextStyle(
+                          fontSize: 14,
+                          fontWeight: FontWeight.w700,
+                          color: AppColors.textPrimary,
+                        ),
+                      ),
+                      SizedBox(height: 2),
+                      Text(
+                        '총무 권한을 다른 회원에게 이전합니다',
+                        style: TextStyle(
+                          fontSize: 11,
+                          color: AppColors.textSecondary,
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+                Icon(
+                  Icons.chevron_right,
+                  color: canAccess
+                      ? AppColors.textSecondary
+                      : AppColors.textSecondary.withValues(alpha: 0.5),
+                ),
+              ],
+            ),
           ),
         ),
       ),

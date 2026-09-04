@@ -5,10 +5,12 @@ import 'package:flutter_test/flutter_test.dart';
 void main() {
   late String room;
   late String provider;
+  late String members;
 
   setUpAll(() {
     room = File('lib/screens/club_room/club_room_screen.dart').readAsStringSync();
     provider = File('lib/providers/club_provider.dart').readAsStringSync();
+    members = File('lib/screens/members/members_screen.dart').readAsStringSync();
   });
 
   test('홈 다음 일정·참석현황은 원클럽형 카드다', () {
@@ -50,5 +52,26 @@ void main() {
     final nudge = room.indexOf("'독촉하기'");
     expect(unpaid, greaterThan(0));
     expect(nudge, greaterThan(unpaid));
+  });
+
+  test('회원 탭에 회원 관리 헤더가 없어야 한다', () {
+    expect(members.contains("'회원 관리'"), isFalse);
+    expect(members.contains('Tab(text: \'전체'), isTrue);
+  });
+
+  test('회원 탭은 이름 검색까지 고정하고 랭킹은 스크롤 영역에 둔다', () {
+    final searchIdx = members.indexOf('_buildSearchBar()');
+    final tabViewIdx = members.indexOf('TabBarView(');
+    expect(searchIdx, greaterThan(0));
+    expect(tabViewIdx, greaterThan(searchIdx));
+    final pinned = members.substring(searchIdx, tabViewIdx);
+    expect(pinned.contains('_buildPointsRankingBanner'), isFalse);
+    expect(members.contains('scrollHeader'), isTrue);
+    expect(members.contains('_buildPointsRankingBanner(provider)'), isTrue);
+    expect(members.contains('_buildBirthdayBanner'), isFalse);
+    expect(members.contains('birthdayThisMonth'), isFalse);
+    expect(members.contains('GuestInviteFormScreen'), isTrue);
+    expect(members.contains('_TreasurerTransferEntry'), isTrue);
+    expect(members.contains('file_download_outlined'), isTrue);
   });
 }
