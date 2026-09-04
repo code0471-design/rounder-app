@@ -14,6 +14,14 @@
       },
       "oauth_client": [
         {
+          "client_id": "909216389322-b17dvbk8478jp6f9iv4oolgrs38dl2rk.apps.googleusercontent.com",
+          "client_type": 1,
+          "android_info": {
+            "package_name": "com.golfrounder.golf",
+            "certificate_hash": "12fdd6e01a9302aacfc37d4184d60872227a4f8c"
+          }
+        },
+        {
           "client_id": "909216389322-b42dbv9nmht8f07ks3sh8k54n927fpb2.apps.googleusercontent.com",
           "client_type": 1,
           "android_info": {
@@ -29,6 +37,42 @@
             "certificate_hash": "0697ebd4edfecc9213b2f796684b93b508be02f7"
           }
         },
+        {
+          "client_id": "909216389322-3jp0348rm4d575jpl3rv0ngaj8proea6.apps.googleusercontent.com",
+          "client_type": 3
+        }
+      ],
+      "api_key": [
+        {
+          "current_key": "AIzaSyABEhMGGKZ5CUMEvfrEo3hOsmo4Ps9s1LQ"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": [
+            {
+              "client_id": "909216389322-3jp0348rm4d575jpl3rv0ngaj8proea6.apps.googleusercontent.com",
+              "client_type": 3
+            },
+            {
+              "client_id": "909216389322-jfgbktkrvk7ulhtdc8u63el6ubk2i7n3.apps.googleusercontent.com",
+              "client_type": 2,
+              "ios_info": {
+                "bundle_id": "com.golfrounder.golfRounder"
+              }
+            }
+          ]
+        }
+      }
+    },
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:909216389322:android:daf57b5306088a8ff0bc33",
+        "android_client_info": {
+          "package_name": "com.golfrounder.golf.staging"
+        }
+      },
+      "oauth_client": [
         {
           "client_id": "909216389322-3jp0348rm4d575jpl3rv0ngaj8proea6.apps.googleusercontent.com",
           "client_type": 3

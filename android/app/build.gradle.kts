@@ -32,7 +32,17 @@ android {
     }
 
     defaultConfig {
-        applicationId = "com.golfrounder.golf"
+        // 스테이징 빌드를 운영 앱과 한 폰에 나란히 깔기 위한 접미사.
+        // 기본은 빈 문자열 — 아무것도 안 넘기면 지금까지와 동일한 앱이다.
+        // 나란히 설치하려면: ROUNDER_APP_ID_SUFFIX=.staging
+        val appIdSuffix = (
+            project.findProperty("rounderAppIdSuffix") as String?
+                ?: System.getenv("ROUNDER_APP_ID_SUFFIX")
+                ?: ""
+        ).trim()
+        applicationId = "com.golfrounder.golf$appIdSuffix"
+        manifestPlaceholders["appLabel"] =
+            if (appIdSuffix.isEmpty()) "라운더" else "라운더 (스테이징)"
         minSdk = flutter.minSdkVersion
         targetSdk = flutter.targetSdkVersion
         // Play already used ≤29. Codemagic reads build-number from pubspec.yaml.

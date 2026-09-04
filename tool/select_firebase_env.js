@@ -109,6 +109,21 @@ function apply(env) {
     fail(srcIos + ' 의 PROJECT_ID 가 ' + expected + ' 가 아닙니다.');
   }
 
+  // 나란히 설치용 접미사는 스테이징 전용. 운영 AAB 가 다른 패키지로 나가면
+  // Play 가 아예 다른 앱으로 취급한다.
+  const suffix = (process.env.ROUNDER_APP_ID_SUFFIX || '').trim();
+  if (env === 'prod' && suffix) {
+    fail(
+      'ROUNDER_APP_ID_SUFFIX="' +
+        suffix +
+        '" 가 설정된 채로 운영 빌드를 하려 합니다.\n' +
+        '  운영 패키지는 com.golfrounder.golf 여야 합니다. 접미사를 비우세요.'
+    );
+  }
+  if (suffix) {
+    console.log('[select_firebase_env] 패키지 접미사: ' + suffix + ' (나란히 설치용)');
+  }
+
   if (env === 'prod') {
     const missing = ['googleIosClientId', 'googleServerClientId'].filter(
       (k) => !manifest[k]

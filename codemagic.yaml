@@ -81,6 +81,9 @@ workflows:
       flutter: stable
       vars:
         APP_ENV: staging
+        # 운영 앱과 한 폰에 나란히 깔려면 ".staging" 을 넣고 빌드.
+        # 비워 두면 지금까지와 같은 앱(com.golfrounder.golf)으로 나온다.
+        ROUNDER_APP_ID_SUFFIX: ""
       groups:
         - solapi
       android_signing:

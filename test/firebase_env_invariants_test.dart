@@ -101,6 +101,62 @@ void main() {
     });
   });
 
+  group('나란히 설치용 패키지 접미사', () {
+    test('기본값은 접미사 없음 — 지금 테스터 앱이 그대로 유지된다', () {
+      final gradle = read('android/app/build.gradle.kts');
+      expect(
+        gradle.contains('ROUNDER_APP_ID_SUFFIX'),
+        isTrue,
+        reason: '접미사 메커니즘이 있어야 스테이징을 나란히 깔 수 있다',
+      );
+      expect(
+        RegExp(r'''\?:\s*""\s*\n\s*\)\.trim\(\)''').hasMatch(gradle),
+        isTrue,
+        reason: '기본값이 빈 문자열이 아니면 기존 앱이 갈아엎어진다',
+      );
+      expect(
+        gradle.contains(r'applicationId = "com.golfrounder.golf$appIdSuffix"'),
+        isTrue,
+      );
+    });
+
+    test('앱 이름도 접미사에 따라 갈린다', () {
+      final manifest = read('android/app/src/main/AndroidManifest.xml');
+      expect(manifest.contains(r'android:label="${appLabel}"'), isTrue);
+      final gradle = read('android/app/build.gradle.kts');
+      expect(gradle.contains('manifestPlaceholders["appLabel"]'), isTrue);
+      expect(gradle.contains('"라운더"'), isTrue);
+    });
+
+    test('스테이징 설정에 두 패키지가 모두 등록돼 있다', () {
+      final gs = readJson('firebase_config/staging/google-services.json');
+      final packages = (gs['client'] as List)
+          .map((c) => ((c as Map)['client_info'] as Map)['android_client_info']
+              ['package_name'] as String)
+          .toList();
+      expect(packages, contains('com.golfrounder.golf'));
+      expect(
+        packages,
+        contains('com.golfrounder.golf.staging'),
+        reason: '접미사 빌드가 Firebase 를 못 찾으면 gradle 이 실패한다',
+      );
+    });
+
+    test('운영 설정에는 접미사 패키지가 없다', () {
+      final gs = readJson('firebase_config/prod/google-services.json');
+      final packages = (gs['client'] as List)
+          .map((c) => ((c as Map)['client_info'] as Map)['android_client_info']
+              ['package_name'] as String)
+          .toList();
+      expect(packages, ['com.golfrounder.golf']);
+    });
+
+    test('운영 빌드에 접미사가 붙으면 스크립트가 막는다', () {
+      final script = read('tool/select_firebase_env.js');
+      expect(script.contains("env === 'prod' && suffix"), isTrue);
+    });
+  });
+
   group('firebase_options.dart', () {
     final src = read('lib/firebase_options.dart');
 
