@@ -1,6 +1,10 @@
+import 'dart:io' show Platform;
+
 import 'package:firebase_core/firebase_core.dart';
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
+import 'package:image_picker_android/image_picker_android.dart';
+import 'package:image_picker_platform_interface/image_picker_platform_interface.dart';
 
 import 'app/app_startup_bootstrap.dart';
 import 'app/app_startup_host.dart';
@@ -13,6 +17,7 @@ Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
   configureAppErrorHandlers();
   configureSystemChrome();
+  configureAndroidPhotoPicker();
 
   if (kIsWeb) {
     debugPrint('[main] Uri.base=${Uri.base} fragment=${Uri.base.fragment} '
@@ -39,4 +44,15 @@ Future<void> main() async {
   }
 
   runApp(const AppStartupHost());
+}
+
+/// 구글 포토 앱은 `pickMultiImage` 의 `limit` 을 무시한다.
+/// 안드로이드 시스템 포토 피커를 강제해야 20장 제한이 실제로 걸린다.
+/// (원클럽 `main.dart` 와 같은 처리)
+void configureAndroidPhotoPicker() {
+  if (kIsWeb || !Platform.isAndroid) return;
+  final impl = ImagePickerPlatform.instance;
+  if (impl is ImagePickerAndroid) {
+    impl.useAndroidPhotoPicker = true;
+  }
 }

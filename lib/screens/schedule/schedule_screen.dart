@@ -4241,8 +4241,9 @@ class _PhotoSection extends StatelessWidget {
   Future<void> _showUploadDialog(
       BuildContext context, ClubProvider provider) async {
     List<String> dataUrls;
+    var exceeded = false;
     try {
-      dataUrls = await pickRoundPhotoDataUrls();
+      (dataUrls, exceeded) = await pickRoundPhotoDataUrls();
     } catch (_) {
       if (!context.mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
@@ -4251,6 +4252,11 @@ class _PhotoSection extends StatelessWidget {
       return;
     }
     if (dataUrls.isEmpty || !context.mounted) return;
+    // 20장 초과 안내. 예전엔 제한도 안내도 없어 계속 선택됐다.
+    if (exceeded) {
+      await showRoundPhotoLimitAlert(context);
+      if (!context.mounted) return;
+    }
     showModalBottomSheet(
       context: context,
       isScrollControlled: true,

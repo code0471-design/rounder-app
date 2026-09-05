@@ -4,34 +4,50 @@ import 'dart:typed_data';
 
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
-import 'package:image_picker/image_picker.dart';
-
 import '../../models/club_model.dart';
 import '../../providers/club_provider.dart';
+import '../../services/photo_compress_service.dart';
 import '../../theme/app_theme.dart';
 
+/// 한 번에 고를 수 있는 최대 장수. 원클럽과 같은 값.
+const int roundPhotoMaxPickCount = PhotoCompressService.maxPickCount;
+
 /// 여러 장 선택. Firestore 문서 한도 내로 들어가도록 압축.
-Future<List<String>> pickRoundPhotoDataUrls() async {
-  final picked = await ImagePicker().pickMultiImage(
-    maxWidth: 1280,
-    imageQuality: 70,
-    requestFullMetadata: false,
-  );
-  if (picked.isEmpty) return const [];
-  final out = <String>[];
-  for (final file in picked) {
-    final bytes = await file.readAsBytes();
-    if (bytes.isEmpty) continue;
-    out.add('data:image/jpeg;base64,${base64Encode(bytes)}');
-  }
-  return out;
+///
+/// 반환: (data URI 목록, 20장 초과 여부)
+/// 초과 여부는 호출부가 얼럿을 띄우는 데 쓴다 — 예전엔 제한도 안내도 없었다.
+Future<(List<String>, bool)> pickRoundPhotoDataUrls() async {
+  final (jpegs, exceeded) = await PhotoCompressService.pickAndCompress();
+  if (jpegs.isEmpty) return (const <String>[], exceeded);
+  final out = <String>[
+    for (final bytes in jpegs) 'data:image/jpeg;base64,${base64Encode(bytes)}',
+  ];
+  return (out, exceeded);
 }
 
 Future<String?> pickRoundPhotoDataUrl() async {
-  final list = await pickRoundPhotoDataUrls();
+  final (list, _) = await pickRoundPhotoDataUrls();
   if (list.isEmpty) return null;
   return list.first;
 }
+
+/// 20장 초과 안내. 원클럽과 같은 문구를 쓴다.
+Future<void> showRoundPhotoLimitAlert(BuildContext context) => showDialog<void>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: const Text('사진 선택 제한'),
+        content: const Text(
+          '한 번에 $roundPhotoMaxPickCount장까지 선택할 수 있습니다.\n'
+          '$roundPhotoMaxPickCount장만 가져왔습니다.',
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(ctx),
+            child: const Text('확인'),
+          ),
+        ],
+      ),
+    );
 
 class RoundPhotoView extends StatelessWidget {
   final String imageUrl;
@@ -149,8 +165,12 @@ class _PhotoUploadSheetState extends State<PhotoUploadSheet> {
     if (_picking) return;
     setState(() => _picking = true);
     try {
-      final dataUrls = await pickRoundPhotoDataUrls();
+      final (dataUrls, exceeded) = await pickRoundPhotoDataUrls();
       if (!mounted || dataUrls.isEmpty) return;
+      if (exceeded) {
+        await showRoundPhotoLimitAlert(context);
+        if (!mounted) return;
+      }
       setState(() {
         // 새로 고른 사진으로 교체 (여러 장 재선택)
         _pickedUrls = List<String>.from(dataUrls);

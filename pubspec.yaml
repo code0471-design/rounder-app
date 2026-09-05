@@ -1,7 +1,7 @@
 name: golf_rounder
 description: ROUNDER - 골프 모임 관리 앱
 publish_to: 'none'
-version: 1.0.0+72
+version: 1.0.0+73
 
 environment:
   sdk: '>=3.0.0 <4.0.0'
@@ -21,6 +21,12 @@ dependencies:
   cached_network_image: 3.4.1
   cupertino_icons: ^1.0.2
   image_picker: 1.1.2
+  # Google 포토 앱은 pickMultiImage 의 limit 을 무시한다. 안드로이드 시스템
+  # 포토 피커를 강제해야 20장 제한이 실제로 걸린다 (main.dart 에서 설정).
+  image_picker_android: 0.8.13+1
+  image_picker_platform_interface: 2.11.1
+  # data URI 사진이 Firestore 문서 한도를 넘어 조용히 버려지지 않게 압축한다.
+  flutter_image_compress: 2.3.0
   url_launcher: ^6.3.1
   firebase_core: ^4.12.1
   firebase_auth: ^6.5.6
