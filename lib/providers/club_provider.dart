@@ -427,7 +427,7 @@ class ClubProvider extends ChangeNotifier with WidgetsBindingObserver {
     await refreshJoinRequestInbox();
     _purgeDemoSeedNotifications();
     await HqPushCatalog.load();
-    unawaited(PushNotificationService.bindUserIds([authUserId, _currentUserId]));
+    _rebindPushIdsIfChanged();
 
     // rounder-staging 운영 데이터 pull (테스터끼리 공유)
     await _pullCloudOpsForMyClubs();
@@ -1164,6 +1164,55 @@ class ClubProvider extends ChangeNotifier with WidgetsBindingObserver {
     return false;
   }
 
+  /// 내 FCM 토큰을 등록할 ID 전부.
+  ///
+  /// 로그인 ID만 등록하면 안 된다. 발송 대상은 **명단 ID**(`m_creator_<clubId>`,
+  /// `m_<clubId>_<userId>`)로 들어오고, `_fcmInboxIdFor` 가 그걸 로그인 ID로
+  /// 바꿔 주는데 `Club.creatorId` 가 비어 있으면(기본값이 `''`) 매핑이 실패해
+  /// 명단 ID 그대로 push_inbox 에 쌓인다. 그러면 Cloud Functions 가
+  /// `no FCM token m_creator_c_...` 를 남기고 푸시가 사라진다. (실제 발생)
+  ///
+  /// 그래서 매핑에 기대지 않고 명단 ID로도 토큰을 등록한다.
+  /// 어느 ID로 들어와도 토큰이 있으니 푸시가 도착한다.
+  List<String> myPushIds() {
+    final ids = <String>{
+      if (_persistAuthUserId != null) _persistAuthUserId!,
+      _currentUserId,
+      currentUserId,
+    };
+    for (final club in _myClubs) {
+      // 데모 모임(c1~c5)은 공유 명단이라 남의 알림을 받게 되므로 제외.
+      if (_legacyMockClubIds.contains(club.id)) continue;
+      ids.add('m_creator_${club.id}');
+      for (final uid in {_persistAuthUserId, _currentUserId, currentUserId}) {
+        if (uid == null || uid.trim().isEmpty) continue;
+        ids.add(Member.rosterId(club.id, uid));
+      }
+    }
+    final me = currentMember?.id;
+    if (me != null) ids.add(me);
+    return ids
+        .map((e) => e.trim())
+        .where((e) => e.isNotEmpty)
+        .toList(growable: false);
+  }
+
+  /// 마지막으로 푸시 등록한 ID 집합. 모임이 늘면 다시 등록해야 한다.
+  String _boundPushIdsSignature = '';
+
+  /// 모임 목록이 바뀌면 토큰을 다시 등록한다.
+  ///
+  /// 모임을 새로 만들거나 초대로 가입하면 명단 ID가 생기는데,
+  /// 로그인 시점에 등록한 목록에는 그게 없어서 그 모임 알림만 안 왔다.
+  void _rebindPushIdsIfChanged() {
+    if (_persistAuthUserId == null) return;
+    final ids = myPushIds();
+    final signature = (ids.toList()..sort()).join(',');
+    if (signature == _boundPushIdsSignature) return;
+    _boundPushIdsSignature = signature;
+    unawaited(PushNotificationService.bindUserIds(ids));
+  }
+
   /// FCM·푸시함은 Firebase 로그인 ID를 쓴다. 명단 ID를 그 키로 바꾼다.
   String _fcmInboxIdFor(String memberOrUserId) {
     final raw = memberOrUserId.trim();
@@ -1400,6 +1449,9 @@ class ClubProvider extends ChangeNotifier with WidgetsBindingObserver {
     ClubOpsSync.seedRemovedMembers(
       _members.where((m) => m.status != '활성').map((m) => m.id),
     );
+    // 모임 목록이 방금 바뀌었다. 새 모임의 명단 ID로도 FCM 토큰을 등록해야
+    // 그 모임 알림이 도착한다.
+    _rebindPushIdsIfChanged();
     _activities
       ..clear()
       ..addAll(b.activities);
@@ -3312,16 +3364,38 @@ class ClubProvider extends ChangeNotifier with WidgetsBindingObserver {
     return result;
   }
 
+  /// 마지막 자동 알림톡 실패 사유. 화면이 읽어 총무에게 보여 준다.
+  ///
+  /// 예전엔 `unawaited` 로 던져 놓고 실패를 `debugPrint` 만 했다. 그래서
+  /// 키 미설정·전화번호 없음·템플릿 미승인으로 한 통도 안 나가도
+  /// 총무는 발송된 줄 알았다. ("알림톡이 안 간다"의 진단을 막던 지점)
+  String? get lastAlimtalkError => _lastAlimtalkError;
+  String? _lastAlimtalkError;
+
+  void clearAlimtalkError() {
+    if (_lastAlimtalkError == null) return;
+    _lastAlimtalkError = null;
+    notifyListeners();
+  }
+
   void _dispatchClubAlimtalk({
     required String hqTypeId,
     required List<Member> members,
     required Map<String, String> Function(Member member) variablesFor,
   }) {
-    unawaited(sendClubAlimtalk(
-      hqTypeId: hqTypeId,
-      members: members,
-      variablesFor: variablesFor,
-    ));
+    unawaited(() async {
+      final result = await sendClubAlimtalk(
+        hqTypeId: hqTypeId,
+        members: members,
+        variablesFor: variablesFor,
+      );
+      if (result.success) return;
+      // '꺼져 있음' 은 설정대로 동작한 것이라 오류로 알리지 않는다.
+      final msg = result.errorMessage ?? '알 수 없는 오류';
+      if (msg.contains('꺼져 있습니다')) return;
+      _lastAlimtalkError = '$hqTypeId: $msg';
+      notifyListeners();
+    }());
   }
 
   List<String> attendanceAlimtalkRecipientNames() {
@@ -4414,6 +4488,9 @@ class ClubProvider extends ChangeNotifier with WidgetsBindingObserver {
       status: '활성',
     );
     _members.add(creatorMember);
+    // 방금 만든 모임의 명단 ID(m_creator_<id>)로도 FCM 토큰을 등록한다.
+    // 이게 없으면 이 모임에서 나에게 오는 푸시가 토큰을 못 찾는다.
+    _rebindPushIdsIfChanged();
 
     // 플랫폼 가입자(어드민 오늘 가입) — 모임 생성자도 가입일로 잡히도록
     final storeForUser = AppDependencies.instance.mockDataStore;

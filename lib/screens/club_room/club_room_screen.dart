@@ -474,6 +474,27 @@ class _ClubRoomScreenState extends State<ClubRoomScreen> {
     );
   }
 
+  /// 자동 알림톡 실패를 총무에게 알린다.
+  ///
+  /// 회비 등록·일정 취소 알림톡은 사용자 확인 없이 자동 발송이라,
+  /// 실패해도 화면에 아무 표시가 없었다. 원인(키 미설정·전화번호 없음·
+  /// 템플릿 문제)을 보여 주지 않으면 "안 간다"만 알고 왜인지는 알 수 없다.
+  void _showAlimtalkErrorIfAny(BuildContext context, ClubProvider provider) {
+    final error = provider.lastAlimtalkError;
+    if (error == null) return;
+    provider.clearAlimtalkError();
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (!context.mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text('알림톡 발송 실패 — $error'),
+          backgroundColor: AppColors.danger,
+          duration: const Duration(seconds: 6),
+        ),
+      );
+    });
+  }
+
   @override
   Widget build(BuildContext context) {
     return PopScope(
@@ -493,6 +514,8 @@ class _ClubRoomScreenState extends State<ClubRoomScreen> {
       child: Consumer<ClubProvider>(
         builder: (context, provider, _) {
           final club = provider.selectedClub;
+          // 자동 알림톡이 조용히 실패하던 문제. 총무가 원인을 볼 수 있게 띄운다.
+          _showAlimtalkErrorIfAny(context, provider);
 
           return Scaffold(
             backgroundColor: AppColors.background,
