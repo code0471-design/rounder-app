@@ -1384,6 +1384,13 @@ class ClubProvider extends ChangeNotifier with WidgetsBindingObserver {
     _members
       ..clear()
       ..addAll(b.members);
+    // 원격 명단이 로컬을 덮은 직후다. 여기서 다시 걸지 않으면
+    // switchUser 에서 고친 내 이름이 '홍길동'으로 되돌아간다.
+    _repairMyRosterNames(_currentUserName);
+    // 강퇴·탈퇴 행은 tombstone 으로 등록해, 원격이 '활성'으로 되살리지 못하게 한다.
+    ClubOpsSync.seedRemovedMembers(
+      _members.where((m) => m.status != '활성').map((m) => m.id),
+    );
     _activities
       ..clear()
       ..addAll(b.activities);
@@ -4516,6 +4523,20 @@ class ClubProvider extends ChangeNotifier with WidgetsBindingObserver {
   /// 그때 `ensureCreatorMembers` 가 만든 생성자 행이 '홍길동'으로 저장돼 있다.
   /// 사람이 직접 고친 이름은 건드리지 않는다 — placeholder 만 갈아끼운다.
   bool repairMyDisplayName(String realName) {
+    final changed = _repairMyRosterNames(realName);
+    if (changed) {
+      notifyListeners();
+      _persistImmediately();
+    }
+    return changed;
+  }
+
+  /// `repairMyDisplayName` 의 순수 부분 — `_members` 만 고치고 통지/저장은 안 한다.
+  ///
+  /// `_importBundle` 안에서도 불러야 한다. 예전엔 `switchUser` 에서 한 번만 돌았고
+  /// 그 뒤 `_pullCloudOpsForMyClubs` / watch 가 원격 명단으로 덮어써서
+  /// 고쳐 놓은 이름이 다시 '홍길동'으로 돌아갔다.
+  bool _repairMyRosterNames(String realName) {
     final target = realName.trim();
     if (target.isEmpty || isPlaceholderMemberName(target)) return false;
 
@@ -4531,10 +4552,6 @@ class ClubProvider extends ChangeNotifier with WidgetsBindingObserver {
         _members[i] = m.copyWith(name: target);
         changed = true;
       }
-    }
-    if (changed) {
-      notifyListeners();
-      _persistImmediately();
     }
     return changed;
   }
@@ -5606,10 +5623,14 @@ class ClubProvider extends ChangeNotifier with WidgetsBindingObserver {
 
   void deactivateMember(String memberId) {
     final idx = _members.indexWhere((m) => m.id == memberId);
-    if (idx != -1) {
-      _members[idx] = _members[idx].copyWith(status: '탈퇴');
-      notifyListeners();
-    }
+    if (idx == -1) return;
+    if (_members[idx].status == '탈퇴') return;
+    _members[idx] = _members[idx].copyWith(status: '탈퇴');
+    // 강퇴와 같은 정책. 이게 없으면 원격 '활성' 행이 탈퇴를 되살린다.
+    ClubOpsSync.markMemberRemoved(memberId);
+    notifyListeners();
+    // 예전엔 통지만 하고 저장을 안 해서, 앱을 다시 켜면 탈퇴가 사라졌다.
+    _persistImmediately();
   }
 
   /// 총무 권한 — 회원 강퇴 처리 + 대상 회원에게 즉시 앱 푸시 알림 발송
@@ -5619,6 +5640,8 @@ class ClubProvider extends ChangeNotifier with WidgetsBindingObserver {
     final member = _members[idx];
     if (member.status == '강퇴') return;
     _members[idx] = member.copyWith(status: '강퇴');
+    // 원격 watch/pull 이 옛 '활성' 행으로 되살리지 못하게 표시한다.
+    ClubOpsSync.markMemberRemoved(memberId);
 
     final targetClubId = clubId ?? selectedClub.id;
     _updateMemberCount(targetClubId, -1);

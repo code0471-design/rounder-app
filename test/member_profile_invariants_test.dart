@@ -1,9 +1,11 @@
 import 'dart:io';
 
+import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:golf_rounder/domain/services/attendance_stats.dart';
 import 'package:golf_rounder/models/club_model.dart';
 import 'package:golf_rounder/models/user_model.dart';
+import 'package:golf_rounder/utils/avatar_image.dart';
 
 String _read(String relative) => File(relative).readAsStringSync();
 
@@ -132,6 +134,71 @@ void main() {
       );
       expect(stats.finished, 0);
       expect(stats.ratePercent, isNull);
+    });
+
+    test('참석률 경계값 — 0% / 100% / 반올림', () {
+      AttendanceStats rate(int attend, int skip) => AttendanceStats.forMember(
+            schedules: [
+              for (var i = 0; i < attend; i++)
+                _schedule(
+                    id: 'a$i', date: past, responses: [_res('m1', '참석')]),
+              for (var i = 0; i < skip; i++)
+                _schedule(
+                    id: 'b$i', date: past, responses: [_res('m1', '불참')]),
+            ],
+            clubId: 'c1',
+            memberId: 'm1',
+          );
+
+      expect(rate(0, 3).ratePercent, 0);
+      expect(rate(3, 0).ratePercent, 100);
+      expect(rate(1, 2).ratePercent, 33); // 33.33 → 33
+      expect(rate(2, 1).ratePercent, 67); // 66.67 → 67
+      expect(rate(1, 1).ratePercent, 50);
+      expect(rate(1, 7).ratePercent, 13); // 12.5 → 13 (round half up)
+    });
+
+    test('응답을 안 한 지난 라운딩도 분모에 들어간다', () {
+      // '지난 일정 기준' 이므로 무응답도 안 간 것으로 본다.
+      final stats = AttendanceStats.forMember(
+        schedules: [
+          _schedule(id: 's1', date: past, responses: [_res('m1', '참석')]),
+          _schedule(id: 's2', date: past, responses: [_res('m2', '참석')]),
+        ],
+        clubId: 'c1',
+        memberId: 'm1',
+      );
+      expect(stats.attended, 1);
+      expect(stats.finished, 2);
+      expect(stats.ratePercent, 50);
+    });
+
+    test('당일 라운딩은 자정을 넘기기 전까지 세지 않는다', () {
+      // isPast 는 날짜만 비교한다 — 당일 하루는 '예정'이다.
+      final stats = AttendanceStats.forMember(
+        schedules: [
+          _schedule(
+              id: 's1', date: DateTime.now(), responses: [_res('m1', '참석')]),
+        ],
+        clubId: 'c1',
+        memberId: 'm1',
+      );
+      expect(stats.finished, 0, reason: '당일은 아직 다녀온 게 아니다');
+    });
+
+    test('회원 상세가 계산 결과를 그대로 보여 준다', () {
+      // 화면이 자체 계산으로 돌아가면 위 규칙이 무력화된다.
+      final detail = _read('lib/screens/members/member_detail_screen.dart');
+      expect(detail.contains('AttendanceStats.forMember('), isTrue);
+      expect(detail.contains('stats.attended'), isTrue);
+      expect(detail.contains('stats.finished'), isTrue);
+      expect(detail.contains('stats.ratePercent'), isTrue);
+      // 예전처럼 responses 를 직접 세면 예정 일정이 섞인다.
+      expect(
+        detail.contains("r.response == '참석'"),
+        isFalse,
+        reason: '상세 화면이 직접 세면 예정·취소 일정이 다시 새어 든다',
+      );
     });
   });
 
@@ -428,6 +495,91 @@ void main() {
       // (1.5 배 계산 결과라 정수가 아니다 — 여기까지 정수로 바꾸면 안 된다)
       final shinperio = _read('lib/screens/records/shinperio_screen.dart');
       expect(shinperio.contains('p.handicap.toStringAsFixed(1)'), isTrue);
+    });
+  });
+
+  group('갤러리 사진(data URI)이 아바타에 보인다', () {
+    test('회원 사진은 공용 헬퍼로만 그린다', () {
+      // NetworkImage 는 http/https 만 처리한다. data URI 를 넘기면
+      // onBackgroundImageError 가 조용히 삼켜 빈 아바타가 된다.
+      // (저장은 됐는데 사진이 안 보이던 원인)
+      const paths = [
+        'lib/screens/ad/ad_screen.dart',
+        'lib/screens/members/members_screen.dart',
+        'lib/screens/members/member_detail_screen.dart',
+      ];
+      for (final p in paths) {
+        final src = _read(p);
+        expect(src.contains("import '../../utils/avatar_image.dart';"), isTrue,
+            reason: p);
+        expect(src.contains('avatarImage('), isTrue, reason: p);
+        expect(
+          src.contains('NetworkImage('),
+          isFalse,
+          reason: '$p: 직접 NetworkImage 를 쓰면 갤러리 사진이 다시 안 보인다',
+        );
+      }
+    });
+
+    test('헬퍼가 data URI / http / 빈 값을 구분한다', () {
+      // 1x1 투명 PNG
+      const png =
+          'data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJ'
+          'AAAADUlEQVR42mP8z8DwHwAFAAH/q842iQAAAABJRU5ErkJggg==';
+      expect(avatarImage(png), isA<MemoryImage>());
+      expect(avatarImage('https://example.com/a.jpg'), isA<NetworkImage>());
+      expect(avatarImage(null), isNull);
+      expect(avatarImage(''), isNull);
+      expect(avatarImage('   '), isNull);
+      // 콤마 없는 깨진 data URI — 예외 대신 null 로 떨어져야 한다.
+      expect(avatarImage('data:image/png;base64'), isNull);
+      // 잘린 base64
+      expect(avatarImage('data:image/png;base64,!!!not-base64!!!'), isNull);
+      // 상대경로 등 알 수 없는 형식은 이니셜로
+      expect(avatarImage('assets/x.png'), isNull);
+    });
+  });
+
+  group('회원 상세 화면 상단', () {
+    final detail = _read('lib/screens/members/member_detail_screen.dart');
+
+    test('96px 그라데이션 배너를 걷어냈다', () {
+      // 배너 + 겹친 아바타 + 52px 여백이라 이름이 한참 아래에서 시작했다.
+      expect(detail.contains('height: 96,'), isFalse);
+      expect(detail.contains('const SizedBox(height: 52),'), isFalse);
+      expect(detail.contains('Positioned(\n                top: 56,'), isFalse);
+      // 아바타와 이름이 가로 한 줄에 온다.
+      expect(detail.contains('_buildAvatar(radius: 34, fontSize: 22)'), isTrue);
+    });
+
+    test('사진 변경이 URL 입력이 아니라 갤러리 선택이다', () {
+      expect(detail.contains('ImagePicker().pickImage('), isTrue);
+      expect(detail.contains('ImageSource.gallery'), isTrue);
+      expect(
+        detail.contains('사진 URL을 입력하거나'),
+        isFalse,
+        reason: '폰에서 URL 을 타이핑할 수는 없다',
+      );
+      // 쓰이지 않던 이모지·색상 리스트도 함께 정리했다.
+      expect(detail.contains("'🔵', '🟢', '🔴'"), isFalse);
+      expect(detail.contains('final avatarColors ='), isFalse);
+    });
+
+    test('본문에 그린이 없다 — 로고 헤더·탭바 전용', () {
+      final green = RegExp(
+        r'AppColors\.(primary|primaryDark|primaryLight|sage\w*|mint\w*|'
+        r'cardMint|paidBg)\b',
+      );
+      final offenders = <String>[];
+      final lines = detail.split(RegExp(r'\r?\n'));
+      for (var i = 0; i < lines.length; i++) {
+        final line = lines[i];
+        // 모든 카드가 공유하는 그림자. alpha 0.06 이라 눈에 보이지 않는다.
+        if (line.contains('alpha: 0.06')) continue;
+        if (green.hasMatch(line)) offenders.add('${i + 1}: ${line.trim()}');
+      }
+      expect(offenders, isEmpty,
+          reason: '회원 상세에 그린이 남았다:\n  ${offenders.join('\n  ')}');
     });
   });
 }

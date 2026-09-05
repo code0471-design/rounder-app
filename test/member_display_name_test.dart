@@ -125,6 +125,110 @@ void main() {
     });
   });
 
+  group('원격 동기화가 이름 복구를 되돌리지 않는다', () {
+    test('_importBundle 이 명단을 덮은 직후 이름을 다시 고친다', () {
+      // switchUser 에서 한 번 고쳐도 pull/watch 가 _members 를 통째로
+      // 교체하므로 '홍길동'이 되살아났다.
+      final import = provider.substring(
+        provider.indexOf('void _importBundle(ClubDataBundle b) {'),
+        provider.indexOf("_activities\r\n      ..clear()") > 0
+            ? provider.indexOf("_activities\r\n      ..clear()")
+            : provider.indexOf('_activities\n      ..clear()'),
+      );
+      expect(import.contains('_repairMyRosterNames(_currentUserName)'), isTrue,
+          reason: 'members 를 addAll 한 뒤 복구를 걸어야 한다');
+      expect(import.contains('..addAll(b.members)'), isTrue);
+      expect(
+        import.indexOf('_repairMyRosterNames'),
+        greaterThan(import.indexOf('..addAll(b.members)')),
+        reason: '덮기 전에 고치면 의미가 없다',
+      );
+    });
+
+    test('공개 API 는 통지·저장까지, 내부 헬퍼는 순수하게 둔다', () {
+      // _importBundle 안에서는 통지·저장을 하면 안 된다 (suppressPersist 구간).
+      expect(provider.contains('bool _repairMyRosterNames(String realName) {'),
+          isTrue);
+      final pure = provider.substring(
+        provider.indexOf('bool _repairMyRosterNames(String realName) {'),
+        provider.indexOf('bool _isMyRosterRowFor('),
+      );
+      expect(pure.contains('notifyListeners()'), isFalse);
+      expect(pure.contains('_persistImmediately()'), isFalse);
+
+      final publicApi = provider.substring(
+        provider.indexOf('bool repairMyDisplayName(String realName) {'),
+        provider.indexOf('bool _repairMyRosterNames(String realName) {'),
+      );
+      expect(publicApi.contains('_repairMyRosterNames(realName)'), isTrue);
+      expect(publicApi.contains('notifyListeners()'), isTrue);
+      expect(publicApi.contains('_persistImmediately()'), isTrue);
+    });
+  });
+
+  group('삭제한 회원이 동기화로 되살아나지 않는다', () {
+    final sync = File('lib/services/club_ops_sync.dart').readAsStringSync();
+
+    test('회원 tombstone API 가 있다', () {
+      expect(sync.contains('static void markMemberRemoved(String memberId)'),
+          isTrue);
+      expect(sync.contains('static bool isMemberRemoved(String memberId)'),
+          isTrue);
+      expect(
+          sync.contains('static void seedRemovedMembers(Iterable<String>'),
+          isTrue);
+    });
+
+    test('members merge 양쪽이 tombstone 을 본다', () {
+      // push(로컬 우선) / pull·watch(원격 우선) 둘 다 걸어야 한다.
+      // 한쪽만 막으면 다른 쪽에서 되살아난다.
+      expect(sync.contains('static List<dynamic> _mergeMembersById({'), isTrue);
+      final pushSite = sync.substring(
+        sync.indexOf("final remoteMembers = remote['members'] as List?"),
+        sync.indexOf("final remoteMembers = remote['members'] as List?") + 400,
+      );
+      expect(pushSite.contains('_mergeMembersById('), isTrue);
+      expect(pushSite.contains('remoteWins: false'), isTrue);
+
+      final pullSite = sync.substring(
+        sync.indexOf("// members: 합집합"),
+        sync.indexOf("// members: 합집합") + 500,
+      );
+      expect(pullSite.contains('_mergeMembersById('), isTrue);
+      expect(pullSite.contains('remoteWins: true'), isTrue);
+    });
+
+    test('강퇴·탈퇴 둘 다 표식을 남기고 저장한다', () {
+      // 짝 필드 규칙: 한쪽만 막으면 다른 경로로 되살아난다.
+      final kick = provider.substring(
+        provider.indexOf('void kickMember(String memberId'),
+        provider.indexOf('void kickMember(String memberId') + 500,
+      );
+      expect(kick.contains('ClubOpsSync.markMemberRemoved(memberId)'), isTrue);
+
+      final deactivate = provider.substring(
+        provider.indexOf('void deactivateMember(String memberId'),
+        provider.indexOf('void deactivateMember(String memberId') + 600,
+      );
+      expect(deactivate.contains('ClubOpsSync.markMemberRemoved(memberId)'),
+          isTrue);
+      expect(
+        deactivate.contains('_persistImmediately()'),
+        isTrue,
+        reason: '예전엔 통지만 하고 저장을 안 해서 앱을 다시 켜면 탈퇴가 사라졌다',
+      );
+    });
+
+    test('앱 재시작 후에도 로컬 비활성 회원을 표식으로 되살린다', () {
+      // 표식은 메모리에만 있다. _importBundle 에서 다시 심어야 한다.
+      expect(
+        provider.contains('ClubOpsSync.seedRemovedMembers('),
+        isTrue,
+      );
+      expect(provider.contains("m.status != '활성'"), isTrue);
+    });
+  });
+
   group('기존 가입자도 골프 프로필을 한 번 받는다', () {
     final auth = File('lib/providers/auth_provider.dart').readAsStringSync();
 

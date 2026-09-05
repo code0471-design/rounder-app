@@ -65,7 +65,11 @@ class ClubOpsSync {
         // 초대 가입자가 자기 명단만 들고 올리면 기존 회원이 지워진다 → 합친다
         final localMembers = slice['members'] as List? ?? const [];
         final remoteMembers = remote['members'] as List? ?? const [];
-        slice['members'] = _mergeById(remoteMembers, localMembers);
+        slice['members'] = _mergeMembersById(
+          local: localMembers,
+          remote: remoteMembers,
+          remoteWins: false,
+        );
 
         final localSchedules = slice['schedules'] as List? ?? const [];
         final remoteSchedules = remote['schedules'] as List? ?? const [];
@@ -336,6 +340,30 @@ class ClubOpsSync {
   static bool isPhotoDeleted(String photoId) =>
       photoId.isNotEmpty && _deletedPhotoIds.contains(photoId);
 
+  static final Set<String> _removedMemberIds = {};
+
+  /// 명단에서 뺀 회원. 사진 tombstone 과 같은 이유로 필요하다.
+  ///
+  /// 회원은 hard delete 가 없고 `status: '강퇴'` 로만 표시한다. 그런데
+  /// pull/watch 의 members merge 는 같은 id 면 **원격 레코드로 통째 교체**하므로,
+  /// push 가 늦거나 실패하면 원격의 옛 `활성` 행이 로컬 강퇴를 되살린다.
+  /// (테스트 회원 '홍길동' 이 삭제 후 다시 나타난 경로)
+  static void markMemberRemoved(String memberId) {
+    if (memberId.isEmpty) return;
+    _removedMemberIds.add(memberId);
+  }
+
+  static bool isMemberRemoved(String memberId) =>
+      memberId.isNotEmpty && _removedMemberIds.contains(memberId);
+
+  /// 로컬에 남은 강퇴·탈퇴 회원을 tombstone 으로 등록한다.
+  /// 앱 재시작으로 메모리 표식이 날아가도 원격이 되살리지 못하게 한다.
+  static void seedRemovedMembers(Iterable<String> memberIds) {
+    for (final id in memberIds) {
+      markMemberRemoved(id);
+    }
+  }
+
   /// 로컬 삭제 직후 Firestore에서도 바로 지워 원격 watch가 사진을 되살리지 않게 한다.
   static Future<void> deletePhotoDoc(String clubId, String photoId) async {
     if (!_enabled || clubId.isEmpty || photoId.isEmpty) return;
@@ -596,9 +624,11 @@ class ClubOpsSync {
     );
 
     // members: 합집합. 원격만 쓰면 초대 가입 직후 로컬 명단이 사라진다.
-    encoded['members'] = _mergeById(
-      encoded['members'] as List? ?? const [],
-      _asDynamicMaps(remote['members']),
+    // 단, 강퇴·탈퇴로 뺀 회원은 원격이 되살리지 못하게 tombstone 으로 막는다.
+    encoded['members'] = _mergeMembersById(
+      local: encoded['members'] as List? ?? const [],
+      remote: _asDynamicMaps(remote['members']),
+      remoteWins: true,
     );
 
     // groupAssignments: replace keys for this club's schedules
@@ -667,6 +697,42 @@ class ClubOpsSync {
       byId[id] = m;
     }
     return byId.values.toList();
+  }
+
+  /// members 전용 merge. 우선순위는 `_mergeById` 와 같고,
+  /// tombstone 된 회원만 다르게 처리한다 — 로컬 행을 지키고 원격 행은 버린다.
+  ///
+  /// [remoteWins] true 면 pull/watch(원격 우선), false 면 push(로컬 우선).
+  static List<dynamic> _mergeMembersById({
+    required List local,
+    required List remote,
+    required bool remoteWins,
+  }) {
+    final merged =
+        remoteWins ? _mergeById(local, remote) : _mergeById(remote, local);
+    if (_removedMemberIds.isEmpty) return merged;
+
+    final localById = <String, Map<String, dynamic>>{};
+    for (final e in local) {
+      if (e is! Map) continue;
+      final id = e['id'] as String?;
+      if (id == null) continue;
+      localById[id] = Map<String, dynamic>.from(e);
+    }
+
+    final out = <dynamic>[];
+    for (final e in merged) {
+      final id = e is Map ? e['id'] as String? : null;
+      if (id != null && _removedMemberIds.contains(id)) {
+        // 로컬에 강퇴·탈퇴 행이 있으면 그걸 남긴다 (기록 보존 + 명단에서 숨김).
+        // 원격에만 있으면 우리가 지운 회원이 되살아나는 것이므로 버린다.
+        final localRow = localById[id];
+        if (localRow != null) out.add(localRow);
+        continue;
+      }
+      out.add(e);
+    }
+    return out;
   }
 
   /// clubId 스코프 목록을 id 기준으로 합친다. 원격이 비어 있으면 로컬 유지.

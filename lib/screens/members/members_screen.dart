@@ -6,6 +6,7 @@ import '../../providers/club_provider.dart';
 import '../../services/csv_download.dart';
 import '../../services/member_roster_csv.dart';
 import '../../theme/app_theme.dart';
+import '../../utils/avatar_image.dart';
 import 'member_detail_screen.dart';
 import 'treasurer_transfer_screen.dart';
 
@@ -794,10 +795,12 @@ class _MemberCard extends StatelessWidget {
 
   /// 프로필 사진 or 이니셜 아바타
   Widget _buildAvatar(Color avatarBg, Color avatarFg) {
-    if (member.photoUrl != null && member.photoUrl!.isNotEmpty) {
+    // 갤러리 사진은 data URI — NetworkImage 로는 안 그려진다.
+    final img = avatarImage(member.photoUrl);
+    if (img != null) {
       return CircleAvatar(
         radius: 24,
-        backgroundImage: NetworkImage(member.photoUrl!),
+        backgroundImage: img,
         onBackgroundImageError: (_, __) {},
         backgroundColor: avatarBg,
         child: null,

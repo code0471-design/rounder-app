@@ -10,6 +10,7 @@ import '../../models/club_model.dart';
 import '../../providers/auth_provider.dart';
 import '../../providers/club_provider.dart';
 import '../../theme/app_theme.dart';
+import '../../utils/avatar_image.dart';
 import '../club_room/club_room_screen.dart';
 import '../members/my_role_change_screen.dart';
 
@@ -1518,10 +1519,12 @@ class _AccountSettingsTabState extends State<_AccountSettingsTab> {
                       children: [
                         () {
                           final m = provider.currentMember;
-                          if (m != null && m.photoUrl != null && m.photoUrl!.isNotEmpty) {
+                          // 갤러리 사진은 data URI — NetworkImage 로는 안 그려진다.
+                          final img = avatarImage(m?.photoUrl);
+                          if (img != null) {
                             return CircleAvatar(
                               radius: 27,
-                              backgroundImage: NetworkImage(m.photoUrl!),
+                              backgroundImage: img,
                               onBackgroundImageError: (_, __) {},
                             );
                           }
@@ -1993,12 +1996,7 @@ class _AccountSettingsTabState extends State<_AccountSettingsTab> {
                         CircleAvatar(
                           radius: 44,
                           backgroundColor: AppColors.primary.withValues(alpha: 0.12),
-                          backgroundImage: photoDataUrl != null && photoDataUrl!.isNotEmpty
-                              ? (photoDataUrl!.startsWith('data:')
-                                  ? MemoryImage(base64Decode(
-                                      photoDataUrl!.split(',').last))
-                                  : NetworkImage(photoDataUrl!) as ImageProvider)
-                              : null,
+                          backgroundImage: avatarImage(photoDataUrl),
                           child: (photoDataUrl == null || photoDataUrl!.isEmpty)
                               ? Text(
                                   nameCtrl.text.isNotEmpty ? nameCtrl.text[0] : '나',

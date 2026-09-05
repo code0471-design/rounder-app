@@ -709,4 +709,179 @@ void main() {
       expect(bytes, lessThan(ClubOpsSync.opsBundleSoftLimitBytes));
     });
   });
+
+  group('강퇴·탈퇴 회원은 원격이 되살리지 못한다', () {
+    // 회원은 hard delete 가 없고 status 만 바뀐다. 그런데 members merge 는
+    // 같은 id 면 원격 레코드로 통째 교체하므로, push 가 늦으면 원격의 옛
+    // '활성' 행이 로컬 강퇴를 덮었다. (테스트 회원 '홍길동' 부활 경로)
+    ClubDataBundle bundleWith(List<Member> members) => ClubDataBundle(
+          selectedClubIndex: 0,
+          freshClubIds: {'c_test'},
+          myClubs: [
+            Club(
+              id: 'c_test',
+              name: '테스트',
+              myRole: '총무',
+              memberCount: members.length,
+              region: '서울',
+              industry: 'IT',
+              teamCount: 4,
+            ),
+          ],
+          allClubs: const [],
+          joinRequests: const [],
+          members: members,
+          activities: const [],
+          announcements: const [],
+          appNotifications: const [],
+          duesSettings: const [],
+          duesPayments: const [],
+          paymentRequests: const [],
+          transactions: const [],
+          schedules: const [],
+          photos: const [],
+          groupAssignments: const {},
+          adApplications: const [],
+          adNotifications: const [],
+          sponsorApplications: const [],
+          pointEvents: const {},
+          awardRecords: const [],
+          thankYouMessages: const [],
+          waitingList: const [],
+          alimtalkSettings: const {},
+        );
+
+    Map<String, dynamic> remoteMember(String id, String name, String status) => {
+          'id': id,
+          'name': name,
+          'gender': '남',
+          'memberType': '정회원',
+          'role': '일반',
+          'joinDate': DateTime(2024, 1, 1).toIso8601String(),
+          'status': status,
+        };
+
+    Map<String, dynamic> remoteWith(List<Map<String, dynamic>> members) => {
+          'clubId': 'c_test',
+          'members': members,
+          'schedules': <dynamic>[],
+          'announcements': <dynamic>[],
+          'activities': <dynamic>[],
+          'duesSettings': <dynamic>[],
+          'duesPayments': <dynamic>[],
+          'paymentRequests': <dynamic>[],
+          'transactions': <dynamic>[],
+          'photos': <dynamic>[],
+          'groupAssignments': <String, dynamic>{},
+          'waitingList': <dynamic>[],
+          'alimtalkSettings': <String, dynamic>{},
+          'adApplications': <dynamic>[],
+          'adNotifications': <dynamic>[],
+          'sponsorApplications': <dynamic>[],
+          'awardRecords': <dynamic>[],
+          'thankYouMessages': <dynamic>[],
+          'pointEvents': <String, dynamic>{},
+        };
+
+    test('tombstone 없으면 원격 활성 행이 로컬 강퇴를 덮는다 (기존 동작)', () {
+      final local = bundleWith([
+        Member(
+          id: 'm_c_test_keep',
+          name: '안경헌',
+          gender: '남',
+          memberType: '정회원',
+          role: '총무',
+          joinDate: DateTime(2024, 1, 1),
+          status: '활성',
+        ),
+      ]);
+      final merged = ClubOpsSync.applyRemoteSlice(
+        local,
+        'c_test',
+        remoteWith([remoteMember('m_c_test_ghost', '홍길동', '활성')]),
+      );
+      // 표식이 없으면 합집합이므로 들어온다 — 그래서 표식이 필요하다.
+      expect(merged.members.any((m) => m.id == 'm_c_test_ghost'), isTrue);
+    });
+
+    test('강퇴 표식을 남기면 원격에만 있는 행은 버린다', () {
+      ClubOpsSync.markMemberRemoved('m_c_test_ghost2');
+      final local = bundleWith([
+        Member(
+          id: 'm_c_test_keep',
+          name: '안경헌',
+          gender: '남',
+          memberType: '정회원',
+          role: '총무',
+          joinDate: DateTime(2024, 1, 1),
+          status: '활성',
+        ),
+      ]);
+      final merged = ClubOpsSync.applyRemoteSlice(
+        local,
+        'c_test',
+        remoteWith([remoteMember('m_c_test_ghost2', '홍길동', '활성')]),
+      );
+      expect(merged.members.any((m) => m.id == 'm_c_test_ghost2'), isFalse,
+          reason: '우리가 지운 회원이 원격에서 되살아나면 안 된다');
+      expect(merged.members.any((m) => m.id == 'm_c_test_keep'), isTrue,
+          reason: '남은 회원은 그대로여야 한다');
+    });
+
+    test('로컬 강퇴 행이 있으면 상태를 지킨다 (기록 보존)', () {
+      ClubOpsSync.markMemberRemoved('m_c_test_kicked');
+      final local = bundleWith([
+        Member(
+          id: 'm_c_test_kicked',
+          name: '홍길동',
+          gender: '남',
+          memberType: '정회원',
+          role: '일반',
+          joinDate: DateTime(2024, 1, 1),
+          status: '강퇴',
+        ),
+      ]);
+      final merged = ClubOpsSync.applyRemoteSlice(
+        local,
+        'c_test',
+        remoteWith([remoteMember('m_c_test_kicked', '홍길동', '활성')]),
+      );
+      final row =
+          merged.members.firstWhere((m) => m.id == 'm_c_test_kicked');
+      expect(row.status, '강퇴',
+          reason: '원격 활성이 강퇴를 덮으면 명단에 다시 나타난다');
+    });
+
+    test('표식 없는 다른 회원은 원격 값이 그대로 반영된다', () {
+      final local = bundleWith([
+        Member(
+          id: 'm_c_test_normal',
+          name: '옛이름',
+          gender: '남',
+          memberType: '정회원',
+          role: '일반',
+          joinDate: DateTime(2024, 1, 1),
+          status: '활성',
+        ),
+      ]);
+      final merged = ClubOpsSync.applyRemoteSlice(
+        local,
+        'c_test',
+        remoteWith([remoteMember('m_c_test_normal', '새이름', '활성')]),
+      );
+      final row =
+          merged.members.firstWhere((m) => m.id == 'm_c_test_normal');
+      expect(row.name, '새이름', reason: 'tombstone 이 일반 회원 동기화를 막으면 안 된다');
+    });
+
+    test('seedRemovedMembers 로 여러 건을 한 번에 등록한다', () {
+      ClubOpsSync.seedRemovedMembers(['m_c_test_s1', 'm_c_test_s2']);
+      expect(ClubOpsSync.isMemberRemoved('m_c_test_s1'), isTrue);
+      expect(ClubOpsSync.isMemberRemoved('m_c_test_s2'), isTrue);
+      expect(ClubOpsSync.isMemberRemoved('m_c_test_never'), isFalse);
+      // 빈 문자열은 무시 — 전부 걸리는 사고를 막는다.
+      ClubOpsSync.markMemberRemoved('');
+      expect(ClubOpsSync.isMemberRemoved(''), isFalse);
+    });
+  });
 }

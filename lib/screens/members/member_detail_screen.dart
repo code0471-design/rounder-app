@@ -1,10 +1,14 @@
+import 'dart:convert';
+
 import 'package:flutter/material.dart';
+import 'package:image_picker/image_picker.dart';
 import '../../domain/services/attendance_stats.dart';
 import '../../models/club_model.dart';
 import '../../models/member_role.dart';
 import '../../navigation/app_navigator.dart';
 import '../../providers/club_provider.dart';
 import '../../theme/app_theme.dart';
+import '../../utils/avatar_image.dart';
 import 'member_form_screen.dart';
 import 'treasurer_transfer_screen.dart';
 
@@ -73,7 +77,7 @@ class MemberDetailScreen extends StatelessWidget {
           style: TextStyle(fontWeight: FontWeight.bold),
         ),
         style: ElevatedButton.styleFrom(
-          backgroundColor: AppColors.primary,
+          backgroundColor: AppColors.charcoal,
           foregroundColor: Colors.white,
           minimumSize: const Size(double.infinity, 46),
           shape:
@@ -85,128 +89,112 @@ class MemberDetailScreen extends StatelessWidget {
   }
 
   Widget _buildProfileHeaderCard(BuildContext context) {
-    return Container(
-      margin: const EdgeInsets.fromLTRB(16, 8, 16, 0),
-      decoration: BoxDecoration(
-        color: AppColors.surface,
-        borderRadius: BorderRadius.circular(AppRadius.lg),
-        boxShadow: AppShadows.card,
-      ),
-      clipBehavior: Clip.antiAlias,
-      child: Column(
-        children: [
-          Stack(
-            clipBehavior: Clip.none,
-            alignment: Alignment.topCenter,
-            children: [
-              Container(
-                height: 96,
-                width: double.infinity,
-                decoration: BoxDecoration(
-                  gradient: LinearGradient(
-                    begin: Alignment.topLeft,
-                    end: Alignment.bottomRight,
-                    colors: [
-                      AppColors.sageLighter,
-                      AppColors.surfaceVariant,
-                    ],
-                  ),
-                ),
-                child: Align(
-                  alignment: Alignment.topLeft,
-                  child: IconButton(
-                    icon: const Icon(Icons.arrow_back_ios_new,
-                        color: AppColors.textSecondary, size: 18),
-                    onPressed: () => Navigator.pop(context),
-                  ),
-                ),
+    // 예전엔 96px 그라데이션 배너 + 그 위에 겹친 아바타 + 52px 여백이라
+    // 이름이 화면 한참 아래에서 시작했다. 가로 한 줄로 접는다.
+    return Column(
+      children: [
+        Align(
+          alignment: Alignment.centerLeft,
+          child: IconButton(
+            icon: const Icon(Icons.arrow_back_ios_new,
+                color: AppColors.textSecondary, size: 18),
+            onPressed: () => Navigator.pop(context),
+          ),
+        ),
+        Container(
+          margin: const EdgeInsets.symmetric(horizontal: 16),
+          padding: const EdgeInsets.all(16),
+          decoration: BoxDecoration(
+            color: Colors.white,
+            borderRadius: BorderRadius.circular(16),
+            border: Border.all(color: AppColors.divider),
+            boxShadow: [
+              BoxShadow(
+                color: AppColors.primary.withValues(alpha: 0.06),
+                blurRadius: 8,
+                offset: const Offset(0, 2),
               ),
-              Positioned(
-                top: 56,
-                child: Stack(
-                  clipBehavior: Clip.none,
-                  children: [
-                    Container(
-                      padding: const EdgeInsets.all(3),
-                      decoration: BoxDecoration(
-                        color: AppColors.surface,
-                        shape: BoxShape.circle,
-                        boxShadow: AppShadows.soft,
-                      ),
-                      child: _buildAvatar(radius: 38, fontSize: 24),
-                    ),
-                    if (member.status == '활성' &&
-                        member.id == provider.currentUserId)
-                      Positioned(
-                        bottom: 2,
-                        right: 2,
-                        child: GestureDetector(
-                          onTap: () => _showPhotoEditDialog(context),
-                          child: Container(
-                            width: 28,
-                            height: 28,
-                            decoration: BoxDecoration(
-                              color: AppColors.surface,
-                              shape: BoxShape.circle,
-                              border: Border.all(
-                                  color: AppColors.primary, width: 1.5),
-                              boxShadow: AppShadows.soft,
-                            ),
-                            child: const Icon(Icons.camera_alt,
-                                color: AppColors.primary, size: 14),
+            ],
+          ),
+          child: Row(
+            children: [
+              Stack(
+                clipBehavior: Clip.none,
+                children: [
+                  _buildAvatar(radius: 34, fontSize: 22),
+                  if (member.status == '활성' &&
+                      member.id == provider.currentUserId)
+                    Positioned(
+                      bottom: -2,
+                      right: -2,
+                      child: GestureDetector(
+                        onTap: () => _showPhotoEditDialog(context),
+                        child: Container(
+                          width: 26,
+                          height: 26,
+                          decoration: BoxDecoration(
+                            color: Colors.white,
+                            shape: BoxShape.circle,
+                            border: Border.all(
+                                color: AppColors.sand, width: 1.5),
+                            boxShadow: AppShadows.soft,
                           ),
+                          child: const Icon(Icons.camera_alt_rounded,
+                              color: AppColors.charcoal, size: 13),
                         ),
                       ),
+                    ),
+                ],
+              ),
+              const SizedBox(width: 14),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Row(
+                      children: [
+                        Flexible(
+                          child: Text(
+                            member.name,
+                            maxLines: 1,
+                            overflow: TextOverflow.ellipsis,
+                            style: const TextStyle(
+                              color: AppColors.ink,
+                              fontSize: 20,
+                              fontWeight: FontWeight.w800,
+                            ),
+                          ),
+                        ),
+                        if (member.status == '탈퇴') ...[
+                          const SizedBox(width: 8),
+                          _StatusBadge(
+                              label: '탈퇴', color: AppColors.danger),
+                        ],
+                      ],
+                    ),
+                    const SizedBox(height: 8),
+                    Wrap(
+                      spacing: 6,
+                      runSpacing: 6,
+                      children: [
+                        if (ClubMemberRole.isOfficer(member.role))
+                          _ChipBadge(
+                              label: member.role,
+                              bg: AppColors.cream2,
+                              fg: AppColors.goldDeep),
+                        _ChipBadge(
+                            label: member.memberType,
+                            bg: AppColors.surfaceVariant,
+                            fg: AppColors.textSecondary),
+                      ],
+                    ),
                   ],
                 ),
               ),
             ],
           ),
-          const SizedBox(height: 52),
-          Padding(
-            padding: const EdgeInsets.fromLTRB(20, 0, 20, 20),
-            child: Column(
-              children: [
-                Row(
-                  mainAxisAlignment: MainAxisAlignment.center,
-                  children: [
-                    Text(
-                      member.name,
-                      style: const TextStyle(
-                        color: AppColors.textPrimary,
-                        fontSize: 22,
-                        fontWeight: FontWeight.w800,
-                      ),
-                    ),
-                    if (member.status == '탈퇴') ...[
-                      const SizedBox(width: 8),
-                      _StatusBadge(
-                          label: '탈퇴', color: AppColors.danger),
-                    ],
-                  ],
-                ),
-                const SizedBox(height: 10),
-                Wrap(
-                  alignment: WrapAlignment.center,
-                  spacing: 6,
-                  runSpacing: 6,
-                  children: [
-                    if (ClubMemberRole.isOfficer(member.role))
-                      _ChipBadge(
-                          label: member.role,
-                          bg: AppColors.sageLighter,
-                          fg: AppColors.sageDarker),
-                    _ChipBadge(
-                        label: member.memberType,
-                        bg: AppColors.surfaceVariant,
-                        fg: AppColors.textSecondary),
-                  ],
-                ),
-              ],
-            ),
-          ),
-        ],
-      ),
+        ),
+      ],
     );
   }
 
@@ -374,7 +362,7 @@ class MemberDetailScreen extends StatelessWidget {
           style: TextStyle(fontWeight: FontWeight.bold),
         ),
         style: ElevatedButton.styleFrom(
-          backgroundColor: AppColors.primary,
+          backgroundColor: AppColors.charcoal,
           foregroundColor: Colors.white,
           minimumSize: const Size(double.infinity, 46),
           shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
@@ -484,24 +472,27 @@ class MemberDetailScreen extends StatelessWidget {
   // ────────────────────────────────
   Widget _buildAvatar({required double radius, required double fontSize}) {
     final isOfficer = ClubMemberRole.isOfficer(member.role);
-    if (member.photoUrl != null && member.photoUrl!.isNotEmpty) {
+    // 갤러리 사진은 data URI — NetworkImage 로는 안 그려진다.
+    final img = avatarImage(member.photoUrl);
+    if (img != null) {
       return CircleAvatar(
         radius: radius,
-        backgroundImage: NetworkImage(member.photoUrl!),
+        backgroundImage: img,
         onBackgroundImageError: (_, __) {},
-        backgroundColor: AppColors.sageLighter,
+        backgroundColor: AppColors.cream2,
       );
     }
+    // 그린은 로고 헤더·하단 탭바 전용 — 임원은 딥골드로 구분한다.
     return CircleAvatar(
       radius: radius,
       backgroundColor:
-          isOfficer ? AppColors.sageLighter : AppColors.surfaceVariant,
+          isOfficer ? AppColors.cream2 : AppColors.surfaceVariant,
       child: Text(
         member.name.isNotEmpty ? member.name[0] : '?',
         style: TextStyle(
           fontSize: fontSize,
           fontWeight: FontWeight.bold,
-          color: isOfficer ? AppColors.sageDarker : AppColors.textPrimary,
+          color: isOfficer ? AppColors.goldDeep : AppColors.textPrimary,
         ),
       ),
     );
@@ -511,22 +502,9 @@ class MemberDetailScreen extends StatelessWidget {
   // 프로필 사진 편집 다이얼로그
   // ────────────────────────────────
   void _showPhotoEditDialog(BuildContext context) {
-    final urlCtrl = TextEditingController(text: member.photoUrl ?? '');
-    // 컬러 아바타 선택용
-    final colors = [
-      '🔵', '🟢', '🔴', '🟡', '🟠', '🟣', '⚫', '🟤',
-    ];
-    // 사진 URL 없을 때 미리보기 아바타 색상
-    final avatarColors = [
-      const Color(0xFF4CAF50),
-      AppColors.mintMedium,
-      const Color(0xFFE91E63),
-      const Color(0xFFFF9800),
-      const Color(0xFF9C27B0),
-      const Color(0xFF00BCD4),
-      const Color(0xFF795548),
-      const Color(0xFF607D8B),
-    ];
+    // 예전엔 "사진 URL을 입력하세요" 텍스트 필드였다. 폰에서 쓸 수 없다.
+    // 마이페이지 편집과 같은 방식으로 갤러리에서 고른다.
+    String? photo = member.photoUrl;
 
     showModalBottomSheet(
       context: context,
@@ -536,18 +514,40 @@ class MemberDetailScreen extends StatelessWidget {
           borderRadius: BorderRadius.vertical(top: Radius.circular(20))),
       builder: (ctx) => StatefulBuilder(
         builder: (ctx, setS) {
-          final urlText = urlCtrl.text.trim();
+          Future<void> pick() async {
+            try {
+              final picked = await ImagePicker().pickImage(
+                source: ImageSource.gallery,
+                maxWidth: 720,
+                maxHeight: 720,
+                imageQuality: 80,
+              );
+              if (picked == null) return;
+              final bytes = await picked.readAsBytes();
+              setS(() =>
+                  photo = 'data:image/jpeg;base64,${base64Encode(bytes)}');
+            } catch (_) {
+              if (!ctx.mounted) return;
+              ScaffoldMessenger.of(ctx).showSnackBar(
+                const SnackBar(content: Text('사진을 불러오지 못했습니다')),
+              );
+            }
+          }
+
+          final preview = avatarImage(photo);
+          // 홈 인디케이터에 버튼이 깔리지 않게 safe area 를 더한다.
+          final safeBottom = MediaQuery.viewPaddingOf(ctx).bottom;
+
           return Padding(
-            padding: EdgeInsets.fromLTRB(
-                20, 16, 20, MediaQuery.of(ctx).viewInsets.bottom + 24),
+            padding: EdgeInsets.fromLTRB(20, 16, 20, safeBottom + 24),
             child: Column(
               mainAxisSize: MainAxisSize.min,
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                // 핸들
                 Center(
                   child: Container(
-                    width: 36, height: 4,
+                    width: 36,
+                    height: 4,
                     decoration: BoxDecoration(
                       color: Colors.grey.shade300,
                       borderRadius: BorderRadius.circular(2),
@@ -555,119 +555,115 @@ class MemberDetailScreen extends StatelessWidget {
                   ),
                 ),
                 const SizedBox(height: 16),
-                const Text(
-                  '📸 프로필 사진 설정',
-                  style: TextStyle(
-                      fontSize: 17, fontWeight: FontWeight.bold),
+                const Center(
+                  child: Text(
+                    '프로필 사진',
+                    style:
+                        TextStyle(fontSize: 17, fontWeight: FontWeight.bold),
+                  ),
                 ),
-                const SizedBox(height: 4),
-                Text(
-                  '사진 URL을 입력하거나 컬러 아바타를 선택하세요',
-                  style: TextStyle(
-                      fontSize: 12, color: Colors.grey.shade500),
-                ),
-                const SizedBox(height: 16),
-
-                // 미리보기
+                const SizedBox(height: 18),
                 Center(
-                  child: urlText.isNotEmpty
-                      ? CircleAvatar(
-                          radius: 40,
-                          backgroundImage: NetworkImage(urlText),
-                          onBackgroundImageError: (_, __) {},
-                          backgroundColor: Colors.grey.shade200,
-                        )
-                      : CircleAvatar(
-                          radius: 40,
-                          backgroundColor: AppColors.primary.withValues(alpha: 0.15),
-                          child: Text(
-                            member.name.isNotEmpty ? member.name[0] : '?',
-                            style: const TextStyle(
-                              fontSize: 30,
-                              fontWeight: FontWeight.bold,
-                              color: AppColors.primary,
+                  child: GestureDetector(
+                    onTap: pick,
+                    child: Stack(
+                      clipBehavior: Clip.none,
+                      children: [
+                        CircleAvatar(
+                          radius: 46,
+                          backgroundColor: AppColors.cream2,
+                          backgroundImage: preview,
+                          onBackgroundImageError:
+                              preview == null ? null : (_, __) {},
+                          child: preview == null
+                              ? Text(
+                                  member.name.isNotEmpty
+                                      ? member.name[0]
+                                      : '?',
+                                  style: const TextStyle(
+                                    fontSize: 32,
+                                    fontWeight: FontWeight.bold,
+                                    color: AppColors.goldDeep,
+                                  ),
+                                )
+                              : null,
+                        ),
+                        Positioned(
+                          right: 0,
+                          bottom: 0,
+                          child: Container(
+                            width: 30,
+                            height: 30,
+                            decoration: BoxDecoration(
+                              color: AppColors.charcoal,
+                              shape: BoxShape.circle,
+                              border:
+                                  Border.all(color: Colors.white, width: 2),
                             ),
+                            child: const Icon(Icons.camera_alt_rounded,
+                                color: Colors.white, size: 15),
                           ),
                         ),
-                ),
-                const SizedBox(height: 16),
-
-                // URL 입력
-                const Text(
-                  '사진 URL 입력',
-                  style: TextStyle(
-                      fontSize: 13, fontWeight: FontWeight.w600),
-                ),
-                const SizedBox(height: 8),
-                TextField(
-                  controller: urlCtrl,
-                  onChanged: (_) => setS(() {}),
-                  decoration: InputDecoration(
-                    hintText: 'https://example.com/photo.jpg',
-                    hintStyle: TextStyle(
-                        fontSize: 12, color: Colors.grey.shade400),
-                    filled: true,
-                    fillColor: AppColors.background,
-                    suffixIcon: urlCtrl.text.isNotEmpty
-                        ? IconButton(
-                            icon: const Icon(Icons.clear, size: 18),
-                            onPressed: () {
-                              urlCtrl.clear();
-                              setS(() {});
-                            },
-                          )
-                        : null,
-                    border: OutlineInputBorder(
-                      borderRadius: BorderRadius.circular(10),
-                      borderSide: BorderSide(color: Colors.grey.shade200),
-                    ),
-                    focusedBorder: OutlineInputBorder(
-                      borderRadius: BorderRadius.circular(10),
-                      borderSide: const BorderSide(
-                          color: AppColors.primary, width: 1.5),
-                    ),
-                    enabledBorder: OutlineInputBorder(
-                      borderRadius: BorderRadius.circular(10),
-                      borderSide: BorderSide(color: Colors.grey.shade200),
+                      ],
                     ),
                   ),
                 ),
-                const SizedBox(height: 16),
-
-                // 버튼
+                const SizedBox(height: 8),
+                Center(
+                  child: Text('사진을 눌러 갤러리에서 선택',
+                      style: TextStyle(
+                          fontSize: 12, color: Colors.grey.shade500)),
+                ),
+                const SizedBox(height: 20),
                 Row(
                   children: [
                     Expanded(
                       child: OutlinedButton(
+                        onPressed: () => Navigator.pop(ctx),
+                        style: OutlinedButton.styleFrom(
+                          foregroundColor: AppColors.textSecondary,
+                          side: const BorderSide(color: AppColors.divider),
+                          shape: RoundedRectangleBorder(
+                              borderRadius: BorderRadius.circular(10)),
+                          padding: const EdgeInsets.symmetric(vertical: 13),
+                        ),
+                        child: const Text('취소',
+                            style: TextStyle(fontWeight: FontWeight.w700)),
+                      ),
+                    ),
+                    const SizedBox(width: 10),
+                    Expanded(
+                      child: OutlinedButton(
                         onPressed: () {
-                          // 사진 초기화
-                          final updated = member.copyWith(photoUrl: '');
-                          provider.updateMember(updated);
+                          provider.updateMember(
+                              member.copyWith(clearPhoto: true));
                           Navigator.pop(ctx);
                         },
                         style: OutlinedButton.styleFrom(
-                          side: BorderSide(color: Colors.grey.shade300),
+                          foregroundColor: AppColors.danger,
+                          side: const BorderSide(color: AppColors.divider),
                           shape: RoundedRectangleBorder(
                               borderRadius: BorderRadius.circular(10)),
-                          padding: const EdgeInsets.symmetric(vertical: 12),
+                          padding: const EdgeInsets.symmetric(vertical: 13),
                         ),
-                        child: const Text('초기화',
-                            style: TextStyle(color: AppColors.textSecondary)),
+                        child: const Text('삭제',
+                            style: TextStyle(fontWeight: FontWeight.w700)),
                       ),
                     ),
-                    const SizedBox(width: 12),
+                    const SizedBox(width: 10),
                     Expanded(
                       flex: 2,
                       child: ElevatedButton(
                         onPressed: () {
-                          final updated = member.copyWith(
-                              photoUrl: urlCtrl.text.trim());
-                          provider.updateMember(updated);
+                          provider.updateMember(member.copyWith(
+                            photoUrl: photo,
+                            clearPhoto: photo == null || photo!.isEmpty,
+                          ));
                           Navigator.pop(ctx);
                           ScaffoldMessenger.of(context).showSnackBar(
                             SnackBar(
                               content: const Text('프로필 사진이 업데이트되었습니다'),
-                              backgroundColor: AppColors.success,
+                              backgroundColor: AppColors.charcoal,
                               behavior: SnackBarBehavior.floating,
                               shape: RoundedRectangleBorder(
                                   borderRadius: BorderRadius.circular(10)),
@@ -675,11 +671,11 @@ class MemberDetailScreen extends StatelessWidget {
                           );
                         },
                         style: ElevatedButton.styleFrom(
-                          backgroundColor: AppColors.primary,
+                          backgroundColor: AppColors.charcoal,
                           foregroundColor: Colors.white,
                           shape: RoundedRectangleBorder(
                               borderRadius: BorderRadius.circular(10)),
-                          padding: const EdgeInsets.symmetric(vertical: 12),
+                          padding: const EdgeInsets.symmetric(vertical: 13),
                         ),
                         child: const Text('저장',
                             style: TextStyle(fontWeight: FontWeight.bold)),
@@ -772,7 +768,7 @@ class _StatItem extends StatelessWidget {
     return Expanded(
       child: Column(
         children: [
-          Icon(icon, size: 20, color: AppColors.primary),
+          Icon(icon, size: 20, color: AppColors.goldDeep),
           const SizedBox(height: 6),
           Text(
             value,
@@ -837,7 +833,7 @@ class _Card extends StatelessWidget {
             padding: const EdgeInsets.fromLTRB(16, 14, 16, 10),
             child: Row(
               children: [
-                Icon(icon, size: 16, color: AppColors.primary),
+                Icon(icon, size: 16, color: AppColors.goldDeep),
                 const SizedBox(width: 6),
                 Text(
                   title,
@@ -882,10 +878,10 @@ class _InfoRow extends StatelessWidget {
             width: 26,
             height: 26,
             decoration: BoxDecoration(
-              color: AppColors.primary.withValues(alpha: 0.08),
+              color: AppColors.cream2,
               borderRadius: BorderRadius.circular(8),
             ),
-            child: Icon(icon, size: 15, color: AppColors.primary),
+            child: Icon(icon, size: 15, color: AppColors.goldDeep),
           ),
           const SizedBox(width: 10),
           SizedBox(
