@@ -50,15 +50,17 @@ void main() {
       expect(defaultBlock.contains("_currentUserName = '홍길동'"), isFalse);
     });
 
-    test('displayName 을 받는 시그니처다', () {
-      expect(
-        provider.contains(
-            'Future<void> switchUser(String authUserId, {String? displayName})'),
-        isTrue,
+    test('이름·생년월일·핸디를 받는 시그니처다', () {
+      final sig = provider.substring(
+        provider.indexOf('Future<void> switchUser('),
+        provider.indexOf('Future<void> switchUser(') + 200,
       );
+      expect(sig.contains('String? displayName'), isTrue);
+      expect(sig.contains('DateTime? birthDate'), isTrue);
+      expect(sig.contains('double? handicap'), isTrue);
     });
 
-    test('로그인 진입점이 실제 이름을 넘긴다', () {
+    test('로그인 진입점이 이름·핸디를 넘긴다', () {
       for (final path in [
         'lib/screens/splash/splash_screen.dart',
         'lib/screens/auth/login_screen.dart',
@@ -71,7 +73,96 @@ void main() {
           isTrue,
           reason: '$path 가 이름을 안 넘기면 명단이 다시 홍길동이 된다',
         );
+        expect(
+          src.contains('handicap: auth.currentUser!.handicap'),
+          isTrue,
+          reason: '$path 가 핸디를 안 넘기면 자동 조편성이 초보(99)로 잡는다',
+        );
       }
+    });
+  });
+
+  group('핸디캡이 자동 조편성까지 간다', () {
+    test('로그인마다 계정 핸디를 명단에 흘려 넣는다', () {
+      final block = provider.substring(
+        provider.indexOf('Future<void> switchUser('),
+        provider.indexOf('void selectClub('),
+      );
+      final ensure = block.indexOf('ensureCreatorMembers();');
+      final sync = block.indexOf('syncAuthGolfProfile(birthDate: birthDate');
+      expect(sync, greaterThan(0),
+          reason: '가입 때 입력한 핸디가 나중에 만든 모임 명단에 안 붙는다');
+      expect(sync, greaterThan(ensure),
+          reason: '생성자 행을 만든 뒤에 반영해야 그 행에도 핸디가 들어간다');
+    });
+
+    test('배정용 Member 는 명단 회원을 그대로 쓴다', () {
+      // memberById 가 핸디를 들고 있는 Member 를 준다.
+      final fn = provider.substring(
+        provider.indexOf('Member _memberForAssignment('),
+        provider.indexOf('Member _memberForAssignment(') + 500,
+      );
+      expect(fn.contains('memberById(response.memberId)'), isTrue);
+      expect(fn.contains('if (existing != null) return existing;'), isTrue);
+    });
+
+    test('핸디 균등 옵션이 Member.handicap 을 쓴다', () {
+      final svc =
+          File('lib/domain/services/group_assignment_service.dart')
+              .readAsStringSync();
+      expect(svc.contains('AutoAssignOption.balanceHandicap'), isTrue);
+      // 핸디 내림차순 정렬 + 스네이크 드래프트
+      expect(svc.contains('(b.handicap ?? 99).compareTo(a.handicap ?? 99)'),
+          isTrue);
+      expect(svc.contains('double _handicapBalanceScore('), isTrue);
+      final score = svc.substring(
+        svc.indexOf('double _handicapBalanceScore('),
+        svc.indexOf('double _handicapBalanceScore(') + 500,
+      );
+      expect(score.contains('m.handicap ?? 99'), isTrue);
+      expect(score.contains("s.handicap"), isTrue,
+          reason: '이미 배정된 조의 평균 핸디와 비교해야 균등해진다');
+    });
+  });
+
+  group('기존 가입자도 골프 프로필을 한 번 받는다', () {
+    final auth = File('lib/providers/auth_provider.dart').readAsStringSync();
+
+    test('물어봤는지 계정별로 기억한다', () {
+      expect(auth.contains('Future<bool> shouldAskGolfProfile()'), isTrue);
+      expect(auth.contains('Future<void> markGolfProfileAsked()'), isTrue);
+      // 계정별 키 — 다른 계정으로 바꾸면 다시 물어봐야 한다.
+      expect(auth.contains("'\$_kGolfProfileAsked\${user.id}'"), isTrue);
+      final should = auth.substring(
+        auth.indexOf('Future<bool> shouldAskGolfProfile()'),
+        auth.indexOf('Future<void> markGolfProfileAsked()'),
+      );
+      expect(should.contains('!user.needsGolfProfile'), isTrue,
+          reason: '이미 입력한 사람에게 또 물어보면 안 된다');
+    });
+
+    test('자동로그인·소셜로그인 둘 다 골프 프로필로 보낸다', () {
+      for (final path in [
+        'lib/screens/splash/splash_screen.dart',
+        'lib/screens/auth/login_screen.dart',
+      ]) {
+        final src = File(path).readAsStringSync();
+        expect(src.contains('shouldAskGolfProfile()'), isTrue, reason: path);
+        expect(src.contains("'/golf-profile'"), isTrue, reason: path);
+      }
+    });
+
+    test("'나중에'도 물어본 걸로 기록한다", () {
+      final screen =
+          File('lib/screens/auth/golf_profile_screen.dart').readAsStringSync();
+      final skip = screen.substring(
+        screen.indexOf('Future<void> _skip()'),
+        screen.indexOf('Future<void> _skip()') + 400,
+      );
+      expect(skip.contains('markGolfProfileAsked()'), isTrue,
+          reason: '기록을 안 하면 앱 켤 때마다 이 화면이 뜬다');
+      expect(screen.contains('await auth.markGolfProfileAsked();'), isTrue,
+          reason: '저장했을 때도 기록해야 한다');
     });
   });
 

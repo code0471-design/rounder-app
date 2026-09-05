@@ -65,6 +65,8 @@ class _SplashScreenState extends State<SplashScreen>
         await context.read<ClubProvider>().switchUser(
               userId,
               displayName: auth.currentUser!.name,
+              birthDate: auth.currentUser!.birthDate,
+              handicap: auth.currentUser!.handicap,
             );
         if (!AppDependencies.instance.isOfflineMockMode) {
           try {
@@ -128,9 +130,16 @@ class _SplashScreenState extends State<SplashScreen>
 
     final frag = Uri.base.fragment;
     final wantsAdmin = frag == '/admin' || frag == 'admin';
-    final route = wantsAdmin
-        ? '/admin'
-        : (autoLoggedIn ? '/main' : '/login');
+
+    // 이 기능 전에 가입한 계정은 생년월일·핸디가 비어 있다.
+    // 핸디가 없으면 자동 조편성이 초보로 잡으므로 한 번만 물어본다.
+    var next = autoLoggedIn ? '/main' : '/login';
+    if (autoLoggedIn && await auth.shouldAskGolfProfile()) {
+      next = '/golf-profile';
+    }
+    if (!mounted) return;
+
+    final route = wantsAdmin ? '/admin' : next;
     await Navigator.of(context).pushReplacementNamed(route);
   }
 

@@ -38,6 +38,8 @@ class _LoginScreenState extends State<LoginScreen> {
     await context.read<ClubProvider>().switchUser(
           userId,
           displayName: auth.currentUser!.name,
+          birthDate: auth.currentUser!.birthDate,
+          handicap: auth.currentUser!.handicap,
         );
     try {
       final snap = await AppDependencies.instance.bootstrapForUser(userId);
@@ -86,8 +88,11 @@ class _LoginScreenState extends State<LoginScreen> {
         return;
       }
       await _syncClubProvider();
+      // 예전 가입 계정은 생년월일·핸디가 비어 있다. 한 번만 물어본다.
+      final askProfile = await auth.shouldAskGolfProfile();
       if (!mounted) return;
-      Navigator.of(context).pushReplacementNamed('/main');
+      Navigator.of(context)
+          .pushReplacementNamed(askProfile ? '/golf-profile' : '/main');
     } catch (e) {
       if (!mounted) return;
       final msg = e is SocialAuthException

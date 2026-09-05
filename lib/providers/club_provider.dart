@@ -288,7 +288,16 @@ class ClubProvider extends ChangeNotifier with WidgetsBindingObserver {
   ///
   /// [displayName] 은 실제 로그인 계정의 이름. 시드 계정이 아닌데 이걸 안 넘기면
   /// 명단에 '홍길동'이 박힌다. 호출부는 `auth.currentUser?.name` 을 같이 준다.
-  Future<void> switchUser(String authUserId, {String? displayName}) async {
+  ///
+  /// [birthDate]·[handicap] 은 계정에 저장된 값. 가입 때 입력해도 그 시점에
+  /// 모임이 없으면 명단에 안 붙는다. 로그인할 때마다 다시 흘려 넣어야
+  /// 나중에 만든 모임에서도 자동 조편성이 핸디를 쓴다.
+  Future<void> switchUser(
+    String authUserId, {
+    String? displayName,
+    DateTime? birthDate,
+    double? handicap,
+  }) async {
     _persistAuthUserId = authUserId;
     await _loadLeftClubIds(authUserId);
     switch (authUserId) {
@@ -405,6 +414,9 @@ class ClubProvider extends ChangeNotifier with WidgetsBindingObserver {
     _syncAllNextRounds();
     // 신규 모임에 생성자 회원이 누락된 경우 복구 (회비·회원 목록)
     ensureCreatorMembers();
+    // 계정의 생년월일·핸디를 명단에 반영 — 방금 만든 생성자 행도 포함해야 하므로
+    // ensureCreatorMembers 다음이다. 핸디가 비면 자동 조편성이 초보로 잡는다.
+    syncAuthGolfProfile(birthDate: birthDate, handicap: handicap);
     // 데모 모임(c1~c5) 회원수 — 과거에 저장된 임의값이 남아있어도 실제 명단 기준으로 교정
     _reconcileLegacyMemberCounts();
     // 내 모임 → Mock 저장소(어드민·모임찾기) 강제 동기화

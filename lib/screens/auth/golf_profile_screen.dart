@@ -116,6 +116,7 @@ class _GolfProfileScreenState extends State<GolfProfileScreen> {
               handicap: handicap,
             );
       } catch (_) {}
+      await auth.markGolfProfileAsked();
       if (!mounted) return;
       Navigator.of(context).pushNamedAndRemoveUntil('/main', (_) => false);
     } catch (_) {
@@ -127,7 +128,11 @@ class _GolfProfileScreenState extends State<GolfProfileScreen> {
     }
   }
 
-  void _skip() {
+  Future<void> _skip() async {
+    // '나중에'도 물어본 걸로 친다. 켤 때마다 다시 뜨면 안 된다.
+    // 이후에는 마이페이지에서 입력·수정한다.
+    await context.read<AuthProvider>().markGolfProfileAsked();
+    if (!mounted) return;
     Navigator.of(context).pushNamedAndRemoveUntil('/main', (_) => false);
   }
 

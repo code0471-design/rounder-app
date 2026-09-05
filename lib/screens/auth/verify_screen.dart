@@ -126,6 +126,8 @@ class _VerifyScreenState extends State<VerifyScreen> {
       await clubs.switchUser(
         auth.currentUser!.id,
         displayName: auth.currentUser!.name,
+        birthDate: auth.currentUser!.birthDate,
+        handicap: auth.currentUser!.handicap,
       );
       await clubs.joinViaInvite(
         clubId: clubId,

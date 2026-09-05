@@ -25,6 +25,8 @@ class AuthProvider extends ChangeNotifier {
   static const _kLastLoginId   = 'last_login_id';
   static const _kLastLoginName = 'last_login_name';
   static const _kLastLoginMethod = 'last_login_method';
+  // 골프 프로필(생년월일·핸디)을 이미 물어본 계정. '나중에'도 물어본 걸로 친다.
+  static const _kGolfProfileAsked = 'golf_profile_asked_';
 
   // ── 현재 로그인 사용자 ───────────────────────────────────
   AppUser? _currentUser;
@@ -208,6 +210,25 @@ class AuthProvider extends ChangeNotifier {
     _lastLoginMethod = method;
     final prefs = await SharedPreferences.getInstance();
     await prefs.setString(_kLastLoginMethod, method);
+  }
+
+  /// 로그인 직후 골프 프로필 입력 화면을 띄워야 하는지.
+  ///
+  /// 생년월일·핸디는 이 기능이 생기기 전에 가입한 계정에 비어 있다.
+  /// 핸디가 없으면 자동 조편성이 그 사람을 초보(99)로 잡으므로 한 번은 물어본다.
+  /// 한 번 물어본 뒤에는 ('나중에' 포함) 다시 띄우지 않는다 — 마이페이지에서 수정.
+  Future<bool> shouldAskGolfProfile() async {
+    final user = _currentUser;
+    if (user == null || !user.needsGolfProfile) return false;
+    final prefs = await SharedPreferences.getInstance();
+    return !(prefs.getBool('$_kGolfProfileAsked${user.id}') ?? false);
+  }
+
+  Future<void> markGolfProfileAsked() async {
+    final user = _currentUser;
+    if (user == null) return;
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.setBool('$_kGolfProfileAsked${user.id}', true);
   }
 
   String lastLoginHint() {
