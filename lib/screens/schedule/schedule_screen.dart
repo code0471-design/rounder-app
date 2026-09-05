@@ -648,7 +648,7 @@ class _AttendButton extends StatelessWidget {
                 _ResponseBtn(
                   label: '참석',
                   icon: Icons.check_circle_outline,
-                  color: AppColors.success,
+                  color: AppColors.charcoal,
                   selected: currentResponse == '참석',
                   onTap: () async {
                     final sheetCtx = context;
@@ -736,11 +736,11 @@ class _AttendButton extends StatelessWidget {
             Container(
               width: 36, height: 36,
               decoration: BoxDecoration(
-                color: AppColors.success.withValues(alpha: 0.12),
+                color: AppColors.accent.withValues(alpha: 0.18),
                 shape: BoxShape.circle,
               ),
               child: const Icon(Icons.check_circle_outline,
-                  color: AppColors.success, size: 20),
+                  color: AppColors.goldDeep, size: 20),
             ),
             const SizedBox(width: 10),
             const Text('참석 확인',
@@ -895,7 +895,7 @@ class _AttendButton extends StatelessWidget {
             child: ElevatedButton(
               onPressed: () => Navigator.pop(ctx),
               style: ElevatedButton.styleFrom(
-                backgroundColor: AppColors.sageDeep,
+                backgroundColor: AppColors.charcoal,
                 foregroundColor: Colors.white,
                 elevation: 0,
                 shape: RoundedRectangleBorder(
@@ -988,7 +988,7 @@ class ScheduleDetailScreen extends StatelessWidget {
 
         return Scaffold(
           backgroundColor: AppColors.background,
-          // ── 슬림 AppBar 딥그린 카드형 (장소·시간 강조 — 상단 보완) ──
+          // ── 슬림 AppBar 웜차콜 카드형 (장소·시간 강조 — 상단 보완) ──
           appBar: PreferredSize(
             preferredSize: const Size.fromHeight(128),
             child: ColoredBox(
@@ -998,14 +998,15 @@ class ScheduleDetailScreen extends StatelessWidget {
                 child: Container(
                   decoration: BoxDecoration(
                     gradient: const LinearGradient(
-                      colors: [AppColors.primaryDark, AppColors.primary],
+                      // 그린은 로고 헤더·하단 탭바 전용. 화면 안은 웜 차콜.
+                      colors: [AppColors.charcoalDeep, AppColors.charcoal],
                       begin: Alignment.topLeft,
                       end: Alignment.bottomRight,
                     ),
                     borderRadius: BorderRadius.circular(16),
                     boxShadow: [
                       BoxShadow(
-                        color: AppColors.primaryDark.withValues(alpha: 0.28),
+                        color: AppColors.charcoalDeep.withValues(alpha: 0.28),
                         blurRadius: 12,
                         offset: const Offset(0, 4),
                       ),
@@ -1051,11 +1052,12 @@ class ScheduleDetailScreen extends StatelessWidget {
                                     width: 24,
                                     height: 24,
                                     decoration: BoxDecoration(
-                                      color: Colors.white.withValues(alpha: 0.2),
+                                      color: AppColors.accent
+                                          .withValues(alpha: 0.20),
                                       borderRadius: BorderRadius.circular(7),
                                     ),
                                     child: const Icon(Icons.place_rounded,
-                                        color: Colors.white, size: 14),
+                                        color: AppColors.accent, size: 14),
                                   ),
                                   const SizedBox(width: 6),
                                   Expanded(
@@ -1082,11 +1084,12 @@ class ScheduleDetailScreen extends StatelessWidget {
                                     width: 24,
                                     height: 24,
                                     decoration: BoxDecoration(
-                                      color: Colors.white.withValues(alpha: 0.2),
+                                      color: AppColors.accent
+                                          .withValues(alpha: 0.20),
                                       borderRadius: BorderRadius.circular(7),
                                     ),
                                     child: const Icon(Icons.schedule_rounded,
-                                        color: Colors.white, size: 14),
+                                        color: AppColors.accent, size: 14),
                                   ),
                                   const SizedBox(width: 6),
                                   Expanded(
@@ -1196,12 +1199,12 @@ class ScheduleDetailScreen extends StatelessWidget {
     final responded = myRes != null;
     final currentResponse = myRes?.response;
     final statusColor = !responded
-        ? AppColors.success
+        ? AppColors.textTertiary
         : currentResponse == '참석'
-            ? AppColors.success
+            ? AppColors.goldDeep
             : currentResponse == '불참'
                 ? AppColors.danger
-                : AppColors.warning;
+                : AppColors.textTertiary;
 
     return Container(
       padding: const EdgeInsets.fromLTRB(16, 14, 14, 14),
@@ -1270,7 +1273,7 @@ class ScheduleDetailScreen extends StatelessWidget {
             children: ['참석', '불참'].map((label) {
               final isSelected = currentResponse == label;
               final btnColor =
-                  label == '참석' ? AppColors.primary : AppColors.danger;
+                  label == '참석' ? AppColors.charcoal : AppColors.danger;
               return Padding(
                 padding: const EdgeInsets.only(left: 8),
                 child: GestureDetector(
@@ -1292,7 +1295,7 @@ class ScheduleDetailScreen extends StatelessWidget {
                           ScaffoldMessenger.of(context).showSnackBar(
                             SnackBar(
                               content: const Text('참석이 확정되었습니다'),
-                              backgroundColor: AppColors.success,
+                              backgroundColor: AppColors.charcoal,
                               behavior: SnackBarBehavior.floating,
                             ),
                           );
@@ -1389,7 +1392,7 @@ class ScheduleDetailScreen extends StatelessWidget {
                 _ResponseBtn(
                   label: '참석',
                   icon: Icons.check_circle_outline,
-                  color: AppColors.success,
+                  color: AppColors.charcoal,
                   selected: current == '참석',
                   onTap: () {
                     // 정원 체크: 확정 참석자 수 vs 최대 정원
@@ -1451,11 +1454,11 @@ class ScheduleDetailScreen extends StatelessWidget {
             Container(
               width: 36, height: 36,
               decoration: BoxDecoration(
-                color: AppColors.success.withValues(alpha: 0.12),
+                color: AppColors.accent.withValues(alpha: 0.18),
                 shape: BoxShape.circle,
               ),
               child: const Icon(Icons.check_circle_outline,
-                  color: AppColors.success, size: 20),
+                  color: AppColors.goldDeep, size: 20),
             ),
             const SizedBox(width: 10),
             const Text('참석 확인',
@@ -1486,7 +1489,7 @@ class ScheduleDetailScreen extends StatelessWidget {
               child: ElevatedButton(
                 onPressed: () => Navigator.pop(ctx, true),
                 style: ElevatedButton.styleFrom(
-                  backgroundColor: AppColors.success,
+                  backgroundColor: AppColors.charcoal,
                   foregroundColor: Colors.white,
                   elevation: 0,
                   shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
@@ -1602,7 +1605,7 @@ class ScheduleDetailScreen extends StatelessWidget {
             child: ElevatedButton(
               onPressed: () => Navigator.pop(ctx),
               style: ElevatedButton.styleFrom(
-                backgroundColor: AppColors.sageDeep,
+                backgroundColor: AppColors.charcoal,
                 foregroundColor: Colors.white,
                 elevation: 0,
                 shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
@@ -1755,7 +1758,7 @@ class ScheduleDetailScreen extends StatelessWidget {
             const SizedBox(height: 8),
             ListTile(
               leading: const Icon(Icons.edit_calendar_outlined,
-                  color: AppColors.primary),
+                  color: AppColors.goldDeep),
               title: const Text('일정 변경'),
               subtitle: const Text('날짜·시간·장소 등 수정',
                   style: TextStyle(fontSize: 12, color: AppColors.textSecondary)),
@@ -2214,7 +2217,7 @@ class _RsvpWaitingCardState extends State<_RsvpWaitingCard> {
     switch (s) {
       case WaitingStatus.waiting:   return AppColors.textSecondary;
       case WaitingStatus.notified:  return AppColors.warning;
-      case WaitingStatus.accepted:  return AppColors.success;
+      case WaitingStatus.accepted:  return AppColors.goldDeep;
       case WaitingStatus.expired:   return AppColors.danger;
       case WaitingStatus.cancelled: return AppColors.textSecondary;
     }
@@ -2278,7 +2281,7 @@ class _RsvpWaitingCardState extends State<_RsvpWaitingCard> {
                             size: 18,
                             color: schedule.isRsvpClosed
                                 ? AppColors.danger
-                                : AppColors.sageDeep),
+                                : AppColors.goldDeep),
                         const SizedBox(width: 6),
                         Text('참석 응답 마감',
                             style: const TextStyle(
@@ -2293,7 +2296,7 @@ class _RsvpWaitingCardState extends State<_RsvpWaitingCard> {
                               fontWeight: FontWeight.w600,
                               color: schedule.isRsvpClosed
                                   ? AppColors.danger
-                                  : AppColors.success),
+                                  : AppColors.goldDeep),
                         ),
                       ],
                     ),
@@ -2322,7 +2325,7 @@ class _RsvpWaitingCardState extends State<_RsvpWaitingCard> {
                               ScaffoldMessenger.of(context).showSnackBar(
                                 SnackBar(
                                   content: Text('미응답자 $sent명에게 알림을 보냈습니다 🔔'),
-                                  backgroundColor: AppColors.primary,
+                                  backgroundColor: AppColors.charcoal,
                                   behavior: SnackBarBehavior.floating,
                                   shape: RoundedRectangleBorder(
                                       borderRadius: BorderRadius.circular(10)),
@@ -2333,7 +2336,7 @@ class _RsvpWaitingCardState extends State<_RsvpWaitingCard> {
                             label: const Text('알림 보내기',
                                 style: TextStyle(fontSize: 12, fontWeight: FontWeight.w600)),
                             style: TextButton.styleFrom(
-                                foregroundColor: AppColors.primary,
+                                foregroundColor: AppColors.goldDeep,
                                 padding: const EdgeInsets.symmetric(horizontal: 4)),
                           ),
                         ],
@@ -2422,11 +2425,11 @@ class _RsvpWaitingCardState extends State<_RsvpWaitingCard> {
                                     onPressed: () {
                                       provider.respondToWaitingOffer(myEntry.id, accept: true);
                                       ScaffoldMessenger.of(context).showSnackBar(
-                                        _snack('참석이 확정되었습니다 ✅', AppColors.success),
+                                        _snack('참석이 확정되었습니다 ✅', AppColors.charcoal),
                                       );
                                     },
                                     style: ElevatedButton.styleFrom(
-                                        backgroundColor: AppColors.success,
+                                        backgroundColor: AppColors.charcoal,
                                         foregroundColor: Colors.white),
                                     child: const Text('수락'),
                                   ),
@@ -2543,7 +2546,7 @@ class _AttendanceCard extends StatelessWidget {
                     Container(
                       width: 4, height: 16,
                       decoration: BoxDecoration(
-                        color: AppColors.success,
+                        color: AppColors.accent,
                         borderRadius: BorderRadius.circular(2),
                       ),
                     ),
@@ -2565,7 +2568,7 @@ class _AttendanceCard extends StatelessWidget {
                 padding: const EdgeInsets.fromLTRB(16, 0, 16, 12),
                 child: Row(
                   children: [
-                    _StatItem(count: confirmed.length, label: '참석', color: AppColors.success),
+                    _StatItem(count: confirmed.length, label: '참석', color: AppColors.goldDeep),
                     _Divider(),
                     _StatItem(count: noResponse, label: '미답변', color: AppColors.textSecondary),
                     _Divider(),
@@ -2578,7 +2581,7 @@ class _AttendanceCard extends StatelessWidget {
                 Divider(height: 1, color: Colors.black.withValues(alpha: 0.06)),
               // ── 참석 명단 직접 표시 ──
               if (confirmed.isNotEmpty) ...[
-                _MemberListSection(label: '참석', color: AppColors.success, members: confirmed),
+                _MemberListSection(label: '참석', color: AppColors.goldDeep, members: confirmed),
               ],
 
               if (declined.isNotEmpty) ...[
@@ -3324,10 +3327,10 @@ class _ScheduleFormSheetState extends State<_ScheduleFormSheet> {
           Container(
             padding: const EdgeInsets.all(8),
             decoration: BoxDecoration(
-              color: AppColors.sageDeep.withValues(alpha: 0.12),
+              color: AppColors.charcoal.withValues(alpha: 0.12),
               shape: BoxShape.circle,
             ),
-            child: const Icon(Icons.send_rounded, color: AppColors.sageDeep, size: 20),
+            child: const Icon(Icons.send_rounded, color: AppColors.charcoal, size: 20),
           ),
           const SizedBox(width: 10),
           const Text('알림톡 보내기', style: TextStyle(fontSize: 16, fontWeight: FontWeight.w700)),
@@ -3344,16 +3347,16 @@ class _ScheduleFormSheetState extends State<_ScheduleFormSheet> {
               decoration: BoxDecoration(
                 color: const Color(0xFFF5F9F5),
                 borderRadius: BorderRadius.circular(12),
-                border: Border.all(color: AppColors.sageDeep.withValues(alpha: 0.2)),
+                border: Border.all(color: AppColors.charcoal.withValues(alpha: 0.2)),
               ),
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
                   Row(children: [
-                    Icon(Icons.golf_course_rounded, size: 14, color: AppColors.sageDeep),
+                    Icon(Icons.golf_course_rounded, size: 14, color: AppColors.charcoal),
                     const SizedBox(width: 6),
                     Text(provider.selectedClub.name,
-                        style: TextStyle(fontSize: 11, color: AppColors.sageDeep,
+                        style: TextStyle(fontSize: 11, color: AppColors.charcoal,
                             fontWeight: FontWeight.w600)),
                   ]),
                   const SizedBox(height: 8),
@@ -3390,7 +3393,7 @@ class _ScheduleFormSheetState extends State<_ScheduleFormSheet> {
                     const SizedBox(width: 8),
                     Text('$sent명에게 알림톡을 보냈습니다 ✉️'),
                   ]),
-                  backgroundColor: AppColors.sageDeep,
+                  backgroundColor: AppColors.charcoal,
                   behavior: SnackBarBehavior.floating,
                   shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
                 ),
@@ -3399,7 +3402,7 @@ class _ScheduleFormSheetState extends State<_ScheduleFormSheet> {
             icon: const Icon(Icons.send_rounded, size: 16),
             label: const Text('보내기'),
             style: ElevatedButton.styleFrom(
-              backgroundColor: AppColors.sageDeep,
+              backgroundColor: AppColors.charcoal,
               foregroundColor: Colors.white,
               shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
             ),
@@ -4770,16 +4773,15 @@ class _GroupViewBannerCard extends StatelessWidget {
     required this.isAdmin,
   });
 
-  // 조편성 미리보기 팔레트 (브랜드 골드 — 딥그린/주황 대신)
-  static const Color _orange = Color(0xFFC9A227);
-  static const Color _orangeDeep = Color(0xFF8F7318);
+  // 조편성 팔레트 — 크림·골드·차콜 컨셉. 그린과 파스텔은 쓰지 않는다.
+  // 조 배지는 같은 웜 계열의 명도 차이로만 구분한다.
   static const List<Color> _groupColors = [
-    AppColors.primary,
-    Color(0xFF00897B),
-    Color(0xFFE65100),
-    Color(0xFF5A8F7B),
-    Color(0xFFEF6C00),
-    Color(0xFF2F5C4C),
+    AppColors.goldDeep,
+    AppColors.charcoal,
+    Color(0xFFB08A2E),
+    Color(0xFF6B6459),
+    Color(0xFF8C6239),
+    Color(0xFF3F3B33),
   ];
 
   @override
@@ -4802,11 +4804,11 @@ class _GroupViewBannerCard extends StatelessWidget {
                   Container(
                     padding: const EdgeInsets.all(6),
                     decoration: BoxDecoration(
-                      color: AppColors.sageLighter,
+                      color: AppColors.cream2,
                       shape: BoxShape.circle,
                     ),
                     child: const Icon(Icons.groups_rounded,
-                        color: AppColors.primary, size: 22),
+                        color: AppColors.goldDeep, size: 22),
                   ),
                   const SizedBox(width: 10),
                   const Text('조편성',
@@ -4820,13 +4822,13 @@ class _GroupViewBannerCard extends StatelessWidget {
                   Container(
                     padding: const EdgeInsets.all(14),
                     decoration: BoxDecoration(
-                      color: AppColors.sageLighter,
+                      color: AppColors.cream2,
                       borderRadius: BorderRadius.circular(10),
                     ),
                     child: const Row(
                       children: [
                         Icon(Icons.schedule_rounded,
-                            size: 18, color: AppColors.primary),
+                            size: 18, color: AppColors.goldDeep),
                         SizedBox(width: 8),
                         Expanded(
                           child: Text(
@@ -4846,7 +4848,7 @@ class _GroupViewBannerCard extends StatelessWidget {
                 ElevatedButton(
                   onPressed: () => Navigator.of(dialogCtx).pop(),
                   style: ElevatedButton.styleFrom(
-                    backgroundColor: AppColors.primary,
+                    backgroundColor: AppColors.charcoal,
                     foregroundColor: Colors.white,
                     shape: RoundedRectangleBorder(
                         borderRadius: BorderRadius.circular(8)),
@@ -4870,17 +4872,14 @@ class _GroupViewBannerCard extends StatelessWidget {
         decoration: BoxDecoration(
           color: Colors.white,
           borderRadius: BorderRadius.circular(16),
+          // 다른 카드와 같은 테두리·그림자. 조편성만 튀지 않게 한다.
           border: Border.all(
-            color: isFinalized
-                ? _orange.withValues(alpha: 0.55)
-                : _orange.withValues(alpha: 0.28),
+            color: isFinalized ? AppColors.goldDeep : AppColors.divider,
             width: isFinalized ? 1.5 : 1,
           ),
           boxShadow: [
             BoxShadow(
-              color: isFinalized
-                  ? _orange.withValues(alpha: 0.22)
-                  : _orange.withValues(alpha: 0.1),
+              color: AppColors.primary.withValues(alpha: 0.06),
               blurRadius: 8,
               offset: const Offset(0, 2),
             ),
@@ -4892,18 +4891,15 @@ class _GroupViewBannerCard extends StatelessWidget {
             Container(
               padding: const EdgeInsets.fromLTRB(16, 14, 12, 14),
               decoration: BoxDecoration(
+                // 확정: 차콜 + 골드 아이콘 / 미확정: 조용한 크림
                 gradient: isFinalized
                     ? const LinearGradient(
-                        colors: [_orange, Color(0xFFE0C35A)],
+                        colors: [AppColors.charcoal, AppColors.charcoalDeep],
                         begin: Alignment.topLeft,
                         end: Alignment.bottomRight,
                       )
-                    : const LinearGradient(
-                        colors: [Color(0xFFFBF6E4), Color(0xFFF8F1D6)],
-                        begin: Alignment.topLeft,
-                        end: Alignment.bottomRight,
-                      ),
-                color: null,
+                    : null,
+                color: isFinalized ? null : AppColors.cream2,
                 borderRadius: const BorderRadius.vertical(
                     top: Radius.circular(15)),
               ),
@@ -4915,15 +4911,15 @@ class _GroupViewBannerCard extends StatelessWidget {
                     height: 42,
                     decoration: BoxDecoration(
                       color: isFinalized
-                          ? Colors.white.withValues(alpha: 0.25)
-                          : _orange.withValues(alpha: 0.18),
+                          ? AppColors.accent.withValues(alpha: 0.22)
+                          : AppColors.sand,
                       borderRadius: BorderRadius.circular(12),
                     ),
                     child: Icon(
                       Icons.groups_rounded,
                       color: isFinalized
-                          ? Colors.white
-                          : _orangeDeep,
+                          ? AppColors.accent
+                          : AppColors.goldDeep,
                       size: 24,
                     ),
                   ),
@@ -4939,7 +4935,7 @@ class _GroupViewBannerCard extends StatelessWidget {
                             fontWeight: FontWeight.w800,
                             color: isFinalized
                                 ? Colors.white
-                                : _orangeDeep,
+                                : AppColors.ink,
                           ),
                         ),
                         const SizedBox(height: 2),
@@ -4953,7 +4949,7 @@ class _GroupViewBannerCard extends StatelessWidget {
                             fontSize: 12,
                             color: isFinalized
                                 ? Colors.white.withValues(alpha: 0.9)
-                                : _orangeDeep.withValues(alpha: 0.85),
+                                : AppColors.textTertiary,
                           ),
                         ),
                       ],
@@ -4965,8 +4961,8 @@ class _GroupViewBannerCard extends StatelessWidget {
                         horizontal: 10, vertical: 5),
                     decoration: BoxDecoration(
                       color: isFinalized
-                          ? Colors.white.withValues(alpha: 0.28)
-                          : _orange.withValues(alpha: 0.16),
+                          ? AppColors.accent.withValues(alpha: 0.28)
+                          : AppColors.sand,
                       borderRadius: BorderRadius.circular(20),
                     ),
                     child: Text(
@@ -4975,8 +4971,8 @@ class _GroupViewBannerCard extends StatelessWidget {
                         fontSize: 11,
                         fontWeight: FontWeight.w700,
                         color: isFinalized
-                            ? Colors.white
-                            : _orangeDeep,
+                            ? AppColors.accent
+                            : AppColors.inkSoft,
                       ),
                     ),
                   ),
@@ -4989,8 +4985,8 @@ class _GroupViewBannerCard extends StatelessWidget {
                             horizontal: 8, vertical: 4),
                         decoration: BoxDecoration(
                           color: isFinalized
-                              ? Colors.white.withValues(alpha: 0.28)
-                              : _orange.withValues(alpha: 0.16),
+                              ? AppColors.accent.withValues(alpha: 0.28)
+                              : AppColors.sand,
                           borderRadius: BorderRadius.circular(8),
                         ),
                         child: Row(
@@ -5000,8 +4996,8 @@ class _GroupViewBannerCard extends StatelessWidget {
                               Icons.edit_rounded,
                               size: 13,
                               color: isFinalized
-                                  ? Colors.white
-                                  : _orangeDeep,
+                                  ? AppColors.accent
+                                  : AppColors.goldDeep,
                             ),
                             const SizedBox(width: 3),
                             Text(
@@ -5010,8 +5006,8 @@ class _GroupViewBannerCard extends StatelessWidget {
                                 fontSize: 11,
                                 fontWeight: FontWeight.w700,
                                 color: isFinalized
-                                    ? Colors.white
-                                    : _orangeDeep,
+                                    ? AppColors.accent
+                                    : AppColors.goldDeep,
                               ),
                             ),
                           ],
@@ -5216,7 +5212,7 @@ class _ScoreAwardBannerCard extends StatelessWidget {
             Row(
               children: [
                 const Icon(Icons.emoji_events_rounded,
-                    color: AppColors.primary, size: 18),
+                    color: AppColors.goldDeep, size: 18),
                 const SizedBox(width: 6),
                 Text(
                   isPast ? '라운딩 기록' : '스코어 & 시상',
@@ -5232,12 +5228,12 @@ class _ScoreAwardBannerCard extends StatelessWidget {
                     padding: const EdgeInsets.symmetric(
                         horizontal: 7, vertical: 2),
                     decoration: BoxDecoration(
-                      color: AppColors.primary.withValues(alpha: 0.10),
+                      color: AppColors.accent.withValues(alpha: 0.18),
                       borderRadius: BorderRadius.circular(8),
                     ),
                     child: const Text('조별로 입력',
                         style: TextStyle(
-                            color: AppColors.primary,
+                            color: AppColors.goldDeep,
                             fontSize: 10,
                             fontWeight: FontWeight.w600)),
                   ),
@@ -5273,10 +5269,9 @@ class _ScoreAwardBannerCard extends StatelessWidget {
                     child: Container(
                       padding: const EdgeInsets.symmetric(vertical: 14),
                       decoration: BoxDecoration(
-                        color: AppColors.primary.withValues(alpha: 0.07),
+                        color: AppColors.cream2,
                         borderRadius: BorderRadius.circular(12),
-                        border: Border.all(
-                            color: AppColors.primary.withValues(alpha: 0.25)),
+                        border: Border.all(color: AppColors.sand),
                       ),
                       child: const Column(
                         children: [
@@ -5287,7 +5282,7 @@ class _ScoreAwardBannerCard extends StatelessWidget {
                             style: TextStyle(
                               fontSize: 13,
                               fontWeight: FontWeight.w800,
-                              color: AppColors.primaryDark,
+                              color: AppColors.ink,
                             ),
                           ),
                           SizedBox(height: 2),
@@ -5295,7 +5290,7 @@ class _ScoreAwardBannerCard extends StatelessWidget {
                             '조 선택 후 입력',
                             style: TextStyle(
                               fontSize: 11,
-                              color: AppColors.primary,
+                              color: AppColors.goldDeep,
                             ),
                           ),
                         ],
@@ -5319,10 +5314,9 @@ class _ScoreAwardBannerCard extends StatelessWidget {
                     child: Container(
                       padding: const EdgeInsets.symmetric(vertical: 14),
                       decoration: BoxDecoration(
-                        color: AppColors.primary.withValues(alpha: 0.07),
+                        color: AppColors.cream2,
                         borderRadius: BorderRadius.circular(12),
-                        border: Border.all(
-                            color: AppColors.primary.withValues(alpha: 0.25)),
+                        border: Border.all(color: AppColors.sand),
                       ),
                       child: const Column(
                         children: [
@@ -5333,7 +5327,7 @@ class _ScoreAwardBannerCard extends StatelessWidget {
                             style: TextStyle(
                               fontSize: 13,
                               fontWeight: FontWeight.w800,
-                              color: AppColors.primaryDark,
+                              color: AppColors.ink,
                             ),
                           ),
                           SizedBox(height: 2),
@@ -5341,7 +5335,7 @@ class _ScoreAwardBannerCard extends StatelessWidget {
                             '수상자 보기/등록',
                             style: TextStyle(
                               fontSize: 11,
-                              color: AppColors.primary,
+                              color: AppColors.goldDeep,
                             ),
                           ),
                         ],
@@ -5371,9 +5365,10 @@ class _GroupSelectSheet extends StatelessWidget {
     required this.assignment,
   });
 
+  // 조편성 카드와 같은 웜 계열. 조 번호가 두 화면에서 같은 색으로 보인다.
   static const List<Color> _groupColors = [
-    AppColors.primary, AppColors.primaryLight, Color(0xFFE65100),
-    Color(0xFF6A1B9A), Color(0xFF00838F), Color(0xFFC62828),
+    AppColors.goldDeep, AppColors.charcoal, Color(0xFFB08A2E),
+    Color(0xFF6B6459), Color(0xFF8C6239), Color(0xFF3F3B33),
   ];
 
   @override
@@ -5403,11 +5398,11 @@ class _GroupSelectSheet extends StatelessWidget {
               Container(
                 width: 40, height: 40,
                 decoration: BoxDecoration(
-                  color: AppColors.primary.withValues(alpha: 0.12),
+                  color: AppColors.accent.withValues(alpha: 0.18),
                   borderRadius: BorderRadius.circular(12),
                 ),
                 child: const Icon(Icons.groups_rounded,
-                    color: AppColors.primary, size: 22),
+                    color: AppColors.goldDeep, size: 22),
               ),
               const SizedBox(width: 12),
               Column(

@@ -95,6 +95,33 @@ class ClubProvider extends ChangeNotifier with WidgetsBindingObserver {
   String get currentUserId   => _currentUserId;
   String get currentUserName => _currentUserName;
 
+  /// 데모 시드 계정 이름. 실계정 명단에 이게 남아 있으면 잘못 저장된 것이다.
+  static const seedMemberNames = {'홍길동', '이민준', '박민준'};
+
+  /// 소셜 로그인이 이름을 못 받아왔을 때 임시로 넣는 이름들.
+  static const _genericMemberNames = {
+    '회원',
+    '카카오 회원',
+    'Google 회원',
+    'Apple 회원',
+  };
+
+  /// 실제 이름으로 덮어써도 되는(= 사람이 입력한 값이 아닌) 이름인지.
+  static bool isPlaceholderMemberName(String name) {
+    final t = name.trim();
+    return t.isEmpty ||
+        seedMemberNames.contains(t) ||
+        _genericMemberNames.contains(t);
+  }
+
+  /// 실계정용 표시 이름. 비었거나 시드 이름이면 '회원'으로 둔다.
+  /// 여기서 시드 이름을 그대로 통과시키면 잘못된 이름을 다시 심는 꼴이다.
+  static String _realDisplayName(String? displayName) {
+    final t = (displayName ?? '').trim();
+    if (t.isEmpty || seedMemberNames.contains(t)) return '회원';
+    return t;
+  }
+
   /// mock seed ID ↔ ClubProvider legacy ID
   static const seedToLegacyClubId = {
     'seed_c1': 'c1',
@@ -258,7 +285,10 @@ class ClubProvider extends ChangeNotifier with WidgetsBindingObserver {
   }
 
   /// AuthProvider 로그인 계정에 따라 ClubProvider 상태 전환 + 저장 데이터 복원
-  Future<void> switchUser(String authUserId) async {
+  ///
+  /// [displayName] 은 실제 로그인 계정의 이름. 시드 계정이 아닌데 이걸 안 넘기면
+  /// 명단에 '홍길동'이 박힌다. 호출부는 `auth.currentUser?.name` 을 같이 준다.
+  Future<void> switchUser(String authUserId, {String? displayName}) async {
     _persistAuthUserId = authUserId;
     await _loadLeftClubIds(authUserId);
     switch (authUserId) {
@@ -274,9 +304,16 @@ class ClubProvider extends ChangeNotifier with WidgetsBindingObserver {
         _myClubs.clear();
         break;
       case 'user_me':
-      default:
+      case 'default':
         _currentUserId = 'm1';
         _currentUserName = '홍길동';
+        _myClubs.clear();
+        break;
+      default:
+        // 실계정. 예전에는 여기도 m1/홍길동으로 떨어져서, 이 계정이 만든
+        // 모임 명단에 데모 회원 이름이 그대로 저장됐다.
+        _currentUserId = 'm1';
+        _currentUserName = _realDisplayName(displayName);
         _myClubs.clear();
         break;
     }
@@ -359,6 +396,10 @@ class ClubProvider extends ChangeNotifier with WidgetsBindingObserver {
     if (recovered) {
       await _persistNow();
     }
+
+    // 예전 빌드가 '홍길동'으로 저장해 둔 내 명단 행을 실제 이름으로 되돌린다.
+    // ensureCreatorMembers 보다 먼저 — 아래에서 새로 만드는 행도 같은 이름을 쓴다.
+    repairMyDisplayName(_currentUserName);
 
     // 항상 실제 일정 기준으로 D-day 재동기화
     _syncAllNextRounds();
@@ -4457,6 +4498,51 @@ class ClubProvider extends ChangeNotifier with WidgetsBindingObserver {
     return changed;
   }
 
+  /// 내 명단 행에 박힌 데모 이름('홍길동' 등)을 실제 계정 이름으로 되돌린다.
+  ///
+  /// 예전 `switchUser` 는 시드가 아닌 계정을 전부 m1/홍길동으로 떨어뜨렸다.
+  /// 그때 `ensureCreatorMembers` 가 만든 생성자 행이 '홍길동'으로 저장돼 있다.
+  /// 사람이 직접 고친 이름은 건드리지 않는다 — placeholder 만 갈아끼운다.
+  bool repairMyDisplayName(String realName) {
+    final target = realName.trim();
+    if (target.isEmpty || isPlaceholderMemberName(target)) return false;
+
+    var changed = false;
+    for (final club in _myClubs) {
+      // 데모 모임(c1~c5)은 공유 시드 명단이라 손대면 안 된다.
+      if (_legacyMockClubIds.contains(club.id)) continue;
+      for (var i = 0; i < _members.length; i++) {
+        final m = _members[i];
+        if (!_isMyRosterRowFor(club, m.id)) continue;
+        if (m.name.trim() == target) continue;
+        if (!isPlaceholderMemberName(m.name)) continue;
+        _members[i] = m.copyWith(name: target);
+        changed = true;
+      }
+    }
+    if (changed) {
+      notifyListeners();
+      _persistImmediately();
+    }
+    return changed;
+  }
+
+  /// [club] 명단에서 [memberId] 가 내 행인지. `membersForClub` 과 같은 ID 규칙만 본다.
+  /// (전역 시드 'm1' 같은 맨 ID는 제외 — 실계정도 currentUserId 가 m1 이다)
+  bool _isMyRosterRowFor(Club club, String memberId) {
+    if (memberId == 'm_creator_${club.id}') {
+      final cid = club.creatorId;
+      return cid.isEmpty ||
+          _userIdsMatch(cid, currentUserId) ||
+          _userIdsMatch(cid, _persistAuthUserId);
+    }
+    final prefix = 'm_${club.id}_';
+    if (!memberId.startsWith(prefix)) return false;
+    final suffix = memberId.substring(prefix.length);
+    return _userIdsMatch(suffix, currentUserId) ||
+        _userIdsMatch(suffix, _persistAuthUserId);
+  }
+
   /// 초대 가입이 userId 그대로 들어가 명단에 안 보이던 행을 `m_{clubId}_{userId}`로 보정한다.
   bool ensureMyRosterRow(String clubId) {
     final uid = currentUserId.trim();
@@ -5390,12 +5476,9 @@ class ClubProvider extends ChangeNotifier with WidgetsBindingObserver {
       if (!match) continue;
       final phoneDigits = (m.phone ?? '').replaceAll(RegExp(r'[^0-9]'), '');
       final needPhone = phoneDigits.length < 10;
-      final needName = trimmedName.isNotEmpty &&
-          (m.name.trim().isEmpty ||
-              m.name.trim() == '회원' ||
-              m.name.trim() == '카카오 회원' ||
-              m.name.trim() == 'Google 회원' ||
-              m.name.trim() == 'Apple 회원');
+      // 시드 이름('홍길동')도 placeholder 로 본다 — 예전 빌드가 심어 둔 값이다.
+      final needName =
+          trimmedName.isNotEmpty && isPlaceholderMemberName(m.name);
       if (!needPhone && !needName) continue;
       _members[i] = m.copyWith(
         phone: needPhone ? phone : null,

@@ -2,7 +2,10 @@ import 'dart:io';
 
 import 'package:flutter_test/flutter_test.dart';
 
-/// 일정 상세 UI 회귀 방지 — 딥그린 헤더 카드 + 주황 조편성 + 슬림 상세 하단 유지.
+/// 일정 상세 UI 회귀 방지 — 크림·골드·차콜 톤 + 슬림 상세 하단 유지.
+///
+/// 그린(AppColors.primary 계열)은 상단 로고 헤더와 하단 탭바 전용이다.
+/// 일정 상세 본문에 그린이 다시 들어오면 아래 테스트가 잡는다.
 void main() {
   late String source;
 
@@ -20,9 +23,12 @@ void main() {
         reason: '일정 상세에서 _InsuranceBannerCard 활성 호출이 다시 켜짐');
   });
 
-  test('조편성 헤더는 브랜드 골드 톤, 옛 블루/보라/주황 배너 금지', () {
-    expect(source.contains('0xFFC9A227'), isTrue,
-        reason: '조편성 골드(_orange→gold)가 사라짐');
+  test('조편성 카드는 크림·골드 톤, 옛 블루/보라/주황 배너 금지', () {
+    expect(source.contains('0xFFC9A227'), isFalse,
+        reason: '조편성 전용 골드 상수는 AppColors.accent 로 합쳤다');
+    expect(source.contains('0xFFFBF6E4'), isFalse,
+        reason: '파스텔 베이지 그라데이션은 제거했다');
+    expect(source.contains('0xFFF8F1D6'), isFalse);
     expect(source.contains('0xFFFF8F00'), isFalse,
         reason: '옛 주황 조편성 톤이 남아 있음');
     expect(source.contains('0xFF0D47A1'), isFalse);
@@ -32,7 +38,7 @@ void main() {
     expect(source.contains('0xFF6D28D9'), isFalse);
   });
 
-  test('기준 UI: 딥그린 헤더 카드 + 장소·시간 강조 (SliverAppBar/RoundHero 금지)', () {
+  test('기준 UI: 웜차콜 헤더 카드 + 장소·시간 강조 (SliverAppBar/RoundHero 금지)', () {
     expect(source.contains('Size.fromHeight(128)'), isTrue,
         reason: '장소·시간 강조 카드형 AppBar(128)가 사라짐');
     expect(source.contains('Icons.place_rounded'), isTrue);
@@ -40,15 +46,65 @@ void main() {
     expect(source.contains('BorderRadius.circular(16)'), isTrue,
         reason: '상단 카드형 라운드가 사라짐');
     expect(
-      source.contains('딥그린 카드형') ||
-          source.contains('[AppColors.primaryDark, AppColors.primary]'),
+      source.contains('[AppColors.charcoalDeep, AppColors.charcoal]'),
       isTrue,
-      reason: '헤더 딥그린 그라데이션이 사라짐',
+      reason: '헤더 배너가 웜 차콜이 아님',
+    );
+    expect(
+      source.contains('[AppColors.primaryDark, AppColors.primary]'),
+      isFalse,
+      reason: '헤더가 딥그린으로 되돌아감 — 그린은 로고 헤더·탭바 전용',
     );
     expect(source.contains('SliverAppBar'), isFalse,
         reason: '옛 SliverAppBar 상세로 회귀');
     expect(source.contains('class _RoundHeroCard'), isFalse,
         reason: '대체 히어로 디자인이 다시 들어옴 — 제거 유지');
+  });
+
+  test('일정 상세 본문에 그린이 없다', () {
+    // 그린은 상단 로고 헤더와 하단 탭바 전용.
+    // 여기서 걸리면 본문 어딘가에 primary 계열이 다시 들어온 것이다.
+    final lines = source.split(RegExp(r'\r?\n'));
+    final green = RegExp(
+      r'AppColors\.(primary|primaryDark|primaryLight|success|sage\w*|'
+      r'mint\w*|heroGreen\w*|cardMint|paidBg)\b'
+      r'|0xFF1B4D3E|0xFF153D32|0xFF2A6B55|0xFFE8F0EC',
+    );
+    // 상세 화면·상세에서 여는 카드/시트가 있는 구간만 본다.
+    // (일정 목록·등록 폼은 아직 그린을 쓴다 — 별도 작업)
+    const ranges = [
+      [974, 1900], // ScheduleDetailScreen 본문 + 응답 다이얼로그
+      [2189, 2500], // 응답 마감 · 대기 명단
+      [2491, 2760], // 참석 현황
+      [4762, 5160], // 조편성 카드
+      [5159, 5370], // 스코어 & 시상
+    ];
+
+    final offenders = <String>[];
+    for (var i = 0; i < lines.length; i++) {
+      final no = i + 1;
+      if (!ranges.any((r) => no >= r[0] && no <= r[1])) continue;
+      final line = lines[i];
+      // 모든 카드가 공유하는 그림자. alpha 0.06 이라 눈에 보이지 않는다.
+      if (line.contains('alpha: 0.06')) continue;
+      if (green.hasMatch(line)) offenders.add('$no: ${line.trim()}');
+    }
+    expect(
+      offenders,
+      isEmpty,
+      reason: '일정 상세 본문에 그린이 남았다:\n  ${offenders.join('\n  ')}',
+    );
+  });
+
+  test('본문 강조 토큰이 팔레트에 있다', () {
+    final theme = File('lib/theme/app_theme.dart').readAsStringSync();
+    expect(theme.contains('static const charcoal       = Color(0xFF2B2A26)'),
+        isTrue);
+    expect(theme.contains('static const charcoalDeep   = Color(0xFF1B1A17)'),
+        isTrue);
+    expect(
+        theme.contains('static const goldDeep       = Color(0xFF8A6D1B)'),
+        isTrue);
   });
 
   test('내 응답은 참석/불참 2버튼 (미정 3버튼 금지)', () {

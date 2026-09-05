@@ -50,6 +50,13 @@ class AppColors {
   static const textSecondary  = Color(0xFF3F524B);
   static const textTertiary   = Color(0xFF5E7169);
 
+  // ── 본문 강조 (그린 대체) ────────────────────────────────
+  // 그린(primary)은 상단 로고 헤더와 하단 탭바 전용이다.
+  // 화면 본문에서 강조가 필요하면 아래 웜 차콜·딥골드를 쓴다.
+  static const charcoal       = Color(0xFF2B2A26);
+  static const charcoalDeep   = Color(0xFF1B1A17);
+  static const goldDeep       = Color(0xFF8A6D1B);
+
   // ── 액센트 ───────────────────────────────────────────────
   static const amber          = accent;
   static const amberSoft      = accentSoft;

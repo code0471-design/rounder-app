@@ -62,7 +62,10 @@ class _SplashScreenState extends State<SplashScreen>
 
       if (autoLoggedIn) {
         final userId = auth.currentUser!.id;
-        await context.read<ClubProvider>().switchUser(userId);
+        await context.read<ClubProvider>().switchUser(
+              userId,
+              displayName: auth.currentUser!.name,
+            );
         if (!AppDependencies.instance.isOfflineMockMode) {
           try {
             final snap = await AppDependencies.instance

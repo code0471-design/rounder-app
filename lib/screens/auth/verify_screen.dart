@@ -123,7 +123,10 @@ class _VerifyScreenState extends State<VerifyScreen> {
     final clubId = widget.inviteClubId?.trim() ?? '';
     if (clubId.isNotEmpty) {
       final clubs = context.read<ClubProvider>();
-      await clubs.switchUser(auth.currentUser!.id);
+      await clubs.switchUser(
+        auth.currentUser!.id,
+        displayName: auth.currentUser!.name,
+      );
       await clubs.joinViaInvite(
         clubId: clubId,
         clubName: widget.inviteClubName,

@@ -35,7 +35,10 @@ class _LoginScreenState extends State<LoginScreen> {
     if (!auth.isLoggedIn) return;
 
     final userId = auth.currentUser!.id;
-    await context.read<ClubProvider>().switchUser(userId);
+    await context.read<ClubProvider>().switchUser(
+          userId,
+          displayName: auth.currentUser!.name,
+        );
     try {
       final snap = await AppDependencies.instance.bootstrapForUser(userId);
       final pending = AppDependencies.instance.mockDataStore

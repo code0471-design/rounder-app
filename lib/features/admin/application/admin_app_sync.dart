@@ -64,7 +64,7 @@ abstract final class AdminAppSync {
     try {
       await auth.tryAutoLogin();
       userId = auth.currentUser?.id ?? 'user_me';
-      await clubs.switchUser(userId);
+      await clubs.switchUser(userId, displayName: auth.currentUser?.name);
     } catch (_) {
       try {
         await clubs.switchUser('user_me');
@@ -177,7 +177,7 @@ abstract final class AdminAppSync {
     try {
       await auth.tryAutoLogin();
       userId = auth.currentUser?.id ?? 'user_me';
-      await clubs.switchUser(userId);
+      await clubs.switchUser(userId, displayName: auth.currentUser?.name);
     } catch (_) {
       try {
         await clubs.switchUser('user_me');
