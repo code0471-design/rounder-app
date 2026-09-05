@@ -5276,9 +5276,8 @@ class _MonthlyReport extends StatelessWidget {
         ),
         const SizedBox(height: 14),
 
-        // ── 요약 카드 (3분할) ──
-        _SummaryCards(income: income, expense: expense, net: net),
-        const SizedBox(height: 14),
+        // 변동액·총수입·총지출 요약 카드는 뺐다.
+        // 바로 아래 잔고 흐름 카드가 같은 수입·지출을 다시 보여 준다.
 
         // ── 잔고 흐름 ──
         _BalanceFlowCard(
@@ -5580,34 +5579,6 @@ class _ReportHeader extends StatelessWidget {
           ),
         ],
       ),
-    );
-  }
-}
-
-// ── 요약 카드 — 왼쪽 변동액 / 오른쪽 총수입·총지출 ──
-class _SummaryCards extends StatelessWidget {
-  final int income, expense, net;
-  const _SummaryCards(
-      {required this.income,
-      required this.expense,
-      required this.net});
-
-  @override
-  Widget build(BuildContext context) {
-    return _SplitMoneyRow(
-      leftLabel: '변동액',
-      leftValue: '${net > 0 ? '+' : ''}${_fmtSigned(net)}원',
-      leftColor: net >= 0 ? AppColors.primary : const Color(0xFFE65100),
-      labelColor: const Color(0xFF6B7280),
-      topLabel: '총 수입',
-      topValue: '+${_fmt(income)}원',
-      topColor: AppColors.primaryLight,
-      bottomLabel: '총 지출',
-      bottomValue: '-${_fmt(expense)}원',
-      bottomColor: const Color(0xFFC62828),
-      dividerColor: const Color(0xFFE5E7EB),
-      panelColor: const Color(0xFFF8FAFC),
-      borderColor: const Color(0xFFE5E7EB),
     );
   }
 }

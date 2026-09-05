@@ -67,24 +67,46 @@ void main() {
     expect(finance.contains('borderColor: const Color(0xFFE5E7EB)'), isTrue);
   });
 
-  test('결산보고는 원클럽형 — 변동액 요약 + 연 결산 히어로 카드', () {
+  test('결산보고는 원클럽형 — 연 결산 히어로 카드', () {
     expect(finance.contains('class _YearlyHeroCard'), isTrue);
     expect(finance.contains('연간 결산보고'), isTrue);
-    expect(finance.contains('class _SummaryCards'), isTrue);
     // 3분할 _StatCard 대신 _SplitMoneyRow 재사용
     expect(finance.contains('class _StatCard'), isFalse);
-    final summary = finance.substring(
-      finance.indexOf('class _SummaryCards'),
-      finance.indexOf('class _SummaryCards') + 900,
-    );
-    expect(summary.contains('_SplitMoneyRow'), isTrue);
-    expect(summary.contains("leftLabel: '변동액'"), isTrue);
-    expect(summary.contains("topLabel: '총 수입'"), isTrue);
-    expect(summary.contains("bottomLabel: '총 지출'"), isTrue);
-    // 월 결산은 기간 선택 + 헤더 + 요약 + 잔고 흐름
+    // 월 결산은 기간 선택 + 헤더 + 잔고 흐름
     expect(finance.contains('class _ReportPeriodSelector'), isTrue);
     expect(finance.contains('class _BalanceFlowCard'), isTrue);
     expect(finance.contains('class _MonthlyTable'), isTrue);
+  });
+
+  test('월 결산에서 변동액 요약 카드는 잔고 흐름과 겹쳐서 뺐다', () {
+    // _BalanceFlowCard 가 이전잔고 + 수입 − 지출 = 마감잔고 를 이미 보여 준다.
+    // 바로 위에 총수입·총지출을 또 띄우면 같은 숫자가 두 번 나온다.
+    expect(finance.contains('class _SummaryCards'), isFalse);
+    expect(finance.contains('_SummaryCards('), isFalse);
+
+    // 월 결산 본문에는 헤더 다음이 곧바로 잔고 흐름이어야 한다.
+    final report = finance.substring(
+      finance.indexOf('class _MonthlyReport'),
+      finance.indexOf('//  연 결산 보고서'),
+    );
+    expect(report.contains('_ReportHeader('), isTrue);
+    expect(report.contains('_BalanceFlowCard('), isTrue);
+    expect(
+      report.indexOf('_BalanceFlowCard('),
+      greaterThan(report.indexOf('_ReportHeader(')),
+    );
+  });
+
+  test('기존 잔액 등록 카드는 총무만 본다', () {
+    // 비총무는 잠금 안내만 보고 금액·수정 버튼을 못 본다.
+    expect(finance.contains('final isAdmin = isTreasurer;'), isTrue);
+    final block = finance.substring(
+      finance.indexOf('// ── 기존 잔액 등록'),
+      finance.indexOf('// ── 기존 잔액 등록') + 1400,
+    );
+    expect(block.contains('if (isAdmin)'), isTrue);
+    expect(block.contains('_OpeningBalanceSettingCard'), isTrue);
+    expect(block.contains('초기 잔고·회비 세팅은 총무만 가능합니다'), isTrue);
   });
 
   test('월↔연 전환은 로컬만 남기지 않고 persist 한다', () {
