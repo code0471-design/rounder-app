@@ -153,4 +153,29 @@ void main() {
       expect(src, contains('전화번호가 있는 발송 대상이 없습니다'));
     });
   });
+
+  group('알림톡은 버튼 없이 나간다', () {
+    test('일정 등록·변경·조편성 확정이 자동 발송한다', () {
+      final src = read('lib/providers/club_provider.dart');
+      expect(src, contains('HqAlimtalkCatalog.scheduleUploadId'));
+      expect(src, contains('HqAlimtalkCatalog.scheduleChangeId'));
+      expect(src, contains('HqAlimtalkCatalog.groupFinalizeId'));
+      expect(src, contains('HqAlimtalkCatalog.d1ReminderId'),
+          reason: 'D-1 알림톡도 대기열에서 보내야 한다');
+    });
+
+    test('발송하기 다이얼로그를 건너뛴다', () {
+      final src = read('lib/utils/alimtalk_utils.dart');
+      expect(src, contains('addSchedule 이 바로 보낸다'));
+      expect(src, isNot(contains('recipientNames: provider.attendanceAlimtalkRecipientNames()')),
+          reason: '발송 화면을 또 열면 두 번 나간다');
+    });
+
+    test('D-1 대기열에 전화번호가 들어간다', () {
+      final src = read('lib/services/push_notification_service.dart');
+      expect(src, contains("'phone': phone"));
+      expect(src, contains('dueD1AlimtalkDocs'));
+      expect(src, contains('alimtalkSent'));
+    });
+  });
 }

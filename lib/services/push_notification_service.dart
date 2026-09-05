@@ -200,6 +200,10 @@ abstract final class PushNotificationService {
     required String clubName,
     required String scheduleTitle,
     required bool attending,
+    String? phone,
+    String? memberName,
+    String? whenText,
+    String? place,
   }) async {
     if (!HqRemoteSettings.available) return;
     final doc = FirebaseFirestore.instance
@@ -227,10 +231,47 @@ abstract final class PushNotificationService {
             t?.defaultBody ?? '내일 $clubName 라운딩이 있습니다. 늦지 않게 준비해 주세요.',
             {'모임명': clubName}),
         'scheduleTitle': scheduleTitle,
+        'phone': phone ?? '',
+        'memberName': memberName ?? '',
+        'whenText': whenText ?? '',
+        'place': place ?? '',
+        'clubName': clubName,
+        'alimtalkSent': false,
         'updatedAt': FieldValue.serverTimestamp(),
       });
     } catch (e) {
       debugPrint('[Push] d1 sync skip: $e');
+    }
+  }
+
+  /// 오늘 보낼 D-1 알림톡 대기열. 이미 보낸 건 제외.
+  static Future<List<QueryDocumentSnapshot<Map<String, dynamic>>>>
+      dueD1AlimtalkDocs() async {
+    if (!HqRemoteSettings.available) return const [];
+    try {
+      final today = _ymd(DateTime.now());
+      final snap = await FirebaseFirestore.instance
+          .collection(FirestorePaths.d1Queue)
+          .where('sendOn', isEqualTo: today)
+          .get();
+      return snap.docs
+          .where((d) => d.data()['alimtalkSent'] != true)
+          .toList();
+    } catch (e) {
+      debugPrint('[Push] d1 alimtalk query skip: $e');
+      return const [];
+    }
+  }
+
+  static Future<void> markD1AlimtalkSent(String docId) async {
+    if (!HqRemoteSettings.available || docId.isEmpty) return;
+    try {
+      await FirebaseFirestore.instance
+          .collection(FirestorePaths.d1Queue)
+          .doc(docId)
+          .set({'alimtalkSent': true}, SetOptions(merge: true));
+    } catch (e) {
+      debugPrint('[Push] d1 alimtalk mark skip: $e');
     }
   }
 

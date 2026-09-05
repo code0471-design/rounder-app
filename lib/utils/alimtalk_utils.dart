@@ -157,72 +157,30 @@ class AlimtalkUtils {
     );
   }
 
-  /// 일정 등록 — 얼럿 → 발송 화면
+  /// 일정 등록 — 알림톡은 ClubProvider.addSchedule 이 바로 보낸다.
+  /// 발송 화면을 또 열면 같은 템플릿이 두 번 나간다.
   static Future<bool?> runAttendanceFlow({
     required ClubProvider provider,
     required RoundSchedule schedule,
   }) async {
-    final ok = await shouldPrompt(
-      provider: provider,
-      hqTypeId: HqAlimtalkCatalog.scheduleUploadId,
-      clubFlag: (s) => s.promptOnScheduleUpload,
-    );
-    if (!ok) return false;
-    final send = await promptScheduleUpload();
-    if (send != true) return send;
-
-    return _pushSendScreen(
-      kind: AlimtalkSendKind.attendance,
-      schedule: schedule,
-      clubName: provider.selectedClub.name,
-      recipientNames: provider.attendanceAlimtalkRecipientNames(),
-    );
+    return false;
   }
 
-  /// 일정 변경 — 얼럿 → 발송 화면 (전체 정회원 + 참석 게스트)
+  /// 일정 변경 — ClubProvider.updateSchedule 이 바로 보낸다.
   static Future<bool?> runScheduleChangeFlow({
     required ClubProvider provider,
     required RoundSchedule schedule,
     List<String>? recipientNames,
   }) async {
-    final ok = await shouldPrompt(
-      provider: provider,
-      hqTypeId: HqAlimtalkCatalog.scheduleChangeId,
-      clubFlag: (s) => s.promptOnScheduleChange,
-    );
-    if (!ok) return false;
-    final send = await promptScheduleChange();
-    if (send != true) return send;
-
-    return _pushSendScreen(
-      kind: AlimtalkSendKind.scheduleChanged,
-      schedule: schedule,
-      clubName: provider.selectedClub.name,
-      recipientNames: recipientNames ??
-          provider.scheduleChangeAlimtalkRecipientNames(schedule.id),
-    );
+    return false;
   }
 
-  /// 조편성 확정 — 얼럿 → 발송 화면
+  /// 조편성 확정 — ClubProvider.finalizeAssignment 이 바로 보낸다.
   static Future<bool?> runGroupFlow({
     required ClubProvider provider,
     required RoundSchedule schedule,
   }) async {
-    final ok = await shouldPrompt(
-      provider: provider,
-      hqTypeId: HqAlimtalkCatalog.groupFinalizeId,
-      clubFlag: (s) => s.promptOnGroupFinalize,
-    );
-    if (!ok) return false;
-    final send = await promptGroupFinalize();
-    if (send != true) return send;
-
-    return _pushSendScreen(
-      kind: AlimtalkSendKind.groupAssignment,
-      schedule: schedule,
-      clubName: provider.selectedClub.name,
-      recipientNames: provider.groupAlimtalkRecipientNames(schedule.id),
-    );
+    return false;
   }
 }
 

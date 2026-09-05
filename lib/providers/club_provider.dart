@@ -432,6 +432,7 @@ class ClubProvider extends ChangeNotifier with WidgetsBindingObserver {
     // rounder-staging 운영 데이터 pull (테스터끼리 공유)
     await _pullCloudOpsForMyClubs();
     _watchSelectedClubOps();
+    unawaited(flushDueD1Alimtalk());
     notifyListeners();
   }
 
@@ -3046,6 +3047,12 @@ class ClubProvider extends ChangeNotifier with WidgetsBindingObserver {
       targetId: schedule.id,
       notifySelf: true,
     );
+    // 발송하기를 안 눌러도 나간다. 예전엔 다이얼로그에서 '나중에'면 한 통도 안 갔다.
+    _dispatchClubAlimtalk(
+      hqTypeId: HqAlimtalkCatalog.scheduleUploadId,
+      members: attendanceAlimtalkRecipients(),
+      variablesFor: (m) => _alimtalkScheduleVars(schedule, m),
+    );
   }
 
   /// 일정 등록 푸시·알림톡 대상 — 정회원 전원 (등록자 본인 포함)
@@ -3323,8 +3330,11 @@ class ClubProvider extends ChangeNotifier with WidgetsBindingObserver {
     required String hqTypeId,
     required List<Member> members,
     required Map<String, String> Function(Member member) variablesFor,
+    String? clubIdOverride,
   }) async {
-    if (!isClubAlimtalkTypeEnabled(selectedClub.id, hqTypeId)) {
+    final clubId = (clubIdOverride ?? selectedClub.id).trim();
+    if (clubId.isNotEmpty &&
+        !isClubAlimtalkTypeEnabled(clubId, hqTypeId)) {
       return SolapiResult.error('이 모임에서 해당 알림톡이 꺼져 있습니다.');
     }
     final templateId =
@@ -3376,6 +3386,89 @@ class ClubProvider extends ChangeNotifier with WidgetsBindingObserver {
     if (_lastAlimtalkError == null) return;
     _lastAlimtalkError = null;
     notifyListeners();
+  }
+
+  Future<void> _syncD1AndFlushAlimtalk({
+    required RoundSchedule schedule,
+    required String memberId,
+    required bool attending,
+  }) async {
+    final member = memberById(memberId);
+    final dateStr =
+        '${schedule.roundDate.month}월 ${schedule.roundDate.day}일 ${schedule.teeTime}'
+            .trim();
+    final place = schedule.courseName.trim().isEmpty
+        ? '장소 미정'
+        : schedule.courseName.trim();
+    await PushNotificationService.syncD1Reminder(
+      scheduleId: schedule.id,
+      userId: _fcmInboxIdFor(memberId),
+      roundDate: schedule.roundDate,
+      clubId: schedule.clubId,
+      clubName: selectedClub.name,
+      scheduleTitle: schedule.displayTitle,
+      attending: attending,
+      phone: member?.phone,
+      memberName: member?.name,
+      whenText: dateStr,
+      place: place,
+    );
+    await flushDueD1Alimtalk();
+  }
+
+  /// D-1 당일, 앱을 연 기기가 알림톡을 보낸다.
+  /// (푸시는 Cloud Functions 가 오전 10시에 보내고, 알림톡 키는 앱에만 있다)
+  Future<void> flushDueD1Alimtalk() async {
+    if (!SolapiService.instance.isConfigured) return;
+    final docs = await PushNotificationService.dueD1AlimtalkDocs();
+    if (docs.isEmpty) return;
+    for (final doc in docs) {
+      final d = doc.data();
+      final phone = SolapiService.normalizePhone('${d['phone'] ?? ''}');
+      if (phone.length < 10) {
+        await PushNotificationService.markD1AlimtalkSent(doc.id);
+        continue;
+      }
+      final fake = Member(
+        id: '${d['userId'] ?? doc.id}',
+        name: '${d['memberName'] ?? '회원'}',
+        gender: '남',
+        memberType: '정회원',
+        role: '회원',
+        phone: phone,
+      );
+      final result = await sendClubAlimtalk(
+        hqTypeId: HqAlimtalkCatalog.d1ReminderId,
+        members: [fake],
+        clubIdOverride: '${d['clubId'] ?? ''}',
+        variablesFor: (_) => {
+          '#{이름}': fake.name,
+          '#{모임명}': '${d['clubName'] ?? selectedClub.name}',
+          '#{일정명}': '${d['scheduleTitle'] ?? ''}',
+          '#{일시}': '${d['whenText'] ?? ''}',
+          '#{장소}': '${d['place'] ?? '장소 미정'}',
+        },
+      );
+      if (result.success ||
+          (result.errorMessage ?? '').contains('꺼져 있습니다') ||
+          (result.errorMessage ?? '').contains('사용중지')) {
+        await PushNotificationService.markD1AlimtalkSent(doc.id);
+      }
+    }
+  }
+
+  Map<String, String> _alimtalkScheduleVars(RoundSchedule s, Member m) {
+    final dateStr =
+        '${s.roundDate.month}월 ${s.roundDate.day}일 ${s.teeTime}'.trim();
+    final place =
+        s.courseName.trim().isEmpty ? '장소 미정' : s.courseName.trim();
+    return {
+      '#{이름}': m.name.trim().isEmpty ? '회원' : m.name.trim(),
+      '#{모임명}': selectedClub.name,
+      '#{일정명}': s.displayTitle,
+      '#{일시}': dateStr,
+      '#{장소}': place,
+    };
   }
 
   void _dispatchClubAlimtalk({
@@ -3442,6 +3535,13 @@ class ClubProvider extends ChangeNotifier with WidgetsBindingObserver {
     _syncNextRound(next.clubId);
     notifyListeners();
     _persistImmediately();
+    if (materialChanged) {
+      _dispatchClubAlimtalk(
+        hqTypeId: HqAlimtalkCatalog.scheduleChangeId,
+        members: scheduleChangeAlimtalkRecipients(next.id),
+        variablesFor: (m) => _alimtalkScheduleVars(next, m),
+      );
+    }
     return materialChanged;
   }
 
@@ -3647,13 +3747,9 @@ class ClubProvider extends ChangeNotifier with WidgetsBindingObserver {
     ));
     notifyListeners();
     _persistImmediately();
-    unawaited(PushNotificationService.syncD1Reminder(
-      scheduleId: scheduleId,
-      userId: _fcmInboxIdFor(myId),
-      roundDate: schedule.roundDate,
-      clubId: schedule.clubId,
-      clubName: selectedClub.name,
-      scheduleTitle: schedule.displayTitle,
+    unawaited(_syncD1AndFlushAlimtalk(
+      schedule: schedule,
+      memberId: myId,
       attending: response == '참석',
     ));
     return true;
@@ -3778,13 +3874,9 @@ class ClubProvider extends ChangeNotifier with WidgetsBindingObserver {
       timestamp: DateTime.now(),
     ));
 
-    unawaited(PushNotificationService.syncD1Reminder(
-      scheduleId: scheduleId,
-      userId: _fcmInboxIdFor(memberId),
-      roundDate: schedule.roundDate,
-      clubId: schedule.clubId,
-      clubName: club?.name ?? selectedClub.name,
-      scheduleTitle: schedule.displayTitle,
+    unawaited(_syncD1AndFlushAlimtalk(
+      schedule: schedule,
+      memberId: memberId,
       attending: response == '참석',
     ));
 
@@ -6298,6 +6390,14 @@ class ClubProvider extends ChangeNotifier with WidgetsBindingObserver {
     );
     notifyListeners();
     _persistImmediately();
+    final schedule = scheduleById(scheduleId);
+    if (schedule != null) {
+      _dispatchClubAlimtalk(
+        hqTypeId: HqAlimtalkCatalog.groupFinalizeId,
+        members: groupAlimtalkRecipientMembers(scheduleId),
+        variablesFor: (m) => _alimtalkScheduleVars(schedule, m),
+      );
+    }
   }
 
   /// 조편성 확정 취소

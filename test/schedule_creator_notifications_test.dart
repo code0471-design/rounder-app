@@ -27,9 +27,8 @@ void main() {
     expect(src.contains('HqPushCatalog.duesRequest'), isTrue);
     expect(src.contains('HqPushCatalog.scheduleCancel'), isTrue);
     expect(src.contains('HqPushCatalog.duesNudge'), isTrue);
-    expect(src.contains('userId: _fcmInboxIdFor(myId)'), isTrue,
+    expect(src.contains('userId: _fcmInboxIdFor(memberId)'), isTrue,
         reason: 'D-1 리마인더는 명단 ID가 아니라 FCM 로그인 ID로 예약해야 한다');
-    expect(src.contains('userId: _fcmInboxIdFor(memberId)'), isTrue);
     expect(src.contains('final fcmId = _fcmInboxIdFor(id);'), isTrue,
         reason: 'HQ 푸시 대상 ID를 FCM 키로 바꿔야 한다');
     expect(src.contains('hqPushTypeId: HqPushCatalog.duesNudge') ||
