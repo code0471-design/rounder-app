@@ -86,6 +86,31 @@ void main() {
     expect(nudge, greaterThan(unpaid));
   });
 
+  test('회비 카드 라벨은 진한 회색, 전월 미납은 항상 빨강', () {
+    // 라벨이 먹색이면 아래 금액과 굵기가 비슷해 시선이 분산된다.
+    final balanceLabel = room.substring(
+      room.indexOf("const Text('현 회비 잔고'"),
+      room.indexOf("const Text('현 회비 잔고'") + 320,
+    );
+    expect(balanceLabel.contains('Color(0xFF6B7280)'), isTrue);
+    expect(balanceLabel.contains('AppColors.textSecondary'), isFalse);
+
+    final duesLabel = room.substring(
+      room.indexOf("isMonthly ? '이달 \${homeDues.title}'"),
+      room.indexOf("isMonthly ? '이달 \${homeDues.title}'") + 500,
+    );
+    expect(duesLabel.contains('Color(0xFF6B7280)'), isTrue);
+    expect(duesLabel.contains('AppColors.textSecondary'), isFalse);
+
+    // 0명일 때도 빨강 — prevUnpaid 로 색을 가르지 않는다.
+    final unpaidLine = room.substring(
+      room.indexOf("'전월 미납 \$prevUnpaid명'"),
+      room.indexOf("'전월 미납 \$prevUnpaid명'") + 450,
+    );
+    expect(unpaidLine.contains('color: AppColors.danger'), isTrue);
+    expect(unpaidLine.contains('prevUnpaid > 0'), isFalse);
+  });
+
   test('회원 탭에 회원 관리 헤더가 없어야 한다', () {
     expect(members.contains("'회원 관리'"), isFalse);
     // 세그먼트 탭 3종 유지. 라벨이 잘리지 않게 _segmentTab 으로 감싼다.

@@ -2464,11 +2464,12 @@ class _FinanceSummaryCard extends StatelessWidget {
                 children: [
                   Row(
                     children: [
+                      // 라벨은 먹색이 아니라 진한 회색 — 금액이 주인공이다.
                       const Text('현 회비 잔고',
                           style: TextStyle(
                               fontSize: 13,
                               fontWeight: FontWeight.w700,
-                              color: AppColors.textSecondary)),
+                              color: Color(0xFF6B7280))),
                       if (isGuest) ...[
                         const SizedBox(width: 4),
                         const Icon(Icons.lock_outline,
@@ -2528,10 +2529,11 @@ class _FinanceSummaryCard extends StatelessWidget {
                       isMonthly ? '이달 ${homeDues.title}' : homeDues.title,
                       maxLines: 1,
                       overflow: TextOverflow.ellipsis,
+                      // 왼쪽 '현 회비 잔고' 와 같은 라벨 톤.
                       style: const TextStyle(
                           fontSize: 13,
                           fontWeight: FontWeight.w700,
-                          color: AppColors.textSecondary),
+                          color: Color(0xFF6B7280)),
                     ),
                     const SizedBox(height: 4),
                     Row(
@@ -2573,12 +2575,11 @@ class _FinanceSummaryCard extends StatelessWidget {
                           Expanded(
                             child: Text(
                               '전월 미납 $prevUnpaid명',
-                              style: TextStyle(
+                              // 0명이어도 빨강 — 총무가 매달 눈으로 찾는 줄이다.
+                              style: const TextStyle(
                                   fontSize: 12,
                                   fontWeight: FontWeight.w600,
-                                  color: prevUnpaid > 0
-                                      ? AppColors.danger
-                                      : AppColors.textSecondary),
+                                  color: AppColors.danger),
                             ),
                           ),
                           if (canNudge)
