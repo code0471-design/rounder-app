@@ -37,6 +37,8 @@ void main() {
     expect(phoneRequired.contains('enabled: !_busy && !_codeSent'), isTrue);
     expect(phoneRequired.contains('핸디캡'), isFalse);
     expect(phoneRequired.contains('카카오 알림톡'), isTrue);
+    // 생년월일·핸디캡은 인증 성공 후 별도 화면에서 받는다.
+    expect(phoneRequired.contains("'/golf-profile'"), isTrue);
   });
 
   test('가입 다음 단계는 휴대폰 인증(알림톡)이어야 한다', () {

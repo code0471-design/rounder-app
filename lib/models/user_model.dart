@@ -18,6 +18,8 @@ class AppUser {
   final String name;
   final String phone;       // 010-0000-0000 형식
   final double? handicap;   // 핸디캡 (선택)
+  final DateTime? birthDate; // 생년월일 (선택)
+  final bool birthIsLunar;   // 생년월일이 음력인지 (기본 양력)
   final bool isVerified;    // 본인인증 완료 여부
   final bool isAdmin;       // 관리자 여부 (회장·총무 등 운영자)
   final String role;        // 역할: '회장' | '총무' | '일반'
@@ -30,6 +32,8 @@ class AppUser {
     required this.name,
     required this.phone,
     this.handicap,
+    this.birthDate,
+    this.birthIsLunar = false,
     this.isVerified = false,
     this.isAdmin    = false,
     this.role       = '일반',
@@ -57,10 +61,37 @@ class AppUser {
     return handicap!.toStringAsFixed(1);
   }
 
+  /// 생년월일 표시 텍스트 — `1985.03.21 (음력)`
+  String get birthDateText {
+    final d = birthDate;
+    if (d == null) return '미입력';
+    final ymd = '${d.year}.'
+        '${d.month.toString().padLeft(2, '0')}.'
+        '${d.day.toString().padLeft(2, '0')}';
+    return birthIsLunar ? '$ymd (음력)' : ymd;
+  }
+
+  /// 생년월일 기준 만 나이 (양력 기준 계산)
+  int? get age {
+    final d = birthDate;
+    if (d == null) return null;
+    final now = DateTime.now();
+    var age = now.year - d.year;
+    if (now.month < d.month || (now.month == d.month && now.day < d.day)) {
+      age--;
+    }
+    return age < 0 ? null : age;
+  }
+
+  /// 가입 시 받아야 하는 정보가 아직 비어 있는지
+  bool get needsGolfProfile => birthDate == null || handicap == null;
+
   AppUser copyWith({
     String? name,
     String? phone,
     double? handicap,
+    DateTime? birthDate,
+    bool? birthIsLunar,
     bool? isVerified,
     bool? isAdmin,
     String? role,
@@ -72,6 +103,8 @@ class AppUser {
       name:           name           ?? this.name,
       phone:          phone          ?? this.phone,
       handicap:       handicap       ?? this.handicap,
+      birthDate:      birthDate      ?? this.birthDate,
+      birthIsLunar:   birthIsLunar   ?? this.birthIsLunar,
       isVerified:     isVerified     ?? this.isVerified,
       isAdmin:        isAdmin        ?? this.isAdmin,
       role:           role           ?? this.role,

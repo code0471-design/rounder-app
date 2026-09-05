@@ -118,7 +118,7 @@ class _VerifyScreenState extends State<VerifyScreen> {
       handicap: widget.handicap,
       verifyMethod: method,
     );
-    auth.completeSignup();
+    final signedUp = auth.completeSignup();
 
     final clubId = widget.inviteClubId?.trim() ?? '';
     if (clubId.isNotEmpty) {
@@ -142,7 +142,9 @@ class _VerifyScreenState extends State<VerifyScreen> {
     }
 
     if (!mounted) return;
-    Navigator.of(context).pushNamedAndRemoveUntil('/main', (_) => false);
+    // 초대 가입도 생년월일은 아직 없다 — 있으면 건너뛴다.
+    final next = signedUp.needsGolfProfile ? '/golf-profile' : '/main';
+    Navigator.of(context).pushNamedAndRemoveUntil(next, (_) => false);
   }
 
   @override

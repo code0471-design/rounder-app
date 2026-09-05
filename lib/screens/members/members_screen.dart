@@ -6,8 +6,6 @@ import '../../providers/club_provider.dart';
 import '../../services/csv_download.dart';
 import '../../services/member_roster_csv.dart';
 import '../../theme/app_theme.dart';
-import '../invite/invite_send_screen.dart';
-import '../invite/guest_invite_form_screen.dart';
 import 'member_detail_screen.dart';
 import 'treasurer_transfer_screen.dart';
 
@@ -104,6 +102,22 @@ class _MembersScreenState extends State<MembersScreen>
     }
   }
 
+  /// 세그먼트 탭 — 폭이 좁아도 글자가 잘리지 않게 축소만 허용한다.
+  /// (고정 height 40 + 라벨 3등분에서 "전체 (" 처럼 끊기던 문제)
+  Tab _segmentTab(String label, int count) {
+    return Tab(
+      height: 36,
+      child: FittedBox(
+        fit: BoxFit.scaleDown,
+        child: Text(
+          '$label ($count)',
+          maxLines: 1,
+          softWrap: false,
+        ),
+      ),
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     return Consumer<ClubProvider>(
@@ -128,7 +142,7 @@ class _MembersScreenState extends State<MembersScreen>
                   children: [
                     Expanded(
                       child: Container(
-                        height: 40,
+                        height: 44,
                         decoration: BoxDecoration(
                           color: Colors.white,
                           borderRadius: BorderRadius.circular(12),
@@ -141,10 +155,12 @@ class _MembersScreenState extends State<MembersScreen>
                             borderRadius: BorderRadius.circular(10),
                           ),
                           indicatorSize: TabBarIndicatorSize.tab,
-                          indicatorPadding: const EdgeInsets.all(3),
+                          indicatorPadding: const EdgeInsets.all(4),
                           labelColor: Colors.white,
                           unselectedLabelColor: AppColors.ink,
                           dividerColor: Colors.transparent,
+                          labelPadding:
+                              const EdgeInsets.symmetric(horizontal: 4),
                           labelStyle: const TextStyle(
                             fontWeight: FontWeight.w800,
                             fontSize: 12,
@@ -154,9 +170,9 @@ class _MembersScreenState extends State<MembersScreen>
                             fontSize: 12,
                           ),
                           tabs: [
-                            Tab(text: '전체 ($totalAll)'),
-                            Tab(text: '정회원 ($totalReg)'),
-                            Tab(text: '게스트 ($totalGuest)'),
+                            _segmentTab('전체', totalAll),
+                            _segmentTab('정회원', totalReg),
+                            _segmentTab('게스트', totalGuest),
                           ],
                         ),
                       ),
@@ -195,24 +211,13 @@ class _MembersScreenState extends State<MembersScreen>
                         onPressed: () =>
                             _showJoinRequests(context, provider),
                       ),
-                    IconButton(
-                      icon: const Icon(Icons.link, color: AppColors.primary),
-                      tooltip: '정회원 초대',
-                      onPressed: () {
-                        Navigator.push(
-                          context,
-                          MaterialPageRoute(
-                            builder: (_) => InviteSendScreen(
-                                club: provider.selectedClub),
-                          ),
-                        );
-                      },
-                    ),
+                    // 초대는 홈 탭의 '정회원 초대하기 / 게스트 초대하기' 버튼으로 통일.
+                    // 여기서는 명단 내보내기만 남긴다.
                     if (provider.isClubExecutive)
                       IconButton(
                         icon: const Icon(Icons.file_download_outlined,
                             color: AppColors.primary),
-                        tooltip: '엑셀 다운로드',
+                        tooltip: '명단 엑셀 다운로드',
                         onPressed: () => _downloadExcel(
                           context,
                           provider,
@@ -221,20 +226,6 @@ class _MembersScreenState extends State<MembersScreen>
                           guests: guests,
                         ),
                       ),
-                    IconButton(
-                      icon: const Icon(Icons.person_add_alt_1_outlined,
-                          color: AppColors.primary),
-                      tooltip: '게스트 초대',
-                      onPressed: () {
-                        Navigator.push(
-                          context,
-                          MaterialPageRoute(
-                            builder: (_) => GuestInviteFormScreen(
-                                club: provider.selectedClub),
-                          ),
-                        );
-                      },
-                    ),
                   ],
                 ),
               ),

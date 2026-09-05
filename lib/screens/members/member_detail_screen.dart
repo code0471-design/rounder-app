@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import '../../domain/services/attendance_stats.dart';
 import '../../models/club_model.dart';
 import '../../models/member_role.dart';
 import '../../navigation/app_navigator.dart';
@@ -218,10 +219,11 @@ class MemberDetailScreen extends StatelessWidget {
       padding: const EdgeInsets.symmetric(vertical: 16),
       decoration: BoxDecoration(
         color: Colors.white,
-        borderRadius: BorderRadius.circular(14),
+        borderRadius: BorderRadius.circular(16),
+        border: Border.all(color: AppColors.divider),
         boxShadow: [
           BoxShadow(
-            color: Colors.black.withValues(alpha: 0.06),
+            color: AppColors.primary.withValues(alpha: 0.06),
             blurRadius: 8,
             offset: const Offset(0, 2),
           ),
@@ -264,26 +266,36 @@ class MemberDetailScreen extends StatelessWidget {
       icon: Icons.info_outline,
       children: [
         if (member.gender.isNotEmpty)
-          _InfoRow(icon: Icons.person_outline, label: '성별', value: member.gender),
+          _InfoRow(
+              icon: Icons.person_rounded,
+              label: '성별',
+              value: member.gender),
         if (member.birthDate != null)
           _InfoRow(
-            icon: Icons.cake_outlined,
+            icon: Icons.cake_rounded,
             label: '생년월일',
-            value:
-                '${_fullDate(member.birthDate!)} (${member.age}세)',
+            value: '${_fullDate(member.birthDate!)} (${member.age}세)',
           ),
+        // 연락처는 명단 내보내기와 같은 기준으로 임원에게만 보여 준다.
+        if (provider.isClubExecutive &&
+            member.phone != null &&
+            member.phone!.isNotEmpty)
+          _InfoRow(
+              icon: Icons.phone_rounded,
+              label: '연락처',
+              value: member.phone!),
         if (member.address != null && member.address!.isNotEmpty)
           _InfoRow(
-              icon: Icons.location_on_outlined,
+              icon: Icons.location_on_rounded,
               label: '주소',
               value: member.address!),
         if (member.memo != null && member.memo!.isNotEmpty)
           _InfoRow(
-              icon: Icons.notes_outlined,
+              icon: Icons.notes_rounded,
               label: '메모',
               value: member.memo!),
         _InfoRow(
-          icon: Icons.circle,
+          icon: Icons.verified_rounded,
           label: '상태',
           value: member.status,
           valueColor:
@@ -298,11 +310,12 @@ class MemberDetailScreen extends StatelessWidget {
   // ────────────────────────────────
   Widget _buildActivityCard(BuildContext context) {
     final clubId = provider.selectedClub.id;
-    final attendCount = provider.schedules
-        .where((s) => s.clubId == clubId)
-        .where((s) => s.responses.any(
-            (r) => r.memberId == member.id && r.response == '참석'))
-        .length;
+    final stats = AttendanceStats.forMember(
+      schedules: provider.schedules,
+      clubId: clubId,
+      memberId: member.id,
+    );
+
     final now = DateTime.now();
     final monthly = provider.currentMonthDuesSetting(now.year, now.month);
     final paidThisMonth = monthly == null
@@ -318,24 +331,23 @@ class MemberDetailScreen extends StatelessWidget {
     final duesColor = monthly == null
         ? AppColors.textSecondary
         : (paidThisMonth ? AppColors.success : AppColors.danger);
-    final handicap = member.handicap;
-    final scoreLabel =
-        handicap != null ? handicap.toStringAsFixed(1) : '-';
 
     return _Card(
       title: '활동 기록',
-      icon: Icons.bar_chart_outlined,
+      icon: Icons.bar_chart_rounded,
       children: [
         _InfoRow(
-            icon: Icons.golf_course,
+            icon: Icons.golf_course_rounded,
             label: '참석 라운딩',
-            value: '$attendCount회'),
+            value: stats.finished == 0
+                ? '지난 라운딩 없음'
+                : '${stats.attended}회 / 지난 ${stats.finished}회'),
         _InfoRow(
-            icon: Icons.analytics_outlined,
-            label: '핸디캡',
-            value: scoreLabel),
+            icon: Icons.percent_rounded,
+            label: '참석률',
+            value: stats.ratePercent == null ? '-' : '${stats.ratePercent}%'),
         _InfoRow(
-            icon: Icons.payments_outlined,
+            icon: Icons.payments_rounded,
             label: '이번 달 회비',
             value: duesLabel,
             valueColor: duesColor),
@@ -761,19 +773,23 @@ class _StatItem extends StatelessWidget {
       child: Column(
         children: [
           Icon(icon, size: 20, color: AppColors.primary),
-          const SizedBox(height: 4),
+          const SizedBox(height: 6),
           Text(
             value,
+            maxLines: 1,
             style: const TextStyle(
               fontSize: 16,
-              fontWeight: FontWeight.bold,
-              color: AppColors.textPrimary,
+              fontWeight: FontWeight.w800,
+              color: AppColors.ink,
             ),
           ),
-          const SizedBox(height: 2),
+          const SizedBox(height: 3),
           Text(label,
               style: const TextStyle(
-                  fontSize: 11, color: AppColors.textSecondary)),
+                fontSize: 11,
+                fontWeight: FontWeight.w600,
+                color: AppColors.textSecondary,
+              )),
         ],
       ),
     );
@@ -804,11 +820,12 @@ class _Card extends StatelessWidget {
       margin: const EdgeInsets.symmetric(horizontal: 16),
       decoration: BoxDecoration(
         color: Colors.white,
-        borderRadius: BorderRadius.circular(14),
+        borderRadius: BorderRadius.circular(16),
+        border: Border.all(color: AppColors.divider),
         boxShadow: [
           BoxShadow(
-            color: Colors.black.withValues(alpha: 0.05),
-            blurRadius: 6,
+            color: AppColors.primary.withValues(alpha: 0.06),
+            blurRadius: 8,
             offset: const Offset(0, 2),
           ),
         ],
@@ -817,7 +834,7 @@ class _Card extends StatelessWidget {
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           Padding(
-            padding: const EdgeInsets.fromLTRB(16, 14, 16, 4),
+            padding: const EdgeInsets.fromLTRB(16, 14, 16, 10),
             child: Row(
               children: [
                 Icon(icon, size: 16, color: AppColors.primary),
@@ -825,17 +842,18 @@ class _Card extends StatelessWidget {
                 Text(
                   title,
                   style: const TextStyle(
-                    fontSize: 14,
-                    fontWeight: FontWeight.bold,
-                    color: AppColors.textPrimary,
+                    fontSize: 15,
+                    fontWeight: FontWeight.w800,
+                    color: AppColors.ink,
                   ),
                 ),
               ],
             ),
           ),
           const Divider(height: 1, color: AppColors.divider),
-          ...children,
           const SizedBox(height: 4),
+          ...children,
+          const SizedBox(height: 10),
         ],
       ),
     );
@@ -856,27 +874,38 @@ class _InfoRow extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Padding(
-      padding: const EdgeInsets.fromLTRB(16, 10, 16, 2),
+      padding: const EdgeInsets.fromLTRB(16, 8, 16, 8),
       child: Row(
-        crossAxisAlignment: CrossAxisAlignment.start,
+        crossAxisAlignment: CrossAxisAlignment.center,
         children: [
-          Icon(icon, size: 16, color: AppColors.textSecondary),
+          Container(
+            width: 26,
+            height: 26,
+            decoration: BoxDecoration(
+              color: AppColors.primary.withValues(alpha: 0.08),
+              borderRadius: BorderRadius.circular(8),
+            ),
+            child: Icon(icon, size: 15, color: AppColors.primary),
+          ),
           const SizedBox(width: 10),
           SizedBox(
-            width: 72,
+            width: 76,
             child: Text(
               label,
               style: const TextStyle(
-                  fontSize: 13, color: AppColors.textSecondary),
+                fontSize: 13,
+                fontWeight: FontWeight.w600,
+                color: AppColors.textSecondary,
+              ),
             ),
           ),
           Expanded(
             child: Text(
               value,
               style: TextStyle(
-                fontSize: 13,
-                color: valueColor ?? AppColors.textPrimary,
-                fontWeight: FontWeight.w500,
+                fontSize: 14,
+                color: valueColor ?? AppColors.ink,
+                fontWeight: FontWeight.w700,
               ),
             ),
           ),

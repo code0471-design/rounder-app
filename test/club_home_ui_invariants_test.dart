@@ -88,7 +88,10 @@ void main() {
 
   test('회원 탭에 회원 관리 헤더가 없어야 한다', () {
     expect(members.contains("'회원 관리'"), isFalse);
-    expect(members.contains('Tab(text: \'전체'), isTrue);
+    // 세그먼트 탭 3종 유지. 라벨이 잘리지 않게 _segmentTab 으로 감싼다.
+    expect(members.contains("_segmentTab('전체'"), isTrue);
+    expect(members.contains("_segmentTab('정회원'"), isTrue);
+    expect(members.contains("_segmentTab('게스트'"), isTrue);
   });
 
   test('회원 탭은 이름 검색까지 고정하고 랭킹은 스크롤 영역에 둔다', () {
@@ -102,7 +105,11 @@ void main() {
     expect(members.contains('_buildPointsRankingBanner(provider)'), isTrue);
     expect(members.contains('_buildBirthdayBanner'), isFalse);
     expect(members.contains('birthdayThisMonth'), isFalse);
-    expect(members.contains('GuestInviteFormScreen'), isTrue);
+    // 초대는 홈 탭 버튼으로 통일 — 회원 탭 헤더에서는 뺐다.
+    // 진입점이 사라지지 않았는지는 홈 탭에서 확인한다.
+    expect(members.contains('GuestInviteFormScreen'), isFalse);
+    expect(room.contains('GuestInviteFormScreen'), isTrue);
+    expect(room.contains('InviteSendScreen'), isTrue);
     expect(members.contains('_TreasurerTransferEntry'), isTrue);
     expect(members.contains('file_download_outlined'), isTrue);
   });

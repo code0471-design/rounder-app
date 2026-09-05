@@ -5359,6 +5359,41 @@ class ClubProvider extends ChangeNotifier with WidgetsBindingObserver {
     syncAuthUserProfile(phone: phone);
   }
 
+  /// 계정에 저장한 생년월일·핸디캡을 내가 속한 모든 모임 명단에 반영.
+  ///
+  /// 이름·전화와 달리 본인이 직접 입력한 값이므로 비어 있지 않으면 덮어쓴다.
+  /// 반영 후 Firestore ops bundle 까지 밀어서 다른 기기·총무 화면에도 보이게 한다.
+  void syncAuthGolfProfile({
+    DateTime? birthDate,
+    double? handicap,
+  }) {
+    if (birthDate == null && handicap == null) return;
+    final authId = _persistAuthUserId ?? currentUserId;
+    if (authId.isEmpty) return;
+
+    var changed = false;
+    for (var i = 0; i < _members.length; i++) {
+      final m = _members[i];
+      final match = m.id == authId ||
+          m.id == currentUserId ||
+          (_persistAuthUserId != null &&
+              _userIdsMatch(m.id, _persistAuthUserId)) ||
+          m.id.endsWith('_$authId') ||
+          m.id == 'm_creator_${selectedClub.id}';
+      if (!match) continue;
+      if (m.birthDate == birthDate && m.handicap == handicap) continue;
+      _members[i] = m.copyWith(
+        birthDate: birthDate,
+        handicap: handicap,
+      );
+      changed = true;
+    }
+    if (changed) {
+      notifyListeners();
+      _persistImmediately();
+    }
+  }
+
   /// 마이페이지 직책 변경 — 명단·Club.myRole을 모임 단위로 확실히 반영
   bool setMyRoleForClub(String clubId, String role) {
     final roleEncoded = ClubMemberRole.encodeRoles(

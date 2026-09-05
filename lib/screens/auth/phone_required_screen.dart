@@ -152,7 +152,9 @@ class _PhoneRequiredScreenState extends State<PhoneRequiredScreen> {
       } catch (_) {}
 
       if (!mounted) return;
-      Navigator.of(context).pushNamedAndRemoveUntil('/main', (_) => false);
+      // 이 화면은 이름+전화만 받는다. 골프 프로필은 다음 화면에서.
+      final next = user.needsGolfProfile ? '/golf-profile' : '/main';
+      Navigator.of(context).pushNamedAndRemoveUntil(next, (_) => false);
     } on StateError catch (e) {
       if (!mounted) return;
       setState(() {

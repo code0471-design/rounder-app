@@ -9,7 +9,6 @@ import '../../providers/auth_provider.dart';
 import '../../providers/club_provider.dart';
 import '../../theme/app_theme.dart';
 import '../club_room/club_room_screen.dart';
-import '../legal/service_about_screen.dart';
 import '../members/my_role_change_screen.dart';
 
 // ── 후원 기간 포맷 헬퍼 ──────────────────────────────────────
@@ -1481,6 +1480,13 @@ class _AccountSettingsTabState extends State<_AccountSettingsTab> {
         final displayName =
             provider.currentMember?.name ?? auth.currentUser?.name ?? '회원';
 
+        // 계정(AppUser)에 저장된 값을 우선 쓰고, 없으면 모임 명단 값으로 채운다.
+        final me = provider.currentMember;
+        final user = auth.currentUser;
+        final handicap = user?.handicap ?? me?.handicap;
+        final birthDate = user?.birthDate ?? me?.birthDate;
+        final birthIsLunar = user?.birthIsLunar ?? false;
+
         return ListView(
           padding: const EdgeInsets.fromLTRB(16, 20, 16, 40),
           children: [
@@ -1490,10 +1496,18 @@ class _AccountSettingsTabState extends State<_AccountSettingsTab> {
               decoration: BoxDecoration(
                 color: Colors.white,
                 borderRadius: BorderRadius.circular(16),
-                boxShadow: [BoxShadow(color: Colors.black.withValues(alpha: 0.06),
-                    blurRadius: 8, offset: const Offset(0, 2))],
+                border: Border.all(color: AppColors.divider),
+                boxShadow: [
+                  BoxShadow(
+                    color: AppColors.primary.withValues(alpha: 0.06),
+                    blurRadius: 8,
+                    offset: const Offset(0, 2),
+                  )
+                ],
               ),
-              child: Row(
+              child: Column(
+                children: [
+                  Row(
                 children: [
                   // 아바타 (프로필 사진 or 그라디언트)
                   GestureDetector(
@@ -1569,6 +1583,37 @@ class _AccountSettingsTabState extends State<_AccountSettingsTab> {
                       padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
                       tapTargetSize: MaterialTapTargetSize.shrinkWrap,
                     ),
+                  ),
+                ],
+              ),
+                  const SizedBox(height: 16),
+                  const Divider(height: 1, color: AppColors.divider),
+                  const SizedBox(height: 14),
+                  Row(
+                    children: [
+                      _ProfileStat(
+                        icon: Icons.sports_golf_rounded,
+                        label: '핸디캡',
+                        value: handicap == null
+                            ? '미입력'
+                            : (handicap == handicap.truncateToDouble()
+                                ? handicap.toInt().toString()
+                                : handicap.toStringAsFixed(1)),
+                        muted: handicap == null,
+                      ),
+                      Container(
+                          width: 1, height: 34, color: AppColors.divider),
+                      _ProfileStat(
+                        icon: Icons.cake_rounded,
+                        label: birthIsLunar ? '생년월일 (음력)' : '생년월일',
+                        value: birthDate == null
+                            ? '미입력'
+                            : '${birthDate.year}.'
+                                '${birthDate.month.toString().padLeft(2, '0')}.'
+                                '${birthDate.day.toString().padLeft(2, '0')}',
+                        muted: birthDate == null,
+                      ),
+                    ],
                   ),
                 ],
               ),
@@ -1653,46 +1698,8 @@ class _AccountSettingsTabState extends State<_AccountSettingsTab> {
 
             const SizedBox(height: 28),
 
-            const _AccountSectionHeader(label: '서비스'),
-            const SizedBox(height: 10),
-            Container(
-              decoration: BoxDecoration(
-                color: Colors.white,
-                borderRadius: BorderRadius.circular(14),
-              ),
-              child: InkWell(
-                borderRadius: BorderRadius.circular(14),
-                onTap: () {
-                  Navigator.of(context).push(
-                    MaterialPageRoute(
-                      builder: (_) => const ServiceAboutScreen(),
-                    ),
-                  );
-                },
-                child: const Padding(
-                  padding: EdgeInsets.symmetric(horizontal: 16, vertical: 16),
-                  child: Row(
-                    children: [
-                      Icon(Icons.info_outline, color: AppColors.primary, size: 20),
-                      SizedBox(width: 12),
-                      Expanded(
-                        child: Text(
-                          '서비스 소개 · 사업자 정보',
-                          style: TextStyle(
-                            fontSize: 14,
-                            fontWeight: FontWeight.w600,
-                            color: AppColors.textPrimary,
-                          ),
-                        ),
-                      ),
-                      Icon(Icons.chevron_right, color: AppColors.textSecondary),
-                    ],
-                  ),
-                ),
-              ),
-            ),
-
-            const SizedBox(height: 28),
+            // 서비스 안내·사업자 표기 메뉴는 마이페이지에서 제거했다.
+            // 로그인 화면 하단 링크로 계속 들어갈 수 있다.
 
             // ── 로그아웃 ─────────────────────────────────
             const _AccountSectionHeader(label: '계정'),
@@ -1851,18 +1858,24 @@ class _AccountSettingsTabState extends State<_AccountSettingsTab> {
     if (member == null) return;
 
     final messenger = ScaffoldMessenger.of(context);
+    final auth = context.read<AuthProvider>();
+    final account = auth.currentUser;
+
+    // 계정에 저장된 핸디캡·생년월일을 우선 채운다. (모임 명단은 비어 있을 수 있다)
+    final seedHandicap = account?.handicap ?? member.handicap;
 
     // 컨트롤러 초기화
     final nameCtrl    = TextEditingController(text: member.name);
     final phoneCtrl   = TextEditingController(text: member.phone ?? '');
     final addressCtrl = TextEditingController(text: member.address ?? '');
     final handicapCtrl = TextEditingController(
-        text: member.handicap != null ? member.handicap!.toStringAsFixed(1) : '');
+        text: seedHandicap != null ? seedHandicap.toStringAsFixed(1) : '');
     final bioCtrl     = TextEditingController(text: member.bio ?? '');
 
     // 상태 변수 (StatefulBuilder 밖에서 선언 후 참조)
     String selectedGender = member.gender;
-    DateTime? selectedBirth = member.birthDate;
+    DateTime? selectedBirth = account?.birthDate ?? member.birthDate;
+    bool birthIsLunar = account?.birthIsLunar ?? false;
     String? photoDataUrl = member.photoUrl; // base64 data URL or http URL
 
     showModalBottomSheet(
@@ -2084,6 +2097,45 @@ class _AccountSettingsTabState extends State<_AccountSettingsTab> {
                     ),
                   ),
                 ),
+                const SizedBox(height: 8),
+
+                // ── 양력 / 음력 ──
+                Row(
+                  children: [false, true].map((lunar) {
+                    final selected = birthIsLunar == lunar;
+                    return Padding(
+                      padding: const EdgeInsets.only(right: 8),
+                      child: GestureDetector(
+                        onTap: () => setS(() => birthIsLunar = lunar),
+                        child: Container(
+                          padding: const EdgeInsets.symmetric(
+                              horizontal: 18, vertical: 8),
+                          decoration: BoxDecoration(
+                            color: selected
+                                ? AppColors.primary
+                                : AppColors.background,
+                            borderRadius: BorderRadius.circular(10),
+                            border: Border.all(
+                              color: selected
+                                  ? AppColors.primary
+                                  : Colors.transparent,
+                            ),
+                          ),
+                          child: Text(
+                            lunar ? '음력' : '양력',
+                            style: TextStyle(
+                              fontSize: 13,
+                              fontWeight: FontWeight.w600,
+                              color: selected
+                                  ? Colors.white
+                                  : AppColors.textSecondary,
+                            ),
+                          ),
+                        ),
+                      ),
+                    );
+                  }).toList(),
+                ),
                 const SizedBox(height: 14),
 
                 // ── 휴대폰 ──
@@ -2151,6 +2203,14 @@ class _AccountSettingsTabState extends State<_AccountSettingsTab> {
                         clearPhoto: photoDataUrl == null,
                       );
                       provider.updateMember(updated);
+                      // 생년월일·핸디캡은 계정(users/{id})에도 저장해서
+                      // 기기를 바꾸거나 다른 모임에 들어가도 유지되게 한다.
+                      // ignore: discarded_futures
+                      auth.updateGolfProfile(
+                        birthDate: selectedBirth,
+                        birthIsLunar: birthIsLunar,
+                        handicap: newHandicap,
+                      );
                       Navigator.pop(sheetCtx);
                       messenger.showSnackBar(
                         SnackBar(
@@ -2237,6 +2297,56 @@ class _AccountSettingsTabState extends State<_AccountSettingsTab> {
               shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
             ),
             child: const Text('탈퇴하기'),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+/// 마이페이지 프로필 카드 하단 — 핸디캡 / 생년월일
+class _ProfileStat extends StatelessWidget {
+  final IconData icon;
+  final String label;
+  final String value;
+  final bool muted;
+
+  const _ProfileStat({
+    required this.icon,
+    required this.label,
+    required this.value,
+    this.muted = false,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return Expanded(
+      child: Column(
+        children: [
+          Row(
+            mainAxisAlignment: MainAxisAlignment.center,
+            children: [
+              Icon(icon, size: 13, color: AppColors.textTertiary),
+              const SizedBox(width: 4),
+              Text(
+                label,
+                style: const TextStyle(
+                  fontSize: 11,
+                  fontWeight: FontWeight.w600,
+                  color: AppColors.textTertiary,
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 5),
+          Text(
+            value,
+            maxLines: 1,
+            style: TextStyle(
+              fontSize: 15,
+              fontWeight: FontWeight.w800,
+              color: muted ? AppColors.textTertiary : AppColors.ink,
+            ),
           ),
         ],
       ),

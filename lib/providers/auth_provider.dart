@@ -81,6 +81,8 @@ class AuthProvider extends ChangeNotifier {
   String?       _signupName;
   String?       _signupPhone;
   double?       _signupHandicap;
+  DateTime?     _signupBirthDate;
+  bool          _signupBirthIsLunar = false;
   VerifyMethod? _signupVerifyMethod;
 
   // ── 초대 토큰 목록 ───────────────────────────────────────
@@ -165,12 +167,27 @@ class AuthProvider extends ChangeNotifier {
           await logoutAsync();
           return false;
         }
-        if (_normalizePhone(user.phone) != _normalizePhone(remotePhone)) {
-          final updated = user.copyWith(phone: remotePhone);
+        final data = doc.data();
+        final remoteHandicap = (data?['handicap'] as num?)?.toDouble();
+        final remoteBirthDate = _parseBirthDate(data?['birth_date']);
+        final remoteBirthIsLunar = data?['birth_is_lunar'] as bool?;
+        final phoneChanged =
+            _normalizePhone(user.phone) != _normalizePhone(remotePhone);
+        if (phoneChanged ||
+            remoteHandicap != null ||
+            remoteBirthDate != null) {
+          final updated = user.copyWith(
+            phone: phoneChanged ? remotePhone : null,
+            handicap: remoteHandicap,
+            birthDate: remoteBirthDate,
+            birthIsLunar: remoteBirthIsLunar,
+          );
           final idx = _registeredUsers.indexWhere((u) => u.id == updated.id);
           if (idx >= 0) _registeredUsers[idx] = updated;
           _currentUser = updated;
-          await prefs.setString(_kSavedPhone, updated.phone);
+          if (phoneChanged) {
+            await prefs.setString(_kSavedPhone, updated.phone);
+          }
         }
       }
     } catch (e) {
@@ -278,6 +295,9 @@ class AuthProvider extends ChangeNotifier {
 
     String remotePhone = '';
     String? remoteName;
+    double? remoteHandicap;
+    DateTime? remoteBirthDate;
+    bool? remoteBirthIsLunar;
     var remoteUserRead = false;
     try {
       final deps = AppDependencies.instance;
@@ -294,6 +314,9 @@ class AuthProvider extends ChangeNotifier {
           if (n != null && n.isNotEmpty && !isPlaceholderName(n)) {
             remoteName = n;
           }
+          remoteHandicap = (data['handicap'] as num?)?.toDouble();
+          remoteBirthDate = _parseBirthDate(data['birth_date']);
+          remoteBirthIsLunar = data['birth_is_lunar'] as bool?;
         }
       }
     } catch (e) {
@@ -328,7 +351,9 @@ class AuthProvider extends ChangeNotifier {
       id: profile.appUserId,
       name: resolvedName,
       phone: resolvedPhone,
-      handicap: memory?.handicap,
+      handicap: remoteHandicap ?? memory?.handicap,
+      birthDate: remoteBirthDate ?? memory?.birthDate,
+      birthIsLunar: remoteBirthIsLunar ?? memory?.birthIsLunar ?? false,
       isVerified: !isPhoneMissing(resolvedPhone),
       isAdmin: memory?.isAdmin ?? false,
       role: memory?.role ?? '일반',
@@ -562,6 +587,46 @@ class AuthProvider extends ChangeNotifier {
         d.substring(3).replaceAll('0', '').isEmpty;
   }
 
+  /// Firestore `birth_date` 파싱 — ISO 문자열 / Timestamp 모두 허용
+  static DateTime? _parseBirthDate(dynamic raw) {
+    if (raw == null) return null;
+    if (raw is DateTime) return raw;
+    if (raw is Timestamp) return raw.toDate();
+    if (raw is String && raw.isNotEmpty) return DateTime.tryParse(raw);
+    return null;
+  }
+
+  /// 생년월일·핸디캡 저장 — 가입 단계와 마이페이지가 같이 쓴다.
+  ///
+  /// Firestore `users/{id}` 에 반영해서 기기를 바꿔도 유지되게 하고,
+  /// 가입한 모임의 회원 정보에도 전파한다.
+  Future<AppUser?> updateGolfProfile({
+    DateTime? birthDate,
+    bool? birthIsLunar,
+    double? handicap,
+  }) async {
+    final current = _currentUser;
+    if (current == null) return null;
+
+    final updated = current.copyWith(
+      birthDate: birthDate,
+      birthIsLunar: birthIsLunar,
+      handicap: handicap,
+    );
+
+    final idx = _registeredUsers.indexWhere((u) => u.id == updated.id);
+    if (idx >= 0) {
+      _registeredUsers[idx] = updated;
+    } else {
+      _registeredUsers.add(updated);
+    }
+    _currentUser = updated;
+    notifyListeners();
+
+    await _persistPlatformUser(updated);
+    return updated;
+  }
+
   String _generateOtpCode() {
     final n = Random.secure().nextInt(10000);
     return n.toString().padLeft(4, '0');
@@ -681,11 +746,15 @@ class AuthProvider extends ChangeNotifier {
     required String name,
     required String phone,
     double? handicap,
+    DateTime? birthDate,
+    bool birthIsLunar = false,
     required VerifyMethod verifyMethod,
   }) {
     _signupName         = name;
     _signupPhone        = phone;
     _signupHandicap     = handicap;
+    _signupBirthDate    = birthDate;
+    _signupBirthIsLunar = birthIsLunar;
     _signupVerifyMethod = verifyMethod;
   }
 
@@ -695,6 +764,8 @@ class AuthProvider extends ChangeNotifier {
       name:         _signupName!,
       phone:        _signupPhone!,
       handicap:     _signupHandicap,
+      birthDate:    _signupBirthDate,
+      birthIsLunar: _signupBirthIsLunar,
       isVerified:   true,
       isAdmin:      false,
       role:         '일반',
@@ -780,6 +851,8 @@ class AuthProvider extends ChangeNotifier {
     _signupName         = null;
     _signupPhone        = null;
     _signupHandicap     = null;
+    _signupBirthDate    = null;
+    _signupBirthIsLunar = false;
     _signupVerifyMethod = null;
   }
 
@@ -809,17 +882,26 @@ class AuthProvider extends ChangeNotifier {
         return;
       }
       // 빈 phone으로 기존 번호를 지우지 않음 (소셜 재로그인 시 본사 연락처 유실 방지)
-      final data = <String, dynamic>{
-        'name': user.name,
-        'nickname': user.name,
-        'gender': '남',
-        'account_status': 'normal',
-        'created_at': FieldValue.serverTimestamp(),
-        'updated_at': FieldValue.serverTimestamp(),
-      };
-      if (!isPhoneMissing(user.phone)) {
-        data['phone'] = user.phone;
-      }
+    final data = <String, dynamic>{
+      'name': user.name,
+      'nickname': user.name,
+      'gender': '남',
+      'account_status': 'normal',
+      'created_at': FieldValue.serverTimestamp(),
+      'updated_at': FieldValue.serverTimestamp(),
+    };
+    if (!isPhoneMissing(user.phone)) {
+      data['phone'] = user.phone;
+    }
+    // 골프 프로필 — 기기 교체·재설치 후에도 살아 있어야 한다.
+    // 빈 값으로 원격을 덮지 않도록 있을 때만 쓴다.
+    if (user.handicap != null) {
+      data['handicap'] = user.handicap;
+    }
+    if (user.birthDate != null) {
+      data['birth_date'] = user.birthDate!.toIso8601String();
+      data['birth_is_lunar'] = user.birthIsLunar;
+    }
       await FirebaseFirestore.instance
           .collection(FirestorePaths.users)
           .doc(user.id)

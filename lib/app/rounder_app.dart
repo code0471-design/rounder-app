@@ -15,6 +15,7 @@ import '../providers/club_provider.dart';
 import '../screens/admin/admin_layout.dart';
 import '../screens/auth/login_screen.dart';
 import '../screens/auth/signup_screen.dart';
+import '../screens/auth/golf_profile_screen.dart';
 import '../screens/auth/phone_required_screen.dart';
 import '../screens/clubs/create_club_screen.dart';
 import '../screens/my_clubs/my_clubs_screen.dart';
@@ -125,6 +126,7 @@ class _RounderAppState extends State<RounderApp> {
           '/login': (_) => const LoginScreen(),
           '/signup': (_) => const SignupScreen(),
           '/phone-required': (_) => const PhoneRequiredScreen(),
+          '/golf-profile': (_) => const GolfProfileScreen(),
           '/clubs': (_) => const ClubListDashboardScreen(),
           '/clubs/create': (_) => const CreateClubScreen(),
           '/admin': (_) => const AdminRootScreen(),
