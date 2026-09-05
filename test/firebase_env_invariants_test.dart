@@ -245,10 +245,13 @@ void main() {
           isTrue,
           reason: '${workflows[i]} 가 네이티브 설정을 안 바꾸면 APP_ENV 와 어긋난다',
         );
+        final expectedEnv =
+            workflows[i] == 'android-release' ? 'prod' : 'staging';
         expect(
-          block.contains('APP_ENV: staging'),
+          block.contains('APP_ENV: $expectedEnv'),
           isTrue,
-          reason: '${workflows[i]} 의 기본값이 없으면 실수로 운영이 될 수 있다',
+          reason: '${workflows[i]} 는 APP_ENV: $expectedEnv 여야 한다. '
+              'Codemagic 시작 화면에는 환경변수 칸이 없다',
         );
       }
     });
