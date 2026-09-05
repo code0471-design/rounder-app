@@ -52,14 +52,9 @@ class AppUser {
     return phone;
   }
 
-  /// 핸디 표시 텍스트
-  String get handicapText {
-    if (handicap == null) return '미입력';
-    if (handicap! == handicap!.truncateToDouble()) {
-      return handicap!.toInt().toString();
-    }
-    return handicap!.toStringAsFixed(1);
-  }
+  /// 핸디 표시 텍스트. 핸디는 정수만 쓴다 — 예전 소수점 값은 반올림.
+  String get handicapText =>
+      handicap == null ? '미입력' : handicap!.round().toString();
 
   /// 생년월일 표시 텍스트 — `1985.03.21 (음력)`
   String get birthDateText {

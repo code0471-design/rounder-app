@@ -2,6 +2,8 @@ import 'dart:async';
 import 'dart:convert';
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
+import 'package:image_picker/image_picker.dart';
 import 'package:provider/provider.dart';
 import '../../features/clubs/application/club_list_controller.dart';
 import '../../models/club_model.dart';
@@ -1594,11 +1596,10 @@ class _AccountSettingsTabState extends State<_AccountSettingsTab> {
                       _ProfileStat(
                         icon: Icons.sports_golf_rounded,
                         label: '핸디캡',
+                        // 핸디는 정수만 — 소수점 값이 남아 있으면 반올림.
                         value: handicap == null
                             ? '미입력'
-                            : (handicap == handicap.truncateToDouble()
-                                ? handicap.toInt().toString()
-                                : handicap.toStringAsFixed(1)),
+                            : handicap.round().toString(),
                         muted: handicap == null,
                       ),
                       Container(
@@ -1868,8 +1869,9 @@ class _AccountSettingsTabState extends State<_AccountSettingsTab> {
     final nameCtrl    = TextEditingController(text: member.name);
     final phoneCtrl   = TextEditingController(text: member.phone ?? '');
     final addressCtrl = TextEditingController(text: member.address ?? '');
+    // 핸디캡은 정수만 받는다. 예전 소수점 값이 남아 있으면 반올림해서 보여 준다.
     final handicapCtrl = TextEditingController(
-        text: seedHandicap != null ? seedHandicap.toStringAsFixed(1) : '');
+        text: seedHandicap != null ? seedHandicap.round().toString() : '');
     final bioCtrl     = TextEditingController(text: member.bio ?? '');
 
     // 상태 변수 (StatefulBuilder 밖에서 선언 후 참조)
@@ -1907,18 +1909,32 @@ class _AccountSettingsTabState extends State<_AccountSettingsTab> {
           }
 
           // ── 사진 선택 ──
+          // 웹은 input[file], 앱은 image_picker.
+          // (예전엔 앱에서 "지원됩니다" 안내만 띄우고 아무 일도 안 했다)
           Future<void> pickPhoto() async {
-            // 웹 환경에서 파일 선택 다이얼로그
             if (kIsWeb) {
               await _pickPhotoWeb((dataUrl) {
                 setS(() => photoDataUrl = dataUrl);
               });
-            } else {
-              if (sheetCtx.mounted) {
-                ScaffoldMessenger.of(sheetCtx).showSnackBar(
-                  const SnackBar(content: Text('앱 빌드에서는 갤러리 연동이 지원됩니다')),
-                );
-              }
+              return;
+            }
+            try {
+              final picked = await ImagePicker().pickImage(
+                source: ImageSource.gallery,
+                // 프로필은 원형 88px — 원본을 그대로 담으면 문서 용량만 커진다.
+                maxWidth: 720,
+                maxHeight: 720,
+                imageQuality: 80,
+              );
+              if (picked == null) return;
+              final bytes = await picked.readAsBytes();
+              final dataUrl = 'data:image/jpeg;base64,${base64Encode(bytes)}';
+              setS(() => photoDataUrl = dataUrl);
+            } catch (_) {
+              if (!sheetCtx.mounted) return;
+              ScaffoldMessenger.of(sheetCtx).showSnackBar(
+                const SnackBar(content: Text('사진을 불러오지 못했습니다')),
+              );
             }
           }
 
@@ -1942,9 +1958,12 @@ class _AccountSettingsTabState extends State<_AccountSettingsTab> {
               ? '${selectedBirth!.year}년 ${selectedBirth!.month}월 ${selectedBirth!.day}일'
               : '생년월일 선택';
 
+          // 홈 인디케이터·제스처 바 높이. 이걸 안 더하면 저장 버튼이 가린다.
+          final safeBottom = MediaQuery.viewPaddingOf(sheetCtx).bottom;
+
           return SingleChildScrollView(
-            padding: EdgeInsets.fromLTRB(
-                20, 16, 20, MediaQuery.of(sheetCtx).viewInsets.bottom + 32),
+            padding: EdgeInsets.fromLTRB(20, 16, 20,
+                MediaQuery.viewInsetsOf(sheetCtx).bottom + safeBottom + 24),
             child: Column(
               mainAxisSize: MainAxisSize.min,
               crossAxisAlignment: CrossAxisAlignment.start,
@@ -2153,8 +2172,13 @@ class _AccountSettingsTabState extends State<_AccountSettingsTab> {
                 const SizedBox(height: 6),
                 TextField(
                   controller: handicapCtrl,
-                  keyboardType: const TextInputType.numberWithOptions(decimal: true),
-                  decoration: fieldDeco('예: 12.5'),
+                  keyboardType: TextInputType.number,
+                  // 소수점 핸디는 안 쓴다 — 키패드에서 아예 못 넣게 막는다.
+                  inputFormatters: [
+                    FilteringTextInputFormatter.digitsOnly,
+                    LengthLimitingTextInputFormatter(2),
+                  ],
+                  decoration: fieldDeco('예: 12 (모르면 비워 두세요)'),
                 ),
                 const SizedBox(height: 14),
 
@@ -2178,15 +2202,39 @@ class _AccountSettingsTabState extends State<_AccountSettingsTab> {
                 ),
                 const SizedBox(height: 10),
 
-                // ── 저장 버튼 ──
-                SizedBox(
-                  width: double.infinity,
-                  child: ElevatedButton(
+                // ── 취소 / 저장 ──
+                // 저장만 있으면 잘못 들어왔을 때 나갈 길이 스와이프뿐이다.
+                Row(
+                  children: [
+                    Expanded(
+                      child: OutlinedButton(
+                        onPressed: () => Navigator.pop(sheetCtx),
+                        style: OutlinedButton.styleFrom(
+                          foregroundColor: AppColors.textSecondary,
+                          side: const BorderSide(color: AppColors.divider),
+                          padding: const EdgeInsets.symmetric(vertical: 15),
+                          shape: RoundedRectangleBorder(
+                              borderRadius: BorderRadius.circular(12)),
+                        ),
+                        child: const Text('취소',
+                            style: TextStyle(
+                                fontWeight: FontWeight.w700, fontSize: 15)),
+                      ),
+                    ),
+                    const SizedBox(width: 10),
+                    Expanded(
+                      flex: 2,
+                      child: ElevatedButton(
                     onPressed: () {
                       final newName = nameCtrl.text.trim();
                       final newPhone = phoneCtrl.text.trim();
                       final newAddress = addressCtrl.text.trim();
-                      final newHandicap = double.tryParse(handicapCtrl.text.trim());
+                      // 정수 핸디만. 범위를 벗어나면 없는 것으로 둔다.
+                      final rawHandicap = int.tryParse(handicapCtrl.text.trim());
+                      final newHandicap =
+                          (rawHandicap == null || rawHandicap < 0 || rawHandicap > 54)
+                              ? null
+                              : rawHandicap.toDouble();
 
                       final newBio = bioCtrl.text.trim();
                       final updated = member.copyWith(
@@ -2226,16 +2274,19 @@ class _AccountSettingsTabState extends State<_AccountSettingsTab> {
                         ),
                       );
                     },
-                    style: ElevatedButton.styleFrom(
-                      backgroundColor: AppColors.primary,
-                      foregroundColor: Colors.white,
-                      padding: const EdgeInsets.symmetric(vertical: 15),
-                      shape: RoundedRectangleBorder(
-                          borderRadius: BorderRadius.circular(12)),
+                        style: ElevatedButton.styleFrom(
+                          backgroundColor: AppColors.primary,
+                          foregroundColor: Colors.white,
+                          padding: const EdgeInsets.symmetric(vertical: 15),
+                          shape: RoundedRectangleBorder(
+                              borderRadius: BorderRadius.circular(12)),
+                        ),
+                        child: const Text('저장',
+                            style: TextStyle(
+                                fontWeight: FontWeight.bold, fontSize: 16)),
+                      ),
                     ),
-                    child: const Text('저장',
-                        style: TextStyle(fontWeight: FontWeight.bold, fontSize: 16)),
-                  ),
+                  ],
                 ),
               ],
             ),

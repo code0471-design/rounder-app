@@ -43,12 +43,9 @@ class _GolfProfileScreenState extends State<GolfProfileScreen> {
       _day = birth.day;
       _isLunar = user?.birthIsLunar ?? false;
     }
+    // 정수 핸디만 쓴다. 예전 소수점 값이 남아 있으면 반올림해서 보여 준다.
     final handicap = user?.handicap;
-    if (handicap != null) {
-      _handicapCtrl.text = handicap == handicap.truncateToDouble()
-          ? handicap.toInt().toString()
-          : handicap.toStringAsFixed(1);
-    }
+    if (handicap != null) _handicapCtrl.text = handicap.round().toString();
   }
 
   @override
@@ -83,11 +80,12 @@ class _GolfProfileScreenState extends State<GolfProfileScreen> {
     final raw = _handicapCtrl.text.trim();
     double? handicap;
     if (raw.isNotEmpty) {
-      handicap = double.tryParse(raw);
-      if (handicap == null || handicap < 0 || handicap > 54) {
-        setState(() => _error = '핸디캡은 0~54 사이로 입력해 주세요');
+      final n = int.tryParse(raw);
+      if (n == null || n < 0 || n > 54) {
+        setState(() => _error = '핸디캡은 0~54 사이 정수로 입력해 주세요');
         return;
       }
+      handicap = n.toDouble();
     }
 
     setState(() {
@@ -255,10 +253,11 @@ class _GolfProfileScreenState extends State<GolfProfileScreen> {
               TextField(
                 controller: _handicapCtrl,
                 enabled: !_busy,
-                keyboardType:
-                    const TextInputType.numberWithOptions(decimal: true),
+                keyboardType: TextInputType.number,
+                // 소수점 핸디는 안 쓴다 — 마이페이지 편집과 같은 규칙.
                 inputFormatters: [
-                  FilteringTextInputFormatter.allow(RegExp(r'[0-9.]')),
+                  FilteringTextInputFormatter.digitsOnly,
+                  LengthLimitingTextInputFormatter(2),
                 ],
                 decoration: InputDecoration(
                   hintText: '예: 18 (모르면 비워 두세요)',

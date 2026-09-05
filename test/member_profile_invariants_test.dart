@@ -335,4 +335,99 @@ void main() {
       expect(mypage.contains('account?.handicap ?? member.handicap'), isTrue);
     });
   });
+
+  group('마이페이지 편집 시트', () {
+    final mypage = _read('lib/screens/ad/ad_screen.dart');
+    final sheet = mypage.substring(
+      mypage.indexOf('void _showProfileEditDialog('),
+      mypage.indexOf('static Future<void> _pickPhotoWeb('),
+    );
+
+    test('취소 버튼이 있다', () {
+      // 저장만 있으면 잘못 들어왔을 때 나갈 길이 스와이프뿐이다.
+      expect(sheet.contains("child: const Text('취소'"), isTrue);
+      expect(sheet.contains('Navigator.pop(sheetCtx)'), isTrue);
+      // 저장 버튼도 그대로 있어야 한다.
+      expect(sheet.contains("child: const Text('저장'"), isTrue);
+    });
+
+    test('앱에서도 사진을 실제로 고를 수 있다', () {
+      // 예전엔 kIsWeb 아니면 "지원됩니다" 안내만 띄우고 아무 일도 안 했다.
+      expect(sheet.contains('ImagePicker().pickImage('), isTrue);
+      expect(sheet.contains('ImageSource.gallery'), isTrue);
+      expect(sheet.contains('base64Encode(bytes)'), isTrue);
+      expect(
+        sheet.contains('앱 빌드에서는 갤러리 연동이 지원됩니다'),
+        isFalse,
+        reason: '동작하지 않는데 된다고 안내하면 안 된다',
+      );
+      // 웹 경로도 남아 있어야 한다.
+      expect(sheet.contains('_pickPhotoWeb('), isTrue);
+    });
+
+    test('저장 버튼이 홈 인디케이터에 가리지 않는다', () {
+      // viewInsets(키보드) 만 더하면 제스처 바에 버튼이 깔린다.
+      expect(sheet.contains('MediaQuery.viewPaddingOf(sheetCtx).bottom'), isTrue);
+      expect(sheet.contains('MediaQuery.viewInsetsOf(sheetCtx).bottom'), isTrue);
+      expect(sheet.contains('+ safeBottom'), isTrue);
+    });
+  });
+
+  group('핸디캡은 정수만 쓴다', () {
+    test('입력 화면들이 소수점을 막는다', () {
+      const paths = {
+        'lib/screens/ad/ad_screen.dart': '마이페이지 편집',
+        'lib/screens/auth/golf_profile_screen.dart': '가입 단계',
+        'lib/screens/members/member_form_screen.dart': '회원 등록·수정',
+      };
+      for (final e in paths.entries) {
+        final src = _read(e.key);
+        final at = src.indexOf('_handicapCtrl');
+        final ctrl = at >= 0 ? '_handicapCtrl' : 'handicapCtrl';
+        final field = src.substring(
+          src.indexOf('controller: $ctrl'),
+          src.indexOf('controller: $ctrl') + 600,
+        );
+        expect(
+          field.contains('FilteringTextInputFormatter.digitsOnly'),
+          isTrue,
+          reason: '${e.value}: 소수점이 들어가면 핸디 표기가 갈린다',
+        );
+        expect(
+          field.contains('decimal: true'),
+          isFalse,
+          reason: '${e.value}: 소수점 키패드를 띄우면 안 된다',
+        );
+      }
+    });
+
+    test('표시도 소수점 없이 반올림한다', () {
+      final user = _read('lib/models/user_model.dart');
+      expect(user.contains("handicap!.round().toString()"), isTrue);
+      expect(
+        user.contains('handicap!.toStringAsFixed(1)'),
+        isFalse,
+        reason: '예전 소수점 값이 저장돼 있어도 정수로 보여야 한다',
+      );
+
+      final mypage = _read('lib/screens/ad/ad_screen.dart');
+      expect(mypage.contains('handicap.toStringAsFixed(1)'), isFalse);
+    });
+
+    test('저장 시 0~54 정수로 검증한다', () {
+      final signup = _read('lib/screens/auth/golf_profile_screen.dart');
+      expect(signup.contains('int.tryParse(raw)'), isTrue);
+      expect(signup.contains('n < 0 || n > 54'), isTrue);
+
+      final mypage = _read('lib/screens/ad/ad_screen.dart');
+      expect(mypage.contains('int.tryParse(handicapCtrl.text.trim())'), isTrue);
+      expect(mypage.contains('rawHandicap > 54'), isTrue);
+    });
+
+    test('신페리오 계산 핸디는 소수점을 유지한다', () {
+      // (1.5 배 계산 결과라 정수가 아니다 — 여기까지 정수로 바꾸면 안 된다)
+      final shinperio = _read('lib/screens/records/shinperio_screen.dart');
+      expect(shinperio.contains('p.handicap.toStringAsFixed(1)'), isTrue);
+    });
+  });
 }

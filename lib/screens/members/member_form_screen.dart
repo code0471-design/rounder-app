@@ -370,8 +370,10 @@ class _MemberFormScreenState extends State<MemberFormScreen> {
             label: '핸디캡', icon: Icons.sports_golf),
         style: const TextStyle(fontSize: 14),
         keyboardType: TextInputType.number,
+        // 소수점 핸디는 안 쓴다 — 마이페이지·가입 화면과 같은 규칙.
         inputFormatters: [
-          FilteringTextInputFormatter.allow(RegExp(r'^\d{0,2}(\.\d{0,1})?$')),
+          FilteringTextInputFormatter.digitsOnly,
+          LengthLimitingTextInputFormatter(2),
         ],
         validator: (v) {
           if (v != null && v.isNotEmpty) {
