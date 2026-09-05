@@ -12,7 +12,12 @@
           "package_name": "com.golfrounder.golf"
         }
       },
-      "oauth_client": [],
+      "oauth_client": [
+        {
+          "client_id": "399890870575-lsb5q67o4pag06e70ul6c8ugjpo25ti2.apps.googleusercontent.com",
+          "client_type": 3
+        }
+      ],
       "api_key": [
         {
           "current_key": "AIzaSyDydqGGrRgZKbUkNTpSXRXa7MqE0zAfT_Q"
@@ -20,7 +25,19 @@
       ],
       "services": {
         "appinvite_service": {
-          "other_platform_oauth_client": []
+          "other_platform_oauth_client": [
+            {
+              "client_id": "399890870575-lsb5q67o4pag06e70ul6c8ugjpo25ti2.apps.googleusercontent.com",
+              "client_type": 3
+            },
+            {
+              "client_id": "399890870575-a6otilvplbdlsh1ulhlnsmkqlp0983ke.apps.googleusercontent.com",
+              "client_type": 2,
+              "ios_info": {
+                "bundle_id": "com.golfrounder.golfRounder"
+              }
+            }
+          ]
         }
       }
     }

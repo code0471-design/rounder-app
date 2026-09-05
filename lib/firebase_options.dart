@@ -136,8 +136,6 @@ abstract final class _ProdOptions {
     storageBucket: 'rounder-f6019.firebasestorage.app',
   );
 
-  // iosClientId 는 운영 Firebase Console에서 Google 로그인 공급자를 켜야 생긴다.
-  // 켜고 나면 GoogleService-Info.plist 를 다시 받아 CLIENT_ID 를 여기에도 채울 것.
   static const ios = FirebaseOptions(
     apiKey: 'AIzaSyDouApkSglNVeIXJkGRE-J4p-Y-1F5dSQE',
     appId: '1:399890870575:ios:90c233302ff4f1e4e6f1da',
@@ -145,5 +143,7 @@ abstract final class _ProdOptions {
     projectId: 'rounder-f6019',
     storageBucket: 'rounder-f6019.firebasestorage.app',
     iosBundleId: 'com.golfrounder.golfRounder',
+    iosClientId:
+        '399890870575-a6otilvplbdlsh1ulhlnsmkqlp0983ke.apps.googleusercontent.com',
   );
 }

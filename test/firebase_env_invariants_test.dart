@@ -72,6 +72,21 @@ void main() {
       });
     }
 
+    test('운영 env.json 에 Google 로그인 클라이언트 ID 가 있다', () {
+      final manifest = readJson('firebase_config/prod/env.json');
+      expect(
+        (manifest['googleIosClientId'] as String? ?? '').trim(),
+        isNotEmpty,
+        reason: '비어 있으면 select_firebase_env.js 가 운영 빌드를 막는다',
+      );
+      expect(
+        (manifest['googleServerClientId'] as String? ?? '').trim(),
+        isNotEmpty,
+      );
+      expect(manifest['googleIosClientId'], contains('399890870575-'));
+      expect(manifest['googleServerClientId'], contains('399890870575-'));
+    });
+
     test('운영 설정에 스테이징 프로젝트 번호가 섞여 있지 않다', () {
       for (final f in [
         'firebase_config/prod/env.json',
