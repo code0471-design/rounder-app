@@ -30,12 +30,14 @@ class _GalleryScreenState extends State<GalleryScreen>
   /// 사진·일정 id가 같을 때 Consumer 재빌드로 깜빡이지 않게 하는 시그니처
   static String _gallerySignature(ClubProvider p) {
     final photos = p.clubPhotos;
-    final schedules = p.schedules;
+    // 취소된 일정이 빠져야 시그니처가 바뀌어 갤러리가 다시 그려진다.
+    final schedules = p.activeSchedules;
     final photoPart = photos
         .map((x) => '${x.id}:${x.imageUrl.length}:${x.caption ?? ''}')
         .join(',');
-    final schedPart =
-        schedules.map((s) => '${s.id}:${s.displayTitle}').join(',');
+    final schedPart = schedules
+        .map((s) => '${s.id}:${s.displayTitle}:${s.status.name}')
+        .join(',');
     return '${photos.length}|$photoPart|$schedPart';
   }
 
@@ -117,7 +119,9 @@ class _GalleryScreenState extends State<GalleryScreen>
       builder: (context, _, __) {
         final provider = context.read<ClubProvider>();
         final allPhotos = provider.clubPhotos;
-        final albums = _buildAlbums(provider.schedules, allPhotos);
+        // 취소된 일정은 일정 탭에서 사라지므로 갤러리 앨범에서도 빠져야 한다.
+        // (일정 탭 개수와 '라운딩별 앨범' 개수가 어긋나던 원인)
+        final albums = _buildAlbums(provider.activeSchedules, allPhotos);
 
         return Scaffold(
           backgroundColor: AppColors.background,

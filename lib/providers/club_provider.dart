@@ -461,8 +461,9 @@ class ClubProvider extends ChangeNotifier with WidgetsBindingObserver {
     final photoPart = _photos
         .map((p) => '${p.id}:${p.imageUrl.length}:${p.caption ?? ''}')
         .join(',');
+    // status 포함 — 다른 기기에서 일정을 취소하면 갤러리 앨범이 빠져야 한다.
     final schedPart = _schedules
-        .map((s) => '${s.id}:${s.responses.length}:${s.title}')
+        .map((s) => '${s.id}:${s.responses.length}:${s.title}:${s.status.name}')
         .join(',');
     final duesPart = _duesPayments.map((p) => p.id).join(',');
     final waitPart = _waitingList.map((w) => '${w.scheduleId}:${w.memberId}').join(',');
@@ -2791,6 +2792,21 @@ class ClubProvider extends ChangeNotifier with WidgetsBindingObserver {
     list.sort((a, b) => b.roundDate.compareTo(a.roundDate));
     return list;
   }
+
+  /// 취소된 일정을 뺀 목록.
+  ///
+  /// 일정 탭은 `upcomingSchedules` + `pastSchedules` 만 보여 주고 둘 다
+  /// 취소를 제외하므로, 이 값의 개수가 사용자가 화면에서 세는 일정 수와 같다.
+  /// 갤러리처럼 '모임의 일정 전체'를 훑는 화면은 `schedules` 가 아니라
+  /// 이 getter 를 써야 개수가 어긋나지 않는다.
+  List<RoundSchedule> get activeSchedules =>
+      schedules.where((s) => s.status != ScheduleStatus.cancelled).toList();
+
+  /// 취소된 일정 id — 사진·조편성 등 파생 데이터를 걸러낼 때 쓴다.
+  Set<String> get cancelledScheduleIds => schedules
+      .where((s) => s.status == ScheduleStatus.cancelled)
+      .map((s) => s.id)
+      .toSet();
 
   /// 예정 일정만 (가까운 날짜 순)
   /// 취소된 일정은 제외하고, 라운딩 당일 자정이 지나면 자동으로 지난 일정으로 넘어간다
@@ -5552,12 +5568,17 @@ class ClubProvider extends ChangeNotifier with WidgetsBindingObserver {
   }
 
   /// 현재 모임 전체 사진 (갤러리용, 최신순)
+  ///
+  /// 취소된 일정의 사진은 제외한다. 취소하면 일정 탭에서 사라지는데
+  /// 갤러리에만 앨범이 남아 개수가 안 맞던 문제를 막는다.
   List<RoundPhoto> get clubPhotos {
     final clubId = selectedClub.id;
-    final scheduleIds = schedules.map((s) => s.id).toSet();
+    final scheduleIds = activeSchedules.map((s) => s.id).toSet();
+    final cancelledIds = cancelledScheduleIds;
     final list = _photos
         .where((p) =>
             !ClubOpsSync.isPhotoDeleted(p.id) &&
+            !cancelledIds.contains(p.scheduleId) &&
             (p.clubId == clubId || scheduleIds.contains(p.scheduleId)))
         .toList();
     list.sort((a, b) => b.takenAt.compareTo(a.takenAt));
