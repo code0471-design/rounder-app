@@ -522,7 +522,16 @@ class ClubProvider extends ChangeNotifier with WidgetsBindingObserver {
     final waitPart = _waitingList.map((w) => '${w.scheduleId}:${w.memberId}').join(',');
     final memberPart =
         _members.map((m) => '${m.id}:${m.name}:${m.status}').join(',');
-    return '$photoPart|$schedPart|$duesPart|$waitPart|${_announcements.length}|$memberPart';
+    // 댓글 수 포함 — 다른 기기가 댓글을 달면 공지 개수는 그대로라 놓쳤다.
+    final announcePart =
+        _announcements.map((a) => '${a.id}:${a.comments.length}').join(',');
+    // 포인트 포함 — 이게 없으면 원격 동기화로 포인트만 바뀔 때
+    // 랭킹 화면이 갱신되지 않아 "포인트가 안 오른다"로 보인다.
+    final pointPart = _pointEvents.entries
+        .map((e) => '${e.key}:${e.value.length}')
+        .join(',');
+    return '$photoPart|$schedPart|$duesPart|$waitPart|'
+        '$announcePart|$memberPart|$pointPart';
   }
 
   static String _leftClubsPrefsKey(String authUserId) =>
@@ -2557,6 +2566,16 @@ class ClubProvider extends ChangeNotifier with WidgetsBindingObserver {
       ));
     }
 
+    // 정시납부 포인트 +5. 화면(회원 목록 '포인트 적립 기준')이 예전부터
+    // +5 를 안내했는데 적립 코드가 없었다. 마감일 지난 납부는 0점.
+    _awardDuesOnTimePoint(
+      memberId: memberId,
+      duesSettingId: duesSettingId,
+      paidAt: paidAt,
+      year: year,
+      month: month,
+    );
+
     // 회비 설정에 clubId가 없으면 현재 모임으로 붙여 동기화·표시가 유지되게 한다
     final setIdx = _duesSettings.indexWhere((d) => d.id == duesSettingId);
     if (setIdx >= 0) {
@@ -2599,6 +2618,13 @@ class ClubProvider extends ChangeNotifier with WidgetsBindingObserver {
       if (month != null && p.paidAt.month != month) return false;
       return true;
     });
+    // 납부를 되돌렸으니 정시납부 포인트도 회수한다.
+    _revokeDuesOnTimePoint(
+      memberId: memberId,
+      duesSettingId: duesSettingId,
+      year: year,
+      month: month,
+    );
     _persistImmediately();
     notifyListeners();
   }
@@ -4183,8 +4209,10 @@ class ClubProvider extends ChangeNotifier with WidgetsBindingObserver {
     _persistImmediately();
   }
 
-  /// 공지사항 댓글 작성 (+2 포인트, 중복 방지)
-  /// Returns true if comment was added (first time for this announcement)
+  /// 공지사항 댓글 작성 — 댓글 1건당 +2 포인트.
+  ///
+  /// 반환값은 포인트 적립 여부. 지금은 항상 true 지만,
+  /// 호출부(스낵바)가 이 값으로 "+2 획득" 문구를 결정하므로 유지한다.
   bool addAnnouncementComment({
     required String announcementId,
     required String text,
@@ -4216,17 +4244,14 @@ class ClubProvider extends ChangeNotifier with WidgetsBindingObserver {
       authorName: a.authorName,
     );
 
-    // 첫 댓글인 경우에만 포인트 +2 (동일 공지에 중복 부여 방지)
-    final alreadyCommented = a.comments.any((c) =>
-        c.authorId == pointMemberId || c.authorId == currentUserId);
-    if (!alreadyCommented) {
-      addMembershipPoint(
-        memberId: pointMemberId,
-        type: MembershipPointType.commentActivity,
-        points: 2,
-        desc: '공지 참여 (+2): ${a.title}',
-      );
-    }
+    // 댓글마다 +2. 예전엔 공지 1건당 첫 댓글만 줬는데, 두 번째 댓글부터
+    // 조용히 0점이 되어 "댓글 썼는데 포인트가 안 오른다"로 보였다.
+    addMembershipPoint(
+      memberId: pointMemberId,
+      type: MembershipPointType.commentActivity,
+      points: 2,
+      desc: '공지 참여 (+2): ${a.title}',
+    );
 
     // 댓글 알림: 관리자용 피드 (자신에게는 쌓이지 않도록 isRead:true로 처리)
     // 실제 앱에서는 FCM으로 다른 멤버에게 발송하지만, 여기선 조용히 기록만
@@ -4245,7 +4270,7 @@ class ClubProvider extends ChangeNotifier with WidgetsBindingObserver {
 
     notifyListeners();
     _persistImmediately();
-    return !alreadyCommented; // 포인트 획득 여부 반환
+    return true; // 포인트 획득 여부 반환
   }
 
   bool isOwnAnnouncementComment(AnnouncementComment c) =>
@@ -6760,32 +6785,38 @@ class ClubProvider extends ChangeNotifier with WidgetsBindingObserver {
   //  · 후원사 인사 +2, 노쇼 -10
   // ════════════════════════════════════════════════════════
 
+  /// 데모 시드 데이터용 연도 = 올해.
+  static int get _seedYear => DateTime.now().year;
+
   // 포인트 이벤트 기록 (memberId → 이벤트 목록)
+  //
+  // 데모 모임(c1~c5) 시드. 랭킹은 '올해' 기준으로 합산하므로 연도를 고정하면
+  // 해가 바뀌는 순간 데모 랭킹이 전부 0점이 된다 → _seedYear 로 올해에 맞춘다.
   final Map<String, List<MembershipPointEvent>> _pointEvents = {
     'm1': [
-      MembershipPointEvent(type: MembershipPointType.roundAttendance, points: 10, desc: '5월 월례회 참석', date: DateTime(2025, 5, 20)),
-      MembershipPointEvent(type: MembershipPointType.roundAttendance, points: 10, desc: '4월 월례회 참석', date: DateTime(2025, 4, 15)),
-      MembershipPointEvent(type: MembershipPointType.duesOnTime, points: 5, desc: '5월 회비 정시납부', date: DateTime(2025, 5, 1)),
-      MembershipPointEvent(type: MembershipPointType.commentActivity, points: 2, desc: '공지 참여', date: DateTime(2025, 5, 10)),
-      MembershipPointEvent(type: MembershipPointType.sponsorGreeting, points: 2, desc: '후원사 감사인사', date: DateTime(2025, 5, 15)),
+      MembershipPointEvent(type: MembershipPointType.roundAttendance, points: 10, desc: '5월 월례회 참석', date: DateTime(_seedYear, 5, 20)),
+      MembershipPointEvent(type: MembershipPointType.roundAttendance, points: 10, desc: '4월 월례회 참석', date: DateTime(_seedYear, 4, 15)),
+      MembershipPointEvent(type: MembershipPointType.duesOnTime, points: 5, desc: '5월 회비 정시납부', date: DateTime(_seedYear, 5, 1)),
+      MembershipPointEvent(type: MembershipPointType.commentActivity, points: 2, desc: '공지 참여', date: DateTime(_seedYear, 5, 10)),
+      MembershipPointEvent(type: MembershipPointType.sponsorGreeting, points: 2, desc: '후원사 감사인사', date: DateTime(_seedYear, 5, 15)),
     ],
     'm2': [
-      MembershipPointEvent(type: MembershipPointType.roundAttendance, points: 10, desc: '5월 월례회 참석', date: DateTime(2025, 5, 20)),
-      MembershipPointEvent(type: MembershipPointType.duesOnTime, points: 5, desc: '5월 회비 정시납부', date: DateTime(2025, 5, 1)),
-      MembershipPointEvent(type: MembershipPointType.noShow, points: -10, desc: '4월 노쇼', date: DateTime(2025, 4, 15)),
+      MembershipPointEvent(type: MembershipPointType.roundAttendance, points: 10, desc: '5월 월례회 참석', date: DateTime(_seedYear, 5, 20)),
+      MembershipPointEvent(type: MembershipPointType.duesOnTime, points: 5, desc: '5월 회비 정시납부', date: DateTime(_seedYear, 5, 1)),
+      MembershipPointEvent(type: MembershipPointType.noShow, points: -10, desc: '4월 노쇼', date: DateTime(_seedYear, 4, 15)),
     ],
     'm3': [
-      MembershipPointEvent(type: MembershipPointType.roundAttendance, points: 10, desc: '5월 월례회 참석', date: DateTime(2025, 5, 20)),
-      MembershipPointEvent(type: MembershipPointType.duesOnTime, points: 5, desc: '5월 회비 정시납부', date: DateTime(2025, 5, 1)),
-      MembershipPointEvent(type: MembershipPointType.commentActivity, points: 2, desc: '댓글 활동', date: DateTime(2025, 5, 8)),
-      MembershipPointEvent(type: MembershipPointType.sponsorGreeting, points: 2, desc: '후원사 감사인사', date: DateTime(2025, 5, 12)),
+      MembershipPointEvent(type: MembershipPointType.roundAttendance, points: 10, desc: '5월 월례회 참석', date: DateTime(_seedYear, 5, 20)),
+      MembershipPointEvent(type: MembershipPointType.duesOnTime, points: 5, desc: '5월 회비 정시납부', date: DateTime(_seedYear, 5, 1)),
+      MembershipPointEvent(type: MembershipPointType.commentActivity, points: 2, desc: '댓글 활동', date: DateTime(_seedYear, 5, 8)),
+      MembershipPointEvent(type: MembershipPointType.sponsorGreeting, points: 2, desc: '후원사 감사인사', date: DateTime(_seedYear, 5, 12)),
     ],
     'm4': [
-      MembershipPointEvent(type: MembershipPointType.roundAttendance, points: 10, desc: '5월 월례회 참석', date: DateTime(2025, 5, 20)),
-      MembershipPointEvent(type: MembershipPointType.duesOnTime, points: 5, desc: '5월 회비 정시납부', date: DateTime(2025, 5, 1)),
+      MembershipPointEvent(type: MembershipPointType.roundAttendance, points: 10, desc: '5월 월례회 참석', date: DateTime(_seedYear, 5, 20)),
+      MembershipPointEvent(type: MembershipPointType.duesOnTime, points: 5, desc: '5월 회비 정시납부', date: DateTime(_seedYear, 5, 1)),
     ],
     'm5': [
-      MembershipPointEvent(type: MembershipPointType.roundAttendance, points: 10, desc: '5월 월례회 참석', date: DateTime(2025, 5, 20)),
+      MembershipPointEvent(type: MembershipPointType.roundAttendance, points: 10, desc: '5월 월례회 참석', date: DateTime(_seedYear, 5, 20)),
     ],
   };
 
@@ -6837,6 +6868,91 @@ class ClubProvider extends ChangeNotifier with WidgetsBindingObserver {
   Member? memberById(String memberId) {
     return activeMembers.where((m) => m.id == memberId).firstOrNull ??
         _members.where((m) => m.id == memberId).firstOrNull;
+  }
+
+  /// 회비 정시납부 +5. 마감일(월회비=매월 기준일, 연/특별회비=납부 기준일)
+  /// 안에 들어온 납부만 적립한다. 마감일 설정이 없으면 판정 불가라 적립도 없다.
+  ///
+  /// 같은 회비·같은 기간에 두 번 적립되지 않게 desc 태그로 막는다.
+  void _awardDuesOnTimePoint({
+    required String memberId,
+    required String duesSettingId,
+    required DateTime paidAt,
+    int? year,
+    int? month,
+  }) {
+    final setting =
+        _duesSettings.where((d) => d.id == duesSettingId).firstOrNull;
+    if (setting == null) return;
+
+    final onTime = setting.isPaidOnTime(paidAt, year: year, month: month);
+    if (onTime != true) return; // 연체 또는 마감일 미설정 → 0점
+
+    final tag = duesPointTag(
+      duesSettingId: duesSettingId,
+      year: year,
+      month: month,
+    );
+    // 같은 회비·기간에 이미 살아 있는 적립이 있으면 건너뛴다.
+    if (_duesPointNet(memberId, tag) > 0) return;
+
+    final periodPart = month != null ? '${month}월 ' : '';
+    addMembershipPoint(
+      memberId: memberId,
+      type: MembershipPointType.duesOnTime,
+      points: 5,
+      desc: '$periodPart${setting.type.label} 정시납부$tag',
+    );
+  }
+
+  /// 회비 포인트 중복·취소 판별용 태그. 납부 취소 시에도 같은 규칙으로 찾는다.
+  static String duesPointTag({
+    required String duesSettingId,
+    int? year,
+    int? month,
+  }) =>
+      '|dues:$duesSettingId:${year ?? '-'}-${month ?? '-'}';
+
+  /// 같은 회비·기간 태그의 순 포인트. 적립(+5)과 회수(-5)를 합산한다.
+  ///
+  /// 별칭 키(auth id / m_creator / 회원 id)를 모두 본다 —
+  /// `addMembershipPoint` 가 키를 정규화하기 때문이다.
+  int _duesPointNet(String memberId, String tag) {
+    var net = 0;
+    for (final key in _membershipPointKeysFor(memberId)) {
+      for (final e in _pointEvents[key] ?? const <MembershipPointEvent>[]) {
+        if (e.desc.contains(tag)) net += e.points;
+      }
+    }
+    return net;
+  }
+
+  /// 납부를 취소하면 정시납부 포인트도 회수한다.
+  /// (이게 없으면 납부 → 취소를 반복해 포인트를 무한히 쌓을 수 있다)
+  ///
+  /// 이벤트를 지우지 않고 -5 를 덧붙인다. 포인트는 append-only 원장이라
+  /// 삭제하면 다른 기기의 원격 이력이 그대로 되살려 버린다.
+  void _revokeDuesOnTimePoint({
+    required String memberId,
+    required String duesSettingId,
+    int? year,
+    int? month,
+  }) {
+    final tag = duesPointTag(
+      duesSettingId: duesSettingId,
+      year: year,
+      month: month,
+    );
+    final net = _duesPointNet(memberId, tag);
+    if (net <= 0) return; // 적립된 게 없으면 회수할 것도 없다
+
+    final periodPart = month != null ? '${month}월 ' : '';
+    addMembershipPoint(
+      memberId: memberId,
+      type: MembershipPointType.penalty,
+      points: -net,
+      desc: '$periodPart회비 납부 취소$tag',
+    );
   }
 
   void _syncAttendancePoints({

@@ -653,6 +653,33 @@ class DuesSetting {
     }
   }
 
+  /// 납부 마감일. 월회비는 [year]·[month] 가 있어야 계산된다.
+  ///
+  /// 마감일이 설정돼 있지 않으면 null — 이때는 '정시납부'를 판정할 수 없다.
+  DateTime? dueDateFor({int? year, int? month}) {
+    switch (type) {
+      case DuesType.monthly:
+        final day = dueDayOfMonth;
+        if (day == null || year == null || month == null) return null;
+        // 2월 30일처럼 없는 날짜는 그 달 마지막 날로 맞춘다.
+        final lastDay = DateTime(year, month + 1, 0).day;
+        return DateTime(year, month, day > lastDay ? lastDay : day);
+      case DuesType.annual:
+      case DuesType.special:
+        return dueDate;
+    }
+  }
+
+  /// [paidAt] 이 마감일 안에 들어왔는지. 마감일이 없으면 판정 불가라 null.
+  ///
+  /// 마감일 당일 납부는 정시로 본다.
+  bool? isPaidOnTime(DateTime paidAt, {int? year, int? month}) {
+    final due = dueDateFor(year: year, month: month);
+    if (due == null) return null;
+    final paidDay = DateTime(paidAt.year, paidAt.month, paidAt.day);
+    return !paidDay.isAfter(due);
+  }
+
   /// 해당 월이 납부 기간(월 범위)에 포함되는지 (월회비 전용, 연도 미고려)
   bool isMonthInPeriod(int month) {
     if (type != DuesType.monthly) return true;

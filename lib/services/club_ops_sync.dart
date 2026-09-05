@@ -86,6 +86,12 @@ class ClubOpsSync {
         if (localTx.isEmpty && remoteTx.isNotEmpty) {
           slice['transactions'] = remoteTx;
         }
+        // 포인트는 merge:false 로 덮으면 원격에만 있는 회원(다른 기기에서
+        // 방금 적립한 사람)의 이력이 사라진다. 이벤트 단위로 합친다.
+        slice['pointEvents'] = mergePointEvents(
+          local: slice['pointEvents'],
+          remote: remote['pointEvents'],
+        );
       }
 
       final previousYears = ClubOpsOverflow.overflowIndex(
@@ -468,8 +474,14 @@ class ClubOpsSync {
     final pointEvents = <String, dynamic>{};
     final pe = full['pointEvents'];
     if (pe is Map) {
+      // 생성자 키는 명단 id 와 다를 수 있다. 빠뜨리면 모임장 포인트가
+      // 이 모임 문서에 아예 올라가지 않아 다른 기기에서 0점으로 보인다.
+      final creatorKey = 'm_creator_$clubId';
       pe.forEach((k, v) {
-        if (memberIds.contains(k)) pointEvents[k as String] = v;
+        final key = k as String;
+        if (memberIds.contains(key) || key == creatorKey) {
+          pointEvents[key] = v;
+        }
       });
     }
 
@@ -664,19 +676,56 @@ class ClubOpsSync {
     }
     encoded['alimtalkSettings'] = ats;
 
-    final pe = Map<String, dynamic>.from(
-      (encoded['pointEvents'] as Map?)?.map(
-            (k, v) => MapEntry(k.toString(), v),
-          ) ??
-          {},
+    encoded['pointEvents'] = mergePointEvents(
+      local: encoded['pointEvents'],
+      remote: remote['pointEvents'],
     );
-    final remotePe = remote['pointEvents'];
-    if (remotePe is Map) {
-      remotePe.forEach((k, v) => pe[k.toString()] = v);
-    }
-    encoded['pointEvents'] = pe;
 
     return ClubDataCodec.decode(encoded);
+  }
+
+  /// 포인트 이벤트는 **이벤트 단위 합집합**으로 병합한다.
+  ///
+  /// 예전엔 회원 키 단위로 `pe[k] = remote[k]` 를 해서, 원격이 오래됐거나
+  /// 다른 기기가 먼저 올렸으면 로컬에서 방금 적립한 포인트가 통째로 날아갔다.
+  /// (댓글·참석 포인트가 사라지는 경로)
+  ///
+  /// 포인트는 append-only 원장이라 삭제가 없다. 그래서 tombstone 없이
+  /// 합집합만으로 안전하다 — 회수는 음수 이벤트를 덧붙이는 방식이다.
+  @visibleForTesting
+  static Map<String, dynamic> mergePointEvents({
+    required dynamic local,
+    required dynamic remote,
+  }) {
+    final out = <String, dynamic>{};
+    final keys = <String>{
+      if (local is Map) ...local.keys.map((k) => k.toString()),
+      if (remote is Map) ...remote.keys.map((k) => k.toString()),
+    };
+
+    for (final key in keys) {
+      final merged = <String, Map<String, dynamic>>{};
+      for (final side in [local, remote]) {
+        if (side is! Map) continue;
+        final list = side[key];
+        if (list is! List) continue;
+        for (final e in list) {
+          if (e is! Map) continue;
+          final m = Map<String, dynamic>.from(e);
+          // 이벤트에 id 가 없으므로 자연키로 중복을 판단한다.
+          // 같은 종류·점수·설명·시각이면 같은 이벤트다.
+          final natural =
+              '${m['type']}|${m['points']}|${m['desc']}|${m['date']}';
+          merged[natural] = m;
+        }
+      }
+      if (merged.isEmpty) continue;
+      final events = merged.values.toList()
+        ..sort((a, b) =>
+            (a['date'] as String? ?? '').compareTo(b['date'] as String? ?? ''));
+      out[key] = events;
+    }
+    return out;
   }
 
   static List<Map<String, dynamic>> _asDynamicMaps(dynamic raw) {

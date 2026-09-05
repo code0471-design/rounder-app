@@ -494,8 +494,10 @@ class _MembersScreenState extends State<MembersScreen>
                           color: AppColors.textSecondary)),
                   SizedBox(height: 6),
                   _PointGuideRow(label: '라운딩 참석', pts: '+10 P'),
-                  _PointGuideRow(label: '회비 납부', pts: '+5 P'),
-                  _PointGuideRow(label: '공지 참여', pts: '+2 P'),
+                  // 마감일 안에 낸 회비만 적립된다 — 연체는 0P.
+                  _PointGuideRow(label: '회비 정시납부', pts: '+5 P'),
+                  // 댓글 1건당 적립.
+                  _PointGuideRow(label: '공지 댓글', pts: '+2 P'),
                   // _PointGuideRow(label: '후원사 감사인사', pts: '+2 P'),
                   _PointGuideRow(label: '노쇼', pts: '-10 P', negative: true),
                 ],
