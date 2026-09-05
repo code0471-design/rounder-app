@@ -81,9 +81,11 @@ workflows:
       flutter: stable
       vars:
         APP_ENV: staging
-        # 운영 앱과 한 폰에 나란히 깔려면 ".staging" 을 넣고 빌드.
-        # 비워 두면 지금까지와 같은 앱(com.golfrounder.golf)으로 나온다.
-        ROUNDER_APP_ID_SUFFIX: ""
+        # 나란히 설치용 접미사는 여기에 두지 않는다.
+        # Codemagic 은 vars 값이 빈 문자열이면 yaml 자체를 invalid 로 만든다.
+        # 기본(접미사 없음)은 build.gradle.kts 가 알아서 처리하고,
+        # 나란히 깔 때만 Codemagic UI > Environment variables 에
+        # ROUNDER_APP_ID_SUFFIX = .staging 을 추가해 빌드한다.
       groups:
         - solapi
       android_signing:

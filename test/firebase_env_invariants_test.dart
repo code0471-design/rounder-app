@@ -3,6 +3,7 @@ import 'dart:io';
 
 import 'package:flutter_test/flutter_test.dart';
 import 'package:golf_rounder/core/config/app_environment.dart';
+import 'package:yaml/yaml.dart';
 
 /// 운영 전환 사고 방지용 불변식.
 ///
@@ -243,6 +244,62 @@ void main() {
         RegExp(r'--build-number[= ]"?\d').hasMatch(yaml),
         isFalse,
         reason: '빌드 번호 하드코딩은 Play 버전 충돌을 만든다',
+      );
+    });
+  });
+
+  group('codemagic.yaml 자체가 유효해야 한다', () {
+    // Codemagic 은 yaml 이 invalid 하면 워크플로 목록을 아예 못 불러온다.
+    // 빌드를 못 돌리고 UI 에 "codemagic.yaml is invalid" 만 뜬다.
+    final yaml = read('codemagic.yaml');
+
+    test('YAML 파싱이 된다', () {
+      final doc = loadYaml(yaml);
+      expect(doc, isA<Map>());
+      final workflows = (doc as Map)['workflows'] as Map;
+      expect(workflows.keys, contains('ios-first'));
+      expect(workflows.keys, contains('android-release-apk'));
+      expect(workflows.keys, contains('android-release'));
+    });
+
+    test('환경 변수에 빈 문자열 값이 없다', () {
+      // Codemagic 검증: "ensure this value has at least 1 characters".
+      // ROUNDER_APP_ID_SUFFIX: "" 로 yaml 전체가 invalid 가 된 적이 있다.
+      final doc = loadYaml(yaml) as Map;
+      final workflows = doc['workflows'] as Map;
+      final offenders = <String>[];
+      for (final entry in workflows.entries) {
+        final env = (entry.value as Map)['environment'] as Map?;
+        final vars = env?['vars'] as Map?;
+        if (vars == null) continue;
+        for (final v in vars.entries) {
+          if (v.value == null || v.value.toString().isEmpty) {
+            offenders.add('${entry.key} -> ${v.key}');
+          }
+        }
+      }
+      expect(
+        offenders,
+        isEmpty,
+        reason: '빈 값 변수는 codemagic.yaml 을 invalid 로 만든다: '
+            '${offenders.join(', ')}\n'
+            '  기본값이 빈 문자열이어야 하면 vars 에서 빼고 gradle 이 처리하게 한다',
+      );
+    });
+
+    test('나란히 설치 접미사는 gradle 기본값으로 처리한다', () {
+      expect(
+        yaml.contains('ROUNDER_APP_ID_SUFFIX:'),
+        isFalse,
+        reason: 'vars 에 다시 넣으면 빈 값이든 아니든 사고가 난다. '
+            '나란히 깔 때만 Codemagic UI 에서 환경변수로 넣는다',
+      );
+      final gradle = read('android/app/build.gradle.kts');
+      expect(gradle.contains('System.getenv("ROUNDER_APP_ID_SUFFIX")'), isTrue);
+      expect(
+        gradle.contains('?: ""'),
+        isTrue,
+        reason: '미설정 시 빈 문자열로 떨어져야 기존 앱이 그대로 나온다',
       );
     });
   });
