@@ -1792,13 +1792,54 @@ class ScheduleDetailScreen extends StatelessWidget {
   }
 
   void _confirmCancel(BuildContext context, ClubProvider provider) {
+    // 취소하면 이 일정의 사진도 함께 지운다. 되돌릴 수 없으니 장수를 먼저 알린다.
+    final photoCount = provider.schedulePhotoCount(schedule.id);
     showDialog(
       context: context,
       builder: (dialogCtx) => AlertDialog(
         shape:
             RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
         title: const Text('일정 취소'),
-        content: Text('${schedule.title} 일정을 취소하시겠습니까?'),
+        content: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text('${schedule.title} 일정을 취소하시겠습니까?'),
+            if (photoCount > 0) ...[
+              const SizedBox(height: 12),
+              Container(
+                padding: const EdgeInsets.all(12),
+                decoration: BoxDecoration(
+                  color: AppColors.danger.withValues(alpha: 0.06),
+                  borderRadius: BorderRadius.circular(10),
+                  border: Border.all(
+                    color: AppColors.danger.withValues(alpha: 0.25),
+                  ),
+                ),
+                child: Row(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    const Icon(Icons.warning_amber_rounded,
+                        size: 18, color: AppColors.danger),
+                    const SizedBox(width: 8),
+                    Expanded(
+                      child: Text(
+                        '이 일정의 사진 $photoCount장도 함께 삭제됩니다.\n'
+                        '삭제한 사진은 되돌릴 수 없습니다.',
+                        style: const TextStyle(
+                          fontSize: 13,
+                          height: 1.5,
+                          fontWeight: FontWeight.w600,
+                          color: AppColors.danger,
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ],
+          ],
+        ),
         actions: [
           TextButton(
             onPressed: () => Navigator.of(dialogCtx).pop(),
@@ -1807,9 +1848,18 @@ class ScheduleDetailScreen extends StatelessWidget {
           ElevatedButton(
             onPressed: () {
               final parentNav = Navigator.of(context);
+              final messenger = ScaffoldMessenger.of(context);
               Navigator.of(dialogCtx).pop();
-              provider.cancelSchedule(schedule.id);
+              final purged = provider.cancelSchedule(schedule.id);
               if (parentNav.canPop()) parentNav.pop();
+              messenger.showSnackBar(
+                SnackBar(
+                  content: Text(purged > 0
+                      ? '일정을 취소하고 사진 $purged장을 삭제했습니다'
+                      : '일정을 취소했습니다'),
+                  behavior: SnackBarBehavior.floating,
+                ),
+              );
             },
             style: ElevatedButton.styleFrom(
                 backgroundColor: AppColors.danger,

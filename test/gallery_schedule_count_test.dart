@@ -129,12 +129,67 @@ void main() {
     });
   });
 
-  group('동기화는 사진을 지우지 않는다', () {
+  group('일정 취소는 사진까지 정리한다', () {
+    final provider = _read('lib/providers/club_provider.dart');
+
+    test('취소 시 해당 일정 사진을 지운다', () {
+      final idx = provider.indexOf('int cancelSchedule(');
+      expect(idx, greaterThan(0));
+      final body = provider.substring(idx, idx + 900);
+      expect(body.contains('_purgeSchedulePhotos(scheduleId)'), isTrue);
+    });
+
+    test('사진 정리는 persist 보다 먼저 — 한 번의 push 로 같이 반영', () {
+      final idx = provider.indexOf('int cancelSchedule(');
+      final body = provider.substring(idx, idx + 900);
+      final purgeAt = body.indexOf('_purgeSchedulePhotos');
+      final persistAt = body.indexOf('_persistImmediately');
+      expect(purgeAt, greaterThan(0));
+      expect(persistAt, greaterThan(purgeAt),
+          reason: 'persist 후에 지우면 삭제분이 이번 push 에 안 실린다');
+    });
+
+    test('원격 문서까지 지우고 tombstone 을 남긴다', () {
+      // tombstone 이 없으면 watch/pull merge 가 사진을 되살린다.
+      final idx = provider.indexOf('int _purgeSchedulePhotos(');
+      expect(idx, greaterThan(0));
+      final body = provider.substring(idx, idx + 1000);
+      expect(body.contains('ClubOpsSync.markPhotoDeleted(p.id)'), isTrue);
+      expect(body.contains('ClubOpsSync.deletePhotoDoc('), isTrue);
+      expect(body.contains('_photos.removeWhere'), isTrue);
+    });
+
+    test('취소 확인 얼럿이 삭제될 사진 장수를 먼저 알린다', () {
+      // 되돌릴 수 없는 삭제라 사전 경고가 없으면 안 된다.
+      final schedule = _read('lib/screens/schedule/schedule_screen.dart');
+      expect(schedule.contains('provider.schedulePhotoCount(schedule.id)'),
+          isTrue);
+      expect(schedule.contains('함께 삭제됩니다'), isTrue);
+      expect(schedule.contains('되돌릴 수 없습니다'), isTrue);
+    });
+
+    test('취소 확정은 여전히 dialogCtx 먼저 pop', () {
+      final schedule = _read('lib/screens/schedule/schedule_screen.dart');
+      final start = schedule.indexOf('void _confirmCancel');
+      final end = schedule.indexOf('String _fmtDate(DateTime d)', start);
+      final fn = schedule.substring(start, end);
+      expect(fn.contains('builder: (dialogCtx)'), isTrue);
+      expect(fn.contains('Navigator.of(dialogCtx).pop()'), isTrue);
+    });
+
+    test('한글이 깨지지 않았다 (Node 패치 후 확인)', () {
+      final schedule = _read('lib/screens/schedule/schedule_screen.dart');
+      expect(schedule.contains('�'), isFalse);
+      expect(schedule.contains('일정을 취소하시겠습니까?'), isTrue);
+    });
+  });
+
+  group('동기화가 남은 사진을 지우지 않는다', () {
     final provider = _read('lib/providers/club_provider.dart');
 
     test('_exportBundle 은 필터된 getter 가 아니라 _photos 를 push 한다', () {
-      // clubPhotos(취소 제외)를 push 하면 _pushPhotos 가 원격 문서를 지워
-      // 다른 테스터의 사진까지 사라진다. 숨김은 화면에서만.
+      // clubPhotos 는 화면용 필터(취소 제외)다. 이걸 push 에 쓰면
+      // _pushPhotos 가 아직 살아 있어야 할 원격 문서까지 지운다.
       final idx = provider.indexOf('ClubDataBundle _exportBundle()');
       expect(idx, greaterThan(0));
       final body = provider.substring(idx, idx + 1400);
@@ -142,16 +197,8 @@ void main() {
       expect(
         body.contains('clubPhotos'),
         isFalse,
-        reason: '여기에 clubPhotos 를 쓰면 취소 일정 사진이 원격에서 삭제된다',
+        reason: '여기에 clubPhotos 를 쓰면 의도 밖 사진까지 원격에서 삭제된다',
       );
-    });
-
-    test('일정 취소는 사진을 삭제하지 않는다', () {
-      final idx = provider.indexOf('void cancelSchedule(');
-      expect(idx, greaterThan(0));
-      final body = provider.substring(idx, idx + 1200);
-      expect(body.contains('deletePhoto'), isFalse);
-      expect(body.contains('markPhotoDeleted'), isFalse);
     });
   });
 }

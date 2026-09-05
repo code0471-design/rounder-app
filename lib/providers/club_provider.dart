@@ -3297,14 +3297,52 @@ class ClubProvider extends ChangeNotifier with WidgetsBindingObserver {
   static bool _isSameScheduleDay(DateTime a, DateTime b) =>
       a.year == b.year && a.month == b.month && a.day == b.day;
 
-  /// 일정 취소
-  void cancelSchedule(String scheduleId) {
+  /// 일정에 딸린 사진 장수 — 취소 확인 화면에서 미리 알려 주기 위한 값
+  int schedulePhotoCount(String scheduleId) {
+    if (scheduleId.isEmpty) return 0;
+    return _photos
+        .where((p) =>
+            p.scheduleId == scheduleId && !ClubOpsSync.isPhotoDeleted(p.id))
+        .length;
+  }
+
+  /// 일정에 딸린 사진을 모두 삭제. 지운 장수 반환.
+  ///
+  /// 되돌릴 수 없다. 원격 문서까지 지우고 tombstone 을 남겨서
+  /// watch/pull merge 가 다시 살려 놓지 않게 한다.
+  /// 사진별 권한(`canDeletePhoto`)은 확인하지 않는다 — 일정 취소 자체가
+  /// 임원 권한이고, 남의 사진만 남으면 정리가 반쪽이 된다.
+  int _purgeSchedulePhotos(String scheduleId) {
+    if (scheduleId.isEmpty) return 0;
+    final targets =
+        _photos.where((p) => p.scheduleId == scheduleId).toList();
+    if (targets.isEmpty) return 0;
+    for (final p in targets) {
+      ClubOpsSync.markPhotoDeleted(p.id);
+      final clubId = p.clubId;
+      if (clubId.isNotEmpty) {
+        unawaited(ClubOpsSync.deletePhotoDoc(clubId, p.id));
+      }
+    }
+    final ids = targets.map((p) => p.id).toSet();
+    _photos.removeWhere((p) => ids.contains(p.id));
+    debugPrint(
+      '[ClubProvider] purged ${targets.length} photos of schedule $scheduleId',
+    );
+    return targets.length;
+  }
+
+  /// 일정 취소. 딸린 사진도 함께 정리하고, 지운 사진 장수를 반환한다.
+  int cancelSchedule(String scheduleId) {
+    var purged = 0;
     final idx = _schedules.indexWhere((s) => s.id == scheduleId);
     if (idx != -1) {
       final schedule = _schedules[idx];
       notifyScheduleCancelled(schedule);
       unawaited(PushNotificationService.clearD1ForSchedule(scheduleId));
       _schedules[idx] = schedule.copyWith(status: ScheduleStatus.cancelled);
+      // 사진 정리는 persist 전에 — 한 번의 push 로 일정·사진이 같이 반영된다.
+      purged = _purgeSchedulePhotos(scheduleId);
       _syncNextRound(schedule.clubId);
       notifyListeners();
       _persistImmediately();
@@ -3334,6 +3372,7 @@ class ClubProvider extends ChangeNotifier with WidgetsBindingObserver {
         },
       );
     }
+    return purged;
   }
 
   /// 일정 취소(삭제) — 참석 회원 + 취소자(총무)에게 앱 푸시 알림 발송
