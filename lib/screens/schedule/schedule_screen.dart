@@ -13,6 +13,7 @@ import '../../widgets/ad_banner.dart';
 import '../../widgets/golf_course_field.dart';
 import '../../utils/reservation_sms_parser.dart';
 import '../../widgets/reservation_sms_fill_banner.dart';
+import 'past_schedule_import_screen.dart';
 
 // ════════════════════════════════════════════════════════════
 //  보험 관련 상수
@@ -62,6 +63,11 @@ class _ScheduleScreenState extends State<ScheduleScreen>
           backgroundColor: AppColors.cream,
           body: Column(
             children: [
+              if (isAdmin)
+                PastScheduleImportBanner(
+                  clubId: provider.selectedClub.id,
+                  onStart: () => openPastScheduleImport(context),
+                ),
               // ── 탭바 (디자인: border-bottom 1px) ──
               Container(
                 decoration: BoxDecoration(
@@ -101,7 +107,10 @@ class _ScheduleScreenState extends State<ScheduleScreen>
                     _ScheduleList(
                         schedules: provider.pastSchedules,
                         isPast: true,
-                        clubId: provider.selectedClub.id),
+                        clubId: provider.selectedClub.id,
+                        onImportPast: isAdmin
+                            ? () => openPastScheduleImport(context)
+                            : null),
                   ],
                 ),
               ),
@@ -149,7 +158,13 @@ class _ScheduleList extends StatefulWidget {
   final List<RoundSchedule> schedules;
   final bool isPast;
   final String? clubId;
-  const _ScheduleList({required this.schedules, required this.isPast, this.clubId});
+  final VoidCallback? onImportPast;
+  const _ScheduleList({
+    required this.schedules,
+    required this.isPast,
+    this.clubId,
+    this.onImportPast,
+  });
 
   @override
   State<_ScheduleList> createState() => _ScheduleListState();
@@ -188,6 +203,18 @@ class _ScheduleListState extends State<_ScheduleList> {
               style: const TextStyle(
                   color: AppColors.textSecondary, fontSize: 15),
             ),
+            if (isPast && widget.onImportPast != null) ...[
+              const SizedBox(height: 16),
+              TextButton(
+                onPressed: widget.onImportPast,
+                child: const Text(
+                  '올해 지난 일정 일괄 등록',
+                  style: TextStyle(
+                      fontWeight: FontWeight.w700,
+                      color: Color(0xFF191F28)),
+                ),
+              ),
+            ],
           ],
         ),
       );

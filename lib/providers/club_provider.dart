@@ -20,6 +20,7 @@ import '../services/hq_push_catalog.dart';
 import '../services/push_notification_service.dart';
 import '../services/shared_join_request_store.dart';
 import '../services/solapi_service.dart';
+import '../utils/past_schedule_import.dart';
 
 // ════════════════════════════════════════════════════════════
 //  ClubProvider
@@ -3110,6 +3111,101 @@ class ClubProvider extends ChangeNotifier with WidgetsBindingObserver {
       members: attendanceAlimtalkRecipients(),
       variablesFor: (m) => _alimtalkScheduleVars(schedule, m),
     );
+  }
+
+  /// 올해 이미 지난 라운딩을 일괄 등록. 알림톡·푸시 없음.
+  /// 참석자는 랭킹 포인트, 시상자는 올해 시상 집계에 반영한다.
+  bool importPastSchedule({
+    required String title,
+    DateTime? roundDate,
+    String teeTime = '',
+    String courseName = '',
+    String? courseAddress,
+    List<String> attendeeIds = const [],
+    List<PastAwardDraft> awards = const [],
+    int? monthHint,
+  }) {
+    if (!canCreateSchedule) {
+      debugPrint('[ClubProvider] importPastSchedule blocked — not executive');
+      return false;
+    }
+    final trimmed = title.trim();
+    if (trimmed.isEmpty) return false;
+
+    final date = PastScheduleImport.resolveRoundDate(
+      title: trimmed,
+      roundDate: roundDate,
+      monthHint: monthHint,
+    );
+    final id = 's_imp_${DateTime.now().millisecondsSinceEpoch}';
+    final responses = <AttendanceResponse>[];
+    for (final mid in attendeeIds) {
+      final member = memberById(mid);
+      if (member == null) continue;
+      responses.add(AttendanceResponse(
+        memberId: member.id,
+        memberName: member.name,
+        response: '참석',
+        respondedAt: date,
+      ));
+    }
+
+    final schedule = RoundSchedule(
+      id: id,
+      clubId: selectedClub.id,
+      title: trimmed,
+      roundDate: date,
+      teeTime: teeTime.trim(),
+      courseName: courseName.trim(),
+      courseAddress: (courseAddress ?? '').trim().isEmpty
+          ? null
+          : courseAddress!.trim(),
+      teamCount: selectedClub.teamCount.clamp(1, 30),
+      status: ScheduleStatus.done,
+      createdBy: currentMember?.name ?? '임원',
+      responses: responses,
+      companionIds: [
+        for (final r in responses) r.memberId,
+      ],
+    );
+    _schedules.add(schedule);
+    _syncNextRound(schedule.clubId);
+
+    for (final r in responses) {
+      _syncAttendancePoints(
+        memberId: r.memberId,
+        scheduleId: id,
+        scheduleTitle: schedule.displayTitle,
+        prev: null,
+        response: '참석',
+      );
+    }
+
+    final awardRecords = <AwardRecord>[];
+    for (final draft in awards) {
+      if (draft.winnerIds.isEmpty) continue;
+      final names = [
+        for (final wid in draft.winnerIds)
+          memberById(wid)?.name ?? wid,
+      ];
+      awardRecords.add(AwardRecord(
+        id: 'ar_${id}_${draft.awardName}',
+        scheduleId: id,
+        scheduleName: schedule.displayTitle,
+        awardName: draft.awardName,
+        awardIcon: draft.awardIcon,
+        winnerIds: List<String>.from(draft.winnerIds),
+        winnerNames: names,
+        recordedAt: date,
+      ));
+    }
+    if (awardRecords.isNotEmpty) {
+      _awardRecords.addAll(awardRecords);
+    }
+
+    notifyListeners();
+    _persistImmediately();
+    return true;
   }
 
   /// 일정 등록 푸시·알림톡 대상 — 정회원 전원 (등록자 본인 포함)
