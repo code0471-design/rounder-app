@@ -272,7 +272,7 @@ class _ScheduleCard extends StatelessWidget {
               child: Row(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  _ScheduleDateTile(date: d, isPast: isPast),
+                  _ScheduleDateTile(date: d, isPast: false),
                   const SizedBox(width: 12),
                   Expanded(
                     child: Column(
@@ -287,7 +287,7 @@ class _ScheduleCard extends StatelessWidget {
                                 style: TextStyle(
                                   fontSize: 16,
                                   fontWeight: FontWeight.w800,
-                                  color: isPast ? AppColors.inkSoft : AppColors.ink,
+                                  color: AppColors.ink,
                                   height: 1.25,
                                 ),
                               ),
@@ -295,7 +295,7 @@ class _ScheduleCard extends StatelessWidget {
                             const SizedBox(width: 8),
                             _ScheduleDdayBadge(
                               label: isPast ? '완료' : schedule.dDayText,
-                              isPast: isPast,
+                              isPast: false,
                             ),
                           ],
                         ),
@@ -321,6 +321,17 @@ class _ScheduleCard extends StatelessWidget {
                               style: const TextStyle(
                                   fontSize: 12, color: Color(0xFF9CA3AF)),
                             ),
+                          ),
+                        ]),
+                        const SizedBox(height: 4),
+                        Row(children: [
+                          const Icon(Icons.groups_outlined,
+                              size: 13, color: Color(0xFF9CA3AF)),
+                          const SizedBox(width: 3),
+                          Text(
+                            '팀수 ${schedule.teamCount}',
+                            style: const TextStyle(
+                                fontSize: 12, color: Color(0xFF9CA3AF)),
                           ),
                         ]),
                       ],
@@ -990,7 +1001,7 @@ class ScheduleDetailScreen extends StatelessWidget {
           backgroundColor: AppColors.background,
           // ── 슬림 AppBar 웜차콜 카드형 (장소·시간 강조 — 상단 보완) ──
           appBar: PreferredSize(
-            preferredSize: const Size.fromHeight(128),
+            preferredSize: const Size.fromHeight(160),
             child: ColoredBox(
               color: AppColors.background,
               child: Padding(
@@ -1095,6 +1106,36 @@ class ScheduleDetailScreen extends StatelessWidget {
                                   Expanded(
                                     child: Text(
                                       '${_fmtDate(schedule.roundDate)}  ${schedule.teeTime.isEmpty ? '--:--' : schedule.teeTime} 티오프',
+                                      style: const TextStyle(
+                                        color: Colors.white,
+                                        fontSize: 14,
+                                        fontWeight: FontWeight.w700,
+                                        height: 1.1,
+                                      ),
+                                      maxLines: 1,
+                                      overflow: TextOverflow.ellipsis,
+                                    ),
+                                  ),
+                                ],
+                              ),
+                              const SizedBox(height: 6),
+                              Row(
+                                children: [
+                                  Container(
+                                    width: 24,
+                                    height: 24,
+                                    decoration: BoxDecoration(
+                                      color: AppColors.accent
+                                          .withValues(alpha: 0.20),
+                                      borderRadius: BorderRadius.circular(7),
+                                    ),
+                                    child: const Icon(Icons.groups_rounded,
+                                        color: AppColors.accent, size: 14),
+                                  ),
+                                  const SizedBox(width: 6),
+                                  Expanded(
+                                    child: Text(
+                                      '팀수 ${schedule.teamCount}',
                                       style: const TextStyle(
                                         color: Colors.white,
                                         fontSize: 14,

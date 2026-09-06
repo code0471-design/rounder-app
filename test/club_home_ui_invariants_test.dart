@@ -60,6 +60,7 @@ void main() {
     expect(circle.contains('height: 82'), isTrue);
     expect(room.contains('fontSize: days == 0 ? 16 : 13'), isTrue);
     expect(room.contains('fontSize: 27'), isTrue);
+    expect(room.contains("'팀수 \${nextSchedule.teamCount}'"), isTrue);
   });
 
   test('일정 없는 홈 카드는 크게, 부제와 등록 버튼까지 보여 준다', () {

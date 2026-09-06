@@ -38,9 +38,11 @@ void main() {
     expect(source.contains('0xFF6D28D9'), isFalse);
   });
 
-  test('기준 UI: 웜차콜 헤더 카드 + 장소·시간 강조 (SliverAppBar/RoundHero 금지)', () {
-    expect(source.contains('Size.fromHeight(128)'), isTrue,
-        reason: '장소·시간 강조 카드형 AppBar(128)가 사라짐');
+  test('기준 UI: 웜차콜 헤더 카드 + 장소·시간·팀수 강조 (SliverAppBar/RoundHero 금지)', () {
+    expect(source.contains('Size.fromHeight(160)'), isTrue,
+        reason: '장소·시간·팀수 강조 카드형 AppBar(160)가 사라짐');
+    expect(source.contains('Size.fromHeight(128)'), isFalse,
+        reason: '팀수 행을 넣기 전 128 헤더로 회귀');
     expect(source.contains('Icons.place_rounded'), isTrue);
     expect(source.contains('Icons.schedule_rounded'), isTrue);
     expect(source.contains('BorderRadius.circular(16)'), isTrue,
@@ -73,11 +75,11 @@ void main() {
     // 상세 화면·상세에서 여는 카드/시트가 있는 구간만 본다.
     // (일정 목록·등록 폼은 아직 그린을 쓴다 — 별도 작업)
     const ranges = [
-      [974, 1900], // ScheduleDetailScreen 본문 + 응답 다이얼로그
-      [2189, 2500], // 응답 마감 · 대기 명단
-      [2491, 2760], // 참석 현황
-      [4762, 5160], // 조편성 카드
-      [5159, 5370], // 스코어 & 시상
+      [985, 1941], // ScheduleDetailScreen 본문 + 응답 다이얼로그
+      [2230, 2541], // 응답 마감 · 대기 명단
+      [2532, 2801], // 참석 현황
+      [4803, 5205], // 조편성 카드
+      [5206, 5410], // 스코어 & 시상
     ];
 
     final offenders = <String>[];
@@ -274,5 +276,14 @@ void main() {
     expect(source.contains("responded ? currentResponse! : '미답변'"), isTrue);
     expect(source.contains("responded ? currentResponse! : '참석'"), isFalse);
     expect(source.contains("responded ? currentResponse! : '응답하기'"), isFalse);
+    expect(source.contains('_ScheduleDateTile(date: d, isPast: false)'), isTrue,
+        reason: '지난 일정도 예정과 같은 네이비 날짜 타일');
+    expect(
+      source.contains("color: isPast ? AppColors.inkSoft : AppColors.ink,"),
+      isFalse,
+      reason: '지난 일정 제목이 회색으로 돌아가면 안 됨',
+    );
+    expect(source.contains("'팀수 \${schedule.teamCount}'"), isTrue,
+        reason: '일정 카드·상세 헤더에 팀수가 없음');
   });
 }

@@ -1102,6 +1102,14 @@ class ClubHomeTab extends StatelessWidget {
                       maxLines: 1,
                       overflow: TextOverflow.ellipsis,
                     ),
+                    const SizedBox(height: 4),
+                    Text(
+                      '팀수 ${nextSchedule.teamCount}',
+                      style: const TextStyle(
+                          color: Color(0xFFD4DCF0),
+                          fontSize: 13,
+                          fontWeight: FontWeight.w500),
+                    ),
                   ],
                 ),
               ),
