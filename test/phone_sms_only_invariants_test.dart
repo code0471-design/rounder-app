@@ -99,4 +99,13 @@ void main() {
       'KA01TP260819170319298NrCEHKRX6u3',
     );
   });
+
+  test('솔라피 HMAC date 는 초 단위 UTC 이어야 한다', () {
+    expect(solapi.contains("split('.').first"), isFalse);
+    expect(solapi.contains('static String hmacDate'), isTrue);
+    expect(
+      SolapiService.hmacDate(DateTime.utc(2026, 9, 6, 12, 5, 7, 123)),
+      '2026-09-06T12:05:07Z',
+    );
+  });
 }

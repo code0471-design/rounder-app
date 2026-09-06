@@ -36,8 +36,11 @@ class SolapiService {
 
   static const _baseUrl = 'https://api.solapi.com';
 
-  static const _apiKey = String.fromEnvironment('SOLAPI_API_KEY');
-  static const _apiSecret = String.fromEnvironment('SOLAPI_API_SECRET');
+  static const _apiKeyRaw = String.fromEnvironment('SOLAPI_API_KEY');
+  static const _apiSecretRaw = String.fromEnvironment('SOLAPI_API_SECRET');
+
+  String get _apiKey => _apiKeyRaw.trim();
+  String get _apiSecret => _apiSecretRaw.trim();
 
   /// OTP 알림톡 실패 시 SMS 발신번호 (솔라피 사전등록). 기본: 01045110471
   static const senderPhone = String.fromEnvironment(
@@ -126,9 +129,20 @@ class SolapiService {
         .join();
   }
 
+  /// 솔라피 HMAC date. JS `toISOString()` 의 초 단위 UTC.
+  /// `toIso8601String().split('.')` 은 마이크로초·Z 위치가 어긋나면
+  /// `생성한 signature를 확인하세요` 로 떨어진다.
+  @visibleForTesting
+  static String hmacDate(DateTime utc) {
+    final n = utc.toUtc();
+    String two(int v) => v.toString().padLeft(2, '0');
+    return '${n.year.toString().padLeft(4, '0')}-'
+        '${two(n.month)}-${two(n.day)}T'
+        '${two(n.hour)}:${two(n.minute)}:${two(n.second)}Z';
+  }
+
   Map<String, String> _authHeaders() {
-    final iso = DateTime.now().toUtc().toIso8601String();
-    final date = '${iso.split('.').first}Z';
+    final date = hmacDate(DateTime.now().toUtc());
     final salt = _randomSalt();
     final signature = Hmac(sha256, utf8.encode(_apiSecret))
         .convert(utf8.encode('$date$salt'))
@@ -237,13 +251,23 @@ class SolapiService {
         );
       }
       debugPrint('[Solapi] send failed: ${res.statusCode} ${res.body}');
-      return SolapiResult.error(
-        body is Map
-            ? (body['errorMessage']?.toString() ?? '발송 실패 (${res.statusCode})')
-            : '발송 실패 (${res.statusCode})',
-      );
+      return SolapiResult.error(_solapiErrorMessage(body, res.statusCode));
     } catch (e) {
       return SolapiResult.error('발송 오류: $e');
     }
+  }
+
+  static String _solapiErrorMessage(dynamic body, int statusCode) {
+    if (body is! Map) return '발송 실패 ($statusCode)';
+    final code = body['errorCode']?.toString() ?? '';
+    final raw = body['errorMessage']?.toString() ?? '';
+    if (code == 'InvalidDateInfo' ||
+        code == 'InvalidSignature' ||
+        raw.contains('signature')) {
+      return '알림톡 서버 인증에 실패했습니다. 잠시 후 다시 시도해 주세요.';
+    }
+    if (raw.isNotEmpty) return raw;
+    if (code.isNotEmpty) return '$code ($statusCode)';
+    return '발송 실패 ($statusCode)';
   }
 }

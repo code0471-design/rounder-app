@@ -4947,12 +4947,14 @@ class _GroupViewBannerCard extends StatelessWidget {
                         const SizedBox(height: 2),
                         Text(
                           isFinalized
-                              ? '${schedule.teamCount}개 조 확정 완료 — 탭해서 확인'
+                              ? '${schedule.teamCount}개 조 확정완료\n탭해서 확인하세요'
                               : isAdmin
                                   ? '탭해서 조편성 시작하기'
                                   : '총무가 확정하면 여기서 확인할 수 있어요',
+                          maxLines: 2,
                           style: TextStyle(
                             fontSize: 12,
+                            height: 1.35,
                             color: isFinalized
                                 ? Colors.white.withValues(alpha: 0.9)
                                 : AppColors.textTertiary,
@@ -4961,74 +4963,76 @@ class _GroupViewBannerCard extends StatelessWidget {
                       ],
                     ),
                   ),
-                  // 상태 뱃지
-                  Container(
-                    padding: const EdgeInsets.symmetric(
-                        horizontal: 10, vertical: 5),
-                    decoration: BoxDecoration(
-                      color: isFinalized
-                          ? AppColors.accent.withValues(alpha: 0.28)
-                          : AppColors.sand,
-                      borderRadius: BorderRadius.circular(20),
-                    ),
-                    child: Text(
-                      isFinalized ? '확정 ✓' : '미확정',
-                      style: TextStyle(
-                        fontSize: 11,
-                        fontWeight: FontWeight.w700,
-                        color: isFinalized
-                            ? AppColors.accent
-                            : AppColors.inkSoft,
-                      ),
-                    ),
-                  ),
-                  const SizedBox(width: 4),
-                  // 총무: 편집 버튼 표시
-                  if (isAdmin) ...
-                    [
+                  Column(
+                    mainAxisSize: MainAxisSize.min,
+                    crossAxisAlignment: CrossAxisAlignment.end,
+                    children: [
                       Container(
                         padding: const EdgeInsets.symmetric(
-                            horizontal: 8, vertical: 4),
+                            horizontal: 10, vertical: 5),
                         decoration: BoxDecoration(
                           color: isFinalized
                               ? AppColors.accent.withValues(alpha: 0.28)
                               : AppColors.sand,
-                          borderRadius: BorderRadius.circular(8),
+                          borderRadius: BorderRadius.circular(20),
                         ),
-                        child: Row(
-                          mainAxisSize: MainAxisSize.min,
-                          children: [
-                            Icon(
-                              Icons.edit_rounded,
-                              size: 13,
-                              color: isFinalized
-                                  ? AppColors.accent
-                                  : AppColors.goldDeep,
-                            ),
-                            const SizedBox(width: 3),
-                            Text(
-                              '편집',
-                              style: TextStyle(
-                                fontSize: 11,
-                                fontWeight: FontWeight.w700,
+                        child: Text(
+                          isFinalized ? '확정 ✓' : '미확정',
+                          style: TextStyle(
+                            fontSize: 11,
+                            fontWeight: FontWeight.w700,
+                            color: isFinalized
+                                ? AppColors.accent
+                                : AppColors.inkSoft,
+                          ),
+                        ),
+                      ),
+                      if (isAdmin) ...[
+                        const SizedBox(height: 6),
+                        Container(
+                          padding: const EdgeInsets.symmetric(
+                              horizontal: 8, vertical: 4),
+                          decoration: BoxDecoration(
+                            color: isFinalized
+                                ? AppColors.accent.withValues(alpha: 0.28)
+                                : AppColors.sand,
+                            borderRadius: BorderRadius.circular(8),
+                          ),
+                          child: Row(
+                            mainAxisSize: MainAxisSize.min,
+                            children: [
+                              Icon(
+                                Icons.edit_rounded,
+                                size: 13,
                                 color: isFinalized
                                     ? AppColors.accent
                                     : AppColors.goldDeep,
                               ),
-                            ),
-                          ],
+                              const SizedBox(width: 3),
+                              Text(
+                                '편집',
+                                style: TextStyle(
+                                  fontSize: 11,
+                                  fontWeight: FontWeight.w700,
+                                  color: isFinalized
+                                      ? AppColors.accent
+                                      : AppColors.goldDeep,
+                                ),
+                              ),
+                            ],
+                          ),
                         ),
-                      ),
-                    ]
-                  else ...
-                    [
-                      Icon(
-                        Icons.chevron_right_rounded,
-                        color: isFinalized
-                            ? Colors.white.withValues(alpha: 0.7)
-                            : AppColors.textTertiary,
-                      ),
+                      ] else ...[
+                        const SizedBox(height: 4),
+                        Icon(
+                          Icons.chevron_right_rounded,
+                          color: isFinalized
+                              ? Colors.white.withValues(alpha: 0.7)
+                              : AppColors.textTertiary,
+                        ),
+                      ],
                     ],
+                  ),
                 ],
               ),
             ),

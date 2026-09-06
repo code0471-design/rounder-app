@@ -143,6 +143,20 @@ void main() {
     );
   });
 
+  test('조편성 보기 헤더는 확정·편집을 세로로 두고 안내를 두 줄로 쓴다', () {
+    expect(source.contains(r'개 조 확정완료\n탭해서 확인하세요'), isTrue);
+    expect(source.contains('확정 완료 — 탭해서 확인'), isFalse);
+    final start = source.indexOf('class _GroupViewBannerCard');
+    final end = source.indexOf('class _GroupRow');
+    expect(start, greaterThan(0));
+    expect(end, greaterThan(start));
+    final card = source.substring(start, end);
+    expect(card.contains('crossAxisAlignment: CrossAxisAlignment.end'), isTrue);
+    expect(card.contains('if (isAdmin) ...['), isTrue);
+    expect(card.contains('const SizedBox(width: 4)'), isFalse,
+        reason: '확정·편집이 다시 가로로 붙으면 안 됨');
+  });
+
   test('리치 상세 하단 구성요소 유지 (건드리지 말 것)', () {
     expect(source.contains('class _ReviewMemoCard'), isTrue);
     expect(source.contains('class _RsvpWaitingCard'), isTrue);
