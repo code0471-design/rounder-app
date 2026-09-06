@@ -30,8 +30,8 @@ class ClubListController extends ChangeNotifier {
   List<Club> _clubs = [];
   String? _errorMessage;
 
-  String _region = '전체';
-  String _industry = '전체';
+  String _region = kRegionFilterAll;
+  String _industry = kIndustryFilterAll;
   String _keyword = '';
   bool _usingLocalFallback = false;
 

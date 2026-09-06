@@ -94,9 +94,9 @@ class _CreateClubScreenState extends State<CreateClubScreen> {
       );
       return;
     }
-    if (description.length < 10) {
+    if (description.isEmpty) {
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('모임 소개는 10자 이상 입력해주세요')),
+        const SnackBar(content: Text('모임 소개를 입력해주세요')),
       );
       return;
     }
@@ -284,7 +284,6 @@ class _CreateClubScreenState extends State<CreateClubScreen> {
               validator: (v) {
                 final t = v?.trim() ?? '';
                 if (t.isEmpty) return '모임 소개를 입력해주세요';
-                if (t.length < 10) return '10자 이상 입력해주세요';
                 return null;
               },
             ),
@@ -337,11 +336,7 @@ class _CreateClubScreenState extends State<CreateClubScreen> {
   // ════════════════════════════════════════════════════════
   //  시/도 → 구/시 2단계 선택 데이터
   // ════════════════════════════════════════════════════════
-  static const _kSidoList = [
-    '지역다양함',
-    '서울', '부산', '대구', '인천', '광주', '대전', '울산', '세종',
-    '경기', '강원', '충북', '충남', '전북', '전남', '경북', '경남', '제주',
-  ];
+  static const _kSidoList = kSidoList;
 
   static const _kSigunguMap = <String, List<String>>{
     '서울': ['강남구','서초구','송파구','강동구','마포구','용산구','성동구','광진구',

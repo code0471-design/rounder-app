@@ -19,8 +19,8 @@ class ClubListScreen extends StatefulWidget {
 class _ClubListScreenState extends State<ClubListScreen> {
   final _searchCtrl = TextEditingController();
   String _keyword   = '';
-  String _region    = '전체';
-  String _industry  = '전체';
+  String _region    = kRegionFilterAll;
+  String _industry  = kIndustryFilterAll;
 
   @override
   void initState() {
@@ -150,23 +150,22 @@ class _ClubListScreenState extends State<ClubListScreen> {
       padding: const EdgeInsets.fromLTRB(14, 0, 14, 10),
       child: Row(
         children: [
-          // 지역 필터
           Expanded(
             child: _FilterDropdown(
-              icon: Icons.location_on_outlined,
+              label: '지역',
               value: _region,
-              items: kRegions,
-              onChanged: (v) => setState(() => _region = v ?? '전체'),
+              items: kClubFindRegions,
+              onChanged: (v) => setState(() => _region = v ?? kRegionFilterAll),
             ),
           ),
           const SizedBox(width: 10),
-          // 업종 필터
           Expanded(
             child: _FilterDropdown(
-              icon: Icons.business_outlined,
+              label: '업종',
               value: _industry,
-              items: ['전체', ...kIndustries],
-              onChanged: (v) => setState(() => _industry = v ?? '전체'),
+              items: [kIndustryFilterAll, ...kIndustries],
+              onChanged: (v) =>
+                  setState(() => _industry = v ?? kIndustryFilterAll),
             ),
           ),
         ],
@@ -238,7 +237,7 @@ class _ClubCard extends StatelessWidget {
     return GestureDetector(
       onTap: onTap,
       child: Container(
-        margin: const EdgeInsets.only(bottom: 10),
+        margin: const EdgeInsets.only(bottom: 12),
         decoration: BoxDecoration(
           color: Colors.white,
           borderRadius: BorderRadius.circular(14),
@@ -250,7 +249,7 @@ class _ClubCard extends StatelessWidget {
           ],
         ),
         child: Padding(
-          padding: const EdgeInsets.all(14),
+          padding: const EdgeInsets.fromLTRB(16, 16, 12, 16),
           child: Row(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
@@ -267,7 +266,7 @@ class _ClubCard extends StatelessWidget {
                         Expanded(
                           child: Text(club.name,
                               style: const TextStyle(
-                                  fontSize: 15,
+                                  fontSize: 17,
                                   fontWeight: FontWeight.bold,
                                   color: AppColors.textPrimary)),
                         ),
@@ -290,14 +289,14 @@ class _ClubCard extends StatelessWidget {
                       ],
                     ),
                     if (club.description.isNotEmpty) ...[
-                      const SizedBox(height: 6),
+                      const SizedBox(height: 8),
                       Text(
                         club.description,
                         style: const TextStyle(
-                            fontSize: 12,
-                            color: AppColors.textSecondary,
-                            height: 1.4),
-                        maxLines: 2,
+                            fontSize: 13,
+                            color: AppColors.textPrimary,
+                            height: 1.45),
+                        maxLines: 3,
                         overflow: TextOverflow.ellipsis,
                       ),
                     ],
@@ -394,55 +393,84 @@ class _Tag extends StatelessWidget {
 }
 
 class _FilterDropdown extends StatelessWidget {
-  final IconData icon;
+  final String label;
   final String value;
   final List<String> items;
   final ValueChanged<String?> onChanged;
-  const _FilterDropdown(
-      {required this.icon,
-      required this.value,
-      required this.items,
-      required this.onChanged});
+  const _FilterDropdown({
+    required this.label,
+    required this.value,
+    required this.items,
+    required this.onChanged,
+  });
+
+  String get _safeValue {
+    if (items.contains(value)) return value;
+    if (isAllRegionFilter(value) && items.contains(kRegionFilterAll)) {
+      return kRegionFilterAll;
+    }
+    if (isAllIndustryFilter(value) && items.contains(kIndustryFilterAll)) {
+      return kIndustryFilterAll;
+    }
+    return items.first;
+  }
 
   @override
   Widget build(BuildContext context) {
-    return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 10),
-      decoration: BoxDecoration(
-        color: AppColors.background,
-        borderRadius: BorderRadius.circular(10),
-        border: Border.all(color: AppColors.divider),
-      ),
-      child: DropdownButtonHideUnderline(
-        child: DropdownButton<String>(
-          value: value,
-          isExpanded: true,
-          icon: const Icon(Icons.keyboard_arrow_down,
-              size: 18, color: AppColors.textSecondary),
+    final selected = _safeValue;
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Text(
+          label,
           style: const TextStyle(
-              fontSize: 13,
-              color: AppColors.textPrimary,
-              fontWeight: FontWeight.w500),
-          items: items
-              .map((i) => DropdownMenuItem(
-                    value: i,
-                    child: Row(
-                      children: [
-                        Icon(icon,
-                            size: 14, color: AppColors.textSecondary),
-                        const SizedBox(width: 6),
-                        Expanded(
-                          child: Text(i,
-                              overflow: TextOverflow.ellipsis,
-                              style: const TextStyle(fontSize: 13)),
-                        ),
-                      ],
-                    ),
-                  ))
-              .toList(),
-          onChanged: onChanged,
+            fontSize: 11,
+            fontWeight: FontWeight.w700,
+            color: AppColors.textSecondary,
+          ),
         ),
-      ),
+        const SizedBox(height: 4),
+        Container(
+          padding: const EdgeInsets.symmetric(horizontal: 10),
+          decoration: BoxDecoration(
+            color: AppColors.background,
+            borderRadius: BorderRadius.circular(10),
+            border: Border.all(color: AppColors.divider),
+          ),
+          child: DropdownButtonHideUnderline(
+            child: DropdownButton<String>(
+              value: selected,
+              isExpanded: true,
+              icon: const Icon(Icons.keyboard_arrow_down,
+                  size: 18, color: AppColors.textSecondary),
+              selectedItemBuilder: (context) => items
+                  .map(
+                    (i) => Align(
+                      alignment: Alignment.centerLeft,
+                      child: Text(
+                        i,
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                        style: const TextStyle(
+                          fontSize: 13,
+                          fontWeight: FontWeight.w600,
+                          color: AppColors.textPrimary,
+                        ),
+                      ),
+                    ),
+                  )
+                  .toList(),
+              items: items
+                  .map((i) => DropdownMenuItem(
+                        value: i,
+                        child: Text(i, style: const TextStyle(fontSize: 13)),
+                      ))
+                  .toList(),
+              onChanged: onChanged,
+            ),
+          ),
+        ),
+      ],
     );
   }
 }

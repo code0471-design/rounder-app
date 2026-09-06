@@ -187,9 +187,9 @@ class _ClubListDashboardScreenState extends State<ClubListDashboardScreen> {
           region: controller.region,
           industry: controller.industry,
           onRegionChanged: (v) =>
-              controller.updateFilters(region: v ?? '전체'),
+              controller.updateFilters(region: v ?? kRegionFilterAll),
           onIndustryChanged: (v) =>
-              controller.updateFilters(industry: v ?? '전체'),
+              controller.updateFilters(industry: v ?? kIndustryFilterAll),
         ),
         Padding(
           padding: const EdgeInsets.fromLTRB(16, 8, 16, 4),
@@ -280,18 +280,18 @@ class _FilterRow extends StatelessWidget {
         children: [
           Expanded(
             child: _FilterDropdown(
-              icon: Icons.location_on_outlined,
+              label: '지역',
               value: region,
-              items: kRegions,
+              items: kClubFindRegions,
               onChanged: onRegionChanged,
             ),
           ),
           const SizedBox(width: 10),
           Expanded(
             child: _FilterDropdown(
-              icon: Icons.business_outlined,
+              label: '업종',
               value: industry,
-              items: ['전체', ...kIndustries],
+              items: [kIndustryFilterAll, ...kIndustries],
               onChanged: onIndustryChanged,
             ),
           ),
@@ -316,26 +316,28 @@ class _ClubListCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final intro = club.description.trim();
     return GestureDetector(
       onTap: onTap,
       child: Container(
-        margin: const EdgeInsets.only(bottom: 10),
-        padding: const EdgeInsets.all(14),
+        margin: const EdgeInsets.only(bottom: 12),
+        padding: const EdgeInsets.fromLTRB(16, 16, 12, 16),
         decoration: BoxDecoration(
           color: Colors.white,
-          borderRadius: BorderRadius.circular(14),
+          borderRadius: BorderRadius.circular(16),
           boxShadow: [
             BoxShadow(
-              color: Colors.black.withValues(alpha: 0.05),
-              blurRadius: 6,
+              color: Colors.black.withValues(alpha: 0.06),
+              blurRadius: 8,
               offset: const Offset(0, 2),
             ),
           ],
         ),
         child: Row(
+          crossAxisAlignment: CrossAxisAlignment.start,
           children: [
             _ClubAvatar(club: club),
-            const SizedBox(width: 12),
+            const SizedBox(width: 14),
             Expanded(
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
@@ -346,8 +348,9 @@ class _ClubListCard extends StatelessWidget {
                         child: Text(
                           club.name,
                           style: const TextStyle(
-                            fontSize: 15,
+                            fontSize: 17,
                             fontWeight: FontWeight.bold,
+                            height: 1.25,
                           ),
                         ),
                       ),
@@ -357,7 +360,7 @@ class _ClubListCard extends StatelessWidget {
                         _Badge(label: '신청중', color: AppColors.warning),
                     ],
                   ),
-                  const SizedBox(height: 4),
+                  const SizedBox(height: 6),
                   Text(
                     '${club.region} · ${club.industry} · ${club.memberCount}명',
                     style: const TextStyle(
@@ -365,10 +368,26 @@ class _ClubListCard extends StatelessWidget {
                       color: AppColors.textSecondary,
                     ),
                   ),
+                  const SizedBox(height: 8),
+                  Text(
+                    intro.isEmpty ? '모임 소개가 없습니다' : intro,
+                    style: TextStyle(
+                      fontSize: 13,
+                      height: 1.45,
+                      color: intro.isEmpty
+                          ? AppColors.textTertiary
+                          : AppColors.textPrimary,
+                    ),
+                    maxLines: 3,
+                    overflow: TextOverflow.ellipsis,
+                  ),
                 ],
               ),
             ),
-            const Icon(Icons.chevron_right, color: AppColors.textSecondary),
+            const Padding(
+              padding: EdgeInsets.only(top: 4),
+              child: Icon(Icons.chevron_right, color: AppColors.textSecondary),
+            ),
           ],
         ),
       ),
@@ -383,16 +402,16 @@ class _ClubAvatar extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Container(
-      width: 48,
-      height: 48,
+      width: 64,
+      height: 64,
       alignment: Alignment.center,
       decoration: BoxDecoration(
         color: AppColors.primary.withValues(alpha: 0.1),
-        borderRadius: BorderRadius.circular(12),
+        borderRadius: BorderRadius.circular(14),
       ),
       child: Text(
         clubIndustryEmoji(club.industry),
-        style: const TextStyle(fontSize: 22),
+        style: const TextStyle(fontSize: 28),
       ),
     );
   }
@@ -480,37 +499,80 @@ class _EmptyResult extends StatelessWidget {
 }
 
 class _FilterDropdown extends StatelessWidget {
-  final IconData icon;
+  final String label;
   final String value;
   final List<String> items;
   final ValueChanged<String?> onChanged;
 
   const _FilterDropdown({
-    required this.icon,
+    required this.label,
     required this.value,
     required this.items,
     required this.onChanged,
   });
 
+  String get _safeValue {
+    if (items.contains(value)) return value;
+    if (isAllRegionFilter(value) && items.contains(kRegionFilterAll)) {
+      return kRegionFilterAll;
+    }
+    if (isAllIndustryFilter(value) && items.contains(kIndustryFilterAll)) {
+      return kIndustryFilterAll;
+    }
+    return items.first;
+  }
+
   @override
   Widget build(BuildContext context) {
-    return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 10),
-      decoration: BoxDecoration(
-        color: AppColors.background,
-        borderRadius: BorderRadius.circular(10),
-        border: Border.all(color: AppColors.divider),
-      ),
-      child: DropdownButtonHideUnderline(
-        child: DropdownButton<String>(
-          value: value,
-          isExpanded: true,
-          items: items
-              .map((i) => DropdownMenuItem(value: i, child: Text(i)))
-              .toList(),
-          onChanged: onChanged,
+    final selected = _safeValue;
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Text(
+          label,
+          style: const TextStyle(
+            fontSize: 11,
+            fontWeight: FontWeight.w700,
+            color: AppColors.textSecondary,
+          ),
         ),
-      ),
+        const SizedBox(height: 4),
+        Container(
+          padding: const EdgeInsets.symmetric(horizontal: 10),
+          decoration: BoxDecoration(
+            color: AppColors.background,
+            borderRadius: BorderRadius.circular(10),
+            border: Border.all(color: AppColors.divider),
+          ),
+          child: DropdownButtonHideUnderline(
+            child: DropdownButton<String>(
+              value: selected,
+              isExpanded: true,
+              selectedItemBuilder: (context) => items
+                  .map(
+                    (i) => Align(
+                      alignment: Alignment.centerLeft,
+                      child: Text(
+                        i,
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                        style: const TextStyle(
+                          fontSize: 13,
+                          fontWeight: FontWeight.w600,
+                          color: AppColors.textPrimary,
+                        ),
+                      ),
+                    ),
+                  )
+                  .toList(),
+              items: items
+                  .map((i) => DropdownMenuItem(value: i, child: Text(i)))
+                  .toList(),
+              onChanged: onChanged,
+            ),
+          ),
+        ),
+      ],
     );
   }
 }

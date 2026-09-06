@@ -78,12 +78,6 @@ class _ClubSettingsScreenState extends State<ClubSettingsScreen> {
       );
       return;
     }
-    if (description.length < 10) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('모임 소개는 10자 이상 입력해주세요')),
-      );
-      return;
-    }
     if (teamCount < 1 || teamCount > 30) {
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(content: Text('팀 수는 1~30 사이로 입력해주세요')),
@@ -244,10 +238,6 @@ class _ClubSettingsScreenState extends State<ClubSettingsScreen> {
               maxLines: 4,
               minLines: 3,
               decoration: _inputDeco(hint: '모임의 특징·분위기를 알려주세요'),
-              validator: (v) {
-                if ((v ?? '').trim().length < 10) return '10자 이상 입력해주세요';
-                return null;
-              },
             ),
             const SizedBox(height: 20),
             const Text('팀 수',

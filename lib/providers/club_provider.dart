@@ -7,6 +7,7 @@ import '../data/repositories/mock/mock_data_store.dart';
 import '../data/repositories/mock/mock_store_persistence.dart';
 import '../di/app_dependencies.dart';
 import '../domain/services/app_data_bootstrap_service.dart';
+import '../domain/services/club_discovery_service.dart';
 import '../domain/services/group_assignment_service.dart';
 import '../domain/services/roster_dedupe.dart';
 import '../models/club_model.dart';
@@ -1716,8 +1717,8 @@ class ClubProvider extends ChangeNotifier with WidgetsBindingObserver {
     String keyword = '',
   }) {
     return _allClubs.where((c) {
-      // '전체': 전부, '지역다양함': 지역다양함인 모임만, 그 외: 시·도 접두사 or 완전일치
-      final matchRegion = region == '전체' ||
+      // 지역전체/전체: 전부, '지역다양함': 해당 모임만, 그 외: 시·도 접두사 or 완전일치
+      final matchRegion = isAllRegionFilter(region) ||
           c.region == region ||
           c.region.startsWith('$region ') ||
           (region == '지역다양함' && c.region == '지역다양함') ||
@@ -1728,10 +1729,9 @@ class ClubProvider extends ChangeNotifier with WidgetsBindingObserver {
               c.region.startsWith('대구') ||
               c.region.startsWith('울산') ||
               c.region.startsWith('부산')));
-      final matchIndustry = industry == '전체' || c.industry == industry;
-      final matchKeyword  = keyword.isEmpty ||
-          c.name.contains(keyword) ||
-          c.description.contains(keyword);
+      final matchIndustry =
+          isAllIndustryFilter(industry) || c.industry == industry;
+      final matchKeyword = ClubDiscoveryService.matchesKeyword(c, keyword);
       return matchRegion && matchIndustry && matchKeyword;
     }).toList();
   }
@@ -2776,6 +2776,10 @@ class ClubProvider extends ChangeNotifier with WidgetsBindingObserver {
 
   /// 회비(재무) 최초 세팅이 아직 안 된 상태
   bool get isFinanceSetupPending => activeDuesSettings.isEmpty;
+
+  /// 신규 모임 총무가 재무 시작 방식(올시즌 / 이번달)을 아직 고르지 않음
+  bool get needsTreasurerFinanceOnboarding =>
+      isTreasurer && isFinanceSetupPending && !hasOpeningBalance;
 
   /// 월회비 또는 연회비 중 모임이 쓰는 쪽. 둘 다 있으면 월회비.
   DuesType? get clubPrimaryDuesType {

@@ -118,4 +118,17 @@ void main() {
     );
     expect(switchBlock.contains('_persistImmediately()'), isTrue);
   });
+
+  test('신규 모임 총무는 재무 첫 방문 온보딩을 보고 비총무는 기존 안내다', () {
+    expect(finance.contains('TreasurerFinanceOnboardingScreen'), isTrue);
+    expect(finance.contains('needsTreasurerFinanceOnboarding'), isTrue);
+    expect(finance.contains('_FinanceSetupPendingView'), isTrue);
+    expect(provider.contains('needsTreasurerFinanceOnboarding'), isTrue);
+    final onboard = File(
+            'lib/screens/finance/treasurer_finance_onboarding_screen.dart')
+        .readAsStringSync();
+    expect(onboard.contains('총무님 반갑습니다'), isTrue);
+    expect(onboard.contains('올시즌 처음부터 회계 현황을 입력'), isTrue);
+    expect(onboard.contains('이번달 회계자료부터 입력'), isTrue);
+  });
 }

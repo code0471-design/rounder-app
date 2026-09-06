@@ -4,6 +4,7 @@ import '../../models/club_model.dart';
 import '../../providers/club_provider.dart';
 import '../../theme/app_theme.dart';
 import 'dues_payment_screen.dart';
+import 'treasurer_finance_onboarding_screen.dart';
 
 // ════════════════════════════════════════════════════════════
 //  숫자 포맷 헬퍼
@@ -232,6 +233,15 @@ class _FinanceScreenState extends State<FinanceScreen>
 
         // 회비 미설정: 총무만 진입 가능 (방장·정회원 포함 차단) — Case A
         final isTreasurer = provider.isTreasurer;
+        if (isTreasurer && provider.needsTreasurerFinanceOnboarding) {
+          return TreasurerFinanceOnboardingScreen(
+            onFinished: () {
+              WidgetsBinding.instance.addPostFrameCallback((_) {
+                if (mounted) _tab.animateTo(3);
+              });
+            },
+          );
+        }
         if (!isTreasurer && provider.isFinanceSetupPending) {
           return const Scaffold(
             backgroundColor: AppColors.background,

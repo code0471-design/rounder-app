@@ -224,7 +224,7 @@ class _MyRoleChangeScreenState extends State<MyRoleChangeScreen> {
         ),
         const SizedBox(height: 8),
         Text(
-          '회장·총무처럼 겸직할 수 있고, 일반 회원으로도 내릴 수 있습니다.',
+          '회장·부회장·총무는 한 사람이 하나·둘·셋 모두 겸할 수 있습니다. 정회원은 임원과 함께 선택할 수 없습니다.',
           style: TextStyle(
             fontSize: 12,
             color: AppColors.textSecondary.withValues(alpha: 0.9),

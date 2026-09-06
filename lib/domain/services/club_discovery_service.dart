@@ -9,16 +9,31 @@ abstract final class ClubDiscoveryService {
     String keyword = '',
   }) {
     return clubs.where((club) {
-      final regionOk = region == '전체' ||
+      final regionOk = isAllRegionFilter(region) ||
           club.region == region ||
           club.region.startsWith(region);
       final industryOk =
-          industry == '전체' || club.industry == industry;
-      final kw = keyword.trim().toLowerCase();
-      final keywordOk = kw.isEmpty ||
-          club.name.toLowerCase().contains(kw) ||
-          club.description.toLowerCase().contains(kw);
+          isAllIndustryFilter(industry) || club.industry == industry;
+      final keywordOk = matchesKeyword(club, keyword);
       return regionOk && industryOk && keywordOk;
     }).toList();
   }
+
+  /// 모임명·소개 검색. 대소문자·공백 차이는 무시한다.
+  static bool matchesKeyword(Club club, String keyword) {
+    final raw = keyword.trim();
+    if (raw.isEmpty) return true;
+    final kw = _fold(raw);
+    final kwCompact = kw.replaceAll(' ', '');
+    bool hit(String s) {
+      final folded = _fold(s);
+      return folded.contains(kw) ||
+          folded.replaceAll(' ', '').contains(kwCompact);
+    }
+
+    return hit(club.name) || hit(club.description);
+  }
+
+  static String _fold(String s) =>
+      s.toLowerCase().replaceAll(RegExp(r'\s+'), ' ').trim();
 }

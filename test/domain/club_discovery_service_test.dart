@@ -76,6 +76,42 @@ void main() {
       expect(result.first.name, '부산 라운더');
     });
 
+    test('모임명과 소개 모두 검색된다', () {
+      final withIntro = [
+        Club(
+          id: '5',
+          name: '한빛 모임',
+          myRole: '일반',
+          region: '서울',
+          industry: '기타',
+          memberCount: 4,
+          description: '매월 정기 라운딩으로 친목 도모',
+          createdAt: DateTime(2024, 5, 1),
+        ),
+      ];
+      expect(
+        ClubDiscoveryService.filter(
+          clubs: withIntro,
+          keyword: '한빛',
+        ).single.name,
+        '한빛 모임',
+      );
+      expect(
+        ClubDiscoveryService.filter(
+          clubs: withIntro,
+          keyword: '친목',
+        ).single.name,
+        '한빛 모임',
+      );
+      expect(
+        ClubDiscoveryService.filter(
+          clubs: withIntro,
+          keyword: '정기라운딩',
+        ).single.name,
+        '한빛 모임',
+      );
+    });
+
     test('combines region, industry, keyword', () {
       final result = ClubDiscoveryService.filter(
         clubs: clubs,

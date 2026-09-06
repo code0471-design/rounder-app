@@ -54,12 +54,33 @@ const List<String> kRegions = [
   '제주 제주시', '제주 서귀포시',
 ];
 
-/// 시·도 단위 필터 목록 (모임 찾기 드롭다운용)
+/// 시·도 (모임 만들기·모임 찾기 공통). 구·시는 만들기 화면 2단계에서만.
+const List<String> kSidoList = [
+  '지역다양함',
+  '서울', '부산', '대구', '인천', '광주', '대전', '울산', '세종',
+  '경기', '강원', '충북', '충남', '전북', '전남', '경북', '경남', '제주',
+];
+
+const String kRegionFilterAll = '지역전체';
+const String kIndustryFilterAll = '업종전체';
+
+const List<String> kClubFindRegions = [
+  kRegionFilterAll,
+  ...kSidoList,
+];
+
+/// 시·도 단위 필터 목록 (레거시 그룹명 — 모임찾기는 [kClubFindRegions] 사용)
 const List<String> kRegionGroups = [
   '전체', '지역다양함',
   '서울', '경기', '인천',
   '강원', '충청', '전라', '경상', '제주',
 ];
+
+bool isAllRegionFilter(String region) =>
+    region.isEmpty || region == '전체' || region == kRegionFilterAll;
+
+bool isAllIndustryFilter(String industry) =>
+    industry.isEmpty || industry == '전체' || industry == kIndustryFilterAll;
 
 /// 업종 목록
 const List<String> kIndustries = [

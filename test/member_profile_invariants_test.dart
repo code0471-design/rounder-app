@@ -611,4 +611,29 @@ void main() {
           reason: '회원 상세에 그린이 남았다:\n  ${offenders.join('\n  ')}');
     });
   });
+
+  group('직책 겸직', () {
+    test('마이페이지에서 회장·부회장·총무를 같이 고를 수 있다', () {
+      final mypage = _read('lib/screens/members/my_role_change_screen.dart');
+      expect(mypage.contains('uniqueOfficerConflict'), isFalse);
+      expect(mypage.contains('복수 선택 가능'), isTrue);
+      expect(mypage.contains('정회원은 임원과 함께 선택할 수 없습니다'), isTrue);
+      final provider = _read('lib/providers/club_provider.dart');
+      expect(provider.contains('uniqueOfficerConflict'), isFalse);
+    });
+  });
+
+  group('모임 소개', () {
+    test('생성·설정에 10자 최소 제한이 없다', () {
+      const paths = [
+        'lib/screens/clubs/create_club_screen.dart',
+        'lib/screens/clubs/club_settings_screen.dart',
+      ];
+      for (final p in paths) {
+        final src = _read(p);
+        expect(src.contains('10자 이상'), isFalse, reason: p);
+        expect(src.contains('length < 10'), isFalse, reason: p);
+      }
+    });
+  });
 }
