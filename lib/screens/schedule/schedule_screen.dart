@@ -7,6 +7,7 @@ import '../../navigation/app_navigator.dart';
 import '../../utils/alimtalk_utils.dart';
 import '../group_assignment/group_assignment_screen.dart';
 import '../records/score_award_screen.dart';
+import '../../widgets/score_award_results.dart';
 import 'round_photo_widgets.dart';
 import '../../widgets/ad_banner.dart';
 import '../../widgets/golf_course_field.dart';
@@ -5310,6 +5311,7 @@ class _ScoreAwardBannerCard extends StatelessWidget {
                 fontSize: 12,
               ),
             ),
+            ScoreAwardResultsPreview(scheduleId: schedule.id),
             const SizedBox(height: 14),
             Row(
               children: [

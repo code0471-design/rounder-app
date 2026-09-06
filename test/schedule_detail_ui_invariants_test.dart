@@ -75,11 +75,11 @@ void main() {
     // 상세 화면·상세에서 여는 카드/시트가 있는 구간만 본다.
     // (일정 목록·등록 폼은 아직 그린을 쓴다 — 별도 작업)
     const ranges = [
-      [985, 1941], // ScheduleDetailScreen 본문 + 응답 다이얼로그
-      [2230, 2541], // 응답 마감 · 대기 명단
-      [2532, 2801], // 참석 현황
-      [4803, 5205], // 조편성 카드
-      [5206, 5410], // 스코어 & 시상
+      [986, 1942], // ScheduleDetailScreen 본문 + 응답 다이얼로그
+      [2231, 2542], // 응답 마감 · 대기 명단
+      [2533, 2802], // 참석 현황
+      [4804, 5206], // 조편성 카드
+      [5207, 5412], // 스코어 & 시상
     ];
 
     final offenders = <String>[];
@@ -193,6 +193,9 @@ void main() {
     expect(attendance, greaterThanOrEqualTo(0),
         reason: '참석 현황 카드가 사라짐');
     expect(score, greaterThanOrEqualTo(0), reason: '스코어/시상 카드가 사라짐');
+    expect(source.contains('ScoreAwardResultsPreview(scheduleId: schedule.id)'),
+        isTrue,
+        reason: '저장한 스코어·시상이 일정 상세에 바로 보여야 함');
     expect(group, greaterThanOrEqualTo(0), reason: '조편성 배너가 사라짐');
     expect(info, greaterThanOrEqualTo(0), reason: '일정 정보 카드가 사라짐');
     expect(group < attendance, isTrue, reason: '조편성 다음에 참석 현황이 와야 함');

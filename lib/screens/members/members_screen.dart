@@ -10,6 +10,8 @@ import '../../utils/avatar_image.dart';
 import 'member_detail_screen.dart';
 import 'treasurer_transfer_screen.dart';
 
+const _kMemberCardBorder = Color(0xFFB0B7C3);
+
 class MembersScreen extends StatefulWidget {
   const MembersScreen({super.key});
 
@@ -299,16 +301,29 @@ class _MembersScreenState extends State<MembersScreen>
         decoration: BoxDecoration(
           color: Colors.white,
           borderRadius: BorderRadius.circular(16),
-          border: Border.all(color: const Color(0xFFE5E7EB)),
+          border: Border.all(color: _kMemberCardBorder),
         ),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            const Text('올해 랭킹',
-                style: TextStyle(
-                    fontSize: 15,
-                    fontWeight: FontWeight.w800,
-                    color: AppColors.ink)),
+            const Row(
+              children: [
+                Expanded(
+                  child: Text('올해 랭킹',
+                      style: TextStyle(
+                          fontSize: 15,
+                          fontWeight: FontWeight.w800,
+                          color: AppColors.ink)),
+                ),
+                Text('자세히 보기',
+                    style: TextStyle(
+                        fontSize: 12,
+                        fontWeight: FontWeight.w600,
+                        color: Color(0xFF6B7280))),
+                SizedBox(width: 2),
+                Icon(Icons.chevron_right, size: 18, color: Color(0xFF6B7280)),
+              ],
+            ),
             const SizedBox(height: 8),
             ...List.generate(top3.length, (i) {
               final entry = top3[i];
@@ -510,6 +525,312 @@ class _MembersScreenState extends State<MembersScreen>
   }
 
   // ────────────────────────────────
+  // 올해 시상 TOP3
+  // ────────────────────────────────
+  Widget _buildYearAwardsBanner(ClubProvider provider) {
+    final year = DateTime.now().year;
+    final ranking = provider.regularAwardRankingForYear(year);
+    final top3 = ranking.take(3).toList();
+
+    return GestureDetector(
+      onTap: () => _showYearAwardsSheet(provider, year),
+      child: Container(
+        margin: const EdgeInsets.fromLTRB(16, 10, 16, 0),
+        padding: const EdgeInsets.fromLTRB(14, 14, 14, 8),
+        decoration: BoxDecoration(
+          color: Colors.white,
+          borderRadius: BorderRadius.circular(16),
+          border: Border.all(color: _kMemberCardBorder),
+        ),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            const Row(
+              children: [
+                Expanded(
+                  child: Text('올해 시상',
+                      style: TextStyle(
+                          fontSize: 15,
+                          fontWeight: FontWeight.w800,
+                          color: AppColors.ink)),
+                ),
+                Text('자세히 보기',
+                    style: TextStyle(
+                        fontSize: 12,
+                        fontWeight: FontWeight.w600,
+                        color: Color(0xFF6B7280))),
+                SizedBox(width: 2),
+                Icon(Icons.chevron_right, size: 18, color: Color(0xFF6B7280)),
+              ],
+            ),
+            const SizedBox(height: 8),
+            if (top3.isEmpty)
+              const Padding(
+                padding: EdgeInsets.only(bottom: 8),
+                child: Text(
+                  '아직 시상 기록이 없습니다',
+                  style: TextStyle(fontSize: 13, color: Color(0xFF6B7280)),
+                ),
+              )
+            else
+              ...List.generate(top3.length, (i) {
+                final entry = top3[i];
+                final name = provider.memberById(entry.key)?.name ?? entry.key;
+                final medalColors = [
+                  const Color(0xFFD4AF37),
+                  const Color(0xFF9CA3AF),
+                  const Color(0xFFBF8B40),
+                ];
+                return Column(
+                  children: [
+                    if (i > 0)
+                      const Divider(height: 1, color: Color(0xFFE5E7EB)),
+                    Padding(
+                      padding: const EdgeInsets.symmetric(vertical: 10),
+                      child: Row(
+                        children: [
+                          Container(
+                            width: 26,
+                            height: 26,
+                            decoration: BoxDecoration(
+                              color: medalColors[i],
+                              shape: BoxShape.circle,
+                            ),
+                            child: Center(
+                              child: Text('${i + 1}',
+                                  style: const TextStyle(
+                                      color: Colors.white,
+                                      fontSize: 12,
+                                      fontWeight: FontWeight.w800)),
+                            ),
+                          ),
+                          const SizedBox(width: 10),
+                          Expanded(
+                            child: Text(name,
+                                style: const TextStyle(
+                                    fontSize: 14,
+                                    fontWeight: FontWeight.w700,
+                                    color: AppColors.ink)),
+                          ),
+                          Text('${entry.value}회',
+                              style: const TextStyle(
+                                  fontSize: 14,
+                                  fontWeight: FontWeight.w800,
+                                  color: AppColors.goldDeep)),
+                        ],
+                      ),
+                    ),
+                  ],
+                );
+              }),
+          ],
+        ),
+      ),
+    );
+  }
+
+  void _showYearAwardsSheet(ClubProvider provider, int initialYear) {
+    var year = initialYear;
+    showModalBottomSheet(
+      context: context,
+      isScrollControlled: true,
+      backgroundColor: AppColors.surface,
+      shape: const RoundedRectangleBorder(
+          borderRadius: BorderRadius.vertical(top: Radius.circular(20))),
+      builder: (_) => StatefulBuilder(
+        builder: (ctx, setSheet) {
+          final years = provider.awardYearsAvailable();
+          final ranking = provider.regularAwardRankingForYear(year);
+          final byMonth = provider.awardsByMonthForYear(year);
+          final months = byMonth.keys.toList()..sort();
+          return DraggableScrollableSheet(
+            expand: false,
+            initialChildSize: 0.72,
+            maxChildSize: 0.94,
+            builder: (ctx, scrollCtrl) => Column(
+              children: [
+                Padding(
+                  padding: const EdgeInsets.symmetric(vertical: 12),
+                  child: Container(
+                    width: 40,
+                    height: 4,
+                    decoration: BoxDecoration(
+                        color: Colors.grey.shade300,
+                        borderRadius: BorderRadius.circular(2)),
+                  ),
+                ),
+                Padding(
+                  padding: const EdgeInsets.fromLTRB(20, 0, 20, 8),
+                  child: Row(
+                    children: [
+                      const Text('🏆', style: TextStyle(fontSize: 20)),
+                      const SizedBox(width: 8),
+                      const Expanded(
+                        child: Text('정회원 시상',
+                            style: TextStyle(
+                                fontSize: 17, fontWeight: FontWeight.bold)),
+                      ),
+                      Text('$year년',
+                          style: const TextStyle(
+                              fontSize: 13, color: AppColors.textSecondary)),
+                    ],
+                  ),
+                ),
+                if (years.length > 1)
+                  Padding(
+                    padding: const EdgeInsets.fromLTRB(16, 0, 16, 8),
+                    child: SizedBox(
+                      height: 34,
+                      child: ListView.separated(
+                        scrollDirection: Axis.horizontal,
+                        itemCount: years.length,
+                        separatorBuilder: (_, __) => const SizedBox(width: 8),
+                        itemBuilder: (_, i) {
+                          final y = years[i];
+                          final on = y == year;
+                          return GestureDetector(
+                            onTap: () => setSheet(() => year = y),
+                            child: Container(
+                              padding: const EdgeInsets.symmetric(
+                                  horizontal: 12, vertical: 6),
+                              decoration: BoxDecoration(
+                                color: on ? AppColors.ink : Colors.white,
+                                borderRadius: BorderRadius.circular(16),
+                                border: Border.all(
+                                    color: on
+                                        ? AppColors.ink
+                                        : _kMemberCardBorder),
+                              ),
+                              child: Text(
+                                '$y년',
+                                style: TextStyle(
+                                  fontSize: 12,
+                                  fontWeight: FontWeight.w700,
+                                  color: on ? Colors.white : AppColors.ink,
+                                ),
+                              ),
+                            ),
+                          );
+                        },
+                      ),
+                    ),
+                  ),
+                const Divider(height: 1),
+                Expanded(
+                  child: ListView(
+                    controller: scrollCtrl,
+                    padding: const EdgeInsets.fromLTRB(16, 12, 16, 24),
+                    children: [
+                      const Text('정회원 수상 횟수',
+                          style: TextStyle(
+                              fontSize: 13,
+                              fontWeight: FontWeight.w800,
+                              color: AppColors.ink)),
+                      const SizedBox(height: 8),
+                      if (ranking.isEmpty)
+                        const Padding(
+                          padding: EdgeInsets.only(bottom: 16),
+                          child: Text('이 해의 정회원 시상이 없습니다',
+                              style: TextStyle(
+                                  fontSize: 13, color: Color(0xFF6B7280))),
+                        )
+                      else
+                        ...List.generate(ranking.length, (idx) {
+                          final e = ranking[idx];
+                          final name =
+                              provider.memberById(e.key)?.name ?? e.key;
+                          return Padding(
+                            padding: const EdgeInsets.symmetric(vertical: 8),
+                            child: Row(
+                              children: [
+                                SizedBox(
+                                  width: 28,
+                                  child: Text('${idx + 1}',
+                                      style: const TextStyle(
+                                          fontSize: 13,
+                                          fontWeight: FontWeight.w800,
+                                          color: AppColors.inkSoft)),
+                                ),
+                                Expanded(
+                                  child: Text(name,
+                                      style: const TextStyle(
+                                          fontSize: 14,
+                                          fontWeight: FontWeight.w700)),
+                                ),
+                                Text('${e.value}회',
+                                    style: const TextStyle(
+                                        fontSize: 14,
+                                        fontWeight: FontWeight.w800,
+                                        color: AppColors.goldDeep)),
+                              ],
+                            ),
+                          );
+                        }),
+                      const SizedBox(height: 16),
+                      const Text('월별 수상자',
+                          style: TextStyle(
+                              fontSize: 13,
+                              fontWeight: FontWeight.w800,
+                              color: AppColors.ink)),
+                      const SizedBox(height: 8),
+                      if (months.isEmpty)
+                        const Text('월별 기록이 없습니다',
+                            style: TextStyle(
+                                fontSize: 13, color: Color(0xFF6B7280)))
+                      else
+                        ...months.expand((m) {
+                          final recs = byMonth[m]!;
+                          return [
+                            Padding(
+                              padding: const EdgeInsets.fromLTRB(0, 10, 0, 6),
+                              child: Text('$m월',
+                                  style: const TextStyle(
+                                      fontSize: 12,
+                                      fontWeight: FontWeight.w800,
+                                      color: AppColors.inkSoft)),
+                            ),
+                            ...recs.map((r) {
+                              final names = r.winnerNames.isNotEmpty
+                                  ? r.winnerNames.join(', ')
+                                  : r.winnerIds
+                                      .map((id) =>
+                                          provider.memberById(id)?.name ?? id)
+                                      .join(', ');
+                              return Padding(
+                                padding: const EdgeInsets.only(bottom: 8),
+                                child: Row(
+                                  crossAxisAlignment: CrossAxisAlignment.start,
+                                  children: [
+                                    Text(r.awardIcon,
+                                        style: const TextStyle(fontSize: 14)),
+                                    const SizedBox(width: 6),
+                                    Expanded(
+                                      child: Text(
+                                        '${r.awardName}  ·  $names',
+                                        style: const TextStyle(
+                                            fontSize: 13,
+                                            fontWeight: FontWeight.w600,
+                                            color: AppColors.ink),
+                                      ),
+                                    ),
+                                  ],
+                                ),
+                              );
+                            }),
+                          ];
+                        }),
+                    ],
+                  ),
+                ),
+              ],
+            ),
+          );
+        },
+      ),
+    );
+  }
+
+  // ────────────────────────────────
   // 탭 컨텐츠 (섹션 구분 여부)
   // ────────────────────────────────
   Widget _buildTabContent(
@@ -519,6 +840,7 @@ class _MembersScreenState extends State<MembersScreen>
   }) {
     final scrollHeader = <Widget>[
       _buildPointsRankingBanner(provider),
+      _buildYearAwardsBanner(provider),
       _TreasurerTransferEntry(
         canAccess: provider.canAccessTreasurerTransfer,
       ),
@@ -704,7 +1026,7 @@ class _MemberCard extends StatelessWidget {
       decoration: BoxDecoration(
         color: Colors.white,
         borderRadius: BorderRadius.circular(12),
-        border: Border.all(color: const Color(0xFFE5E7EB)),
+        border: Border.all(color: _kMemberCardBorder),
       ),
       child: ClipRRect(
         borderRadius: BorderRadius.circular(12),
@@ -1404,7 +1726,7 @@ class _TreasurerTransferEntry extends StatelessWidget {
       decoration: BoxDecoration(
         color: Colors.white,
         borderRadius: BorderRadius.circular(12),
-        border: Border.all(color: const Color(0xFFE5E7EB)),
+        border: Border.all(color: _kMemberCardBorder),
       ),
       child: Material(
         color: Colors.transparent,

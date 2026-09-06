@@ -537,12 +537,15 @@ class _ScoreAwardScreenState extends State<ScoreAwardScreen>
       final hcp = int.tryParse(_handicapCtrl[m.id]?.text.trim() ?? '');
       if (hcp != null) handicaps[m.id] = hcp;
     }
-    provider.saveRoundScores(RoundScoreRecord(
-      scheduleId: widget.schedule.id,
-      scores: scores,
-      handicaps: handicaps,
-      recordedAt: DateTime.now(),
-    ));
+    provider.saveRoundScores(
+      RoundScoreRecord(
+        scheduleId: widget.schedule.id,
+        scores: scores,
+        handicaps: handicaps,
+        recordedAt: DateTime.now(),
+      ),
+      merge: widget.groupFilter != null,
+    );
     setState(() => _scoresSaved = true);
     ScaffoldMessenger.of(context).showSnackBar(
       SnackBar(

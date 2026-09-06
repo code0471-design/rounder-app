@@ -7499,11 +7499,60 @@ class ClubProvider extends ChangeNotifier with WidgetsBindingObserver {
   RoundScoreRecord? roundScoreFor(String scheduleId) =>
       _roundScores.where((r) => r.scheduleId == scheduleId).firstOrNull;
 
+  DateTime awardEventDate(AwardRecord r) {
+    final s = scheduleById(r.scheduleId);
+    return s?.roundDate ?? r.recordedAt;
+  }
+
+  List<AwardRecord> awardsInYear(int year) => _awardRecords
+      .where((r) => awardEventDate(r).year == year)
+      .toList(growable: false);
+
+  /// 정회원(게스트 제외) 연간 시상 횟수, 많은 순.
+  List<MapEntry<String, int>> regularAwardRankingForYear(int year) {
+    final allowed = {for (final m in regularMembers) m.id};
+    final counts = <String, int>{};
+    for (final r in awardsInYear(year)) {
+      for (final id in r.winnerIds) {
+        if (!allowed.contains(id)) continue;
+        counts[id] = (counts[id] ?? 0) + 1;
+      }
+    }
+    final result = counts.entries.toList()
+      ..sort((a, b) {
+        final byCount = b.value.compareTo(a.value);
+        if (byCount != 0) return byCount;
+        final na = memberById(a.key)?.name ?? a.key;
+        final nb = memberById(b.key)?.name ?? b.key;
+        return na.compareTo(nb);
+      });
+    return result;
+  }
+
+  Map<int, List<AwardRecord>> awardsByMonthForYear(int year) {
+    final map = <int, List<AwardRecord>>{};
+    for (final r in awardsInYear(year)) {
+      map.putIfAbsent(awardEventDate(r).month, () => []).add(r);
+    }
+    for (final list in map.values) {
+      list.sort((a, b) => awardEventDate(a).compareTo(awardEventDate(b)));
+    }
+    return map;
+  }
+
+  List<int> awardYearsAvailable() {
+    final years = {for (final r in _awardRecords) awardEventDate(r).year};
+    years.add(DateTime.now().year);
+    final list = years.toList()..sort((a, b) => b.compareTo(a));
+    return list;
+  }
+
   /// 특정 회원의 올해 시상 횟수
-  int getMemberAwardCount(String memberId) {
-    final now = DateTime.now();
+  int getMemberAwardCount(String memberId, {int? year}) {
+    final y = year ?? DateTime.now().year;
     return _awardRecords
-        .where((r) => r.winnerIds.contains(memberId) && r.recordedAt.year == now.year)
+        .where((r) =>
+            r.winnerIds.contains(memberId) && awardEventDate(r).year == y)
         .length;
   }
 
@@ -7533,7 +7582,19 @@ class ClubProvider extends ChangeNotifier with WidgetsBindingObserver {
     _persistImmediately();
   }
 
-  void saveRoundScores(RoundScoreRecord record) {
+  /// [merge] true 면 조별 입력처럼 기존 타수에 덮어쓴다.
+  void saveRoundScores(RoundScoreRecord record, {bool merge = false}) {
+    if (merge) {
+      final existing = roundScoreFor(record.scheduleId);
+      if (existing != null) {
+        record = RoundScoreRecord(
+          scheduleId: record.scheduleId,
+          scores: {...existing.scores, ...record.scores},
+          handicaps: {...existing.handicaps, ...record.handicaps},
+          recordedAt: record.recordedAt,
+        );
+      }
+    }
     _roundScores.removeWhere((r) => r.scheduleId == record.scheduleId);
     _roundScores.add(record);
     notifyListeners();

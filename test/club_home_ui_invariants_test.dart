@@ -138,6 +138,10 @@ void main() {
     expect(room.contains('InviteSendScreen'), isTrue);
     expect(members.contains('_TreasurerTransferEntry'), isTrue);
     expect(members.contains('file_download_outlined'), isTrue);
+    expect(members.contains('_buildYearAwardsBanner'), isTrue);
+    expect(members.contains("'올해 시상'"), isTrue);
+    expect(members.contains('_kMemberCardBorder'), isTrue);
+    expect(members.contains('regularAwardRankingForYear'), isTrue);
   });
 
   test('홈 헤더 아래 모임찾기는 플랫폼 홈으로 간다', () {
