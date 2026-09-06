@@ -214,6 +214,9 @@ class JoinRequest {
   final String userName;
   final String userGender;
   final double? userHandicap;
+  final String? userPhone;
+  final String? userPhotoUrl;
+  final DateTime? userBirthDate;
   final String message;          // 신청 메시지 (선택)
   final String? referrerId;      // 소개자(추천인) memberId
   final String? referrerName;    // 소개자 이름 (표시용)
@@ -229,6 +232,9 @@ class JoinRequest {
     required this.userName,
     required this.userGender,
     this.userHandicap,
+    this.userPhone,
+    this.userPhotoUrl,
+    this.userBirthDate,
     this.message = '',
     this.referrerId,
     this.referrerName,
@@ -252,6 +258,9 @@ class JoinRequest {
       userName: userName,
       userGender: userGender,
       userHandicap: userHandicap,
+      userPhone: userPhone,
+      userPhotoUrl: userPhotoUrl,
+      userBirthDate: userBirthDate,
       message: message,
       referrerId: referrerId ?? this.referrerId,
       referrerName: referrerName ?? this.referrerName,
@@ -1304,7 +1313,7 @@ extension AutoAssignOptionX on AutoAssignOption {
   String get label {
     switch (this) {
       case AutoAssignOption.balanceHandicap:
-        return '핸디/구력 밸런스';
+        return '평균타수/구력 밸런스';
       case AutoAssignOption.pairCompanions:
         return '동반자 같은 조';
       case AutoAssignOption.avoidLastMonth:
@@ -1319,7 +1328,7 @@ extension AutoAssignOptionX on AutoAssignOption {
   String get description {
     switch (this) {
       case AutoAssignOption.balanceHandicap:
-        return '고수와 초보가 한 조에 섞이도록 조별 핸디 합계를 균등 배분합니다';
+        return '고수와 초보가 한 조에 섞이도록 조별 평균타수 합계를 균등 배분합니다';
       case AutoAssignOption.pairCompanions:
         return '참석 신청 시 함께 신청한 지인·동반자를 같은 조에 배치합니다';
       case AutoAssignOption.avoidLastMonth:

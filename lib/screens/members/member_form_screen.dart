@@ -360,14 +360,14 @@ class _MemberFormScreenState extends State<MemberFormScreen> {
   }
 
   // ────────────────────────────────
-  // 핸디캡
+  // 평균타수
   // ────────────────────────────────
   Widget _buildHandicapField() {
     return _FormCard(
       child: TextFormField(
         controller: _handicapCtrl,
         decoration: _inputDeco(
-            label: '핸디캡', icon: Icons.sports_golf),
+            label: '평균타수', icon: Icons.sports_golf),
         style: const TextStyle(fontSize: 14),
         keyboardType: TextInputType.number,
         // 소수점 핸디는 안 쓴다 — 마이페이지·가입 화면과 같은 규칙.

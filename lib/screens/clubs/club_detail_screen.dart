@@ -325,7 +325,7 @@ class _JoinRequestTile extends StatelessWidget {
                             color: AppColors.textPrimary)),
                     const SizedBox(width: 6),
                     Text(
-                      '${req.userGender} · 핸디 ${req.userHandicap?.toStringAsFixed(0) ?? "-"}',
+                      '${req.userGender} · 평균타수 ${req.userHandicap?.toStringAsFixed(0) ?? "-"}',
                       style: const TextStyle(
                           fontSize: 11,
                           color: AppColors.textSecondary),

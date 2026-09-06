@@ -3,12 +3,13 @@ import 'dart:convert';
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
-import 'package:image_picker/image_picker.dart';
 import 'package:provider/provider.dart';
 import '../../features/clubs/application/club_list_controller.dart';
 import '../../models/club_model.dart';
+import '../../models/member_role.dart';
 import '../../providers/auth_provider.dart';
 import '../../providers/club_provider.dart';
+import '../../services/photo_compress_service.dart';
 import '../../theme/app_theme.dart';
 import '../../utils/avatar_image.dart';
 import '../club_room/club_room_screen.dart';
@@ -1520,7 +1521,9 @@ class _AccountSettingsTabState extends State<_AccountSettingsTab> {
                         () {
                           final m = provider.currentMember;
                           // 갤러리 사진은 data URI — NetworkImage 로는 안 그려진다.
-                          final img = avatarImage(m?.photoUrl);
+                          final img = avatarImage(
+                            user?.profileImageUrl ?? m?.photoUrl,
+                          );
                           if (img != null) {
                             return CircleAvatar(
                               radius: 27,
@@ -1598,8 +1601,8 @@ class _AccountSettingsTabState extends State<_AccountSettingsTab> {
                     children: [
                       _ProfileStat(
                         icon: Icons.sports_golf_rounded,
-                        label: '핸디캡',
-                        // 핸디는 정수만 — 소수점 값이 남아 있으면 반올림.
+                        label: '평균타수',
+                        // 평균타수는 정수만 — 소수점 값이 남아 있으면 반올림.
                         value: handicap == null
                             ? '미입력'
                             : handicap.round().toString(),
@@ -1865,23 +1868,26 @@ class _AccountSettingsTabState extends State<_AccountSettingsTab> {
     final auth = context.read<AuthProvider>();
     final account = auth.currentUser;
 
-    // 계정에 저장된 핸디캡·생년월일을 우선 채운다. (모임 명단은 비어 있을 수 있다)
+    // 계정에 저장된 평균타수·생년월일을 우선 채운다. (모임 명단은 비어 있을 수 있다)
     final seedHandicap = account?.handicap ?? member.handicap;
 
     // 컨트롤러 초기화
     final nameCtrl    = TextEditingController(text: member.name);
     final phoneCtrl   = TextEditingController(text: member.phone ?? '');
     final addressCtrl = TextEditingController(text: member.address ?? '');
-    // 핸디캡은 정수만 받는다. 예전 소수점 값이 남아 있으면 반올림해서 보여 준다.
+    // 평균타수는 정수만 받는다. 예전 소수점 값이 남아 있으면 반올림해서 보여 준다.
     final handicapCtrl = TextEditingController(
         text: seedHandicap != null ? seedHandicap.round().toString() : '');
     final bioCtrl     = TextEditingController(text: member.bio ?? '');
 
     // 상태 변수 (StatefulBuilder 밖에서 선언 후 참조)
-    String selectedGender = member.gender;
+    String selectedGender = (account?.gender != null &&
+            account!.gender!.isNotEmpty)
+        ? account.gender!
+        : member.gender;
     DateTime? selectedBirth = account?.birthDate ?? member.birthDate;
     bool birthIsLunar = account?.birthIsLunar ?? false;
-    String? photoDataUrl = member.photoUrl; // base64 data URL or http URL
+    String? photoDataUrl = account?.profileImageUrl ?? member.photoUrl;
 
     showModalBottomSheet(
       context: context,
@@ -1922,16 +1928,8 @@ class _AccountSettingsTabState extends State<_AccountSettingsTab> {
               return;
             }
             try {
-              final picked = await ImagePicker().pickImage(
-                source: ImageSource.gallery,
-                // 프로필은 원형 88px — 원본을 그대로 담으면 문서 용량만 커진다.
-                maxWidth: 720,
-                maxHeight: 720,
-                imageQuality: 80,
-              );
-              if (picked == null) return;
-              final bytes = await picked.readAsBytes();
-              final dataUrl = 'data:image/jpeg;base64,${base64Encode(bytes)}';
+              final dataUrl = await PhotoCompressService.pickProfileDataUrl();
+              if (dataUrl == null) return;
               setS(() => photoDataUrl = dataUrl);
             } catch (_) {
               if (!sheetCtx.mounted) return;
@@ -2165,8 +2163,8 @@ class _AccountSettingsTabState extends State<_AccountSettingsTab> {
                 ),
                 const SizedBox(height: 14),
 
-                // ── 핸디캡 ──
-                _EditLabel('핸디캡'),
+                // ── 평균타수 ──
+                _EditLabel('평균타수'),
                 const SizedBox(height: 6),
                 TextField(
                   controller: handicapCtrl,
@@ -2249,13 +2247,22 @@ class _AccountSettingsTabState extends State<_AccountSettingsTab> {
                         clearPhoto: photoDataUrl == null,
                       );
                       provider.updateMember(updated);
-                      // 생년월일·핸디캡은 계정(users/{id})에도 저장해서
+                      // 생년월일·평균타수·성별·사진은 계정(users/{id})에도 저장해서
                       // 기기를 바꾸거나 다른 모임에 들어가도 유지되게 한다.
                       // ignore: discarded_futures
                       auth.updateGolfProfile(
                         birthDate: selectedBirth,
                         birthIsLunar: birthIsLunar,
                         handicap: newHandicap,
+                        gender: selectedGender,
+                        profileImageUrl: photoDataUrl,
+                      );
+                      provider.syncAuthGolfProfile(
+                        birthDate: selectedBirth,
+                        handicap: newHandicap,
+                        gender: selectedGender,
+                        phone: newPhone.isNotEmpty ? newPhone : null,
+                        photoUrl: photoDataUrl,
                       );
                       Navigator.pop(sheetCtx);
                       messenger.showSnackBar(
@@ -2353,7 +2360,7 @@ class _AccountSettingsTabState extends State<_AccountSettingsTab> {
   }
 }
 
-/// 마이페이지 프로필 카드 하단 — 핸디캡 / 생년월일
+/// 마이페이지 프로필 카드 하단 — 평균타수 / 생년월일
 class _ProfileStat extends StatelessWidget {
   final IconData icon;
   final String label;
@@ -2445,8 +2452,14 @@ class _ClubWithdrawTile extends StatelessWidget {
         ),
         title: Text(club.name,
             style: const TextStyle(fontSize: 14, fontWeight: FontWeight.w600)),
-        subtitle: Text('${club.memberCount}명 · ${club.region ?? ""}',
-            style: TextStyle(fontSize: 11, color: Colors.grey.shade500)),
+        subtitle: Text(
+          [
+            if (club.myRole == ClubMemberRole.guest) '게스트',
+            '${club.memberCount}명',
+            club.region ?? '',
+          ].where((s) => s.trim().isNotEmpty).join(' · '),
+          style: TextStyle(fontSize: 11, color: Colors.grey.shade500),
+        ),
         trailing: Row(
           mainAxisSize: MainAxisSize.min,
           children: [

@@ -277,7 +277,7 @@ class _CreateClubScreenState extends State<CreateClubScreen> {
             child: TextFormField(
               controller: _descCtrl,
               decoration: _deco(
-                  hint: '예: 매월 정기 라운딩으로 친목 도모 및 핸디캡 향상을 목표로 합니다.',
+                  hint: '예: 매월 정기 라운딩으로 친목 도모 및 평균타수 향상을 목표로 합니다.',
                   icon: Icons.notes_outlined),
               maxLines: 4,
               minLines: 2,

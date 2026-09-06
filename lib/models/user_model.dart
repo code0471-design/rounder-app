@@ -17,9 +17,10 @@ class AppUser {
   final String id;
   final String name;
   final String phone;       // 010-0000-0000 형식
-  final double? handicap;   // 핸디캡 (선택)
+  final double? handicap;   // 평균타수 (선택)
   final DateTime? birthDate; // 생년월일 (선택)
   final bool birthIsLunar;   // 생년월일이 음력인지 (기본 양력)
+  final String? gender;     // 남 / 여
   final bool isVerified;    // 본인인증 완료 여부
   final bool isAdmin;       // 관리자 여부 (회장·총무 등 운영자)
   final String role;        // 역할: '회장' | '총무' | '일반'
@@ -34,6 +35,7 @@ class AppUser {
     this.handicap,
     this.birthDate,
     this.birthIsLunar = false,
+    this.gender,
     this.isVerified = false,
     this.isAdmin    = false,
     this.role       = '일반',
@@ -52,7 +54,7 @@ class AppUser {
     return phone;
   }
 
-  /// 핸디 표시 텍스트. 핸디는 정수만 쓴다 — 예전 소수점 값은 반올림.
+  /// 평균타수 표시 텍스트. 정수만 쓴다 — 예전 소수점 값은 반올림.
   String get handicapText =>
       handicap == null ? '미입력' : handicap!.round().toString();
 
@@ -87,6 +89,7 @@ class AppUser {
     double? handicap,
     DateTime? birthDate,
     bool? birthIsLunar,
+    String? gender,
     bool? isVerified,
     bool? isAdmin,
     String? role,
@@ -100,6 +103,7 @@ class AppUser {
       handicap:       handicap       ?? this.handicap,
       birthDate:      birthDate      ?? this.birthDate,
       birthIsLunar:   birthIsLunar   ?? this.birthIsLunar,
+      gender:         gender         ?? this.gender,
       isVerified:     isVerified     ?? this.isVerified,
       isAdmin:        isAdmin        ?? this.isAdmin,
       role:           role           ?? this.role,

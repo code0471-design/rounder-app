@@ -52,6 +52,9 @@ class FirestoreJoinRequestDataSource {
     required String userName,
     required String userGender,
     double? userHandicap,
+    String? userPhone,
+    String? userPhotoUrl,
+    DateTime? userBirthDate,
     required String message,
   }) async {
     try {
@@ -66,6 +69,9 @@ class FirestoreJoinRequestDataSource {
         userName: userName,
         userGender: userGender,
         userHandicap: userHandicap,
+        userPhone: userPhone,
+        userPhotoUrl: userPhotoUrl,
+        userBirthDate: userBirthDate,
         message: message,
       ));
       return doc.id;
@@ -109,6 +115,9 @@ class FirestoreJoinRequestDataSource {
         memberType: memberType,
         role: role,
         handicap: request.userHandicap,
+        phone: request.userPhone,
+        photoUrl: request.userPhotoUrl,
+        birthDate: request.userBirthDate,
         joinDate: DateTime.now(),
         status: '활성',
       );

@@ -90,6 +90,9 @@ class _FakeJoinRequestRepository implements JoinRequestRepository {
     required String userName,
     required String userGender,
     double? userHandicap,
+    String? userPhone,
+    String? userPhotoUrl,
+    DateTime? userBirthDate,
     required String message,
   }) async {
     submitCount++;

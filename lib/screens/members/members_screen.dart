@@ -1266,7 +1266,7 @@ class _JoinRequestCardState extends State<_JoinRequestCard> {
                     ),
                     const SizedBox(height: 2),
                     Text(
-                      '핸디 ${req.userHandicap?.toStringAsFixed(0) ?? "-"}  ·  $timeText',
+                      '평균타수 ${req.userHandicap?.toStringAsFixed(0) ?? "-"}  ·  $timeText',
                       style: const TextStyle(
                           fontSize: 12,
                           color: AppColors.textSecondary),

@@ -4,13 +4,14 @@ import 'package:provider/provider.dart';
 
 import '../../providers/auth_provider.dart';
 import '../../providers/club_provider.dart';
+import '../../services/photo_compress_service.dart';
 import '../../theme/app_theme.dart';
+import '../../utils/avatar_image.dart';
 
-/// 휴대폰 인증 직후 — 생년월일(양/음)·핸디캡 수집
+/// 휴대폰 인증 직후 — 생년월일(양/음)·평균타수·성별·사진 수집
 ///
-/// 생년월일은 나이·생일 안내에, 핸디캡은 조편성에 쓰인다.
 /// 저장은 `AuthProvider.updateGolfProfile` → Firestore `users/{id}` 로 가고,
-/// 이미 가입한 모임 명단에도 함께 반영된다.
+/// 이미 가입한 모임 명단에도 함께 반영된다. 사진은 선택.
 class GolfProfileScreen extends StatefulWidget {
   const GolfProfileScreen({super.key});
 
@@ -25,6 +26,8 @@ class _GolfProfileScreenState extends State<GolfProfileScreen> {
   int? _month;
   int? _day;
   bool _isLunar = false;
+  String? _gender;
+  String? _photoUrl;
   bool _busy = false;
   String? _error;
 
@@ -43,9 +46,12 @@ class _GolfProfileScreenState extends State<GolfProfileScreen> {
       _day = birth.day;
       _isLunar = user?.birthIsLunar ?? false;
     }
-    // 정수 핸디만 쓴다. 예전 소수점 값이 남아 있으면 반올림해서 보여 준다.
+    // 정수 평균타수만 쓴다. 예전 소수점 값이 남아 있으면 반올림해서 보여 준다.
     final handicap = user?.handicap;
     if (handicap != null) _handicapCtrl.text = handicap.round().toString();
+    final g = user?.gender?.trim();
+    if (g == '남' || g == '여') _gender = g;
+    _photoUrl = user?.profileImageUrl;
   }
 
   @override
@@ -76,13 +82,17 @@ class _GolfProfileScreenState extends State<GolfProfileScreen> {
       setState(() => _error = '생년월일을 모두 선택해 주세요');
       return;
     }
+    if (_gender != '남' && _gender != '여') {
+      setState(() => _error = '성별을 선택해 주세요');
+      return;
+    }
 
     final raw = _handicapCtrl.text.trim();
     double? handicap;
     if (raw.isNotEmpty) {
       final n = int.tryParse(raw);
       if (n == null || n < 0 || n > 54) {
-        setState(() => _error = '핸디캡은 0~54 사이 정수로 입력해 주세요');
+        setState(() => _error = '평균타수는 0~54 사이 정수로 입력해 주세요');
         return;
       }
       handicap = n.toDouble();
@@ -99,6 +109,8 @@ class _GolfProfileScreenState extends State<GolfProfileScreen> {
         birthDate: birth,
         birthIsLunar: _isLunar,
         handicap: handicap,
+        gender: _gender,
+        profileImageUrl: _photoUrl,
       );
       if (!mounted) return;
       if (saved == null) {
@@ -112,6 +124,9 @@ class _GolfProfileScreenState extends State<GolfProfileScreen> {
         context.read<ClubProvider>().syncAuthGolfProfile(
               birthDate: birth,
               handicap: handicap,
+              gender: _gender,
+              phone: auth.currentUser?.phone,
+              photoUrl: _photoUrl,
             );
       } catch (_) {}
       await auth.markGolfProfileAsked();
@@ -167,8 +182,9 @@ class _GolfProfileScreenState extends State<GolfProfileScreen> {
               ),
               const SizedBox(height: 8),
               const Text(
-                '마지막으로 생년월일과 핸디캡만 알려 주세요.\n'
-                '나이·생일 안내와 조편성에 사용됩니다.',
+                '마지막으로 골프 프로필을 알려 주세요.\n'
+                '생년월일·성별·평균타수는 조편성과 회원 안내에 쓰이고,\n'
+                '어느 모임에 들어가도 같이 따라갑니다. 사진은 선택입니다.',
                 style: TextStyle(
                   fontSize: 13,
                   height: 1.45,
@@ -176,6 +192,36 @@ class _GolfProfileScreenState extends State<GolfProfileScreen> {
                 ),
               ),
               const SizedBox(height: 28),
+              Center(child: _buildPhotoPicker()),
+              const SizedBox(height: 8),
+              const Center(
+                child: Text(
+                  '본인 사진 (선택)',
+                  style: TextStyle(
+                    fontSize: 12,
+                    color: AppColors.textTertiary,
+                  ),
+                ),
+              ),
+              const SizedBox(height: 24),
+              const _FieldLabel('성별'),
+              const SizedBox(height: 8),
+              Row(
+                children: [
+                  _ToggleChip(
+                    label: '남',
+                    selected: _gender == '남',
+                    onTap: _busy ? null : () => setState(() => _gender = '남'),
+                  ),
+                  const SizedBox(width: 8),
+                  _ToggleChip(
+                    label: '여',
+                    selected: _gender == '여',
+                    onTap: _busy ? null : () => setState(() => _gender = '여'),
+                  ),
+                ],
+              ),
+              const SizedBox(height: 24),
               const _FieldLabel('생년월일'),
               const SizedBox(height: 8),
               Row(
@@ -248,7 +294,7 @@ class _GolfProfileScreenState extends State<GolfProfileScreen> {
                 ],
               ),
               const SizedBox(height: 24),
-              const _FieldLabel('핸디캡', required: false),
+              const _FieldLabel('평균타수', required: false),
               const SizedBox(height: 8),
               TextField(
                 controller: _handicapCtrl,
@@ -343,6 +389,63 @@ class _GolfProfileScreenState extends State<GolfProfileScreen> {
     if (d != null && d > _daysInSelectedMonth) {
       _day = _daysInSelectedMonth;
     }
+  }
+
+  Future<void> _pickPhoto() async {
+    if (_busy) return;
+    try {
+      final dataUrl = await PhotoCompressService.pickProfileDataUrl();
+      if (!mounted || dataUrl == null) return;
+      setState(() => _photoUrl = dataUrl);
+    } catch (_) {
+      if (!mounted) return;
+      setState(() => _error = '사진을 불러오지 못했습니다');
+    }
+  }
+
+  Widget _buildPhotoPicker() {
+    final img = avatarImage(_photoUrl);
+    return GestureDetector(
+      onTap: _busy ? null : _pickPhoto,
+      child: Stack(
+        children: [
+          if (img != null)
+            CircleAvatar(
+              radius: 40,
+              backgroundImage: img,
+              onBackgroundImageError: (_, __) {},
+            )
+          else
+            Container(
+              width: 80,
+              height: 80,
+              decoration: const BoxDecoration(
+                color: Colors.white,
+                shape: BoxShape.circle,
+              ),
+              child: const Icon(
+                Icons.camera_alt_rounded,
+                color: AppColors.textSecondary,
+                size: 28,
+              ),
+            ),
+          Positioned(
+            bottom: 0,
+            right: 0,
+            child: Container(
+              width: 24,
+              height: 24,
+              decoration: BoxDecoration(
+                color: AppColors.primary,
+                shape: BoxShape.circle,
+                border: Border.all(color: Colors.white, width: 2),
+              ),
+              child: const Icon(Icons.add, color: Colors.white, size: 14),
+            ),
+          ),
+        ],
+      ),
+    );
   }
 }
 

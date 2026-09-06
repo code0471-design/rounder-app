@@ -23,6 +23,9 @@ class FirestoreJoinRequestRepository implements JoinRequestRepository {
     required String userName,
     required String userGender,
     double? userHandicap,
+    String? userPhone,
+    String? userPhotoUrl,
+    DateTime? userBirthDate,
     required String message,
   }) =>
       _dataSource.submit(
@@ -31,6 +34,9 @@ class FirestoreJoinRequestRepository implements JoinRequestRepository {
         userName: userName,
         userGender: userGender,
         userHandicap: userHandicap,
+        userPhone: userPhone,
+        userPhotoUrl: userPhotoUrl,
+        userBirthDate: userBirthDate,
         message: message,
       );
 

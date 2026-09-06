@@ -33,7 +33,7 @@ List<List<String>> clubMemberRosterRows(List<Member> members) => [
         '연락처',
         '직책',
         '구분',
-        '핸디캡',
+        '평균타수',
         '생년월일',
         '나이',
         '주소',

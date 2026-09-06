@@ -221,7 +221,7 @@ class MemberDetailScreen extends StatelessWidget {
         children: [
           _StatItem(
             icon: Icons.sports_golf,
-            label: '핸디캡',
+            label: '평균타수',
             value: member.handicap != null
                 ? member.handicap!.toStringAsFixed(0)
                 : '-',
@@ -264,10 +264,7 @@ class MemberDetailScreen extends StatelessWidget {
             label: '생년월일',
             value: '${_fullDate(member.birthDate!)} (${member.age}세)',
           ),
-        // 연락처는 명단 내보내기와 같은 기준으로 임원에게만 보여 준다.
-        if (provider.isClubExecutive &&
-            member.phone != null &&
-            member.phone!.isNotEmpty)
+        if (member.phone != null && member.phone!.isNotEmpty)
           _InfoRow(
               icon: Icons.phone_rounded,
               label: '연락처',
@@ -327,9 +324,7 @@ class MemberDetailScreen extends StatelessWidget {
         _InfoRow(
             icon: Icons.golf_course_rounded,
             label: '참석 라운딩',
-            value: stats.finished == 0
-                ? '지난 라운딩 없음'
-                : '${stats.attended}회 / 지난 ${stats.finished}회'),
+            value: '총 ${stats.attended}회'),
         _InfoRow(
             icon: Icons.percent_rounded,
             label: '참석률',

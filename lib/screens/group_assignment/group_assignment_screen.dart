@@ -1341,7 +1341,7 @@ class _SlotRow extends StatelessWidget {
                     ),
                     if (slot.handicap != null && !compact)
                       Text(
-                        '핸디 ${slot.handicap!.toStringAsFixed(0)}',
+                        '평균타수 ${slot.handicap!.toStringAsFixed(0)}',
                         style: const TextStyle(
                             fontSize: 11, color: Color(0xFF90A4AE)),
                       ),
@@ -1649,7 +1649,7 @@ class _SlotPickerSheet extends StatelessWidget {
                         ),
                         subtitle: m?.handicap != null
                             ? Text(
-                                '핸디 ${m!.handicap!.toStringAsFixed(0)}  ·  ${m.gender}  ·  ${m.role}',
+                        '평균타수 ${m!.handicap!.toStringAsFixed(0)}  ·  ${m.gender}  ·  ${m.role}',
                                 style: const TextStyle(fontSize: 11),
                               )
                             : null,

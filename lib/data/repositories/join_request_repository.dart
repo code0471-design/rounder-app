@@ -9,6 +9,9 @@ abstract class JoinRequestRepository {
     required String userName,
     required String userGender,
     double? userHandicap,
+    String? userPhone,
+    String? userPhotoUrl,
+    DateTime? userBirthDate,
     required String message,
   });
   Future<void> approveJoinRequest({

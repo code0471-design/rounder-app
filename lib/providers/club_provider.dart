@@ -91,9 +91,48 @@ class ClubProvider extends ChangeNotifier with WidgetsBindingObserver {
   // 기본값: m1(홍길동/총무) — 강남 골프회 총무 계정
   String _currentUserId   = 'm1';
   String _currentUserName = '홍길동';
+  DateTime? _accountBirthDate;
+  double? _accountHandicap;
+  String? _accountGender;
+  String? _accountPhone;
+  String? _accountPhotoUrl;
 
   String get currentUserId   => _currentUserId;
   String get currentUserName => _currentUserName;
+
+  /// 계정 프로필로 명단 행을 채운다. 모임이 바뀌어도 사진·전화·타수가 따라간다.
+  Member _selfMember({
+    required String id,
+    required String name,
+    required String memberType,
+    required String role,
+    DateTime? joinDate,
+    String? referrerId,
+    String? referrerName,
+    Member? inherit,
+  }) {
+    final g = inherit?.gender;
+    final gender = (g != null && g.isNotEmpty)
+        ? g
+        : (_accountGender != null && _accountGender!.isNotEmpty
+            ? _accountGender!
+            : '남');
+    return Member(
+      id: id,
+      name: name,
+      gender: gender,
+      birthDate: inherit?.birthDate ?? _accountBirthDate,
+      photoUrl: inherit?.photoUrl ?? _accountPhotoUrl,
+      phone: inherit?.phone ?? _accountPhone,
+      memberType: memberType,
+      role: role,
+      handicap: inherit?.handicap ?? _accountHandicap,
+      joinDate: joinDate ?? inherit?.joinDate ?? DateTime.now(),
+      status: '활성',
+      referrerId: referrerId ?? inherit?.referrerId,
+      referrerName: referrerName ?? inherit?.referrerName,
+    );
+  }
 
   /// 데모 시드 계정 이름. 실계정 명단에 이게 남아 있으면 잘못 저장된 것이다.
   static const seedMemberNames = {'홍길동', '이민준', '박민준'};
@@ -289,16 +328,24 @@ class ClubProvider extends ChangeNotifier with WidgetsBindingObserver {
   /// [displayName] 은 실제 로그인 계정의 이름. 시드 계정이 아닌데 이걸 안 넘기면
   /// 명단에 '홍길동'이 박힌다. 호출부는 `auth.currentUser?.name` 을 같이 준다.
   ///
-  /// [birthDate]·[handicap] 은 계정에 저장된 값. 가입 때 입력해도 그 시점에
-  /// 모임이 없으면 명단에 안 붙는다. 로그인할 때마다 다시 흘려 넣어야
-  /// 나중에 만든 모임에서도 자동 조편성이 핸디를 쓴다.
+  /// [birthDate]·[handicap]·[gender]·[phone]·[photoUrl] 은 계정에 저장된 값.
+  /// 가입 때 입력해도 그 시점에 모임이 없으면 명단에 안 붙는다. 로그인할 때마다
+  /// 다시 흘려 넣어야 나중에 만든 모임에서도 사진·전화·평균타수가 따라간다.
   Future<void> switchUser(
     String authUserId, {
     String? displayName,
     DateTime? birthDate,
     double? handicap,
+    String? gender,
+    String? phone,
+    String? photoUrl,
   }) async {
     _persistAuthUserId = authUserId;
+    _accountBirthDate = birthDate;
+    _accountHandicap = handicap;
+    _accountGender = gender;
+    _accountPhone = phone;
+    _accountPhotoUrl = photoUrl;
     await _loadLeftClubIds(authUserId);
     switch (authUserId) {
       case 'user_guest':
@@ -378,7 +425,7 @@ class ClubProvider extends ChangeNotifier with WidgetsBindingObserver {
           memberType: '정회원',
           role: '일반',
           phone: '010-9999-0000',
-          bio: '강남 골프회 회원입니다. 핸디 18로 꾸준히 실력 향상 중입니다.',
+          bio: '강남 골프회 회원입니다. 평균타수 18로 꾸준히 실력 향상 중입니다.',
           handicap: 18.0,
           joinDate: DateTime(2022, 7, 1),
           address: '서울시 강남구 논현동',
@@ -416,7 +463,13 @@ class ClubProvider extends ChangeNotifier with WidgetsBindingObserver {
     ensureCreatorMembers();
     // 계정의 생년월일·핸디를 명단에 반영 — 방금 만든 생성자 행도 포함해야 하므로
     // ensureCreatorMembers 다음이다. 핸디가 비면 자동 조편성이 초보로 잡는다.
-    syncAuthGolfProfile(birthDate: birthDate, handicap: handicap);
+    syncAuthGolfProfile(
+      birthDate: birthDate,
+      handicap: handicap,
+      gender: gender,
+      phone: phone,
+      photoUrl: photoUrl,
+    );
     // 데모 모임(c1~c5) 회원수 — 과거에 저장된 임의값이 남아있어도 실제 명단 기준으로 교정
     _reconcileLegacyMemberCounts();
     // 내 모임 → Mock 저장소(어드민·모임찾기) 강제 동기화
@@ -973,17 +1026,14 @@ class ClubProvider extends ChangeNotifier with WidgetsBindingObserver {
     final creatorId = 'm_creator_${club.id}';
     if (!_members.any((m) => m.id == creatorId) &&
         club.id.startsWith('c_')) {
-      _members.add(Member(
+      _members.add(_selfMember(
         id: creatorId,
         name: currentUserName,
-        gender: '남',
         memberType: '정회원',
         role: ClubMemberRole.normalize(
           club.myRole.trim().isEmpty ? '회장' : club.myRole,
         ),
-        handicap: null,
         joinDate: club.createdAt,
-        status: '활성',
       ));
       changed = true;
     }
@@ -4569,15 +4619,12 @@ class ClubProvider extends ChangeNotifier with WidgetsBindingObserver {
     _freshClubIds.add(id);
 
     // 생성자를 해당 모임 회원으로 등록 (mock 시드 회원과 분리: m_creator_*)
-    final creatorMember = Member(
+    final creatorMember = _selfMember(
       id: 'm_creator_$id',
       name: currentUserName,
-      gender: '남',
       memberType: ClubMemberRole.memberTypeForRole(roleEncoded),
       role: roleEncoded,
-      handicap: null,
       joinDate: DateTime.now(),
-      status: '활성',
     );
     _members.add(creatorMember);
     // 방금 만든 모임의 명단 ID(m_creator_<id>)로도 FCM 토큰을 등록한다.
@@ -4681,15 +4728,12 @@ class ClubProvider extends ChangeNotifier with WidgetsBindingObserver {
 
       final creatorId = 'm_creator_${club.id}';
       final role = ClubMemberRole.normalize(club.myRole);
-      _members.add(Member(
+      _members.add(_selfMember(
         id: creatorId,
         name: currentUserName,
-        gender: '남',
         memberType: ClubMemberRole.memberTypeForRole(role),
         role: role,
-        handicap: null,
         joinDate: club.createdAt,
-        status: '활성',
       ));
       _setMemberCount(club.id, 1);
       try {
@@ -4787,18 +4831,15 @@ class ClubProvider extends ChangeNotifier with WidgetsBindingObserver {
     final role = ClubMemberRole.normalize(
       club?.myRole ?? ClubMemberRole.regular,
     );
-    _members.add(Member(
+    _members.add(_selfMember(
       id: rid,
       name: orphan?.name ?? currentUserName,
-      gender: orphan?.gender ?? '남',
       memberType: ClubMemberRole.memberTypeForRole(role),
       role: role,
-      phone: orphan?.phone,
-      handicap: orphan?.handicap,
       joinDate: orphan?.joinDate ?? DateTime.now(),
-      status: '활성',
       referrerId: orphan?.referrerId,
       referrerName: orphan?.referrerName,
+      inherit: orphan,
     ));
     _members.removeWhere((m) => m.id == uid);
     return true;
@@ -4871,8 +4912,13 @@ class ClubProvider extends ChangeNotifier with WidgetsBindingObserver {
       clubId: clubId,
       userId: userId ?? currentUserId,
       userName: userName ?? currentUserName,
-      userGender: '남',
-      userHandicap: handicap ?? 12.0,
+      userGender: (_accountGender != null && _accountGender!.isNotEmpty)
+          ? _accountGender!
+          : '남',
+      userHandicap: handicap ?? _accountHandicap,
+      userPhone: _accountPhone,
+      userPhotoUrl: _accountPhotoUrl,
+      userBirthDate: _accountBirthDate,
       message: message,
       referrerId: referrerId,
       referrerName: referrerName,
@@ -4983,14 +5029,12 @@ class ClubProvider extends ChangeNotifier with WidgetsBindingObserver {
       _freshClubIds.add(clubId);
     }
 
-    final member = Member(
+    final member = _selfMember(
       id: rosterId,
       name: userName,
-      gender: '남',
       memberType: memberType,
       role: role,
       joinDate: DateTime.now(),
-      status: '활성',
       referrerId: referrerId,
       referrerName: referrerName,
     );
@@ -5431,6 +5475,9 @@ class ClubProvider extends ChangeNotifier with WidgetsBindingObserver {
       memberType: assignedType,
       role: assignedRole,
       handicap: req.userHandicap,
+      phone: req.userPhone,
+      photoUrl: req.userPhotoUrl,
+      birthDate: req.userBirthDate,
       joinDate: DateTime.now(),
       status: '활성',
       referrerId: req.referrerId,
@@ -5720,15 +5767,30 @@ class ClubProvider extends ChangeNotifier with WidgetsBindingObserver {
     syncAuthUserProfile(phone: phone);
   }
 
-  /// 계정에 저장한 생년월일·핸디캡을 내가 속한 모든 모임 명단에 반영.
+  /// 계정에 저장한 생년월일·평균타수·성별·전화·사진을 내가 속한 모든 모임 명단에 반영.
   ///
-  /// 이름·전화와 달리 본인이 직접 입력한 값이므로 비어 있지 않으면 덮어쓴다.
+  /// 본인이 직접 입력한 값이므로 비어 있지 않으면 덮어쓴다.
   /// 반영 후 Firestore ops bundle 까지 밀어서 다른 기기·총무 화면에도 보이게 한다.
   void syncAuthGolfProfile({
     DateTime? birthDate,
     double? handicap,
+    String? gender,
+    String? phone,
+    String? photoUrl,
   }) {
-    if (birthDate == null && handicap == null) return;
+    if (birthDate != null) _accountBirthDate = birthDate;
+    if (handicap != null) _accountHandicap = handicap;
+    if (gender != null && gender.isNotEmpty) _accountGender = gender;
+    if (phone != null && phone.trim().isNotEmpty) _accountPhone = phone.trim();
+    if (photoUrl != null && photoUrl.isNotEmpty) _accountPhotoUrl = photoUrl;
+
+    if (birthDate == null &&
+        handicap == null &&
+        (gender == null || gender.isEmpty) &&
+        (phone == null || phone.trim().isEmpty) &&
+        (photoUrl == null || photoUrl.isEmpty)) {
+      return;
+    }
     final authId = _persistAuthUserId ?? currentUserId;
     if (authId.isEmpty) return;
 
@@ -5742,10 +5804,30 @@ class ClubProvider extends ChangeNotifier with WidgetsBindingObserver {
           m.id.endsWith('_$authId') ||
           m.id == 'm_creator_${selectedClub.id}';
       if (!match) continue;
-      if (m.birthDate == birthDate && m.handicap == handicap) continue;
+      final nextGender = (gender != null && gender.isNotEmpty)
+          ? gender
+          : m.gender;
+      final nextPhone = (phone != null && phone.trim().isNotEmpty)
+          ? phone.trim()
+          : m.phone;
+      final nextPhoto = (photoUrl != null && photoUrl.isNotEmpty)
+          ? photoUrl
+          : m.photoUrl;
+      final nextBirth = birthDate ?? m.birthDate;
+      final nextHandicap = handicap ?? m.handicap;
+      if (m.birthDate == nextBirth &&
+          m.handicap == nextHandicap &&
+          m.gender == nextGender &&
+          m.phone == nextPhone &&
+          m.photoUrl == nextPhoto) {
+        continue;
+      }
       _members[i] = m.copyWith(
-        birthDate: birthDate,
-        handicap: handicap,
+        birthDate: nextBirth,
+        handicap: nextHandicap,
+        gender: nextGender,
+        phone: nextPhone,
+        photoUrl: nextPhoto,
       );
       changed = true;
     }
@@ -5776,14 +5858,12 @@ class ClubProvider extends ChangeNotifier with WidgetsBindingObserver {
     }).firstOrNull;
 
     if (me == null) {
-      me = Member(
+      me = _selfMember(
         id: creatorId,
         name: currentUserName,
-        gender: '남',
         memberType: ClubMemberRole.memberTypeForRole(roleEncoded),
         role: roleEncoded,
         joinDate: _myClubs[myIdx].createdAt,
-        status: '활성',
       );
       _members.add(me);
     } else {

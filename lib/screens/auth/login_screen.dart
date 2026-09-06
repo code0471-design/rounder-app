@@ -40,6 +40,9 @@ class _LoginScreenState extends State<LoginScreen> {
           displayName: auth.currentUser!.name,
           birthDate: auth.currentUser!.birthDate,
           handicap: auth.currentUser!.handicap,
+          gender: auth.currentUser!.gender,
+          phone: auth.currentUser!.phone,
+          photoUrl: auth.currentUser!.profileImageUrl,
         );
     try {
       final snap = await AppDependencies.instance.bootstrapForUser(userId);

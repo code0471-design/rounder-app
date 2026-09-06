@@ -32,6 +32,9 @@ abstract final class JoinRequestMapper {
       userName: data['user_name'] as String? ?? '',
       userGender: data['user_gender'] as String? ?? '남',
       userHandicap: _asDouble(data['user_handicap']),
+      userPhone: data['user_phone'] as String?,
+      userPhotoUrl: data['user_photo_url'] as String?,
+      userBirthDate: _asDateTime(data['user_birth_date']),
       message: data['message'] as String? ?? '',
       status: status,
       requestedAt: _asDateTime(data['requested_at']) ?? DateTime.now(),
@@ -45,6 +48,9 @@ abstract final class JoinRequestMapper {
     required String userName,
     required String userGender,
     double? userHandicap,
+    String? userPhone,
+    String? userPhotoUrl,
+    DateTime? userBirthDate,
     required String message,
   }) =>
       {
@@ -52,6 +58,11 @@ abstract final class JoinRequestMapper {
         'user_name': userName,
         'user_gender': userGender,
         'user_handicap': userHandicap,
+        if (userPhone != null && userPhone.isNotEmpty) 'user_phone': userPhone,
+        if (userPhotoUrl != null && userPhotoUrl.isNotEmpty)
+          'user_photo_url': userPhotoUrl,
+        if (userBirthDate != null)
+          'user_birth_date': userBirthDate.toIso8601String(),
         'message': message,
         'status': JoinRequestStatus.pending.name,
         'requested_at': FieldValue.serverTimestamp(),

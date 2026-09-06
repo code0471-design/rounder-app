@@ -6,7 +6,7 @@ import 'verify_screen.dart';
 import 'login_screen.dart';
 
 // ════════════════════════════════════════════════════════════
-//  SignupScreen — 회원가입 (이름 / 전화번호 / 핸디캡)
+//  SignupScreen — 회원가입 (이름 / 전화번호 / 평균타수)
 //  → 다음: VerifyScreen (휴대폰 문자 인증)
 // ════════════════════════════════════════════════════════════
 class SignupScreen extends StatefulWidget {
@@ -185,11 +185,11 @@ class _SignupScreenState extends State<SignupScreen> {
               ),
               const SizedBox(height: 20),
 
-              // ── 핸디캡 ──
-              _FieldLabel(label: '핸디캡', required: false),
+              // ── 평균타수 ──
+              _FieldLabel(label: '평균타수', required: false),
               const SizedBox(height: 4),
               const Text(
-                '정확한 핸디캡을 입력하면 모임 팀 구성에 도움이 됩니다',
+                '정확한 평균타수를 입력하면 모임 팀 구성에 도움이 됩니다',
                 style: TextStyle(fontSize: 11, color: AppColors.textSecondary),
               ),
               const SizedBox(height: 8),
@@ -208,7 +208,7 @@ class _SignupScreenState extends State<SignupScreen> {
                   if (v == null || v.trim().isEmpty) return null; // 선택
                   final val = double.tryParse(v.trim());
                   if (val == null) return '숫자로 입력해 주세요';
-                  if (val < 0 || val > 54) return '핸디캡은 0~54 사이로 입력해 주세요';
+                  if (val < 0 || val > 54) return '평균타수는 0~54 사이로 입력해 주세요';
                   return null;
                 },
               ),
@@ -307,7 +307,7 @@ class _SignupScreenState extends State<SignupScreen> {
                 child: Text(
                   'ROUNDER 서비스를 이용해 주셔서 감사합니다.\n\n'
                   '본 약관은 골프 모임 관리 앱 ROUNDER의 서비스 이용에 관한 사항을 규정합니다.\n\n'
-                  '수집하는 개인정보: 이름, 전화번호, 핸디캡\n'
+                  '수집하는 개인정보: 이름, 전화번호, 평균타수\n'
                   '이용 목적: 회원 식별, 모임 관리, 초대장 발송\n'
                   '보유 기간: 탈퇴 시까지\n\n'
                   '위 내용에 동의하시면 서비스를 이용하실 수 있습니다.',

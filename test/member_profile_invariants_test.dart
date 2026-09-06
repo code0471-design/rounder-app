@@ -191,8 +191,9 @@ void main() {
       final detail = _read('lib/screens/members/member_detail_screen.dart');
       expect(detail.contains('AttendanceStats.forMember('), isTrue);
       expect(detail.contains('stats.attended'), isTrue);
-      expect(detail.contains('stats.finished'), isTrue);
+      expect(detail.contains('총 \${stats.attended}회'), isTrue);
       expect(detail.contains('stats.ratePercent'), isTrue);
+      expect(detail.contains('지난 라운딩 없음'), isFalse);
       // 예전처럼 responses 를 직접 세면 예정 일정이 섞인다.
       expect(
         detail.contains("r.response == '참석'"),
@@ -245,10 +246,12 @@ void main() {
     // 로컬에만 남으면 기기 교체·재설치 때 사라진다.
     final auth = _read('lib/providers/auth_provider.dart');
 
-    test('users 문서에 birth_date / handicap 을 쓴다', () {
+    test('users 문서에 birth_date / handicap / gender / 사진을 쓴다', () {
       expect(auth.contains("data['birth_date']"), isTrue);
       expect(auth.contains("data['birth_is_lunar']"), isTrue);
       expect(auth.contains("data['handicap']"), isTrue);
+      expect(auth.contains("data['gender']"), isTrue);
+      expect(auth.contains("data['profile_image_url']"), isTrue);
     });
 
     test('빈 값으로 원격을 덮지 않는다', () {
@@ -279,11 +282,15 @@ void main() {
     test('모임 명단에도 전파한다', () {
       final club = _read('lib/providers/club_provider.dart');
       expect(club.contains('void syncAuthGolfProfile('), isTrue);
+      final start = club.indexOf('void syncAuthGolfProfile(');
+      final fn = club.substring(start, start + 2800);
       expect(
-        RegExp(r'syncAuthGolfProfile\([\s\S]{0,1600}_persistImmediately')
-            .hasMatch(club),
+        fn.contains('_persistImmediately'),
         isTrue,
+        reason: '메모리만 바꾸면 다른 기기·총무 화면에 안 보인다',
       );
+      expect(fn.contains('photoUrl'), isTrue);
+      expect(fn.contains('phone'), isTrue);
     });
   });
 
@@ -305,11 +312,15 @@ void main() {
       expect(verify.contains('needsGolfProfile'), isTrue);
     });
 
-    test('양력·음력을 모두 고를 수 있다', () {
+    test('양력·음력·성별·사진을 모두 고를 수 있다', () {
       final screen = _read('lib/screens/auth/golf_profile_screen.dart');
       expect(screen.contains("'양력'"), isTrue);
       expect(screen.contains("'음력'"), isTrue);
+      expect(screen.contains("label: '남'"), isTrue);
+      expect(screen.contains("label: '여'"), isTrue);
+      expect(screen.contains('PhotoCompressService.pickProfileDataUrl'), isTrue);
       expect(screen.contains('syncAuthGolfProfile'), isTrue);
+      expect(screen.contains('평균타수'), isTrue);
     });
 
     test('2월 30일 같은 날짜가 남지 않는다', () {
@@ -365,10 +376,19 @@ void main() {
       );
     });
 
-    test('핸디캡을 두 카드에서 중복 표시하지 않는다', () {
+    test('평균타수를 두 카드에서 중복 표시하지 않는다', () {
       final handicapLabels =
-          RegExp(r"label: '핸디캡'").allMatches(detail).length;
+          RegExp(r"label: '평균타수'").allMatches(detail).length;
       expect(handicapLabels, 1);
+    });
+
+    test('연락처는 전화번호가 있으면 보여 준다', () {
+      expect(detail.contains("label: '연락처'"), isTrue);
+      expect(
+        detail.contains('provider.isClubExecutive &&\n            member.phone'),
+        isFalse,
+        reason: '임원만 보게 하면 연락처가 비어 있는 것처럼 보인다',
+      );
     });
   });
 
@@ -386,9 +406,9 @@ void main() {
       expect(login.contains('ServiceAboutScreen'), isTrue);
     });
 
-    test('프로필 카드에 핸디캡·생년월일을 보여 준다', () {
+    test('프로필 카드에 평균타수·생년월일을 보여 준다', () {
       expect(mypage.contains('_ProfileStat'), isTrue);
-      expect(mypage.contains("label: '핸디캡'"), isTrue);
+      expect(mypage.contains("label: '평균타수'"), isTrue);
       expect(mypage.contains("'생년월일 (음력)'"), isTrue);
     });
 
@@ -400,6 +420,12 @@ void main() {
     test('편집 시작값은 계정 값을 먼저 쓴다', () {
       expect(mypage.contains('account?.birthDate ?? member.birthDate'), isTrue);
       expect(mypage.contains('account?.handicap ?? member.handicap'), isTrue);
+    });
+
+    test('게스트로 가입한 모임도 내 모임에 나온다', () {
+      expect(mypage.contains('...myClubs.map'), isTrue);
+      expect(mypage.contains("memberType != '게스트'"), isFalse);
+      expect(mypage.contains('ClubMemberRole.guest'), isTrue);
     });
   });
 
@@ -420,9 +446,7 @@ void main() {
 
     test('앱에서도 사진을 실제로 고를 수 있다', () {
       // 예전엔 kIsWeb 아니면 "지원됩니다" 안내만 띄우고 아무 일도 안 했다.
-      expect(sheet.contains('ImagePicker().pickImage('), isTrue);
-      expect(sheet.contains('ImageSource.gallery'), isTrue);
-      expect(sheet.contains('base64Encode(bytes)'), isTrue);
+      expect(sheet.contains('PhotoCompressService.pickProfileDataUrl()'), isTrue);
       expect(
         sheet.contains('앱 빌드에서는 갤러리 연동이 지원됩니다'),
         isFalse,

@@ -172,8 +172,13 @@ class ClubDetailController extends ChangeNotifier {
         clubId: club.id,
         userId: user.id,
         userName: user.name,
-        userGender: '남',
+        userGender: (user.gender != null && user.gender!.isNotEmpty)
+            ? user.gender!
+            : '남',
         userHandicap: user.handicap,
+        userPhone: user.phone,
+        userPhotoUrl: user.profileImageUrl,
+        userBirthDate: user.birthDate,
         message: message,
       );
       _isMember = false;

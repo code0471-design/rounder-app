@@ -173,16 +173,27 @@ class AuthProvider extends ChangeNotifier {
         final remoteHandicap = (data?['handicap'] as num?)?.toDouble();
         final remoteBirthDate = _parseBirthDate(data?['birth_date']);
         final remoteBirthIsLunar = data?['birth_is_lunar'] as bool?;
+        final remoteGender = (data?['gender'] as String?)?.trim();
+        final remotePhoto = (data?['profile_image_url'] as String?)?.trim();
         final phoneChanged =
             _normalizePhone(user.phone) != _normalizePhone(remotePhone);
         if (phoneChanged ||
             remoteHandicap != null ||
-            remoteBirthDate != null) {
+            remoteBirthDate != null ||
+            (remoteGender != null && remoteGender.isNotEmpty) ||
+            (remotePhoto != null && remotePhoto.isNotEmpty)) {
           final updated = user.copyWith(
             phone: phoneChanged ? remotePhone : null,
             handicap: remoteHandicap,
             birthDate: remoteBirthDate,
             birthIsLunar: remoteBirthIsLunar,
+            gender: (remoteGender != null && remoteGender.isNotEmpty)
+                ? remoteGender
+                : null,
+            profileImageUrl:
+                (remotePhoto != null && remotePhoto.isNotEmpty)
+                    ? remotePhoto
+                    : null,
           );
           final idx = _registeredUsers.indexWhere((u) => u.id == updated.id);
           if (idx >= 0) _registeredUsers[idx] = updated;
@@ -319,6 +330,8 @@ class AuthProvider extends ChangeNotifier {
     double? remoteHandicap;
     DateTime? remoteBirthDate;
     bool? remoteBirthIsLunar;
+    String? remoteGender;
+    String? remotePhoto;
     var remoteUserRead = false;
     try {
       final deps = AppDependencies.instance;
@@ -338,6 +351,10 @@ class AuthProvider extends ChangeNotifier {
           remoteHandicap = (data['handicap'] as num?)?.toDouble();
           remoteBirthDate = _parseBirthDate(data['birth_date']);
           remoteBirthIsLunar = data['birth_is_lunar'] as bool?;
+          final g = (data['gender'] as String?)?.trim();
+          if (g != null && g.isNotEmpty) remoteGender = g;
+          final p = (data['profile_image_url'] as String?)?.trim();
+          if (p != null && p.isNotEmpty) remotePhoto = p;
         }
       }
     } catch (e) {
@@ -375,10 +392,12 @@ class AuthProvider extends ChangeNotifier {
       handicap: remoteHandicap ?? memory?.handicap,
       birthDate: remoteBirthDate ?? memory?.birthDate,
       birthIsLunar: remoteBirthIsLunar ?? memory?.birthIsLunar ?? false,
+      gender: remoteGender ?? memory?.gender,
       isVerified: !isPhoneMissing(resolvedPhone),
       isAdmin: memory?.isAdmin ?? false,
       role: memory?.role ?? '일반',
-      profileImageUrl: profile.photoUrl ?? memory?.profileImageUrl,
+      profileImageUrl:
+          remotePhoto ?? memory?.profileImageUrl ?? profile.photoUrl,
       verifyMethod: memory?.verifyMethod,
     );
 
@@ -617,7 +636,7 @@ class AuthProvider extends ChangeNotifier {
     return null;
   }
 
-  /// 생년월일·핸디캡 저장 — 가입 단계와 마이페이지가 같이 쓴다.
+  /// 생년월일·평균타수·성별·사진을 계정에 저장 — 가입 단계와 마이페이지가 같이 쓴다.
   ///
   /// Firestore `users/{id}` 에 반영해서 기기를 바꿔도 유지되게 하고,
   /// 가입한 모임의 회원 정보에도 전파한다.
@@ -625,6 +644,8 @@ class AuthProvider extends ChangeNotifier {
     DateTime? birthDate,
     bool? birthIsLunar,
     double? handicap,
+    String? gender,
+    String? profileImageUrl,
   }) async {
     final current = _currentUser;
     if (current == null) return null;
@@ -633,6 +654,8 @@ class AuthProvider extends ChangeNotifier {
       birthDate: birthDate,
       birthIsLunar: birthIsLunar,
       handicap: handicap,
+      gender: gender,
+      profileImageUrl: profileImageUrl,
     );
 
     final idx = _registeredUsers.indexWhere((u) => u.id == updated.id);
@@ -895,7 +918,9 @@ class AuthProvider extends ChangeNotifier {
               id: user.id,
               name: user.name,
               phone: user.phone,
-              gender: '남',
+              gender: (user.gender != null && user.gender!.isNotEmpty)
+                  ? user.gender!
+                  : '남',
               createdAt: DateTime.now(),
             ),
           );
@@ -906,11 +931,13 @@ class AuthProvider extends ChangeNotifier {
     final data = <String, dynamic>{
       'name': user.name,
       'nickname': user.name,
-      'gender': '남',
       'account_status': 'normal',
       'created_at': FieldValue.serverTimestamp(),
       'updated_at': FieldValue.serverTimestamp(),
     };
+    if (user.gender != null && user.gender!.trim().isNotEmpty) {
+      data['gender'] = user.gender!.trim();
+    }
     if (!isPhoneMissing(user.phone)) {
       data['phone'] = user.phone;
     }
@@ -922,6 +949,9 @@ class AuthProvider extends ChangeNotifier {
     if (user.birthDate != null) {
       data['birth_date'] = user.birthDate!.toIso8601String();
       data['birth_is_lunar'] = user.birthIsLunar;
+    }
+    if (user.profileImageUrl != null && user.profileImageUrl!.isNotEmpty) {
+      data['profile_image_url'] = user.profileImageUrl;
     }
       await FirebaseFirestore.instance
           .collection(FirestorePaths.users)

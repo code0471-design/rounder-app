@@ -1,3 +1,4 @@
+import 'dart:convert';
 import 'dart:typed_data';
 
 import 'package:flutter/foundation.dart';
@@ -69,5 +70,21 @@ abstract final class PhotoCompressService {
       minWidth = (minWidth * 0.85).round().clamp(640, 1280);
     }
     return out;
+  }
+
+  /// 프로필용 한 장. data URI 로 돌려서 계정·명단에 같이 넣는다.
+  static Future<String?> pickProfileDataUrl() async {
+    final picked = await ImagePicker().pickImage(
+      source: ImageSource.gallery,
+      maxWidth: 720,
+      maxHeight: 720,
+      imageQuality: 80,
+      requestFullMetadata: false,
+    );
+    if (picked == null) return null;
+    final raw = await picked.readAsBytes();
+    if (raw.isEmpty) return null;
+    final bytes = await compress(raw);
+    return 'data:image/jpeg;base64,${base64Encode(bytes)}';
   }
 }

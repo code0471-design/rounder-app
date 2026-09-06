@@ -53,11 +53,13 @@ void main() {
     test('이름·생년월일·핸디를 받는 시그니처다', () {
       final sig = provider.substring(
         provider.indexOf('Future<void> switchUser('),
-        provider.indexOf('Future<void> switchUser(') + 200,
+        provider.indexOf('Future<void> switchUser(') + 400,
       );
       expect(sig.contains('String? displayName'), isTrue);
       expect(sig.contains('DateTime? birthDate'), isTrue);
       expect(sig.contains('double? handicap'), isTrue);
+      expect(sig.contains('String? gender'), isTrue);
+      expect(sig.contains('String? photoUrl'), isTrue);
     });
 
     test('로그인 진입점이 이름·핸디를 넘긴다', () {
@@ -89,11 +91,13 @@ void main() {
         provider.indexOf('void selectClub('),
       );
       final ensure = block.indexOf('ensureCreatorMembers();');
-      final sync = block.indexOf('syncAuthGolfProfile(birthDate: birthDate');
+      final sync = block.indexOf('syncAuthGolfProfile(');
       expect(sync, greaterThan(0),
-          reason: '가입 때 입력한 핸디가 나중에 만든 모임 명단에 안 붙는다');
+          reason: '가입 때 입력한 평균타수가 나중에 만든 모임 명단에 안 붙는다');
       expect(sync, greaterThan(ensure),
-          reason: '생성자 행을 만든 뒤에 반영해야 그 행에도 핸디가 들어간다');
+          reason: '생성자 행을 만든 뒤에 반영해야 그 행에도 평균타수가 들어간다');
+      expect(block.contains('birthDate: birthDate'), isTrue);
+      expect(block.contains('photoUrl: photoUrl'), isTrue);
     });
 
     test('배정용 Member 는 명단 회원을 그대로 쓴다', () {
