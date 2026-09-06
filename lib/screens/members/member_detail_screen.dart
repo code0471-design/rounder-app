@@ -121,7 +121,10 @@ class MemberDetailScreen extends StatelessWidget {
               Stack(
                 clipBehavior: Clip.none,
                 children: [
-                  _buildAvatar(radius: 34, fontSize: 22),
+                  GestureDetector(
+                    onTap: () => _openPhotoViewer(context),
+                    child: _buildAvatar(radius: 34, fontSize: 22),
+                  ),
                   if (member.status == '활성' &&
                       member.id == provider.currentUserId)
                     Positioned(
@@ -465,6 +468,42 @@ class MemberDetailScreen extends StatelessWidget {
   // ────────────────────────────────
   // 아바타
   // ────────────────────────────────
+  void _openPhotoViewer(BuildContext context) {
+    final img = avatarImage(member.photoUrl);
+    if (img == null) return;
+    showDialog<void>(
+      context: context,
+      barrierColor: Colors.black.withValues(alpha: 0.92),
+      builder: (ctx) => GestureDetector(
+        onTap: () => Navigator.pop(ctx),
+        child: Scaffold(
+          backgroundColor: Colors.transparent,
+          body: SafeArea(
+            child: Stack(
+              children: [
+                Center(
+                  child: InteractiveViewer(
+                    minScale: 1,
+                    maxScale: 4,
+                    child: Image(image: img, fit: BoxFit.contain),
+                  ),
+                ),
+                Positioned(
+                  top: 8,
+                  right: 8,
+                  child: IconButton(
+                    icon: const Icon(Icons.close, color: Colors.white, size: 28),
+                    onPressed: () => Navigator.pop(ctx),
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+
   Widget _buildAvatar({required double radius, required double fontSize}) {
     final isOfficer = ClubMemberRole.isOfficer(member.role);
     // 갤러리 사진은 data URI — NetworkImage 로는 안 그려진다.

@@ -884,4 +884,167 @@ void main() {
       expect(ClubOpsSync.isMemberRemoved(''), isFalse);
     });
   });
+
+  test('원격 시상이 비면 로컬 시상·스코어를 지우지 않는다', () {
+    final local = ClubDataBundle(
+      selectedClubIndex: 0,
+      freshClubIds: {'c_test'},
+      myClubs: [
+        Club(
+          id: 'c_test',
+          name: '테스트',
+          myRole: '총무',
+          memberCount: 1,
+          region: '서울',
+          industry: 'IT',
+          teamCount: 4,
+        ),
+      ],
+      allClubs: const [],
+      joinRequests: const [],
+      members: const [],
+      activities: const [],
+      announcements: const [],
+      appNotifications: const [],
+      duesSettings: const [],
+      duesPayments: const [],
+      paymentRequests: const [],
+      transactions: const [],
+      schedules: [
+        RoundSchedule(
+          id: 's_local',
+          clubId: 'c_test',
+          title: '로컬일정',
+          roundDate: DateTime(2026, 9, 1),
+          teeTime: '07:00',
+          courseName: 'A',
+          teamCount: 4,
+          status: ScheduleStatus.upcoming,
+          createdBy: '홍길동',
+        ),
+      ],
+      photos: const [],
+      groupAssignments: const {},
+      adApplications: const [],
+      adNotifications: const [],
+      sponsorApplications: const [],
+      pointEvents: const {},
+      awardRecords: [
+        AwardRecord(
+          id: 'ar1',
+          scheduleId: 's_local',
+          scheduleName: '로컬일정',
+          awardName: '메달리스트',
+          awardIcon: '🥇',
+          winnerIds: const ['m1'],
+          winnerNames: const ['홍길동'],
+          recordedAt: DateTime(2026, 9, 1),
+        ),
+      ],
+      roundScores: [
+        RoundScoreRecord(
+          scheduleId: 's_local',
+          scores: const {'m1': 82},
+          recordedAt: DateTime(2026, 9, 1),
+        ),
+      ],
+      thankYouMessages: const [],
+      waitingList: const [],
+      alimtalkSettings: const {},
+    );
+    final merged = ClubOpsSync.applyRemoteSlice(local, 'c_test', {
+      'clubId': 'c_test',
+      'schedules': [
+        {
+          'id': 's_local',
+          'clubId': 'c_test',
+          'title': '로컬일정',
+          'roundDate': DateTime(2026, 9, 1).toIso8601String(),
+          'teeTime': '07:00',
+          'courseName': 'A',
+          'teamCount': 4,
+          'status': 'upcoming',
+          'createdBy': '홍길동',
+          'responses': <dynamic>[],
+        },
+      ],
+      'awardRecords': <dynamic>[],
+      'roundScores': <dynamic>[],
+      'members': <dynamic>[],
+    });
+    expect(merged.awardRecords, isNotEmpty);
+    expect(merged.roundScores.single.scores['m1'], 82);
+  });
+
+  test('생성자·로스터 중복 회원은 pull 후에도 한 줄이다', () {
+    final local = ClubDataBundle(
+      selectedClubIndex: 0,
+      freshClubIds: {'c_test'},
+      myClubs: [
+        Club(
+          id: 'c_test',
+          name: '테스트',
+          myRole: '총무',
+          memberCount: 2,
+          region: '서울',
+          industry: 'IT',
+          teamCount: 4,
+          creatorId: 'uidA',
+        ),
+      ],
+      allClubs: const [],
+      joinRequests: const [],
+      members: [
+        Member(
+          id: 'm_creator_c_test',
+          name: '안경헌',
+          gender: '남',
+          memberType: '정회원',
+          role: '총무',
+          status: '활성',
+        ),
+      ],
+      activities: const [],
+      announcements: const [],
+      appNotifications: const [],
+      duesSettings: const [],
+      duesPayments: const [],
+      paymentRequests: const [],
+      transactions: const [],
+      schedules: const [],
+      photos: const [],
+      groupAssignments: const {},
+      adApplications: const [],
+      adNotifications: const [],
+      sponsorApplications: const [],
+      pointEvents: const {},
+      awardRecords: const [],
+      thankYouMessages: const [],
+      waitingList: const [],
+      alimtalkSettings: const {},
+    );
+    final merged = ClubOpsSync.applyRemoteSlice(local, 'c_test', {
+      'clubId': 'c_test',
+      'members': [
+        {
+          'id': 'm_creator_c_test',
+          'name': '안경헌',
+          'gender': '남',
+          'memberType': '정회원',
+          'role': '총무',
+          'status': '활성',
+        },
+        {
+          'id': 'm_c_test_uidA',
+          'name': '안경헌',
+          'gender': '남',
+          'memberType': '정회원',
+          'role': '정회원',
+          'status': '활성',
+        },
+      ],
+    });
+    final names = merged.members.map((m) => '${m.id}:${m.name}').toList();
+    expect(names, ['m_creator_c_test:안경헌']);
+  });
 }

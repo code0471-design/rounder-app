@@ -523,6 +523,20 @@ class _ClubRoomScreenState extends State<ClubRoomScreen> {
               children: [
                 // ── 고정 헤더 ──
                 _buildHeader(context, provider, club),
+                if (_tabIndex == 0)
+                  Align(
+                    alignment: Alignment.centerRight,
+                    child: Padding(
+                      padding: const EdgeInsets.fromLTRB(16, 8, 16, 0),
+                      child: _InviteChipButton(
+                        label: '모임찾기',
+                        bgColor: const Color(0xFF111827),
+                        borderColor: const Color(0xFF111827),
+                        textColor: Colors.white,
+                        onTap: () => _goToPlatformHome(context),
+                      ),
+                    ),
+                  ),
                 // ── 탭 컨텐츠 (IndexedStack으로 탭 상태 유지) ──
                 Expanded(
                   child: IndexedStack(
@@ -538,6 +552,15 @@ class _ClubRoomScreenState extends State<ClubRoomScreen> {
         },
       ),
     );
+  }
+
+  void _goToPlatformHome(BuildContext context) {
+    final nav = Navigator.of(context, rootNavigator: true);
+    if (nav.canPop()) {
+      nav.popUntil((route) => route.settings.name == '/main' || route.isFirst);
+      return;
+    }
+    nav.pushNamedAndRemoveUntil('/main', (_) => false);
   }
 
   // ────────────────────────────────────────

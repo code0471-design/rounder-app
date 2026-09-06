@@ -138,4 +138,14 @@ void main() {
     expect(members.contains('_TreasurerTransferEntry'), isTrue);
     expect(members.contains('file_download_outlined'), isTrue);
   });
+
+  test('홈 헤더 아래 모임찾기는 플랫폼 홈으로 간다', () {
+    expect(room.contains("label: '모임찾기'"), isTrue);
+    expect(room.contains('_goToPlatformHome'), isTrue);
+    expect(room.contains("pushNamedAndRemoveUntil('/main'"), isTrue);
+    expect(
+      room.indexOf('_buildHeader(context, provider, club)'),
+      lessThan(room.indexOf("label: '모임찾기'")),
+    );
+  });
 }

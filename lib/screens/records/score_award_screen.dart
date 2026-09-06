@@ -48,7 +48,8 @@ class _ScoreAwardScreenState extends State<ScoreAwardScreen>
   // 실제 참석 멤버 (schedule.responses 기반, 참석 응답자만)
   List<_ScoreMember> _members = [];
 
-  bool _isSaved = false;
+  bool _scoresSaved = false;
+  bool _awardsSaved = false;
   // bool _ocrApplied = false; // OCR 자동입력 적용 여부 (비활성)
 
 
@@ -61,6 +62,7 @@ class _ScoreAwardScreenState extends State<ScoreAwardScreen>
       initialIndex: widget.initialTab.clamp(0, 1),
     );
     _buildMembersFromSchedule();
+    _hydrateSaved();
   }
 
   // ── 참석자 목록 구성 ───────────────────────────────────────
@@ -125,7 +127,7 @@ class _ScoreAwardScreenState extends State<ScoreAwardScreen>
                 .firstWhere((m) => m?.id == r.memberId, orElse: () => null);
             return _ScoreMember(
               id: r.memberId,
-              name: r.memberName,
+              name: clubMember?.name ?? r.memberName,
               role: clubMember?.role ?? '일반',
             );
           }).toList();
@@ -150,6 +152,40 @@ class _ScoreAwardScreenState extends State<ScoreAwardScreen>
               .firstWhere((mb) => mb?.id == m.id, orElse: () => null)
               ?.handicap
               ?.toStringAsFixed(0) ?? '');
+    }
+  }
+
+  void _hydrateSaved() {
+    final provider = context.read<ClubProvider>();
+    final savedScore = provider.roundScoreFor(widget.schedule.id);
+    if (savedScore != null) {
+      savedScore.scores.forEach((id, strokes) {
+        _scoreCtrl.putIfAbsent(id, TextEditingController.new).text = '$strokes';
+      });
+      savedScore.handicaps.forEach((id, hcp) {
+        _handicapCtrl.putIfAbsent(id, TextEditingController.new).text = '$hcp';
+      });
+      _scoresSaved = true;
+    }
+    final savedAwards = provider.awardRecordsFor(widget.schedule.id);
+    if (savedAwards.isEmpty) return;
+    _awardsSaved = true;
+    for (final rec in savedAwards) {
+      final i = _awards.indexWhere((a) => a.name == rec.awardName);
+      final item = _AwardItem(
+        id: rec.id,
+        name: rec.awardName,
+        icon: rec.awardIcon,
+        allowCustom: true,
+        winnerIds: List<String>.from(rec.winnerIds),
+        winnerNames: List<String>.from(rec.winnerNames),
+        winnerNote: rec.winnerNote,
+      );
+      if (i >= 0) {
+        _awards[i] = item;
+      } else {
+        _awards.add(item);
+      }
     }
   }
 
@@ -491,35 +527,65 @@ class _ScoreAwardScreenState extends State<ScoreAwardScreen>
   }
 
 
-  void _saveAll() {
-    setState(() => _isSaved = true);
-
-    // ── Provider에 AwardRecord 저장 ──────────────────────
+  void _saveScores() {
     final provider = context.read<ClubProvider>();
-    for (final award in _awards) {
-      if (award.hasWinner) {
-        final record = AwardRecord(
-          id: 'ar_${widget.schedule.id}_${award.id}_${DateTime.now().millisecondsSinceEpoch}',
-          scheduleId: widget.schedule.id,
-          scheduleName: widget.schedule.displayTitle,
-          awardName: award.name,
-          awardIcon: award.icon,
-          winnerIds: List<String>.from(award.winnerIds),
-          winnerNames: List<String>.from(award.winnerNames),
-          winnerNote: award.winnerNote,
-          recordedAt: DateTime.now(),
-        );
-        provider.saveAwardRecord(record);
-      }
+    final scores = <String, int>{};
+    final handicaps = <String, int>{};
+    for (final m in _members) {
+      final score = int.tryParse(_scoreCtrl[m.id]?.text.trim() ?? '');
+      if (score != null) scores[m.id] = score;
+      final hcp = int.tryParse(_handicapCtrl[m.id]?.text.trim() ?? '');
+      if (hcp != null) handicaps[m.id] = hcp;
     }
-
+    provider.saveRoundScores(RoundScoreRecord(
+      scheduleId: widget.schedule.id,
+      scores: scores,
+      handicaps: handicaps,
+      recordedAt: DateTime.now(),
+    ));
+    setState(() => _scoresSaved = true);
     ScaffoldMessenger.of(context).showSnackBar(
       SnackBar(
         content: const Row(
           children: [
             Icon(Icons.check_circle, color: Colors.white, size: 16),
             SizedBox(width: 8),
-            Text('스코어 및 시상 결과가 저장되었습니다!'),
+            Text('스코어가 저장되었습니다'),
+          ],
+        ),
+        backgroundColor: AppColors.success,
+        behavior: SnackBarBehavior.floating,
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+      ),
+    );
+  }
+
+  void _saveAwards() {
+    final provider = context.read<ClubProvider>();
+    final records = <AwardRecord>[];
+    for (final award in _awards) {
+      if (!award.hasWinner) continue;
+      records.add(AwardRecord(
+        id: 'ar_${widget.schedule.id}_${award.id}',
+        scheduleId: widget.schedule.id,
+        scheduleName: widget.schedule.displayTitle,
+        awardName: award.name,
+        awardIcon: award.icon,
+        winnerIds: List<String>.from(award.winnerIds),
+        winnerNames: List<String>.from(award.winnerNames),
+        winnerNote: award.winnerNote,
+        recordedAt: DateTime.now(),
+      ));
+    }
+    provider.saveAwardsForSchedule(widget.schedule.id, records);
+    setState(() => _awardsSaved = true);
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: const Row(
+          children: [
+            Icon(Icons.check_circle, color: Colors.white, size: 16),
+            SizedBox(width: 8),
+            Text('시상이 저장되었습니다'),
           ],
         ),
         backgroundColor: AppColors.success,
@@ -565,31 +631,6 @@ class _ScoreAwardScreenState extends State<ScoreAwardScreen>
           ],
         ),
         titleSpacing: 0,
-        actions: [
-          TextButton(
-            onPressed: _saveAll,
-            style: TextButton.styleFrom(
-              padding: const EdgeInsets.symmetric(horizontal: 14),
-              backgroundColor: _isSaved
-                  ? const Color(0xFFF0FDF4)
-                  : const Color(0xFF7C3AED).withValues(alpha: 0.10),
-              shape: RoundedRectangleBorder(
-                  borderRadius: BorderRadius.circular(20)),
-              minimumSize: const Size(0, 34),
-            ),
-            child: Text(
-              _isSaved ? '저장됨 ✓' : '저장',
-              style: TextStyle(
-                color: _isSaved
-                    ? const Color(0xFF16A34A)
-                    : const Color(0xFF7C3AED),
-                fontWeight: FontWeight.bold,
-                fontSize: 13,
-              ),
-            ),
-          ),
-          const SizedBox(width: 8),
-        ],
         bottom: TabBar(
           controller: _tabCtrl,
           labelColor: const Color(0xFF7C3AED),
@@ -612,11 +653,15 @@ class _ScoreAwardScreenState extends State<ScoreAwardScreen>
             scoreCtrl: _scoreCtrl,
             handicapCtrl: _handicapCtrl,
             medallist: _medallist,
+            saved: _scoresSaved,
+            onSave: _saveScores,
           ),
           // ── 탭 2: 시상 관리 ─────────────────────────
           _AwardTab(
             awards: _awards,
             members: _members,
+            saved: _awardsSaved,
+            onSave: _saveAwards,
             onAddAward: _addAward,
             onSelectWinner: _selectAwardWinner,
             onDeleteAward: (i) => setState(() => _awards.removeAt(i)),
@@ -645,12 +690,16 @@ class _ScoreTab extends StatefulWidget {
   final Map<String, TextEditingController> scoreCtrl;
   final Map<String, TextEditingController> handicapCtrl;
   final _ScoreMember? medallist;
+  final bool saved;
+  final VoidCallback onSave;
 
   const _ScoreTab({
     required this.members,
     required this.scoreCtrl,
     required this.handicapCtrl,
     required this.medallist,
+    required this.saved,
+    required this.onSave,
   });
 
   @override
@@ -768,7 +817,7 @@ class _ScoreTabState extends State<_ScoreTab> {
         const Divider(height: 1),
         Expanded(
           child: ListView.separated(
-            padding: const EdgeInsets.fromLTRB(16, 12, 16, 24),
+            padding: const EdgeInsets.fromLTRB(16, 12, 16, 8),
             itemCount: _sorted.length,
             separatorBuilder: (_, __) => const SizedBox(height: 8),
             itemBuilder: (_, i) {
@@ -786,6 +835,32 @@ class _ScoreTabState extends State<_ScoreTab> {
                 onChanged: () => setState(() {}),
               );
             },
+          ),
+        ),
+        SafeArea(
+          top: false,
+          child: Padding(
+            padding: const EdgeInsets.fromLTRB(16, 8, 16, 12),
+            child: SizedBox(
+              width: double.infinity,
+              height: 48,
+              child: ElevatedButton(
+                onPressed: widget.onSave,
+                style: ElevatedButton.styleFrom(
+                  backgroundColor: widget.saved
+                      ? const Color(0xFF16A34A)
+                      : const Color(0xFF7C3AED),
+                  foregroundColor: Colors.white,
+                  shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(12)),
+                ),
+                child: Text(
+                  widget.saved ? '스코어 저장됨 ✓' : '스코어 저장',
+                  style: const TextStyle(
+                      fontSize: 15, fontWeight: FontWeight.bold),
+                ),
+              ),
+            ),
           ),
         ),
       ],
@@ -979,6 +1054,8 @@ class _ScoreCard extends StatelessWidget {
 class _AwardTab extends StatelessWidget {
   final List<_AwardItem> awards;
   final List<_ScoreMember> members;
+  final bool saved;
+  final VoidCallback onSave;
   final VoidCallback onAddAward;
   final ValueChanged<int> onSelectWinner;
   final ValueChanged<int> onDeleteAward;
@@ -987,6 +1064,8 @@ class _AwardTab extends StatelessWidget {
   const _AwardTab({
     required this.awards,
     required this.members,
+    required this.saved,
+    required this.onSave,
     required this.onAddAward,
     required this.onSelectWinner,
     required this.onDeleteAward,
@@ -1062,7 +1141,7 @@ class _AwardTab extends StatelessWidget {
                   ),
                 )
               : ListView.separated(
-                  padding: const EdgeInsets.fromLTRB(16, 12, 16, 24),
+                  padding: const EdgeInsets.fromLTRB(16, 12, 16, 8),
                   itemCount: awards.length,
                   separatorBuilder: (_, __) => const SizedBox(height: 10),
                   itemBuilder: (_, i) => _AwardCard(
@@ -1073,6 +1152,31 @@ class _AwardTab extends StatelessWidget {
                     onUpdateNote: (note) => onUpdateNote(i, note),
                   ),
                 ),
+        ),
+        SafeArea(
+          top: false,
+          child: Padding(
+            padding: const EdgeInsets.fromLTRB(16, 8, 16, 12),
+            child: SizedBox(
+              width: double.infinity,
+              height: 48,
+              child: ElevatedButton(
+                onPressed: onSave,
+                style: ElevatedButton.styleFrom(
+                  backgroundColor:
+                      saved ? const Color(0xFF16A34A) : const Color(0xFF7C3AED),
+                  foregroundColor: Colors.white,
+                  shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(12)),
+                ),
+                child: Text(
+                  saved ? '시상 저장됨 ✓' : '시상 저장',
+                  style: const TextStyle(
+                      fontSize: 15, fontWeight: FontWeight.bold),
+                ),
+              ),
+            ),
+          ),
         ),
       ],
     );

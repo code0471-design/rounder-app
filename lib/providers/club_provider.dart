@@ -8,6 +8,7 @@ import '../data/repositories/mock/mock_store_persistence.dart';
 import '../di/app_dependencies.dart';
 import '../domain/services/app_data_bootstrap_service.dart';
 import '../domain/services/group_assignment_service.dart';
+import '../domain/services/roster_dedupe.dart';
 import '../models/club_model.dart';
 import '../models/member_role.dart';
 import '../services/club_data_codec.dart';
@@ -689,6 +690,7 @@ class ClubProvider extends ChangeNotifier with WidgetsBindingObserver {
                   (k, v) => MapEntry(k, List<MembershipPointEvent>.from(v)),
                 ),
                 awardRecords: List<AwardRecord>.from(bundle.awardRecords),
+                roundScores: List<RoundScoreRecord>.from(bundle.roundScores),
                 thankYouMessages:
                     List<ThankYouMessage>.from(bundle.thankYouMessages),
                 waitingList: List<WaitingEntry>.from(bundle.waitingList),
@@ -1471,6 +1473,7 @@ class ClubProvider extends ChangeNotifier with WidgetsBindingObserver {
           (k, v) => MapEntry(k, List<MembershipPointEvent>.from(v)),
         ),
         awardRecords: List<AwardRecord>.from(_awardRecords),
+        roundScores: List<RoundScoreRecord>.from(_roundScores),
         thankYouMessages: List<ThankYouMessage>.from(_thankYouMessages),
         waitingList: List<WaitingEntry>.from(_waitingList),
         alimtalkSettings: Map<String, ClubAlimtalkSettings>.from(_alimtalkSettings),
@@ -1551,6 +1554,9 @@ class ClubProvider extends ChangeNotifier with WidgetsBindingObserver {
     _awardRecords
       ..clear()
       ..addAll(b.awardRecords);
+    _roundScores
+      ..clear()
+      ..addAll(b.roundScores);
     _thankYouMessages
       ..clear()
       ..addAll(b.thankYouMessages);
@@ -1567,6 +1573,7 @@ class ClubProvider extends ChangeNotifier with WidgetsBindingObserver {
 
     _syncAllNextRounds();
     _normalizeScheduleTitles();
+    pruneDuplicateRosterRows();
   }
 
   // ── 내가 속한 모임 선택 인덱스 ─────────────────────────
@@ -4751,6 +4758,7 @@ class ClubProvider extends ChangeNotifier with WidgetsBindingObserver {
       } catch (_) {}
       changed = true;
     }
+    if (pruneDuplicateRosterRows()) changed = true;
     if (changed) _persistImmediately();
     return changed;
   }
@@ -4843,6 +4851,174 @@ class ClubProvider extends ChangeNotifier with WidgetsBindingObserver {
     ));
     _members.removeWhere((m) => m.id == uid);
     return true;
+  }
+
+  /// 생성자 행과 `m_{clubId}_{userId}` 가 같은 사람이면 한 줄로 합친다.
+  /// 회원 탭에 임원진·정회원으로 두 번 나오던 원인.
+  bool pruneDuplicateRosterRows() {
+    var changed = false;
+    for (final club in _myClubs) {
+      if (_legacyMockClubIds.contains(club.id)) continue;
+      final iAmCreator = club.creatorId.isEmpty ||
+          _userIdsMatch(club.creatorId, currentUserId) ||
+          (_persistAuthUserId != null &&
+              _userIdsMatch(club.creatorId, _persistAuthUserId));
+      final authIds = <String>{
+        if (club.creatorId.trim().isNotEmpty) club.creatorId.trim(),
+      };
+      if (iAmCreator) {
+        authIds.add(currentUserId);
+        if (_persistAuthUserId != null) authIds.add(_persistAuthUserId!);
+        authIds.addAll(_authAliases(_persistAuthUserId ?? currentUserId));
+      }
+      final result = RosterDedupe.collapseMembers(
+        members: _members,
+        clubId: club.id,
+        creatorAuthIds: authIds,
+      );
+      if (result.droppedIds.isEmpty) {
+        if (_syncScheduleMemberNames(club.id)) changed = true;
+        continue;
+      }
+      _members
+        ..clear()
+        ..addAll(result.members);
+      ClubOpsSync.seedRemovedMembers(result.droppedIds);
+      _applyRosterIdRemap(
+        club.id,
+        result.idRemap,
+        {for (final m in result.members) m.id: m.name},
+      );
+      _syncScheduleMemberNames(club.id);
+      _setMemberCount(club.id, membersForClub(club.id).length);
+      changed = true;
+    }
+    return changed;
+  }
+
+  void _applyRosterIdRemap(
+    String clubId,
+    Map<String, String> remap,
+    Map<String, String> names,
+  ) {
+    if (remap.isEmpty) return;
+    int rank(String response) {
+      if (response == '참석') return 2;
+      if (response == '불참') return 1;
+      return 0;
+    }
+
+    for (var i = 0; i < _schedules.length; i++) {
+      final s = _schedules[i];
+      if (s.clubId != clubId) continue;
+      final byId = <String, AttendanceResponse>{};
+      for (final r in s.responses) {
+        final newId = remap[r.memberId] ?? r.memberId;
+        final next = AttendanceResponse(
+          memberId: newId,
+          memberName: names[newId] ?? r.memberName,
+          response: r.response,
+          memo: r.memo,
+          companionMemberIds: r.companionMemberIds,
+          respondedAt: r.respondedAt,
+        );
+        final prev = byId[newId];
+        if (prev == null ||
+            rank(next.response) > rank(prev.response) ||
+            (rank(next.response) == rank(prev.response) &&
+                next.respondedAt.isAfter(prev.respondedAt))) {
+          byId[newId] = next;
+        }
+      }
+      _schedules[i] = s.copyWith(responses: byId.values.toList());
+    }
+
+    for (final entry in _groupAssignments.entries.toList()) {
+      final ga = entry.value;
+      final sched =
+          _schedules.where((s) => s.id == ga.scheduleId).firstOrNull;
+      if (sched == null || sched.clubId != clubId) continue;
+      _groupAssignments[entry.key] = ga.copyWith(
+        groups: [
+          for (final g in ga.groups)
+            g.copyWithSlots([
+              for (final slot in g.slots)
+                slot.memberId == null
+                    ? slot
+                    : slot.copyWith(
+                        memberId: remap[slot.memberId] ?? slot.memberId,
+                        memberName: names[remap[slot.memberId] ?? slot.memberId!] ??
+                            slot.memberName,
+                      ),
+            ]),
+        ],
+      );
+    }
+
+    for (var i = 0; i < _awardRecords.length; i++) {
+      final a = _awardRecords[i];
+      final ids = a.winnerIds.map((id) => remap[id] ?? id).toList();
+      _awardRecords[i] = AwardRecord(
+        id: a.id,
+        scheduleId: a.scheduleId,
+        scheduleName: a.scheduleName,
+        awardName: a.awardName,
+        awardIcon: a.awardIcon,
+        winnerIds: ids,
+        winnerNames: [
+          for (var j = 0; j < ids.length; j++)
+            names[ids[j]] ??
+                (j < a.winnerNames.length ? a.winnerNames[j] : ids[j]),
+        ],
+        winnerNote: a.winnerNote,
+        recordedAt: a.recordedAt,
+      );
+    }
+
+    for (var i = 0; i < _roundScores.length; i++) {
+      final r = _roundScores[i];
+      Map<String, int> remapInts(Map<String, int> src) {
+        final out = <String, int>{};
+        src.forEach((id, value) {
+          out[remap[id] ?? id] = value;
+        });
+        return out;
+      }
+
+      _roundScores[i] = RoundScoreRecord(
+        scheduleId: r.scheduleId,
+        scores: remapInts(r.scores),
+        handicaps: remapInts(r.handicaps),
+        recordedAt: r.recordedAt,
+      );
+    }
+  }
+
+  bool _syncScheduleMemberNames(String clubId) {
+    final byId = {for (final m in membersForClub(clubId)) m.id: m.name};
+    var changed = false;
+    for (var i = 0; i < _schedules.length; i++) {
+      final s = _schedules[i];
+      if (s.clubId != clubId) continue;
+      var rowChanged = false;
+      final next = s.responses.map((r) {
+        final name = byId[r.memberId];
+        if (name == null || name == r.memberName) return r;
+        rowChanged = true;
+        return AttendanceResponse(
+          memberId: r.memberId,
+          memberName: name,
+          response: r.response,
+          memo: r.memo,
+          companionMemberIds: r.companionMemberIds,
+          respondedAt: r.respondedAt,
+        );
+      }).toList();
+      if (!rowChanged) continue;
+      _schedules[i] = s.copyWith(responses: next);
+      changed = true;
+    }
+    return changed;
   }
 
   void _setMemberCount(String clubId, int count) {
@@ -5352,6 +5528,7 @@ class ClubProvider extends ChangeNotifier with WidgetsBindingObserver {
             (k, v) => MapEntry(k, List<MembershipPointEvent>.from(v)),
           ),
           awardRecords: List<AwardRecord>.from(saved.awardRecords),
+          roundScores: List<RoundScoreRecord>.from(saved.roundScores),
           thankYouMessages: List<ThankYouMessage>.from(saved.thankYouMessages),
           waitingList: List<WaitingEntry>.from(saved.waitingList),
           alimtalkSettings:
@@ -5436,6 +5613,7 @@ class ClubProvider extends ChangeNotifier with WidgetsBindingObserver {
           (k, v) => MapEntry(k, List<MembershipPointEvent>.from(v)),
         ),
         awardRecords: List<AwardRecord>.from(saved.awardRecords),
+        roundScores: List<RoundScoreRecord>.from(saved.roundScores),
         thankYouMessages: List<ThankYouMessage>.from(saved.thankYouMessages),
         waitingList: List<WaitingEntry>.from(saved.waitingList),
         alimtalkSettings:
@@ -7310,7 +7488,16 @@ class ClubProvider extends ChangeNotifier with WidgetsBindingObserver {
     ),
   ];
 
+  final List<RoundScoreRecord> _roundScores = [];
+
   List<AwardRecord> get allAwardRecords => List.unmodifiable(_awardRecords);
+
+  List<AwardRecord> awardRecordsFor(String scheduleId) => _awardRecords
+      .where((r) => r.scheduleId == scheduleId)
+      .toList(growable: false);
+
+  RoundScoreRecord? roundScoreFor(String scheduleId) =>
+      _roundScores.where((r) => r.scheduleId == scheduleId).firstOrNull;
 
   /// 특정 회원의 올해 시상 횟수
   int getMemberAwardCount(String memberId) {
@@ -7335,6 +7522,22 @@ class ClubProvider extends ChangeNotifier with WidgetsBindingObserver {
       );
     }
     notifyListeners();
+    _persistImmediately();
+  }
+
+  /// 한 일정의 시상을 통째로 저장 (수상자 없는 항목은 삭제)
+  void saveAwardsForSchedule(String scheduleId, List<AwardRecord> records) {
+    _awardRecords.removeWhere((r) => r.scheduleId == scheduleId);
+    _awardRecords.addAll(records);
+    notifyListeners();
+    _persistImmediately();
+  }
+
+  void saveRoundScores(RoundScoreRecord record) {
+    _roundScores.removeWhere((r) => r.scheduleId == record.scheduleId);
+    _roundScores.add(record);
+    notifyListeners();
+    _persistImmediately();
   }
 
   // ════════════════════════════════════════════════════════

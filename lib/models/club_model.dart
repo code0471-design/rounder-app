@@ -1931,6 +1931,21 @@ class AwardRecord {
   });
 }
 
+/// 라운딩 스코어 (일정 1건당 1레코드)
+class RoundScoreRecord {
+  final String scheduleId;
+  final Map<String, int> scores;
+  final Map<String, int> handicaps;
+  final DateTime recordedAt;
+
+  const RoundScoreRecord({
+    required this.scheduleId,
+    required this.scores,
+    this.handicaps = const {},
+    required this.recordedAt,
+  });
+}
+
 // ────────────────────────────────────────────────────────────
 //  후원사 감사인사 메시지
 // ────────────────────────────────────────────────────────────

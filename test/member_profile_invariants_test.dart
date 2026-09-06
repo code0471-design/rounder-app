@@ -390,6 +390,11 @@ void main() {
         reason: '임원만 보게 하면 연락처가 비어 있는 것처럼 보인다',
       );
     });
+
+    test('회원 사진을 누르면 확대한다', () {
+      expect(detail.contains('_openPhotoViewer'), isTrue);
+      expect(detail.contains('InteractiveViewer'), isTrue);
+    });
   });
 
   group('마이페이지', () {

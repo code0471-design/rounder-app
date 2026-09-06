@@ -13,6 +13,7 @@ class ClubOpsOverflow {
     'groupAssignments',
     'waitingList',
     'awardRecords',
+    'roundScores',
   ];
 
   static const ledgerKeys = <String>[
@@ -75,6 +76,7 @@ class ClubOpsOverflow {
             'groupAssignments': <String, dynamic>{},
             'waitingList': <dynamic>[],
             'awardRecords': <dynamic>[],
+            'roundScores': <dynamic>[],
           },
         );
 
@@ -107,6 +109,14 @@ class ClubOpsOverflow {
       final sid = m['scheduleId'] as String? ?? '';
       final year = years[sid] ?? DateTime.now().year;
       (bucket(year)['awardRecords'] as List).add(m);
+    }
+
+    for (final raw in slice['roundScores'] as List? ?? const []) {
+      if (raw is! Map) continue;
+      final m = Map<String, dynamic>.from(raw);
+      final sid = m['scheduleId'] as String? ?? '';
+      final year = years[sid] ?? DateTime.now().year;
+      (bucket(year)['roundScores'] as List).add(m);
     }
 
     return byYear;
@@ -161,6 +171,7 @@ class ClubOpsOverflow {
     slice['groupAssignments'] = <String, dynamic>{};
     slice['waitingList'] = <dynamic>[];
     slice['awardRecords'] = <dynamic>[];
+    slice['roundScores'] = <dynamic>[];
     slice['duesPayments'] = <dynamic>[];
     slice['transactions'] = <dynamic>[];
     slice['paymentRequests'] = <dynamic>[];
@@ -191,6 +202,7 @@ class ClubOpsOverflow {
     appendList('schedules');
     appendList('waitingList');
     appendList('awardRecords');
+    appendList('roundScores');
     appendList('duesPayments');
     appendList('transactions');
     appendList('paymentRequests');

@@ -23,6 +23,7 @@ class ClubDataBundle {
   final List<SponsorApplication> sponsorApplications;
   final Map<String, List<MembershipPointEvent>> pointEvents;
   final List<AwardRecord> awardRecords;
+  final List<RoundScoreRecord> roundScores;
   final List<ThankYouMessage> thankYouMessages;
   final List<WaitingEntry> waitingList;
   final Map<String, ClubAlimtalkSettings> alimtalkSettings;
@@ -49,6 +50,7 @@ class ClubDataBundle {
     required this.sponsorApplications,
     required this.pointEvents,
     required this.awardRecords,
+    this.roundScores = const [],
     required this.thankYouMessages,
     required this.waitingList,
     required this.alimtalkSettings,
@@ -113,6 +115,7 @@ class ClubDataCodec {
           (k, v) => MapEntry(k, v.map(_encodePointEvent).toList()),
         ),
         'awardRecords': b.awardRecords.map(_encodeAwardRecord).toList(),
+        'roundScores': b.roundScores.map(_encodeRoundScore).toList(),
         'thankYouMessages': b.thankYouMessages.map(_encodeThankYou).toList(),
         'waitingList': b.waitingList.map(_encodeWaiting).toList(),
         'alimtalkSettings': b.alimtalkSettings.map(
@@ -146,6 +149,7 @@ class ClubDataCodec {
           _list(json['sponsorApplications'], _decodeSponsorApplication),
       pointEvents: _pointMap(json['pointEvents']),
       awardRecords: _list(json['awardRecords'], _decodeAwardRecord),
+      roundScores: _list(json['roundScores'], _decodeRoundScore),
       thankYouMessages: _list(json['thankYouMessages'], _decodeThankYou),
       waitingList: _list(json['waitingList'], _decodeWaiting),
       alimtalkSettings: _alimtalkSettingsMap(json['alimtalkSettings']),
@@ -908,6 +912,27 @@ class ClubDataCodec {
         winnerNote: j['winnerNote'] as String?,
         recordedAt: _parseDtReq(j['recordedAt']),
       );
+
+  static Map<String, dynamic> _encodeRoundScore(RoundScoreRecord r) => {
+        'scheduleId': r.scheduleId,
+        'scores': r.scores.map((k, v) => MapEntry(k, v)),
+        'handicaps': r.handicaps.map((k, v) => MapEntry(k, v)),
+        'recordedAt': _dt(r.recordedAt),
+      };
+
+  static RoundScoreRecord _decodeRoundScore(Map<String, dynamic> j) {
+    Map<String, int> ints(dynamic raw) {
+      if (raw is! Map) return {};
+      return raw.map((k, v) => MapEntry(k.toString(), (v as num).toInt()));
+    }
+
+    return RoundScoreRecord(
+      scheduleId: j['scheduleId'] as String,
+      scores: ints(j['scores']),
+      handicaps: ints(j['handicaps']),
+      recordedAt: _parseDtReq(j['recordedAt']),
+    );
+  }
 
   // ── ThankYouMessage ──
   static Map<String, dynamic> _encodeThankYou(ThankYouMessage t) => {

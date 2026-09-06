@@ -6,6 +6,7 @@ import 'package:flutter/foundation.dart';
 
 import '../core/firebase/firestore_paths.dart';
 import '../di/app_dependencies.dart';
+import '../domain/services/roster_dedupe.dart';
 import 'club_data_codec.dart';
 import 'club_ops_overflow.dart';
 
@@ -70,6 +71,25 @@ class ClubOpsSync {
           remote: remoteMembers,
           remoteWins: false,
         );
+        final collapsedPush = RosterDedupe.collapseMemberMaps(
+          members: slice['members'] as List? ?? const [],
+          clubId: clubId,
+        );
+        slice['members'] = collapsedPush.members;
+        for (final id in collapsedPush.droppedIds) {
+          markMemberRemoved(id);
+        }
+
+        final localAwards = slice['awardRecords'] as List? ?? const [];
+        final remoteAwards = remote['awardRecords'] as List? ?? const [];
+        if (localAwards.isEmpty && remoteAwards.isNotEmpty) {
+          slice['awardRecords'] = remoteAwards;
+        }
+        final localScores = slice['roundScores'] as List? ?? const [];
+        final remoteScores = remote['roundScores'] as List? ?? const [];
+        if (localScores.isEmpty && remoteScores.isNotEmpty) {
+          slice['roundScores'] = remoteScores;
+        }
 
         final localSchedules = slice['schedules'] as List? ?? const [];
         final remoteSchedules = remote['schedules'] as List? ?? const [];
@@ -502,6 +522,11 @@ class ClubOpsSync {
       return scheduleIds.contains(a['scheduleId']);
     }).toList();
 
+    final roundScores = (full['roundScores'] as List? ?? []).where((a) {
+      if (a is! Map) return false;
+      return scheduleIds.contains(a['scheduleId']);
+    }).toList();
+
     // ActivityItem에는 clubId가 없음 — 선택 모임 동기화 시 전체 유지(유실 방지)
     // 클럽 전용 피드로 쪼개기 전까지는 번들에 그대로 둠(아래 merge에서 원격 우선 교체 안 함)
 
@@ -529,6 +554,7 @@ class ClubOpsSync {
           .where(clubField)
           .toList(),
       'awardRecords': awardRecords,
+      'roundScores': roundScores,
       'thankYouMessages': full['thankYouMessages'] ?? [],
       'pointEvents': pointEvents,
     };
@@ -615,12 +641,16 @@ class ClubOpsSync {
       );
     }
 
-    final awards = <dynamic>[
-      ...(encoded['awardRecords'] as List? ?? []).where(
-          (a) => a is! Map || !scheduleIds.contains(a['scheduleId'])),
-      ..._asDynamicMaps(remote['awardRecords']),
-    ];
-    encoded['awardRecords'] = awards;
+    encoded['awardRecords'] = _mergeRecordsByScheduleId(
+      localList: encoded['awardRecords'] as List?,
+      remoteList: remote['awardRecords'] as List?,
+      scheduleIds: scheduleIds,
+    );
+    encoded['roundScores'] = _mergeRecordsByScheduleId(
+      localList: encoded['roundScores'] as List?,
+      remoteList: remote['roundScores'] as List?,
+      scheduleIds: scheduleIds,
+    );
 
     encoded['activities'] = _mergeById(
       encoded['activities'] as List? ?? const [],
@@ -642,6 +672,18 @@ class ClubOpsSync {
       remote: _asDynamicMaps(remote['members']),
       remoteWins: true,
     );
+    final creatorUserId = _creatorUserIdFromEncoded(encoded, clubId);
+    final collapsed = RosterDedupe.collapseMemberMaps(
+      members: encoded['members'] as List? ?? const [],
+      clubId: clubId,
+      creatorAuthIds: {
+        if (creatorUserId.trim().isNotEmpty) creatorUserId.trim(),
+      },
+    );
+    encoded['members'] = collapsed.members;
+    for (final id in collapsed.droppedIds) {
+      markMemberRemoved(id);
+    }
 
     // groupAssignments: replace keys for this club's schedules
     final ga = Map<String, dynamic>.from(
@@ -782,6 +824,40 @@ class ClubOpsSync {
       out.add(e);
     }
     return out;
+  }
+
+  static String _creatorUserIdFromEncoded(Map<String, dynamic> encoded, String clubId) {
+    for (final key in ['myClubs', 'allClubs']) {
+      final list = encoded[key];
+      if (list is! List) continue;
+      for (final e in list) {
+        if (e is Map && e['id'] == clubId) {
+          return e['creatorId'] as String? ?? '';
+        }
+      }
+    }
+    return '';
+  }
+
+  /// 일정 단위 기록(시상·스코어). 원격이 비면 로컬을 지우지 않는다.
+  static List<dynamic> _mergeRecordsByScheduleId({
+    required List? localList,
+    required List? remoteList,
+    required Set<String> scheduleIds,
+  }) {
+    final localKeptOther = (localList ?? []).where(
+      (a) => a is! Map || !scheduleIds.contains(a['scheduleId']),
+    );
+    final remoteMaps = _asDynamicMaps(remoteList);
+    if (remoteMaps.isEmpty) {
+      return [
+        ...localKeptOther,
+        ...(localList ?? []).where(
+          (a) => a is Map && scheduleIds.contains(a['scheduleId']),
+        ),
+      ];
+    }
+    return [...localKeptOther, ...remoteMaps];
   }
 
   /// clubId 스코프 목록을 id 기준으로 합친다. 원격이 비어 있으면 로컬 유지.
