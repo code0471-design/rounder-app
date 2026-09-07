@@ -39,8 +39,20 @@ class SolapiService {
   static const _apiKeyRaw = String.fromEnvironment('SOLAPI_API_KEY');
   static const _apiSecretRaw = String.fromEnvironment('SOLAPI_API_SECRET');
 
-  String get _apiKey => _apiKeyRaw.trim();
-  String get _apiSecret => _apiSecretRaw.trim();
+  /// Codemagic / dart-define-from-file 에 붙은 공백·따옴표가 있으면 HMAC이 깨진다.
+  @visibleForTesting
+  static String stripEnv(String raw) {
+    var s = raw.trim();
+    if (s.length >= 2 &&
+        ((s.startsWith('"') && s.endsWith('"')) ||
+            (s.startsWith("'") && s.endsWith("'")))) {
+      s = s.substring(1, s.length - 1).trim();
+    }
+    return s;
+  }
+
+  String get _apiKey => stripEnv(_apiKeyRaw);
+  String get _apiSecret => stripEnv(_apiSecretRaw);
 
   /// OTP 알림톡 실패 시 SMS 발신번호 (솔라피 사전등록). 기본: 01045110471
   static const senderPhone = String.fromEnvironment(

@@ -72,3 +72,64 @@ if otp in (ONECLUB_OTP, LEGACY_OTP):
 
 with open("solapi_defines.json", "w", encoding="utf-8") as f:
     json.dump(defs, f)
+
+
+def verify_solapi_hmac(api_key: str, api_secret: str) -> None:
+    """앱에 넣기 전에 솔라피가 이 Key/Secret 쌍을 받는지 확인한다.
+
+    길이만 보고 넘어가면 Play AAB가 HMAC 거절로 나간다.
+    """
+    import hashlib
+    import hmac
+    import urllib.error
+    import urllib.request
+    from datetime import datetime, timezone
+
+    now = datetime.now(timezone.utc)
+    date = now.strftime("%Y-%m-%dT%H:%M:%SZ")
+    salt = os.urandom(16).hex()
+    signature = hmac.new(
+        api_secret.encode("utf-8"),
+        (date + salt).encode("utf-8"),
+        hashlib.sha256,
+    ).hexdigest()
+    auth = "HMAC-SHA256 apiKey=%s, date=%s, salt=%s, signature=%s" % (
+        api_key,
+        date,
+        salt,
+        signature,
+    )
+    req = urllib.request.Request(
+        "https://api.solapi.com/cash/v1/balance",
+        headers={"Authorization": auth},
+        method="GET",
+    )
+    try:
+        with urllib.request.urlopen(req, timeout=20) as res:
+            print("SOLAPI HMAC ok (HTTP %s)" % res.status)
+            return
+    except urllib.error.HTTPError as e:
+        body = e.read().decode("utf-8", errors="replace")
+        auth_fail = (
+            e.code in (401, 403)
+            or "signature" in body.lower()
+            or "InvalidAPIKey" in body
+            or "InvalidSignature" in body
+            or "SignatureDoesNotMatch" in body
+            or "InvalidDateInfo" in body
+        )
+        if auth_fail:
+            sys.exit(
+                "SOLAPI HMAC rejected (HTTP %s). "
+                "solapi 그룹 Key/Secret 짝이 틀렸습니다. 이 AAB를 올리지 마세요."
+                % e.code
+            )
+        if e.code == 404:
+            print("SOLAPI HMAC ok (balance 404)")
+            return
+        sys.exit("SOLAPI HMAC check failed HTTP %s" % e.code)
+    except Exception as e:
+        sys.exit("SOLAPI HMAC check network error: %s" % e)
+
+
+verify_solapi_hmac(defs["SOLAPI_API_KEY"], defs["SOLAPI_API_SECRET"])

@@ -84,6 +84,8 @@ void main() {
     expect(solapiDefines.contains('KA01TP260827200825010BAkqpx4TyCt'), isTrue);
     expect(solapiDefines.contains('KA01TP2608272010352785egDZKZOntL'), isTrue);
     expect(solapiDefines.contains('SOLAPI_API_KEY length='), isTrue);
+    expect(solapiDefines.contains('verify_solapi_hmac'), isTrue);
+    expect(solapiDefines.contains('SOLAPI HMAC rejected'), isTrue);
     expect(solapiDefines.contains('solapi group missing'), isTrue);
     expect(solapiDefines.contains('OneClub/legacy'), isTrue);
     expect(
@@ -107,6 +109,13 @@ void main() {
       SolapiService.hmacDate(DateTime.utc(2026, 9, 6, 12, 5, 7, 123)),
       '2026-09-06T12:05:07Z',
     );
+  });
+
+  test('솔라피 Key/Secret 은 따옴표를 벗겨야 한다', () {
+    expect(solapi.contains('static String stripEnv'), isTrue);
+    expect(SolapiService.stripEnv('  "NCSAEXAMPLEKEY1"  '), 'NCSAEXAMPLEKEY1');
+    expect(SolapiService.stripEnv("'secret'"), 'secret');
+    expect(SolapiService.stripEnv('plain'), 'plain');
   });
 
   test('번호 저장이 실패하면 인증 완료로 넘어가지 않는다', () {
