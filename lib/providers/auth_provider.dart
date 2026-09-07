@@ -407,8 +407,9 @@ class AuthProvider extends ChangeNotifier {
     } else {
       _registeredUsers.add(user);
     }
-    // ignore: unawaited_futures
-    _persistPlatformUser(user);
+    unawaited(_persistPlatformUser(user).catchError((Object e, StackTrace st) {
+      debugPrint('[AuthProvider] persist platform user failed: $e');
+    }));
 
     _currentUser = user;
     await FirebaseAuthBridge.ensureSignedIn(user);
@@ -959,6 +960,7 @@ class AuthProvider extends ChangeNotifier {
           .set(data, SetOptions(merge: true));
     } catch (e) {
       debugPrint('[AuthProvider] persist platform user failed: $e');
+      rethrow;
     }
   }
 

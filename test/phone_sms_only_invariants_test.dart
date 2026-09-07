@@ -108,4 +108,13 @@ void main() {
       '2026-09-06T12:05:07Z',
     );
   });
+
+  test('번호 저장이 실패하면 인증 완료로 넘어가지 않는다', () {
+    final auth = File('lib/providers/auth_provider.dart').readAsStringSync();
+    expect(auth.contains('await _persistPlatformUser(updated);'), isTrue);
+    expect(auth.contains("debugPrint('[AuthProvider] persist platform user failed: \$e');"),
+        isTrue);
+    final persist = auth.substring(auth.indexOf('Future<void> _persistPlatformUser'));
+    expect(persist.contains('rethrow;'), isTrue);
+  });
 }
