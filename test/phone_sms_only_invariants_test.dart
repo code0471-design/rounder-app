@@ -85,7 +85,9 @@ void main() {
     expect(solapiDefines.contains('KA01TP2608272010352785egDZKZOntL'), isTrue);
     expect(solapiDefines.contains('SOLAPI_API_KEY length='), isTrue);
     expect(solapiDefines.contains('verify_solapi_hmac'), isTrue);
-    expect(solapiDefines.contains('SOLAPI HMAC rejected'), isTrue);
+    expect(solapiDefines.contains('messages/v4/list'), isTrue);
+    expect(solapiDefines.contains('SignatureDoesNotMatch'), isTrue);
+    expect(solapiDefines.contains('errorCode='), isTrue);
     expect(solapiDefines.contains('solapi group missing'), isTrue);
     expect(solapiDefines.contains('OneClub/legacy'), isTrue);
     expect(
