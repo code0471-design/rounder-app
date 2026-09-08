@@ -30,7 +30,32 @@ class _GolfCourseNameFieldState extends State<GolfCourseNameField> {
   final _focus = FocusNode();
 
   @override
+  void initState() {
+    super.initState();
+    _focus.addListener(_onFocusChange);
+  }
+
+  void _onFocusChange() {
+    if (_focus.hasFocus) return;
+    final raw = widget.courseController.text.trim();
+    if (raw.isEmpty) return;
+    final canon = canonicalGolfCourseName(raw, extras: widget.extras);
+    if (canon != widget.courseController.text) {
+      widget.courseController.text = canon;
+      widget.courseController.selection =
+          TextSelection.collapsed(offset: canon.length);
+    }
+    final hit = findGolfCourseByName(canon, extras: widget.extras);
+    if (hit != null &&
+        hit.address.isNotEmpty &&
+        widget.addressController.text.trim().isEmpty) {
+      widget.addressController.text = hit.address;
+    }
+  }
+
+  @override
   void dispose() {
+    _focus.removeListener(_onFocusChange);
     _focus.dispose();
     super.dispose();
   }
@@ -45,9 +70,10 @@ class _GolfCourseNameFieldState extends State<GolfCourseNameField> {
         return searchGolfCourses(value.text, extras: widget.extras);
       },
       onSelected: (course) {
-        widget.courseController.text = course.name;
+        final name = canonicalGolfCourseName(course.name, extras: widget.extras);
+        widget.courseController.text = name;
         widget.courseController.selection = TextSelection.collapsed(
-          offset: course.name.length,
+          offset: name.length,
         );
         if (course.address.isNotEmpty) {
           widget.addressController.text = course.address;

@@ -40,7 +40,10 @@ ReservationSmsParse parseReservationSms(
   final course = _matchCourse(text, extras);
   final labeledCourse = _labeledCourse(text);
   final bracketCourse = _bracketClubName(text);
-  final courseName = course?.name ?? labeledCourse ?? bracketCourse;
+  final rawName = course?.name ?? labeledCourse ?? bracketCourse;
+  final courseName = rawName == null
+      ? null
+      : canonicalGolfCourseName(rawName, extras: extras);
   final address = course?.address;
   final people = _parsePeople(text);
   final teamCount = people == null ? null : ((people + 3) ~/ 4).clamp(1, 30);
@@ -170,8 +173,9 @@ GolfCourse? _matchCourse(String text, List<GolfCourse> extras) {
 
   void consider(GolfCourse course) {
     final name = course.name.replaceAll(' ', '').toLowerCase();
-    if (name.length < 3) return;
-    if (!compact.contains(name)) return;
+    final base = golfCourseBaseName(course.name);
+    if (base.length < 2) return;
+    if (!compact.contains(name) && !compact.contains(base)) return;
     if (name.length > bestLen) {
       best = course;
       bestLen = name.length;

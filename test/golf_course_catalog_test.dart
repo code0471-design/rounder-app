@@ -12,4 +12,13 @@ void main() {
   test('공백 검색은 목록을 열지 않는다', () {
     expect(searchGolfCourses('  '), isEmpty);
   });
+
+  test('골프장 이름은 CC·GC·골프클럽을 붙여 넣는다', () {
+    expect(canonicalGolfCourseName('레이크사이드'), '레이크사이드CC');
+    expect(canonicalGolfCourseName('남서울'), '남서울CC');
+    expect(canonicalGolfCourseName('안양베네스트'), '안양베네스트GC');
+    expect(canonicalGolfCourseName('더크로스비'), '더크로스비골프클럽');
+    expect(canonicalGolfCourseName('더크로스비골프클럽'), '더크로스비골프클럽');
+    expect(canonicalGolfCourseName('레이크사이드CC'), '레이크사이드CC');
+  });
 }

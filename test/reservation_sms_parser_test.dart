@@ -59,6 +59,12 @@ void main() {
     expect(p.courseName, isNot(contains('빌리')));
   });
 
+  test('짧은 골프장명도 CC를 붙여 넣는다', () {
+    const sms = '레이크사이드 2026년 9월 12일 07:28 예약완료';
+    final p = parseReservationSms(sms, now: now);
+    expect(p.courseName, '레이크사이드CC');
+  });
+
   test('빈 글자는 값을 만들지 않는다', () {
     final p = parseReservationSms('   ', now: now);
     expect(p.hasAny, isFalse);

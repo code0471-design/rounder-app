@@ -5,6 +5,71 @@ class GolfCourse {
   const GolfCourse({required this.name, required this.address});
 }
 
+final _courseSuffixRe = RegExp(
+  r'(컨트리클럽|골프클럽|골프장|클럽|cc|gc)$',
+  caseSensitive: false,
+);
+
+/// CC·GC·골프클럽 등을 뺀 비교용 이름.
+String golfCourseBaseName(String name) {
+  return name
+      .replaceAll(RegExp(r'\s+'), '')
+      .replaceAll(_courseSuffixRe, '')
+      .toLowerCase();
+}
+
+bool golfCourseHasSuffix(String name) {
+  return _courseSuffixRe.hasMatch(name.replaceAll(RegExp(r'\s+'), ''));
+}
+
+GolfCourse? findGolfCourseByName(
+  String raw, {
+  List<GolfCourse> extras = const [],
+}) {
+  final base = golfCourseBaseName(raw);
+  if (base.length < 2) return null;
+  GolfCourse? exact;
+  GolfCourse? contains;
+  void consider(GolfCourse course) {
+    final cb = golfCourseBaseName(course.name);
+    if (cb.isEmpty) return;
+    if (cb == base) {
+      exact = course;
+      return;
+    }
+    if (base.length >= 4 && (cb.contains(base) || base.contains(cb))) {
+      final cur = contains;
+      if (cur == null || course.name.length > cur.name.length) {
+        contains = course;
+      }
+    }
+  }
+
+  for (final c in extras) {
+    consider(c);
+  }
+  for (final c in kKoreanGolfCourses) {
+    consider(c);
+  }
+  return exact ?? contains;
+}
+
+/// 목록에 CC·GC·골프클럽이 있으면 그 전체 이름을 쓴다.
+String canonicalGolfCourseName(
+  String raw, {
+  List<GolfCourse> extras = const [],
+}) {
+  final trimmed = raw.trim();
+  if (trimmed.isEmpty) return trimmed;
+  final hit = findGolfCourseByName(trimmed, extras: extras);
+  if (hit == null) return trimmed;
+  if (golfCourseHasSuffix(trimmed) &&
+      golfCourseBaseName(trimmed) == golfCourseBaseName(hit.name)) {
+    return golfCourseHasSuffix(hit.name) ? hit.name : trimmed;
+  }
+  return golfCourseHasSuffix(hit.name) ? hit.name : trimmed;
+}
+
 /// 일정 등록 자동완성용 국내 골프장 목록 (이름 검색 → 주소 채움).
 const List<GolfCourse> kKoreanGolfCourses = [
   GolfCourse(name: '레이크사이드CC', address: '경기도 용인시 처인구 남사읍 봉무로 157'),
