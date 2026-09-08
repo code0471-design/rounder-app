@@ -129,10 +129,6 @@ exports.sendD1Reminders = onSchedule(
     region: REGION,
   },
   async () => {
-    if (!(await hqPushEnabled("push_d1_reminder"))) {
-      console.log("D-1 reminder disabled by HQ");
-      return;
-    }
     const today = new Date().toLocaleDateString("en-CA", {
       timeZone: "Asia/Seoul",
     });
@@ -143,11 +139,17 @@ exports.sendD1Reminders = onSchedule(
     for (const doc of snap.docs) {
       const d = doc.data();
       if (!d.userId) continue;
+      const isDues = d.kind === "dues";
+      const typeId =
+        d.pushType || (isDues ? "push_dues_request" : "push_d1_reminder");
+      if (!(await hqPushEnabled(typeId))) {
+        continue;
+      }
       await inboxPush(
         d.userId,
-        d.title || "내일 라운딩 안내",
+        d.title || (isDues ? "회비 납부 안내" : "내일 라운딩 안내"),
         d.body || "",
-        "push_d1_reminder",
+        typeId,
         d.clubId || ""
       );
       await doc.ref.delete();

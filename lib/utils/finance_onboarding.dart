@@ -34,4 +34,35 @@ abstract final class FinanceOnboarding {
     if (t.contains('이번달')) return FinanceStartMode.thisMonth;
     return null;
   }
+
+  static FinanceStartMode? inferMode({
+    String? memo,
+    DateTime? asOf,
+    DateTime? now,
+  }) {
+    final fromMemo = modeFromMemo(memo);
+    if (fromMemo != null) return fromMemo;
+    final n = now ?? DateTime.now();
+    if (asOf != null &&
+        asOf.year == n.year &&
+        asOf.month == 1 &&
+        asOf.day == 1) {
+      return FinanceStartMode.season;
+    }
+    return null;
+  }
+
+  /// 올시즌(1월부터)이면 1월 1일, 이번달·그 외는 오늘.
+  static DateTime defaultTransactionDate({
+    String? memo,
+    DateTime? asOf,
+    DateTime? now,
+  }) {
+    final n = now ?? DateTime.now();
+    final mode = inferMode(memo: memo, asOf: asOf, now: n);
+    if (mode == FinanceStartMode.season) {
+      return DateTime(n.year, 1, 1);
+    }
+    return DateTime(n.year, n.month, n.day);
+  }
 }

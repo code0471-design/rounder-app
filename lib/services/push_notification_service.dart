@@ -8,6 +8,7 @@ import 'package:flutter_local_notifications/flutter_local_notifications.dart';
 
 import '../core/firebase/firestore_paths.dart';
 import '../firebase_options.dart';
+import '../utils/dues_d1_schedule.dart';
 import 'hq_push_catalog.dart';
 import 'hq_remote_settings.dart';
 
@@ -272,6 +273,69 @@ abstract final class PushNotificationService {
           .set({'alimtalkSent': true}, SetOptions(merge: true));
     } catch (e) {
       debugPrint('[Push] d1 alimtalk mark skip: $e');
+    }
+  }
+
+  /// 회비 납부요청 — 납부기준일 1일 전 10시 큐. [kind]=dues 로 라운딩 D-1과 구분.
+  static Future<void> syncDuesD1Reminder({
+    required String settingId,
+    required String userId,
+    required DateTime dueDate,
+    required String periodKey,
+    required String clubId,
+    required String clubName,
+    required String amountText,
+    required String dueText,
+    required bool enqueue,
+    String? phone,
+    required String memberName,
+  }) async {
+    if (!HqRemoteSettings.available) return;
+    if (userId.isEmpty) return;
+    final docId = DuesD1Schedule.queueDocId(
+      settingId: settingId,
+      userId: userId,
+      periodKey: periodKey,
+    );
+    final doc = FirebaseFirestore.instance
+        .collection(FirestorePaths.d1Queue)
+        .doc(docId);
+    try {
+      if (!enqueue) {
+        await doc.delete();
+        return;
+      }
+      final sendOn = DuesD1Schedule.sendOnDate(dueDate);
+      final today = DateTime(DateTime.now().year, DateTime.now().month,
+          DateTime.now().day);
+      if (sendOn.isBefore(today)) return;
+      final existing = await doc.get();
+      if (existing.data()?['alimtalkSent'] == true) return;
+      final t = HqPushCatalog.byIdSync(HqPushCatalog.duesRequest);
+      await doc.set({
+        'userId': userId,
+        'scheduleId': DuesD1Schedule.scheduleIdFor(settingId),
+        'kind': DuesD1Schedule.kind,
+        'pushType': HqPushCatalog.duesRequest,
+        'duesSettingId': settingId,
+        'periodKey': periodKey,
+        'clubId': clubId,
+        'sendOn': DuesD1Schedule.ymd(sendOn),
+        'title': HqPushCatalog.applyVars(
+            t?.defaultTitle ?? '회비 납부 안내', {'모임명': clubName}),
+        'body': HqPushCatalog.applyVars(
+            t?.defaultBody ?? '$clubName 회비 납부를 안내드립니다. 납부 기한: $dueText',
+            {'모임명': clubName, '기한': dueText}),
+        'phone': phone ?? '',
+        'memberName': memberName,
+        'clubName': clubName,
+        'amount': amountText,
+        'dueText': dueText,
+        'alimtalkSent': false,
+        'updatedAt': FieldValue.serverTimestamp(),
+      });
+    } catch (e) {
+      debugPrint('[Push] dues d1 sync skip: $e');
     }
   }
 

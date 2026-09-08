@@ -122,7 +122,7 @@ void main() {
     expect(provider.contains('_persistImmediately();'), isTrue);
     final switchBlock = provider.substring(
       provider.indexOf('void switchPrimaryDuesType'),
-      provider.indexOf('void switchPrimaryDuesType') + 700,
+      provider.indexOf('void switchPrimaryDuesType') + 1400,
     );
     expect(switchBlock.contains('_persistImmediately()'), isTrue);
   });
@@ -194,5 +194,26 @@ void main() {
         isTrue);
     expect(fn.contains('.toSet()\n        .length'), isFalse,
         reason: '탈퇴·게스트 납부까지 분자에 넣으면 2/1·200%가 된다');
+  });
+
+  test('납부기준일 1일전 알림톡 안내와 내역추가 기본값이 있다', () {
+    expect(finance.contains('DuesD1Schedule.noticeText'), isTrue);
+    expect(
+      File('lib/utils/dues_d1_schedule.dart').readAsStringSync().contains(
+          '납부기준일 1일전 회원들에게 알림톡이 발송됩니다'),
+      isTrue,
+    );
+    expect(finance.contains("kind == DuesType.annual ? '연회비' : '월회비'"), isTrue);
+    expect(finance.contains("'후원'"), isTrue);
+    expect(finance.contains("'경비'"), isTrue);
+    expect(finance.contains('저장하고 계속 입력'), isTrue);
+    expect(finance.contains('TreasurerTxPromptScreen'), isTrue);
+    expect(finance.contains('_showTxPrompt'), isTrue);
+    final addBlock = provider.substring(
+      provider.indexOf('void addDuesSetting'),
+      provider.indexOf('void sendDuesNudge'),
+    );
+    expect(addBlock.contains('_dispatchClubAlimtalk'), isFalse);
+    expect(addBlock.contains('syncDuesD1Reminders'), isTrue);
   });
 }

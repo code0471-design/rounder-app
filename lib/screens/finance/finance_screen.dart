@@ -3,6 +3,7 @@ import 'package:provider/provider.dart';
 import '../../models/club_model.dart';
 import '../../providers/club_provider.dart';
 import '../../theme/app_theme.dart';
+import '../../utils/dues_d1_schedule.dart';
 import '../../utils/finance_onboarding.dart';
 import 'dues_payment_screen.dart';
 import 'treasurer_finance_onboarding_screen.dart';
@@ -24,6 +25,42 @@ String _fmt(int n) {
 String _fmtSigned(int n) {
   if (n < 0) return '-${_fmt(n)}';
   return _fmt(n);
+}
+
+class _DueDateAlimtalkNotice extends StatelessWidget {
+  const _DueDateAlimtalkNotice();
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      width: double.infinity,
+      margin: const EdgeInsets.only(top: 10),
+      padding: const EdgeInsets.fromLTRB(12, 10, 12, 10),
+      decoration: BoxDecoration(
+        color: const Color(0xFFFFF8E1),
+        borderRadius: BorderRadius.circular(10),
+        border: Border.all(color: const Color(0xFFFFCC02)),
+      ),
+      child: const Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Icon(Icons.campaign_rounded, size: 18, color: Color(0xFFB45309)),
+          SizedBox(width: 8),
+          Expanded(
+            child: Text(
+              DuesD1Schedule.noticeText,
+              style: TextStyle(
+                fontSize: 12,
+                fontWeight: FontWeight.w800,
+                color: Color(0xFF92400E),
+                height: 1.4,
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
 }
 
 /// 왼쪽 잔고, 오른쪽 위 수입 / 아래 지출
@@ -394,7 +431,12 @@ class _FinanceScreenState extends State<FinanceScreen>
                       focusMonth: _txFocusMonth,
                     ),
                     _SettlementReportTab(isAdmin: isAdmin),
-                    _DuesSettingTab(isAdmin: isAdmin),
+                    _DuesSettingTab(
+                      isAdmin: isAdmin,
+                      onFirstDuesCreated: () {
+                        if (mounted) setState(() => _showTxPrompt = true);
+                      },
+                    ),
                   ],
                 ),
               ),
@@ -2130,7 +2172,8 @@ class _TxTile extends StatelessWidget {
 // ════════════════════════════════════════════════════════════
 class _DuesSettingTab extends StatelessWidget {
   final bool isAdmin;
-  const _DuesSettingTab({required this.isAdmin});
+  final VoidCallback? onFirstDuesCreated;
+  const _DuesSettingTab({required this.isAdmin, this.onFirstDuesCreated});
 
   void _guardTreasurerSetup(BuildContext context, VoidCallback onAllowed) {
     final provider = context.read<ClubProvider>();
@@ -2472,7 +2515,7 @@ class _DuesSettingTab extends StatelessWidget {
     List<DuesType>? allowedTypes,
     ValueChanged<DuesSetting>? onCreated,
   }) {
-    showModalBottomSheet(
+    showModalBottomSheet<Object>(
       context: context,
       isScrollControlled: true,
       backgroundColor: Colors.transparent,
@@ -2482,7 +2525,9 @@ class _DuesSettingTab extends StatelessWidget {
         allowedTypes: allowedTypes,
         onCreated: onCreated,
       ),
-    );
+    ).then((result) {
+      if (result == 'promptEnter') onFirstDuesCreated?.call();
+    });
   }
 
   void _showEditDuesSheet(
@@ -3329,13 +3374,32 @@ class _TransactionFormSheetState extends State<_TransactionFormSheet> {
   final _titleCtrl = TextEditingController();
   final _amountCtrl = TextEditingController();
   final _memoCtrl = TextEditingController();
+  final _amountFocus = FocusNode();
   TxType _type = TxType.income;
   String _category = '월회비';
   late DateTime _date;
+  bool _titleDirty = false;
+  int _savedCount = 0;
+  String? _lastSavedLabel;
+
+  static const _incomeCategories = [
+    '월회비',
+    '연회비',
+    '특별회비',
+    '벌금',
+    '후원',
+    '기타',
+  ];
+  static const _expenseCategories = ['식비', '상품', '운영비', '경비', '기타'];
+
+  List<String> get _categories =>
+      _type == TxType.income ? _incomeCategories : _expenseCategories;
 
   @override
   void initState() {
     super.initState();
+    final kind = widget.provider.clubPrimaryDuesType;
+    _category = kind == DuesType.annual ? '연회비' : '월회비';
     final now = DateTime.now();
     final y = widget.defaultYear;
     final m = widget.defaultMonth;
@@ -3344,20 +3408,42 @@ class _TransactionFormSheetState extends State<_TransactionFormSheet> {
     } else {
       _date = DateTime(y, m, 1);
     }
+    _titleCtrl.text = _category;
   }
-
-  static const _incomeCategories = ['월회비', '연회비', '특별회비', '벌금', '기타'];
-  static const _expenseCategories = ['식비', '상품', '운영비', '기타'];
-
-  List<String> get _categories =>
-      _type == TxType.income ? _incomeCategories : _expenseCategories;
 
   @override
   void dispose() {
     _titleCtrl.dispose();
     _amountCtrl.dispose();
     _memoCtrl.dispose();
+    _amountFocus.dispose();
     super.dispose();
+  }
+
+  void _selectCategory(String c) {
+    final prev = _category;
+    setState(() {
+      _category = c;
+      if (!_titleDirty || _titleCtrl.text.trim() == prev) {
+        _titleCtrl.text = c;
+        _titleDirty = false;
+      }
+    });
+  }
+
+  void _switchType(TxType v) {
+    setState(() {
+      _type = v;
+      if (v == TxType.income) {
+        final kind = widget.provider.clubPrimaryDuesType;
+        _category = kind == DuesType.annual ? '연회비' : '월회비';
+      } else {
+        _category = _categories.first;
+      }
+      if (!_titleDirty) {
+        _titleCtrl.text = _category;
+      }
+    });
   }
 
   @override
@@ -3412,22 +3498,33 @@ class _TransactionFormSheetState extends State<_TransactionFormSheet> {
                   controller: ctrl,
                   padding: const EdgeInsets.all(20),
                   children: [
+                    if (_lastSavedLabel != null) ...[
+                      Container(
+                        width: double.infinity,
+                        margin: const EdgeInsets.only(bottom: 16),
+                        padding: const EdgeInsets.fromLTRB(12, 10, 12, 10),
+                        decoration: BoxDecoration(
+                          color: const Color(0xFFECFDF5),
+                          borderRadius: BorderRadius.circular(10),
+                          border: Border.all(color: const Color(0xFF6EE7B7)),
+                        ),
+                        child: Text(
+                          '$_lastSavedLabel · 이어서 입력하세요 ($_savedCount건)',
+                          style: const TextStyle(
+                            fontSize: 13,
+                            fontWeight: FontWeight.w700,
+                            color: Color(0xFF047857),
+                          ),
+                        ),
+                      ),
+                    ],
+
                     // 수입/지출 토글
                     Row(
                       children: [
-                        _TypeBtn('수입', TxType.income, _type, (v) {
-                          setState(() {
-                            _type = v;
-                            _category = _categories.first;
-                          });
-                        }),
+                        _TypeBtn('수입', TxType.income, _type, _switchType),
                         const SizedBox(width: 10),
-                        _TypeBtn('지출', TxType.expense, _type, (v) {
-                          setState(() {
-                            _type = v;
-                            _category = _categories.first;
-                          });
-                        }),
+                        _TypeBtn('지출', TxType.expense, _type, _switchType),
                       ],
                     ),
                     const SizedBox(height: 16),
@@ -3443,7 +3540,7 @@ class _TransactionFormSheetState extends State<_TransactionFormSheet> {
                       children: _categories.map((c) {
                         final sel = c == _category;
                         return GestureDetector(
-                          onTap: () => setState(() => _category = c),
+                          onTap: () => _selectCategory(c),
                           child: Container(
                             padding: const EdgeInsets.symmetric(
                                 horizontal: 12, vertical: 7),
@@ -3480,6 +3577,7 @@ class _TransactionFormSheetState extends State<_TransactionFormSheet> {
                     TextFormField(
                       controller: _titleCtrl,
                       decoration: _deco('예: 6월 월회비 수납'),
+                      onChanged: (_) => _titleDirty = true,
                       validator: (v) =>
                           v == null || v.trim().isEmpty ? '제목을 입력하세요' : null,
                     ),
@@ -3492,6 +3590,7 @@ class _TransactionFormSheetState extends State<_TransactionFormSheet> {
                     const SizedBox(height: 6),
                     TextFormField(
                       controller: _amountCtrl,
+                      focusNode: _amountFocus,
                       keyboardType: TextInputType.number,
                       decoration: _deco('예: 300000'),
                       validator: (v) {
@@ -3547,45 +3646,43 @@ class _TransactionFormSheetState extends State<_TransactionFormSheet> {
                     ),
                     const SizedBox(height: 28),
 
-                    // 등록 / 계속 입력
-                    Row(
+                    // 저장하고 계속 / 저장하고 닫기
+                    Column(
                       children: [
-                        Expanded(
-                          child: SizedBox(
-                            height: 52,
-                            child: OutlinedButton(
-                              onPressed: () => _save(keepOpen: true),
-                              style: OutlinedButton.styleFrom(
-                                foregroundColor: AppColors.primary,
-                                side: const BorderSide(
-                                    color: AppColors.primary, width: 1.5),
-                                shape: RoundedRectangleBorder(
-                                    borderRadius: BorderRadius.circular(14)),
-                              ),
-                              child: const Text('계속 입력',
-                                  style: TextStyle(
-                                      fontSize: 15,
-                                      fontWeight: FontWeight.bold)),
+                        SizedBox(
+                          width: double.infinity,
+                          height: 52,
+                          child: ElevatedButton(
+                            onPressed: () => _save(keepOpen: true),
+                            style: ElevatedButton.styleFrom(
+                              backgroundColor: AppColors.primary,
+                              foregroundColor: Colors.white,
+                              shape: RoundedRectangleBorder(
+                                  borderRadius: BorderRadius.circular(14)),
                             ),
+                            child: const Text('저장하고 계속 입력',
+                                style: TextStyle(
+                                    fontSize: 16,
+                                    fontWeight: FontWeight.bold)),
                           ),
                         ),
-                        const SizedBox(width: 10),
-                        Expanded(
-                          child: SizedBox(
-                            height: 52,
-                            child: ElevatedButton(
-                              onPressed: () => _save(keepOpen: false),
-                              style: ElevatedButton.styleFrom(
-                                backgroundColor: AppColors.primary,
-                                foregroundColor: Colors.white,
-                                shape: RoundedRectangleBorder(
-                                    borderRadius: BorderRadius.circular(14)),
-                              ),
-                              child: const Text('등록',
-                                  style: TextStyle(
-                                      fontSize: 16,
-                                      fontWeight: FontWeight.bold)),
+                        const SizedBox(height: 10),
+                        SizedBox(
+                          width: double.infinity,
+                          height: 48,
+                          child: OutlinedButton(
+                            onPressed: () => _save(keepOpen: false),
+                            style: OutlinedButton.styleFrom(
+                              foregroundColor: AppColors.primary,
+                              side: const BorderSide(
+                                  color: AppColors.primary, width: 1.5),
+                              shape: RoundedRectangleBorder(
+                                  borderRadius: BorderRadius.circular(14)),
                             ),
+                            child: const Text('저장하고 닫기',
+                                style: TextStyle(
+                                    fontSize: 15,
+                                    fontWeight: FontWeight.w700)),
                           ),
                         ),
                       ],
@@ -3633,22 +3730,15 @@ class _TransactionFormSheetState extends State<_TransactionFormSheet> {
     widget.provider.addTransaction(tx);
 
     if (keepOpen) {
-      // 같은 시트에서 이어서 입력 — 제목/금액/메모만 초기화
-      _titleCtrl.clear();
       _amountCtrl.clear();
       _memoCtrl.clear();
-      _formKey.currentState!.reset();
-      setState(() {});
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text('등록됨 (${_fmt(tx.amount)}원) · 이어서 입력하세요'),
-          backgroundColor: AppColors.primary,
-          behavior: SnackBarBehavior.floating,
-          duration: const Duration(seconds: 2),
-          shape:
-              RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
-        ),
-      );
+      _titleCtrl.text = _category;
+      _titleDirty = false;
+      setState(() {
+        _savedCount += 1;
+        _lastSavedLabel = '등록됨 (${_fmt(tx.amount)}원)';
+      });
+      _amountFocus.requestFocus();
       return;
     }
 
@@ -4115,6 +4205,7 @@ class _DuesSettingFormSheetState extends State<_DuesSettingFormSheet> {
                         onChanged: (v) =>
                             setState(() => _dueDayOfMonth = v),
                       ),
+                      const _DueDateAlimtalkNotice(),
                       const SizedBox(height: 16),
                     ],
 
@@ -4210,6 +4301,7 @@ class _DuesSettingFormSheetState extends State<_DuesSettingFormSheet> {
                           ),
                         ),
                       ),
+                      const _DueDateAlimtalkNotice(),
                       const SizedBox(height: 16),
                     ],
 
@@ -4383,18 +4475,22 @@ class _DuesSettingFormSheetState extends State<_DuesSettingFormSheet> {
             ? _dueDate
             : null,
       );
+      final wasFirst = widget.provider.activeDuesSettings.isEmpty;
       widget.provider.addDuesSetting(setting);
       widget.onCreated?.call(setting);
-      Navigator.pop(context);
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text('\'$title\' 회비가 추가되었습니다'),
-          backgroundColor: AppColors.primary,
-          behavior: SnackBarBehavior.floating,
-          shape: RoundedRectangleBorder(
-              borderRadius: BorderRadius.circular(10)),
-        ),
-      );
+      final promptEnter = wasFirst;
+      Navigator.pop(context, promptEnter ? 'promptEnter' : null);
+      if (!promptEnter && context.mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('\'$title\' 회비가 추가되었습니다'),
+            backgroundColor: AppColors.primary,
+            behavior: SnackBarBehavior.floating,
+            shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(10)),
+          ),
+        );
+      }
     }
   }
 

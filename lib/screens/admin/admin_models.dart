@@ -536,7 +536,7 @@ abstract final class AdminCatalog {
       name: '회비 납부요청',
       channel: '푸시·알림톡',
       audience: PushAudienceKind.allMembers,
-      timing: PushTimingKind.immediate,
+      timing: PushTimingKind.d1At10,
       defaultTitle: '회비 납부 안내',
       defaultBody: '{{모임명}} 회비 납부를 안내드립니다. 납부 기한: {{기한}}',
     ),
@@ -601,7 +601,7 @@ abstract final class AdminCatalog {
       id: 'atk_dues_request',
       name: '회비 납부요청',
       audience: PushAudienceKind.allMembers,
-      timing: PushTimingKind.immediate,
+      timing: PushTimingKind.d1At10,
       preview:
           '{{이름}}님, {{모임명}} 회비 납부를 안내드립니다.\n납부 금액: {{금액}}원\n납부 기한: {{기한}}',
     ),

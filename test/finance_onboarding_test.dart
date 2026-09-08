@@ -40,11 +40,12 @@ void main() {
     final src = File(
             'lib/screens/finance/treasurer_finance_onboarding_screen.dart')
         .readAsStringSync();
-    expect(src.contains('회비설정을 잘 마쳤어요'), isTrue);
-    expect(src.contains('지금 수입/지출 내역을 입력하시겠어요?'), isTrue);
+    expect(src.contains('회비설정을 잘 마쳤습니다'), isTrue);
+    expect(src.contains('입력하시겠습니까?'), isTrue);
     expect(src.contains('입력하기'), isTrue);
-    expect(src.contains('나중에 하기'), isTrue);
+    expect(src.contains('나중에'), isTrue);
     expect(src.contains('class TreasurerTxPromptScreen'), isTrue);
+    expect(src.contains('Spacer(flex: 2)'), isTrue);
   });
 
   test('올시즌은 1월, 이번달은 이번 달 입력이다', () {
@@ -64,6 +65,24 @@ void main() {
     expect(
       FinanceOnboarding.modeFromMemo('이번달 시작 잔고 (2026년 9월 1일 기준)'),
       FinanceStartMode.thisMonth,
+    );
+  });
+
+  test('올시즌이면 내역 날짜 기본은 1월 1일, 이번달은 오늘', () {
+    final now = DateTime(2026, 9, 8);
+    expect(
+      FinanceOnboarding.defaultTransactionDate(
+        memo: FinanceOnboarding.memoFor(FinanceStartMode.season, now),
+        now: now,
+      ),
+      DateTime(2026, 1, 1),
+    );
+    expect(
+      FinanceOnboarding.defaultTransactionDate(
+        memo: FinanceOnboarding.memoFor(FinanceStartMode.thisMonth, now),
+        now: now,
+      ),
+      DateTime(2026, 9, 8),
     );
   });
 }

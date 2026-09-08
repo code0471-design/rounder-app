@@ -21,6 +21,7 @@ import '../services/hq_push_catalog.dart';
 import '../services/push_notification_service.dart';
 import '../services/shared_join_request_store.dart';
 import '../services/solapi_service.dart';
+import '../utils/dues_d1_schedule.dart';
 import '../utils/past_schedule_import.dart';
 
 // ════════════════════════════════════════════════════════════
@@ -55,6 +56,8 @@ class ClubProvider extends ChangeNotifier with WidgetsBindingObserver {
     unawaited(HqPushCatalog.load());
     unawaited(HqAlimtalkCatalog.load());
     _syncAllNextRounds();
+    unawaited(flushDueD1Alimtalk());
+    unawaited(syncAllDuesD1Reminders());
     notifyListeners();
   }
 
@@ -489,6 +492,7 @@ class ClubProvider extends ChangeNotifier with WidgetsBindingObserver {
     await _pullCloudOpsForMyClubs();
     _watchSelectedClubOps();
     unawaited(flushDueD1Alimtalk());
+    unawaited(syncAllDuesD1Reminders());
     notifyListeners();
   }
 
@@ -2694,6 +2698,13 @@ class ClubProvider extends ChangeNotifier with WidgetsBindingObserver {
     _stampOrphanTransactionClubIds();
     _persistImmediately();
     notifyListeners();
+    unawaited(_dropPaidDuesD1(
+      memberId: memberId,
+      duesSettingId: duesSettingId,
+      year: year,
+      month: month,
+      paidAt: paidAt,
+    ));
   }
 
   /// 납부 취소 — 납부 기록 + 연결된 수입 거래 함께 삭제
@@ -2731,6 +2742,8 @@ class ClubProvider extends ChangeNotifier with WidgetsBindingObserver {
     );
     _persistImmediately();
     notifyListeners();
+    final setting = _duesSettings.where((d) => d.id == duesSettingId).firstOrNull;
+    if (setting != null) unawaited(syncDuesD1Reminders(setting));
   }
 
   /// 이월 잔액 수동 등록 (신규 연도 시작 시)
@@ -2758,6 +2771,13 @@ class ClubProvider extends ChangeNotifier with WidgetsBindingObserver {
   /// 초기 잔액이 이미 세팅됐는지 (openingBalance 소스 거래 존재 여부, 선택 모임 기준)
   bool get hasOpeningBalance =>
       _scopedTransactions.any((t) => t.source == TxSource.openingBalance);
+
+  Transaction? get openingBalanceTransaction {
+    for (final t in _scopedTransactions) {
+      if (t.source == TxSource.openingBalance) return t;
+    }
+    return null;
+  }
 
   /// 재무 데이터가 전혀 없는 상태인지 (온보딩 배너 표시 기준)
   bool get isFinanceEmpty =>
@@ -2853,33 +2873,7 @@ class ClubProvider extends ChangeNotifier with WidgetsBindingObserver {
     _duesSettings.add(setting);
     notifyListeners();
     _persistImmediately();
-    final due = setting.dueDate;
-    final dueText = due == null
-        ? ''
-        : '${due.year}.${due.month.toString().padLeft(2, '0')}.${due.day.toString().padLeft(2, '0')}';
-    _notifyHqPush(
-      typeId: HqPushCatalog.duesRequest,
-      userIds: regularMembers.map((m) => m.id).toList(),
-      appType: AppNotificationType.announcement,
-      clubId: selectedClub.id,
-      clubName: selectedClub.name,
-      vars: {
-        '모임명': selectedClub.name,
-        '기한': dueText,
-      },
-      targetId: setting.id,
-      notifySelf: true,
-    );
-    _dispatchClubAlimtalk(
-      hqTypeId: HqAlimtalkCatalog.duesRequestId,
-      members: regularMembers,
-      variablesFor: (m) => {
-        '#{모임명}': selectedClub.name,
-        '#{이름}': m.name.trim().isEmpty ? '회원' : m.name.trim(),
-        '#{금액}': '${setting.amount}',
-        '#{기한}': dueText.isEmpty ? '-' : dueText,
-      },
-    );
+    unawaited(syncDuesD1Reminders(setting));
   }
 
   /// 총무 수동 회비 독촉
@@ -2923,6 +2917,11 @@ class ClubProvider extends ChangeNotifier with WidgetsBindingObserver {
       _duesSettings[idx] = updated;
       notifyListeners();
       _persistImmediately();
+      unawaited(() async {
+        await PushNotificationService.clearD1ForSchedule(
+            DuesD1Schedule.scheduleIdFor(updated.id));
+        await syncDuesD1Reminders(updated);
+      }());
     }
   }
 
@@ -2936,6 +2935,8 @@ class ClubProvider extends ChangeNotifier with WidgetsBindingObserver {
         final idx = _duesSettings.indexWhere((x) => x.id == d.id);
         if (idx != -1) {
           _duesSettings[idx] = _duesSettings[idx].copyWith(isActive: false);
+          unawaited(PushNotificationService.clearD1ForSchedule(
+              DuesD1Schedule.scheduleIdFor(d.id)));
         }
       }
     }
@@ -2950,6 +2951,8 @@ class ClubProvider extends ChangeNotifier with WidgetsBindingObserver {
       _duesSettings[idx] = _duesSettings[idx].copyWith(isActive: false);
       notifyListeners();
       _persistImmediately();
+      unawaited(PushNotificationService.clearD1ForSchedule(
+          DuesD1Schedule.scheduleIdFor(id)));
     }
   }
 
@@ -2968,6 +2971,8 @@ class ClubProvider extends ChangeNotifier with WidgetsBindingObserver {
     _duesSettings.removeWhere((d) => d.id == id);
     notifyListeners();
     _persistImmediately();
+    unawaited(PushNotificationService.clearD1ForSchedule(
+        DuesD1Schedule.scheduleIdFor(id)));
   }
 
   // ════════════════════════════════════════════════════════
@@ -3574,8 +3579,11 @@ class ClubProvider extends ChangeNotifier with WidgetsBindingObserver {
     if (!SolapiService.instance.isConfigured) return;
     final docs = await PushNotificationService.dueD1AlimtalkDocs();
     if (docs.isEmpty) return;
+    final hour = DateTime.now().hour;
     for (final doc in docs) {
       final d = doc.data();
+      final isDues = d['kind'] == DuesD1Schedule.kind;
+      if (isDues && hour < 10) continue;
       final phone = SolapiService.normalizePhone('${d['phone'] ?? ''}');
       if (phone.length < 10) {
         await PushNotificationService.markD1AlimtalkSent(doc.id);
@@ -3590,16 +3598,25 @@ class ClubProvider extends ChangeNotifier with WidgetsBindingObserver {
         phone: phone,
       );
       final result = await sendClubAlimtalk(
-        hqTypeId: HqAlimtalkCatalog.d1ReminderId,
+        hqTypeId: isDues
+            ? HqAlimtalkCatalog.duesRequestId
+            : HqAlimtalkCatalog.d1ReminderId,
         members: [fake],
         clubIdOverride: '${d['clubId'] ?? ''}',
-        variablesFor: (_) => {
-          '#{이름}': fake.name,
-          '#{모임명}': '${d['clubName'] ?? selectedClub.name}',
-          '#{일정명}': '${d['scheduleTitle'] ?? ''}',
-          '#{일시}': '${d['whenText'] ?? ''}',
-          '#{장소}': '${d['place'] ?? '장소 미정'}',
-        },
+        variablesFor: (_) => isDues
+            ? {
+                '#{이름}': fake.name,
+                '#{모임명}': '${d['clubName'] ?? selectedClub.name}',
+                '#{금액}': '${d['amount'] ?? ''}',
+                '#{기한}': '${d['dueText'] ?? '-'}',
+              }
+            : {
+                '#{이름}': fake.name,
+                '#{모임명}': '${d['clubName'] ?? selectedClub.name}',
+                '#{일정명}': '${d['scheduleTitle'] ?? ''}',
+                '#{일시}': '${d['whenText'] ?? ''}',
+                '#{장소}': '${d['place'] ?? '장소 미정'}',
+              },
       );
       if (result.success ||
           (result.errorMessage ?? '').contains('꺼져 있습니다') ||
@@ -3607,6 +3624,76 @@ class ClubProvider extends ChangeNotifier with WidgetsBindingObserver {
         await PushNotificationService.markD1AlimtalkSent(doc.id);
       }
     }
+  }
+
+  Future<void> syncAllDuesD1Reminders() async {
+    for (final s in activeDuesSettings) {
+      await syncDuesD1Reminders(s);
+    }
+  }
+
+  Future<void> syncDuesD1Reminders(DuesSetting setting) async {
+    if (!setting.isActive) {
+      await PushNotificationService.clearD1ForSchedule(
+          DuesD1Schedule.scheduleIdFor(setting.id));
+      return;
+    }
+    final dues = DuesD1Schedule.upcomingDueDates(setting);
+    if (dues.isEmpty) return;
+    for (final due in dues) {
+      final period = DuesD1Schedule.periodKey(setting, due);
+      final dueLabel = DuesD1Schedule.dueText(due);
+      final amount = setting.amountForPeriod(
+        year: due.year,
+        month: setting.type == DuesType.monthly ? due.month : 1,
+      );
+      for (final m in regularMembers) {
+        final paid = setting.type == DuesType.monthly
+            ? hasPaid(m.id, setting.id, year: due.year, month: due.month)
+            : hasPaid(m.id, setting.id, year: due.year);
+        await PushNotificationService.syncDuesD1Reminder(
+          settingId: setting.id,
+          userId: _fcmInboxIdFor(m.id),
+          dueDate: due,
+          periodKey: period,
+          clubId: selectedClub.id,
+          clubName: selectedClub.name,
+          amountText: '$amount',
+          dueText: dueLabel,
+          enqueue: !paid,
+          phone: m.phone,
+          memberName: m.name.trim().isEmpty ? '회원' : m.name.trim(),
+        );
+      }
+    }
+    await flushDueD1Alimtalk();
+  }
+
+  Future<void> _dropPaidDuesD1({
+    required String memberId,
+    required String duesSettingId,
+    int? year,
+    int? month,
+    required DateTime paidAt,
+  }) async {
+    final setting =
+        _duesSettings.where((d) => d.id == duesSettingId).firstOrNull;
+    if (setting == null) return;
+    final due = setting.dueDateFor(year: year, month: month) ??
+        DateTime(year ?? paidAt.year, month ?? paidAt.month, paidAt.day);
+    await PushNotificationService.syncDuesD1Reminder(
+      settingId: setting.id,
+      userId: _fcmInboxIdFor(memberId),
+      dueDate: due,
+      periodKey: DuesD1Schedule.periodKey(setting, due),
+      clubId: selectedClub.id,
+      clubName: selectedClub.name,
+      amountText: '${setting.amount}',
+      dueText: DuesD1Schedule.dueText(due),
+      enqueue: false,
+      phone: '',
+      memberName: '',
+    );
   }
 
   Map<String, String> _alimtalkScheduleVars(RoundSchedule s, Member m) {

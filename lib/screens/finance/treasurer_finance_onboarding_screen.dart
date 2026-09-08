@@ -335,31 +335,34 @@ class TreasurerTxPromptScreen extends StatelessWidget {
       backgroundColor: Colors.white,
       body: SafeArea(
         child: Padding(
-          padding: const EdgeInsets.fromLTRB(22, 52, 22, 16),
+          padding: const EdgeInsets.symmetric(horizontal: 28),
           child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
             children: [
+              const Spacer(flex: 2),
               const Text(
-                '회비설정을 잘 마쳤어요',
+                '회비설정을 잘 마쳤습니다.',
+                textAlign: TextAlign.center,
                 style: TextStyle(
-                  fontSize: 26,
+                  fontSize: 22,
                   fontWeight: FontWeight.w800,
                   color: _kTossInk,
-                  height: 1.3,
+                  height: 1.35,
                 ),
               ),
               const SizedBox(height: 10),
               const Text(
-                '지금 수입/지출 내역을 입력하시겠어요?',
+                '입력하시겠습니까?',
+                textAlign: TextAlign.center,
                 style: TextStyle(
-                  fontSize: 16,
-                  height: 1.5,
-                  color: _kTossGray,
+                  fontSize: 18,
+                  fontWeight: FontWeight.w600,
+                  color: _kTossInk,
+                  height: 1.4,
                 ),
               ),
-              const Spacer(),
+              const SizedBox(height: 28),
               SizedBox(
-                width: double.infinity,
+                width: 220,
                 height: 52,
                 child: FilledButton(
                   onPressed: onEnter,
@@ -374,23 +377,15 @@ class TreasurerTxPromptScreen extends StatelessWidget {
                   child: const Text('입력하기'),
                 ),
               ),
-              const SizedBox(height: 10),
-              SizedBox(
-                width: double.infinity,
-                height: 52,
-                child: OutlinedButton(
-                  onPressed: onLater,
-                  style: OutlinedButton.styleFrom(
-                    foregroundColor: _kTossInk,
-                    side: const BorderSide(color: _kTossLine),
-                    shape: RoundedRectangleBorder(
-                        borderRadius: BorderRadius.circular(14)),
-                    textStyle: const TextStyle(
-                        fontSize: 16, fontWeight: FontWeight.w700),
-                  ),
-                  child: const Text('나중에 하기'),
+              const Spacer(flex: 3),
+              TextButton(
+                onPressed: onLater,
+                child: const Text(
+                  '나중에',
+                  style: TextStyle(fontSize: 14, color: _kTossMuted),
                 ),
               ),
+              const SizedBox(height: 12),
             ],
           ),
         ),
