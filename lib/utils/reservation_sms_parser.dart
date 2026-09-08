@@ -39,7 +39,8 @@ ReservationSmsParse parseReservationSms(
   final time = _parseTime(text);
   final course = _matchCourse(text, extras);
   final labeledCourse = _labeledCourse(text);
-  final courseName = course?.name ?? labeledCourse;
+  final bracketCourse = _bracketClubName(text);
+  final courseName = course?.name ?? labeledCourse ?? bracketCourse;
   final address = course?.address;
   final people = _parsePeople(text);
   final teamCount = people == null ? null : ((people + 3) ~/ 4).clamp(1, 30);
@@ -184,6 +185,37 @@ GolfCourse? _matchCourse(String text, List<GolfCourse> extras) {
     consider(c);
   }
   return best;
+}
+
+/// `[더크로스비골프클럽]` 처럼 보낸이/제목 칸의 클럽명.
+String? _bracketClubName(String text) {
+  const skip = {
+    'web발신',
+    '웹발신',
+    '광고',
+    'mms',
+    '알림톡',
+    '카카오',
+    '예약정보',
+    '라운드순서',
+    '클럽이용안내',
+  };
+  final re = RegExp(r'\[([^\[\]]{2,40})\]');
+  String? fallback;
+  for (final m in re.allMatches(text)) {
+    var name = m.group(1)!.trim();
+    name = name.replaceAll(RegExp(r'\s{2,}'), ' ');
+    final compact = name.replaceAll(RegExp(r'\s+'), '').toLowerCase();
+    if (skip.contains(compact)) continue;
+    if (RegExp(r'^\d+$').hasMatch(compact)) continue;
+    if (RegExp(r'(골프클럽|골프장|컨트리클럽|컨트리|클럽|cc|gc)$',
+            caseSensitive: false)
+        .hasMatch(compact)) {
+      return name;
+    }
+    fallback ??= name;
+  }
+  return fallback;
 }
 
 String? _labeledCourse(String text) {

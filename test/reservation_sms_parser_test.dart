@@ -39,6 +39,26 @@ void main() {
     expect(p.courseName, '스카이72 오션');
   });
 
+  test('대괄호 클럽명과 코스/시간 문자를 읽는다', () {
+    const sms = '''
+[Web발신]
+[더크로스비골프클럽]
+안경헌님 예약 완료
+
+■예약정보■
+▷ 예약자명 : 안경헌님
+▷ 예약일자 : 2026년09월09일(수)
+▷ 코스/시간 : 빌리코스 08:34
+''';
+    final p = parseReservationSms(sms, now: now);
+    expect(p.date, DateTime(2026, 9, 9));
+    expect(p.hour, 8);
+    expect(p.minute, 34);
+    expect(p.courseName, '더크로스비골프클럽');
+    expect(p.address, contains('이천'));
+    expect(p.courseName, isNot(contains('빌리')));
+  });
+
   test('빈 글자는 값을 만들지 않는다', () {
     final p = parseReservationSms('   ', now: now);
     expect(p.hasAny, isFalse);

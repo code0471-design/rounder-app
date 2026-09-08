@@ -68,6 +68,7 @@ const List<GolfCourse> kKoreanGolfCourses = [
   GolfCourse(name: '양평TPC 블랙', address: '경기도 양평군'),
   GolfCourse(name: '더스타휴CC', address: '경기도 양평군'),
   GolfCourse(name: '사조CC', address: '경기도 양평군'),
+  GolfCourse(name: '더크로스비골프클럽', address: '경기도 이천시 호법면 중부대로 798번길 177'),
   GolfCourse(name: '블랙스톤여주', address: '경기도 여주시'),
   GolfCourse(name: '마스타CC', address: '경기도 여주시'),
   GolfCourse(name: '페럼CC', address: '경기도 여주시'),
