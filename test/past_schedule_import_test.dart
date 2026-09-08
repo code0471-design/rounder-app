@@ -60,4 +60,28 @@ void main() {
     expect(flow.contains('잘 모르겠어요, 건너뛰기'), isTrue);
     expect(flow.contains("'일정 이름은 꼭 적어 주세요'"), isTrue);
   });
+
+  test('일괄 등록을 마치면 최초 안내를 다시 보지 않는다', () {
+    final flow = File('lib/screens/schedule/past_schedule_import_screen.dart')
+        .readAsStringSync();
+    final tab =
+        File('lib/screens/schedule/schedule_screen.dart').readAsStringSync();
+    expect(flow.contains('markPastImportHintSeen'), isTrue);
+    expect(flow.contains('await markPastImportHintSeen(provider.selectedClub.id)'),
+        isTrue);
+    expect(tab.contains('_pastHintEpoch'), isTrue);
+    expect(tab.contains('_openPastImport'), isTrue);
+  });
+
+  test('지난 날짜 일정 등록은 알림을 보내지 않는다', () {
+    final src = File('lib/providers/club_provider.dart').readAsStringSync();
+    final start = src.indexOf('void addSchedule(RoundSchedule schedule)');
+    final end = src.indexOf('bool importPastSchedule(', start);
+    expect(start, greaterThan(0));
+    expect(end, greaterThan(start));
+    final fn = src.substring(start, end);
+    expect(fn.contains('if (schedule.isDateOver) return;'), isTrue);
+    expect(fn.contains('_dispatchClubAlimtalk'), isTrue);
+    expect(fn.contains('_notifyHqPush'), isTrue);
+  });
 }

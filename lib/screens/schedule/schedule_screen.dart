@@ -35,6 +35,7 @@ class ScheduleScreen extends StatefulWidget {
 class _ScheduleScreenState extends State<ScheduleScreen>
     with SingleTickerProviderStateMixin {
   late TabController _tab;
+  int _pastHintEpoch = 0;
 
   @override
   void initState() {
@@ -53,6 +54,11 @@ class _ScheduleScreenState extends State<ScheduleScreen>
     super.dispose();
   }
 
+  Future<void> _openPastImport() async {
+    await openPastScheduleImport(context);
+    if (mounted) setState(() => _pastHintEpoch++);
+  }
+
   @override
   Widget build(BuildContext context) {
     return Consumer<ClubProvider>(
@@ -65,8 +71,9 @@ class _ScheduleScreenState extends State<ScheduleScreen>
             children: [
               if (isAdmin)
                 PastScheduleImportBanner(
+                  key: ValueKey(_pastHintEpoch),
                   clubId: provider.selectedClub.id,
-                  onStart: () => openPastScheduleImport(context),
+                  onStart: _openPastImport,
                 ),
               // ── 탭바 (디자인: border-bottom 1px) ──
               Container(
@@ -108,9 +115,7 @@ class _ScheduleScreenState extends State<ScheduleScreen>
                         schedules: provider.pastSchedules,
                         isPast: true,
                         clubId: provider.selectedClub.id,
-                        onImportPast: isAdmin
-                            ? () => openPastScheduleImport(context)
-                            : null),
+                        onImportPast: isAdmin ? _openPastImport : null),
                   ],
                 ),
               ),
@@ -119,7 +124,13 @@ class _ScheduleScreenState extends State<ScheduleScreen>
           // ── FAB (관리자만) ──
           floatingActionButton: isAdmin
               ? FloatingActionButton.extended(
-                  onPressed: () => showAddScheduleSheet(context, provider),
+                  onPressed: () => showAddScheduleSheet(
+                    context,
+                    provider,
+                    onCreated: (created) {
+                      if (created.isPast && mounted) _tab.animateTo(1);
+                    },
+                  ),
                   backgroundColor: AppColors.accent,
                   foregroundColor: Colors.white,
                   elevation: 2,
@@ -142,12 +153,19 @@ void openAddScheduleSheet(BuildContext context, ClubProvider provider) {
   showAddScheduleSheet(context, provider);
 }
 
-void showAddScheduleSheet(BuildContext context, ClubProvider provider) {
+void showAddScheduleSheet(
+  BuildContext context,
+  ClubProvider provider, {
+  ValueChanged<RoundSchedule>? onCreated,
+}) {
   showModalBottomSheet(
     context: context,
     isScrollControlled: true,
     backgroundColor: Colors.transparent,
-    builder: (_) => _ScheduleFormSheet(provider: provider),
+    builder: (_) => _ScheduleFormSheet(
+      provider: provider,
+      onCreated: onCreated,
+    ),
   );
 }
 
@@ -2882,7 +2900,12 @@ class _ResponseSection extends StatelessWidget {
 class _ScheduleFormSheet extends StatefulWidget {
   final ClubProvider provider;
   final RoundSchedule? editTarget;
-  const _ScheduleFormSheet({required this.provider, this.editTarget});
+  final ValueChanged<RoundSchedule>? onCreated;
+  const _ScheduleFormSheet({
+    required this.provider,
+    this.editTarget,
+    this.onCreated,
+  });
 
   @override
   State<_ScheduleFormSheet> createState() => _ScheduleFormSheetState();
@@ -3241,12 +3264,17 @@ class _ScheduleFormSheetState extends State<_ScheduleFormSheet> {
   }
 
   Future<void> _pickDate() async {
-    final initial = _selectedDate ?? DateTime.now().add(const Duration(days: 7));
+    final now = DateTime.now();
+    final first = DateTime(now.year - 2, 1, 1);
+    final last = now.add(const Duration(days: 365));
+    var initial = _selectedDate ?? now.add(const Duration(days: 7));
+    if (initial.isBefore(first)) initial = first;
+    if (initial.isAfter(last)) initial = last;
     final picked = await showDatePicker(
       context: context,
-      initialDate: initial.isBefore(DateTime.now()) ? DateTime.now() : initial,
-      firstDate: DateTime.now().subtract(const Duration(days: 1)),
-      lastDate: DateTime.now().add(const Duration(days: 365)),
+      initialDate: initial,
+      firstDate: first,
+      lastDate: last,
       locale: const Locale('ko', 'KR'),
       builder: (ctx, child) => Theme(
         data: Theme.of(ctx).copyWith(
@@ -3354,6 +3382,7 @@ class _ScheduleFormSheetState extends State<_ScheduleFormSheet> {
 
     final provider = widget.provider;
     provider.addSchedule(schedule);
+    widget.onCreated?.call(schedule);
 
     if (mounted) Navigator.pop(context);
     final messenger = AppNavigator.context != null
@@ -3368,6 +3397,7 @@ class _ScheduleFormSheetState extends State<_ScheduleFormSheet> {
             borderRadius: BorderRadius.circular(10)),
       ),
     );
+    if (schedule.isPast) return;
     await Future.delayed(const Duration(milliseconds: 400));
     await AlimtalkUtils.runAttendanceFlow(
       provider: provider,

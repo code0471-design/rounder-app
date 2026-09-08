@@ -289,4 +289,17 @@ void main() {
     expect(source.contains("'팀수 \${schedule.teamCount}'"), isTrue,
         reason: '일정 카드·상세 헤더에 팀수가 없음');
   });
+
+  test('일정 등록은 지난 날짜를 고를 수 있고 지난 탭으로 간다', () {
+    expect(source.contains('DateTime(now.year - 2, 1, 1)'), isTrue,
+        reason: '지난 날짜 firstDate가 막혀 있음');
+    expect(source.contains('firstDate: DateTime.now().subtract'), isFalse,
+        reason: '어제까지만 고르게 되돌리면 안 됨');
+    expect(source.contains('created.isPast'), isTrue,
+        reason: '지난 날짜 저장 후 지난 일정 탭 전환이 없음');
+    expect(source.contains('_tab.animateTo(1)'), isTrue);
+    expect(source.contains('if (schedule.isPast) return;'), isTrue,
+        reason: '지난 일정 등록 후 참석 알림톡을 띄우면 안 됨');
+    expect(source.contains('onCreated:'), isTrue);
+  });
 }

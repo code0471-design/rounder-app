@@ -11,14 +11,21 @@ const _kTossGray = Color(0xFF6B7684);
 const _kTossMuted = Color(0xFF8B95A1);
 const _kTossLine = Color(0xFFE5E8EB);
 
-void openPastScheduleImport(BuildContext context) {
-  Navigator.of(context).push(
+Future<void> openPastScheduleImport(BuildContext context) {
+  return Navigator.of(context).push<void>(
     MaterialPageRoute(builder: (_) => const PastScheduleImportScreen()),
   );
 }
 
 Future<String> pastImportHintKey(String clubId) async {
   return 'past_import_hint_${clubId}_${DateTime.now().year}';
+}
+
+/// 일괄 등록을 한 번이라도 마치면 최초 안내를 다시 보지 않는다.
+Future<void> markPastImportHintSeen(String clubId) async {
+  final prefs = await SharedPreferences.getInstance();
+  final key = await pastImportHintKey(clubId);
+  await prefs.setBool(key, true);
 }
 
 /// 예정/지난 탭 위 안내. 임원만.
@@ -226,6 +233,7 @@ class _PastScheduleImportScreenState extends State<PastScheduleImportScreen> {
       setState(() => _step = 1);
       return false;
     }
+    await markPastImportHintSeen(provider.selectedClub.id);
     setState(() => _savedCount += 1);
     return true;
   }

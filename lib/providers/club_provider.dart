@@ -3095,6 +3095,8 @@ class ClubProvider extends ChangeNotifier with WidgetsBindingObserver {
     }
     notifyListeners();
     _persistImmediately();
+    // 지난 날짜 일정은 알림톡·푸시 없음 (일괄 등록과 동일)
+    if (schedule.isDateOver) return;
     final clubName = selectedClub.name;
     _notifyHqPush(
       typeId: HqPushCatalog.scheduleConfirm,
