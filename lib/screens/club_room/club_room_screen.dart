@@ -2495,10 +2495,7 @@ class _FinanceSummaryCard extends StatelessWidget {
     final balance = provider.totalBalance;
     final isGuest = provider.isGuestMember;
     final homeDues = provider.currentHomeDuesSetting(now.year, now.month);
-    final duesMembers = homeDues == null || homeDues.type == DuesType.monthly
-        ? provider.regularMembers
-        : provider.activeMembers;
-    final totalMembers = duesMembers.length;
+    final totalMembers = provider.regularMembers.length;
     final paidCount = provider.paidCountForMonth(now.year, now.month);
     final prevUnpaid = provider.previousMonthUnpaidCount();
     final isMonthly = homeDues?.type == DuesType.monthly;

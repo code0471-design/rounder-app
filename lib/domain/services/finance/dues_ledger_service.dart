@@ -10,9 +10,9 @@ class DuesLedgerService {
     DateTime? asOf,
   }) {
     final now = asOf ?? DateTime.now();
-    final eligible = setting.type == DuesType.monthly
-        ? members.where((m) => m.memberType == '정회원').toList()
-        : members.where((m) => m.status == '활성').toList();
+    final eligible = members
+        .where((m) => m.status == '활성' && m.memberType == '정회원')
+        .toList();
     if (eligible.isEmpty) return 0;
 
     switch (setting.type) {

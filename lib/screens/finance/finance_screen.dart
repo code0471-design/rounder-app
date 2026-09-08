@@ -645,10 +645,8 @@ class _PaymentStatusTabState extends State<_PaymentStatusTab> {
             ? provider.paymentsOf(selected.id, year: _year, month: _month)
             : provider.paymentsOf(selected.id, year: _year);
 
-        // 월회비는 정회원만 납부 대상 / 연회비·특별회비는 전체 활성 회원
-        final members = selected.type == DuesType.monthly
-            ? provider.regularMembers
-            : provider.activeMembers;
+        // 회비 납부 대상은 정회원만. 게스트는 월·연·특별 모두 제외.
+        final members = provider.regularMembers;
         final paidIds = payments.map((p) => p.memberId).toSet();
         final paidCount =
             members.where((m) => paidIds.contains(m.id)).length;

@@ -69,6 +69,25 @@ void main() {
       );
     });
 
+    test('guest members excluded from annual dues', () {
+      final annual = DuesSetting(
+        id: 'ds-year',
+        type: DuesType.annual,
+        amount: 120000,
+        title: '2025 연회비',
+        createdAt: DateTime(2025, 1, 1),
+      );
+      expect(
+        service.unpaidSlotsForSetting(
+          setting: annual,
+          members: members,
+          payments: const [],
+          asOf: asOf,
+        ),
+        2,
+      );
+    });
+
     test('guest members excluded from monthly dues', () {
       expect(
         service.unpaidSlotsForSetting(

@@ -159,6 +159,26 @@ void main() {
     expect(finance.contains('minHeight: 56'), isTrue);
   });
 
+  test('게스트는 회비 납부 대상이 아니다', () {
+    expect(finance.contains('연회비·특별회비는 전체 활성 회원'), isFalse);
+    expect(finance.contains('게스트는 월·연·특별 모두 제외'), isTrue);
+    expect(
+      finance.contains('final members = provider.regularMembers;'),
+      isTrue,
+    );
+    expect(
+      finance.contains(': provider.activeMembers;'),
+      isFalse,
+      reason: '납부현황 분모에 게스트가 들어가면 안 됨',
+    );
+    final unpaid = provider.substring(
+      provider.indexOf('int unpaidCountForDuesSetting('),
+      provider.indexOf('MonthUnpaidSummary monthUnpaidSummary('),
+    );
+    expect(unpaid.contains('regularMembers'), isTrue);
+    expect(unpaid.contains('activeMembers'), isFalse);
+  });
+
   test('납부 인원은 현재 회원만 센다', () {
     final start = provider.indexOf('int paidCountForMonth(');
     final end = provider.indexOf('int unpaidCountForMonth(', start);

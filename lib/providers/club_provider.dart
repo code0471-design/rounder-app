@@ -2144,11 +2144,9 @@ class ClubProvider extends ChangeNotifier with WidgetsBindingObserver {
         return true;
       }).toList();
 
-  /// 특정 회비의 미납 회원 수
+  /// 특정 회비의 미납 회원 수. 게스트는 납부 대상이 아니다.
   int unpaidCountForDuesSetting(DuesSetting setting, int year, int month) {
-    final members = setting.type == DuesType.monthly
-        ? regularMembers
-        : activeMembers;
+    final members = regularMembers;
     final paidIds = _duesPayments
         .where((p) {
           if (p.duesSettingId != setting.id) return false;
@@ -2209,9 +2207,7 @@ class ClubProvider extends ChangeNotifier with WidgetsBindingObserver {
   int paidCountForMonth(int year, int month) {
     final setting = currentHomeDuesSetting(year, month);
     if (setting == null) return 0;
-    final members = setting.type == DuesType.monthly
-        ? regularMembers
-        : activeMembers;
+    final members = regularMembers;
     final monthFilter = setting.type == DuesType.monthly ? month : null;
     final paidIds = paymentsOf(setting.id, year: year, month: monthFilter)
         .map((p) => p.memberId)
@@ -2230,9 +2226,7 @@ class ClubProvider extends ChangeNotifier with WidgetsBindingObserver {
   /// 활성 회비 1건의 미납 건수 (회원×기간, 설정 생성~현재·밀린 달 포함)
   int unpaidSlotsForDuesSetting(DuesSetting setting, {DateTime? asOf}) {
     final now = asOf ?? DateTime.now();
-    final members = setting.type == DuesType.monthly
-        ? regularMembers
-        : activeMembers;
+    final members = regularMembers;
     if (members.isEmpty) return 0;
 
     switch (setting.type) {
@@ -2283,14 +2277,14 @@ class ClubProvider extends ChangeNotifier with WidgetsBindingObserver {
         case DuesType.annual:
           final y = s.year ?? s.createdAt.year;
           if (y > now.year) continue;
-          final members = activeMembers;
+          final members = regularMembers;
           final amt = s.amountForPeriod(year: y);
           total +=
               members.where((m) => !hasPaid(m.id, s.id, year: y)).length *
                   amt;
           break;
         case DuesType.special:
-          final members = activeMembers;
+          final members = regularMembers;
           final amt = s.amountForPeriod(
               year: s.createdAt.year, month: s.createdAt.month);
           total += members.where((m) => !hasPaid(m.id, s.id)).length * amt;
