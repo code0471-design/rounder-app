@@ -611,10 +611,10 @@ class _ScoreAwardScreenState extends State<ScoreAwardScreen>
         bottom: TabBar(
           controller: _tabCtrl,
           labelColor: AppColors.charcoal,
-          unselectedLabelColor: const AppColors.inkSoft,
+          unselectedLabelColor: AppColors.inkSoft,
           indicatorColor: AppColors.charcoal,
           indicatorWeight: 3,
-          dividerColor: const AppColors.divider,
+          dividerColor: AppColors.divider,
           tabs: const [
             Tab(text: '📊 스코어'),
             Tab(text: '🏆 시상'),

@@ -41,6 +41,8 @@ void main() {
   });
 
   test('스코어·시상은 리뉴얼 톤이고 저장하면 일정 상세로 돌아간다', () {
+    expect(screen.contains('const AppColors.'), isFalse,
+        reason: 'const AppColors.x 는 생성자처럼 파싱되어 릴리스 빌드가 깨진다');
     expect(screen.contains('0xFF7C3AED'), isFalse, reason: '옛 보라 액센트 회귀');
     expect(screen.contains('0xFF1E1B4B'), isFalse, reason: '옛 인디고 이름색 회귀');
     expect(screen.contains('Colors.amber.shade700'), isFalse,
