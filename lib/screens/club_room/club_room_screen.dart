@@ -27,6 +27,15 @@ import '../members/treasurer_transfer_screen.dart';
 import '../alimtalk/alimtalk_settings_screen.dart';
 import '../group_assignment/group_assignment_screen.dart';
 
+void _goToPlatformHome(BuildContext context) {
+  final nav = Navigator.of(context, rootNavigator: true);
+  if (nav.canPop()) {
+    nav.popUntil((route) => route.settings.name == '/main' || route.isFirst);
+    return;
+  }
+  nav.pushNamedAndRemoveUntil('/main', (_) => false);
+}
+
 // ── 초대 버튼 (원클럽과 동일 크기·위치, 아이콘 없음) ──
 class _InviteChipButton extends StatelessWidget {
   final String label;
@@ -523,20 +532,6 @@ class _ClubRoomScreenState extends State<ClubRoomScreen> {
               children: [
                 // ── 고정 헤더 ──
                 _buildHeader(context, provider, club),
-                if (_tabIndex == 0)
-                  Align(
-                    alignment: Alignment.centerRight,
-                    child: Padding(
-                      padding: const EdgeInsets.fromLTRB(16, 8, 16, 0),
-                      child: _InviteChipButton(
-                        label: '모임찾기',
-                        bgColor: const Color(0xFF111827),
-                        borderColor: const Color(0xFF111827),
-                        textColor: Colors.white,
-                        onTap: () => _goToPlatformHome(context),
-                      ),
-                    ),
-                  ),
                 // ── 탭 컨텐츠 (IndexedStack으로 탭 상태 유지) ──
                 Expanded(
                   child: IndexedStack(
@@ -552,15 +547,6 @@ class _ClubRoomScreenState extends State<ClubRoomScreen> {
         },
       ),
     );
-  }
-
-  void _goToPlatformHome(BuildContext context) {
-    final nav = Navigator.of(context, rootNavigator: true);
-    if (nav.canPop()) {
-      nav.popUntil((route) => route.settings.name == '/main' || route.isFirst);
-      return;
-    }
-    nav.pushNamedAndRemoveUntil('/main', (_) => false);
   }
 
   // ────────────────────────────────────────
@@ -725,15 +711,32 @@ class ClubHomeTab extends StatelessWidget {
                         child: Column(
                           crossAxisAlignment: CrossAxisAlignment.start,
                           children: [
-                            Text(
-                              club.name,
-                              style: const TextStyle(
-                                fontSize: 19,
-                                fontWeight: FontWeight.w600,
-                                color: AppColors.textPrimary,
-                                height: 1.25,
-                                letterSpacing: -0.5,
-                              ),
+                            Row(
+                              crossAxisAlignment: CrossAxisAlignment.center,
+                              children: [
+                                Expanded(
+                                  child: Text(
+                                    club.name,
+                                    maxLines: 1,
+                                    overflow: TextOverflow.ellipsis,
+                                    style: const TextStyle(
+                                      fontSize: 19,
+                                      fontWeight: FontWeight.w600,
+                                      color: AppColors.textPrimary,
+                                      height: 1.25,
+                                      letterSpacing: -0.5,
+                                    ),
+                                  ),
+                                ),
+                                const SizedBox(width: 8),
+                                _InviteChipButton(
+                                  label: '모임찾기',
+                                  bgColor: const Color(0xFF111827),
+                                  borderColor: const Color(0xFF111827),
+                                  textColor: Colors.white,
+                                  onTap: () => _goToPlatformHome(context),
+                                ),
+                              ],
                             ),
                             const SizedBox(height: 3),
                             Text(
@@ -2491,8 +2494,11 @@ class _FinanceSummaryCard extends StatelessWidget {
     final detailTap = canOpenFinance ? onTap : null;
     final balance = provider.totalBalance;
     final isGuest = provider.isGuestMember;
-    final totalMembers = provider.regularMembers.length;
     final homeDues = provider.currentHomeDuesSetting(now.year, now.month);
+    final duesMembers = homeDues == null || homeDues.type == DuesType.monthly
+        ? provider.regularMembers
+        : provider.activeMembers;
+    final totalMembers = duesMembers.length;
     final paidCount = provider.paidCountForMonth(now.year, now.month);
     final prevUnpaid = provider.previousMonthUnpaidCount();
     final isMonthly = homeDues?.type == DuesType.monthly;

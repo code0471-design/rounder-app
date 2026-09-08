@@ -1256,11 +1256,6 @@ class ScheduleDetailScreen extends StatelessWidget {
 
                       const SizedBox(height: 16),
 
-                      // ── 일정 정보 카드 ──
-                      _InfoCard(schedule: schedule),
-
-                      const SizedBox(height: 16),
-
                       // ── 사진 섹션 (항상 업로드 가능) ──
                       _PhotoSection(schedule: schedule),
 

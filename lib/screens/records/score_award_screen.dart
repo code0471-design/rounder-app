@@ -243,11 +243,11 @@ class _ScoreAwardScreenState extends State<ScoreAwardScreen>
                     padding: const EdgeInsets.all(6),
                     decoration: BoxDecoration(
                       color: selectedIcon == ic
-                          ? const Color(0xFF7C3AED).withValues(alpha: 0.12)
+                          ? AppColors.charcoal.withValues(alpha: 0.12)
                           : Colors.grey.shade100,
                       borderRadius: BorderRadius.circular(8),
                       border: selectedIcon == ic
-                          ? Border.all(color: const Color(0xFF7C3AED))
+                          ? Border.all(color: AppColors.charcoal)
                           : null,
                     ),
                     child: Text(ic, style: const TextStyle(fontSize: 20)),
@@ -270,7 +270,7 @@ class _ScoreAwardScreenState extends State<ScoreAwardScreen>
                   ),
                   focusedBorder: OutlineInputBorder(
                     borderRadius: BorderRadius.circular(10),
-                    borderSide: const BorderSide(color: const Color(0xFF7C3AED), width: 1.5),
+                    borderSide: const BorderSide(color: AppColors.charcoal, width: 1.5),
                   ),
                 ),
               ),
@@ -297,7 +297,7 @@ class _ScoreAwardScreenState extends State<ScoreAwardScreen>
                 Navigator.pop(ctx);
               },
               style: ElevatedButton.styleFrom(
-                backgroundColor: const Color(0xFF7C3AED),
+                backgroundColor: AppColors.charcoal,
                 foregroundColor: Colors.white,
                 shape: RoundedRectangleBorder(
                     borderRadius: BorderRadius.circular(10)),
@@ -346,19 +346,19 @@ class _ScoreAwardScreenState extends State<ScoreAwardScreen>
                   Text('${award.icon} ${award.name} 수상자',
                       style: const TextStyle(
                           fontSize: 16, fontWeight: FontWeight.bold,
-                          color: Color(0xFF1E1B4B))),
+                          color: AppColors.ink)),
                   const Spacer(),
                   Container(
                     padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
                     decoration: BoxDecoration(
-                      color: const Color(0xFF7C3AED).withValues(alpha: 0.08),
+                      color: AppColors.charcoal.withValues(alpha: 0.08),
                       borderRadius: BorderRadius.circular(10),
                     ),
                     child: Text(
                       '복수 선택 가능',
                       style: TextStyle(
                           fontSize: 10,
-                          color: const Color(0xFF7C3AED),
+                          color: AppColors.charcoal,
                           fontWeight: FontWeight.w600),
                     ),
                   ),
@@ -389,12 +389,12 @@ class _ScoreAwardScreenState extends State<ScoreAwardScreen>
                             horizontal: 14, vertical: 12),
                         decoration: BoxDecoration(
                           color: isSelected
-                              ? const Color(0xFF7C3AED).withValues(alpha: 0.07)
+                              ? AppColors.charcoal.withValues(alpha: 0.07)
                               : Colors.grey.shade50,
                           borderRadius: BorderRadius.circular(12),
                           border: Border.all(
                             color: isSelected
-                                ? const Color(0xFF7C3AED).withValues(alpha: 0.35)
+                                ? AppColors.charcoal.withValues(alpha: 0.35)
                                 : Colors.grey.shade200,
                           ),
                         ),
@@ -404,10 +404,10 @@ class _ScoreAwardScreenState extends State<ScoreAwardScreen>
                             Container(
                               width: 22, height: 22,
                               decoration: BoxDecoration(
-                                color: isSelected ? const Color(0xFF7C3AED) : Colors.transparent,
+                                color: isSelected ? AppColors.charcoal : Colors.transparent,
                                 borderRadius: BorderRadius.circular(6),
                                 border: Border.all(
-                                  color: isSelected ? const Color(0xFF7C3AED) : Colors.grey.shade400,
+                                  color: isSelected ? AppColors.charcoal : Colors.grey.shade400,
                                   width: 1.5,
                                 ),
                               ),
@@ -419,14 +419,14 @@ class _ScoreAwardScreenState extends State<ScoreAwardScreen>
                             CircleAvatar(
                               radius: 16,
                               backgroundColor: isSelected
-                                  ? const Color(0xFF7C3AED).withValues(alpha: 0.12)
+                                  ? AppColors.charcoal.withValues(alpha: 0.12)
                                   : Colors.grey.shade200,
                               child: Text(m.name[0],
                                   style: TextStyle(
                                       fontSize: 13,
                                       fontWeight: FontWeight.bold,
                                       color: isSelected
-                                          ? const Color(0xFF7C3AED)
+                                          ? AppColors.charcoal
                                           : AppColors.textSecondary)),
                             ),
                             const SizedBox(width: 10),
@@ -439,8 +439,8 @@ class _ScoreAwardScreenState extends State<ScoreAwardScreen>
                                           fontSize: 14,
                                           fontWeight: FontWeight.w600,
                                           color: isSelected
-                                              ? const Color(0xFF7C3AED)
-                                              : const Color(0xFF1E1B4B))),
+                                              ? AppColors.charcoal
+                                              : AppColors.ink)),
                                   Text(m.role,
                                       style: const TextStyle(
                                           fontSize: 11,
@@ -476,7 +476,7 @@ class _ScoreAwardScreenState extends State<ScoreAwardScreen>
                     '선택됨: ${selectedIds.map((id) => _members.firstWhere((m) => m.id == id, orElse: () => _ScoreMember(id: id, name: '?', role: '')).name).join(', ')}',
                     style: TextStyle(
                       fontSize: 12,
-                      color: Colors.amber.shade700,
+                      color: AppColors.goldDeep,
                       fontWeight: FontWeight.w600,
                     ),
                   ),
@@ -506,7 +506,7 @@ class _ScoreAwardScreenState extends State<ScoreAwardScreen>
                     Navigator.pop(ctx);
                   },
                   style: ElevatedButton.styleFrom(
-                    backgroundColor: const Color(0xFF7C3AED),
+                    backgroundColor: AppColors.charcoal,
                     foregroundColor: Colors.white,
                     shape: RoundedRectangleBorder(
                         borderRadius: BorderRadius.circular(12)),
@@ -547,20 +547,7 @@ class _ScoreAwardScreenState extends State<ScoreAwardScreen>
       merge: widget.groupFilter != null,
     );
     setState(() => _scoresSaved = true);
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(
-        content: const Row(
-          children: [
-            Icon(Icons.check_circle, color: Colors.white, size: 16),
-            SizedBox(width: 8),
-            Text('스코어가 저장되었습니다'),
-          ],
-        ),
-        backgroundColor: AppColors.success,
-        behavior: SnackBarBehavior.floating,
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
-      ),
-    );
+    if (mounted) Navigator.pop(context);
   }
 
   void _saveAwards() {
@@ -582,20 +569,7 @@ class _ScoreAwardScreenState extends State<ScoreAwardScreen>
     }
     provider.saveAwardsForSchedule(widget.schedule.id, records);
     setState(() => _awardsSaved = true);
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(
-        content: const Row(
-          children: [
-            Icon(Icons.check_circle, color: Colors.white, size: 16),
-            SizedBox(width: 8),
-            Text('시상이 저장되었습니다'),
-          ],
-        ),
-        backgroundColor: AppColors.success,
-        behavior: SnackBarBehavior.floating,
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
-      ),
-    );
+    if (mounted) Navigator.pop(context);
   }
 
   @override
@@ -609,7 +583,7 @@ class _ScoreAwardScreenState extends State<ScoreAwardScreen>
         surfaceTintColor: Colors.transparent,
         leading: IconButton(
           icon: const Icon(Icons.arrow_back_ios_new,
-              color: Color(0xFF333333), size: 18),
+              color: AppColors.ink, size: 18),
           onPressed: () => Navigator.pop(context),
         ),
         title: Column(
@@ -620,12 +594,12 @@ class _ScoreAwardScreenState extends State<ScoreAwardScreen>
                   ? '${widget.groupNumber}조 스코어 입력'
                   : '스코어 & 시상',
               style: const TextStyle(
-                  color: Color(0xFF999999), fontSize: 11),
+                  color: AppColors.inkSoft, fontSize: 11),
             ),
             Text(
               widget.schedule.displayTitle,
               style: const TextStyle(
-                  color: Color(0xFF222222),
+                  color: AppColors.ink,
                   fontSize: 17,
                   fontWeight: FontWeight.bold),
               maxLines: 1,
@@ -636,11 +610,11 @@ class _ScoreAwardScreenState extends State<ScoreAwardScreen>
         titleSpacing: 0,
         bottom: TabBar(
           controller: _tabCtrl,
-          labelColor: const Color(0xFF7C3AED),
-          unselectedLabelColor: const Color(0xFFAAAAAA),
-          indicatorColor: const Color(0xFF7C3AED),
+          labelColor: AppColors.charcoal,
+          unselectedLabelColor: const AppColors.inkSoft,
+          indicatorColor: AppColors.charcoal,
           indicatorWeight: 3,
-          dividerColor: const Color(0xFFEEEEEE),
+          dividerColor: const AppColors.divider,
           tabs: const [
             Tab(text: '📊 스코어'),
             Tab(text: '🏆 시상'),
@@ -738,22 +712,22 @@ class _ScoreTabState extends State<_ScoreTab> {
         //       width: double.infinity,
         //       padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
         //       decoration: BoxDecoration(
-        //         color: const Color(0xFF7C3AED).withValues(alpha: 0.07),
+        //         color: AppColors.charcoal.withValues(alpha: 0.07),
         //         borderRadius: BorderRadius.circular(10),
         //         border: Border.all(
-        //           color: const Color(0xFF7C3AED).withValues(alpha: 0.20),
+        //           color: AppColors.charcoal.withValues(alpha: 0.20),
         //         ),
         //       ),
         //       child: const Row(
         //         mainAxisAlignment: MainAxisAlignment.center,
         //         children: [
-        //           Icon(Icons.document_scanner, size: 16, color: Color(0xFF7C3AED)),
+        //           Icon(Icons.document_scanner, size: 16, color: AppColors.charcoal),
         //           SizedBox(width: 8),
         //           Text('📷 스코어카드 사진으로 자동 입력',
         //               style: TextStyle(
         //                   fontSize: 13,
         //                   fontWeight: FontWeight.w600,
-        //                   color: Color(0xFF7C3AED))),
+        //                   color: AppColors.charcoal)),
         //         ],
         //       ),
         //     ),
@@ -769,7 +743,7 @@ class _ScoreTabState extends State<_ScoreTab> {
               Text('${widget.members.length}명 참석',
                   style: const TextStyle(
                       fontSize: 13, fontWeight: FontWeight.w600,
-                      color: Color(0xFF1E1B4B))),
+                      color: AppColors.ink)),
               const Spacer(),
               if (widget.medallist != null) ...[
                 const Icon(Icons.emoji_events, size: 14, color: Colors.amber),
@@ -787,12 +761,12 @@ class _ScoreTabState extends State<_ScoreTab> {
                   padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
                   decoration: BoxDecoration(
                     color: _sortByScore
-                        ? const Color(0xFF7C3AED).withValues(alpha: 0.08)
+                        ? AppColors.charcoal.withValues(alpha: 0.08)
                         : Colors.grey.shade100,
                     borderRadius: BorderRadius.circular(8),
                     border: Border.all(
                       color: _sortByScore
-                          ? const Color(0xFF7C3AED).withValues(alpha: 0.25)
+                          ? AppColors.charcoal.withValues(alpha: 0.25)
                           : Colors.grey.shade200,
                     ),
                   ),
@@ -801,14 +775,14 @@ class _ScoreTabState extends State<_ScoreTab> {
                       Icon(Icons.sort,
                           size: 13,
                           color: _sortByScore
-                              ? const Color(0xFF7C3AED)
+                              ? AppColors.charcoal
                               : AppColors.textSecondary),
                       const SizedBox(width: 4),
                       Text('타수 정렬',
                           style: TextStyle(
                               fontSize: 11,
                               color: _sortByScore
-                                  ? const Color(0xFF7C3AED)
+                                  ? AppColors.charcoal
                                   : AppColors.textSecondary)),
                     ],
                   ),
@@ -851,8 +825,8 @@ class _ScoreTabState extends State<_ScoreTab> {
                 onPressed: widget.onSave,
                 style: ElevatedButton.styleFrom(
                   backgroundColor: widget.saved
-                      ? const Color(0xFF16A34A)
-                      : const Color(0xFF7C3AED),
+                      ? AppColors.primary
+                      : AppColors.charcoal,
                   foregroundColor: Colors.white,
                   shape: RoundedRectangleBorder(
                       borderRadius: BorderRadius.circular(12)),
@@ -929,14 +903,14 @@ class _ScoreCard extends StatelessWidget {
                     radius: 16,
                     backgroundColor: isMedallist
                         ? Colors.amber.withValues(alpha: 0.2)
-                        : const Color(0xFF7C3AED).withValues(alpha: 0.08),
+                        : AppColors.charcoal.withValues(alpha: 0.08),
                     child: Text(member.name[0],
                         style: TextStyle(
                             fontSize: 13,
                             fontWeight: FontWeight.bold,
                             color: isMedallist
-                                ? Colors.amber.shade700
-                                : const Color(0xFF7C3AED))),
+                                ? AppColors.goldDeep
+                                : AppColors.charcoal)),
                   ),
                 if (rank != null && rank! > 3)
                   Text('$rank위',
@@ -957,7 +931,7 @@ class _ScoreCard extends StatelessWidget {
                     Text(member.name,
                         style: const TextStyle(
                             fontSize: 14, fontWeight: FontWeight.bold,
-                            color: Color(0xFF1E1B4B))),
+                            color: AppColors.ink)),
                     if (isMedallist) ...[
                       const SizedBox(width: 4),
                       const Text('선두',
@@ -996,7 +970,7 @@ class _ScoreCard extends StatelessWidget {
                     borderSide: BorderSide(color: Colors.grey.shade200)),
                 focusedBorder: OutlineInputBorder(
                     borderRadius: BorderRadius.circular(8),
-                    borderSide: const BorderSide(color: const Color(0xFF7C3AED))),
+                    borderSide: const BorderSide(color: AppColors.charcoal)),
               ),
               style: const TextStyle(fontSize: 13),
               onChanged: (_) => onChanged(),
@@ -1033,7 +1007,7 @@ class _ScoreCard extends StatelessWidget {
                             : Colors.grey.shade200)),
                 focusedBorder: OutlineInputBorder(
                     borderRadius: BorderRadius.circular(8),
-                    borderSide: const BorderSide(color: const Color(0xFF7C3AED), width: 1.5)),
+                    borderSide: const BorderSide(color: AppColors.charcoal, width: 1.5)),
                 suffixText: hasScore ? '타' : null,
                 suffixStyle: const TextStyle(
                     fontSize: 11, color: AppColors.textSecondary),
@@ -1041,7 +1015,7 @@ class _ScoreCard extends StatelessWidget {
               style: TextStyle(
                   fontSize: 15,
                   fontWeight: FontWeight.bold,
-                  color: isMedallist ? Colors.amber.shade700 : const Color(0xFF1E1B4B)),
+                  color: isMedallist ? AppColors.goldDeep : AppColors.ink),
               onChanged: (_) => onChanged(),
             ),
           ),
@@ -1088,7 +1062,7 @@ class _AwardTab extends StatelessWidget {
               Text('시상 항목 ${awards.length}개',
                   style: const TextStyle(
                       fontSize: 13, fontWeight: FontWeight.w600,
-                      color: Color(0xFF1E1B4B))),
+                      color: AppColors.ink)),
               const Spacer(),
               GestureDetector(
                 onTap: onAddAward,
@@ -1096,7 +1070,7 @@ class _AwardTab extends StatelessWidget {
                   padding: const EdgeInsets.symmetric(
                       horizontal: 12, vertical: 6),
                   decoration: BoxDecoration(
-                    color: const Color(0xFF7C3AED),
+                    color: AppColors.charcoal,
                     borderRadius: BorderRadius.circular(20),
                   ),
                   child: const Row(
@@ -1134,7 +1108,7 @@ class _AwardTab extends StatelessWidget {
                         icon: const Icon(Icons.add, size: 16),
                         label: const Text('시상 추가하기'),
                         style: ElevatedButton.styleFrom(
-                          backgroundColor: const Color(0xFF7C3AED),
+                          backgroundColor: AppColors.charcoal,
                           foregroundColor: Colors.white,
                           shape: RoundedRectangleBorder(
                               borderRadius: BorderRadius.circular(10)),
@@ -1167,7 +1141,7 @@ class _AwardTab extends StatelessWidget {
                 onPressed: onSave,
                 style: ElevatedButton.styleFrom(
                   backgroundColor:
-                      saved ? const Color(0xFF16A34A) : const Color(0xFF7C3AED),
+                      saved ? AppColors.primary : AppColors.charcoal,
                   foregroundColor: Colors.white,
                   shape: RoundedRectangleBorder(
                       borderRadius: BorderRadius.circular(12)),
@@ -1243,7 +1217,7 @@ class _AwardCard extends StatelessWidget {
                 Text(award.name,
                     style: const TextStyle(
                         fontSize: 15, fontWeight: FontWeight.bold,
-                        color: Color(0xFF1E1B4B))),
+                        color: AppColors.ink)),
                 const Spacer(),
                 IconButton(
                   icon: const Icon(Icons.delete_outline, size: 18),
@@ -1300,7 +1274,7 @@ class _AwardCard extends StatelessWidget {
                                         style: TextStyle(
                                             fontSize: 11,
                                             fontWeight: FontWeight.bold,
-                                            color: Colors.amber.shade700),
+                                            color: AppColors.goldDeep),
                                       ),
                                     ),
                                   ),
@@ -1322,7 +1296,7 @@ class _AwardCard extends StatelessWidget {
                                   fontWeight: hasWinner
                                       ? FontWeight.bold : FontWeight.normal,
                                   color: hasWinner
-                                      ? Colors.amber.shade700
+                                      ? AppColors.goldDeep
                                       : AppColors.textSecondary,
                                 ),
                               ),
@@ -1331,7 +1305,7 @@ class _AwardCard extends StatelessWidget {
                                   '${award.winnerIds.length}명 공동수상',
                                   style: TextStyle(
                                     fontSize: 10,
-                                    color: Colors.amber.shade500,
+                                    color: AppColors.goldDeep,
                                   ),
                                 ),
                             ],
@@ -1341,7 +1315,7 @@ class _AwardCard extends StatelessWidget {
                           Icons.chevron_right,
                           size: 18,
                           color: hasWinner
-                              ? Colors.amber.shade400
+                              ? AppColors.goldDeep
                               : Colors.grey.shade400,
                         ),
                       ],
@@ -1368,7 +1342,7 @@ class _AwardCard extends StatelessWidget {
                       focusedBorder: OutlineInputBorder(
                           borderRadius: BorderRadius.circular(8),
                           borderSide: const BorderSide(
-                              color: const Color(0xFF7C3AED), width: 1.2)),
+                              color: AppColors.charcoal, width: 1.2)),
                       contentPadding: const EdgeInsets.symmetric(
                           horizontal: 12, vertical: 8),
                       isDense: true,

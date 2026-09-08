@@ -650,10 +650,12 @@ class _PaymentStatusTabState extends State<_PaymentStatusTab> {
             ? provider.regularMembers
             : provider.activeMembers;
         final paidIds = payments.map((p) => p.memberId).toSet();
-        final paidCount = paidIds.length;
+        final paidCount =
+            members.where((m) => paidIds.contains(m.id)).length;
+        final unpaidCount = members.length - paidCount;
         final totalCount = members.length;
         final paidPct =
-            totalCount == 0 ? 0.0 : paidCount / totalCount;
+            totalCount == 0 ? 0.0 : (paidCount / totalCount).clamp(0.0, 1.0);
 
         // 기간 범위 밖인지 체크
         final isOutOfRange = isMonthly &&
@@ -945,7 +947,7 @@ class _PaymentStatusTabState extends State<_PaymentStatusTab> {
                                     color: AppColors.success,
                                     fontWeight: FontWeight.bold)),
                             const SizedBox(width: 4),
-                            Text('/ 미납 ${totalCount - paidCount}',
+                            Text('/ 미납 $unpaidCount',
                                 style: const TextStyle(
                                     fontSize: 12,
                                     color: AppColors.danger,

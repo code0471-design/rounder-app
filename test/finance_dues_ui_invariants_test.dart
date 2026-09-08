@@ -51,6 +51,14 @@ void main() {
     expect(finance.contains('회비를 설정하고 사용하세요'), isTrue);
     expect(finance.contains("const Text('납부 O'"), isFalse);
     expect(finance.contains('납부 \$paidCount'), isTrue);
+    expect(
+      finance.contains('members.where((m) => paidIds.contains(m.id)).length'),
+      isTrue,
+      reason: '납부 인원은 현재 회원과 교집합이어야 함 (2/1·미납 -1 방지)',
+    );
+    expect(finance.contains('미납 \$unpaidCount'), isTrue);
+    expect(finance.contains('미납 \${totalCount - paidCount}'), isFalse,
+        reason: '미납이 음수가 되면 안 됨');
     expect(finance.contains("label: const Text('회비추가'"), isTrue);
     expect(finance.contains('panelColor: Colors.white'), isTrue);
   });
@@ -149,5 +157,17 @@ void main() {
     expect(finance.contains('class _YearMonthPickerSheet'), isTrue);
     expect(finance.contains('class _DayOfMonthPickerSheet'), isTrue);
     expect(finance.contains('minHeight: 56'), isTrue);
+  });
+
+  test('납부 인원은 현재 회원만 센다', () {
+    final start = provider.indexOf('int paidCountForMonth(');
+    final end = provider.indexOf('int unpaidCountForMonth(', start);
+    expect(start, greaterThan(0));
+    expect(end, greaterThan(start));
+    final fn = provider.substring(start, end);
+    expect(fn.contains('members.where((m) => paidIds.contains(m.id)).length'),
+        isTrue);
+    expect(fn.contains('.toSet()\n        .length'), isFalse,
+        reason: '탈퇴·게스트 납부까지 분자에 넣으면 2/1·200%가 된다');
   });
 }

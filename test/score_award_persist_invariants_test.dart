@@ -39,4 +39,20 @@ void main() {
     expect(preview.contains('a.value.compareTo(b.value)'), isTrue,
         reason: '스코어는 타수 낮은 순');
   });
+
+  test('스코어·시상은 리뉴얼 톤이고 저장하면 일정 상세로 돌아간다', () {
+    expect(screen.contains('0xFF7C3AED'), isFalse, reason: '옛 보라 액센트 회귀');
+    expect(screen.contains('0xFF1E1B4B'), isFalse, reason: '옛 인디고 이름색 회귀');
+    expect(screen.contains('Colors.amber.shade700'), isFalse,
+        reason: '시상자 이름이 붉은 앰버로 돌아가면 안 됨');
+    expect(screen.contains('AppColors.ink'), isTrue);
+    expect(screen.contains('AppColors.charcoal'), isTrue);
+    expect(screen.contains('AppColors.goldDeep'), isTrue);
+    final scores = screen.indexOf('void _saveScores()');
+    final awards = screen.indexOf('void _saveAwards()');
+    final scoresFn = screen.substring(scores, awards);
+    final awardsFn = screen.substring(awards, screen.indexOf('  @override', awards));
+    expect(scoresFn.contains('if (mounted) Navigator.pop(context);'), isTrue);
+    expect(awardsFn.contains('if (mounted) Navigator.pop(context);'), isTrue);
+  });
 }

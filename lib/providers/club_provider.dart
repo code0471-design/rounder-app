@@ -2132,12 +2132,7 @@ class ClubProvider extends ChangeNotifier with WidgetsBindingObserver {
     }
     final setting = currentMonthDuesSetting(y, m);
     if (setting == null) return 0;
-    final total = regularMembers.length;
-    final paid = paymentsOf(setting.id, year: y, month: m)
-        .map((p) => p.memberId)
-        .toSet()
-        .length;
-    return (total - paid).clamp(0, total);
+    return unpaidCountForDuesSetting(setting, y, m);
   }
 
   /// 이달 적용 회비 (월회비: 해당 연/월 기간 내 / 그 외: 활성 회비)
@@ -2209,15 +2204,19 @@ class ClubProvider extends ChangeNotifier with WidgetsBindingObserver {
     );
   }
 
-  /// 이달 회비 납부자 수 (홈·독촉용). 연회비는 연 단위.
+  /// 이달 회비 납부자 수 (홈·독촉용). 현재 납부 대상 회원만 센다.
+  /// 탈퇴·게스트 등 목록에 없는 납부 기록은 분자에 넣지 않는다.
   int paidCountForMonth(int year, int month) {
     final setting = currentHomeDuesSetting(year, month);
     if (setting == null) return 0;
+    final members = setting.type == DuesType.monthly
+        ? regularMembers
+        : activeMembers;
     final monthFilter = setting.type == DuesType.monthly ? month : null;
-    return paymentsOf(setting.id, year: year, month: monthFilter)
+    final paidIds = paymentsOf(setting.id, year: year, month: monthFilter)
         .map((p) => p.memberId)
-        .toSet()
-        .length;
+        .toSet();
+    return members.where((m) => paidIds.contains(m.id)).length;
   }
 
   /// 이달 미납 회원 수 (활성 정회원 기준)

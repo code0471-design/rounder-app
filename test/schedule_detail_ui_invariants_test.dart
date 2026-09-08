@@ -189,7 +189,6 @@ void main() {
     final score =
         body.indexOf('_ScoreAwardBannerCard(schedule: schedule, isPast: isPast)');
     final group = body.indexOf('_GroupViewBannerCard(');
-    final info = body.indexOf('_InfoCard(schedule: schedule)');
     expect(attendance, greaterThanOrEqualTo(0),
         reason: '참석 현황 카드가 사라짐');
     expect(score, greaterThanOrEqualTo(0), reason: '스코어/시상 카드가 사라짐');
@@ -197,11 +196,11 @@ void main() {
         isTrue,
         reason: '저장한 스코어·시상이 일정 상세에 바로 보여야 함');
     expect(group, greaterThanOrEqualTo(0), reason: '조편성 배너가 사라짐');
-    expect(info, greaterThanOrEqualTo(0), reason: '일정 정보 카드가 사라짐');
+    expect(body.contains('_InfoCard(schedule: schedule)'), isFalse,
+        reason: '헤더와 겹치는 일정 정보 카드가 다시 생기면 안 됨');
     expect(group < attendance, isTrue, reason: '조편성 다음에 참석 현황이 와야 함');
     expect(attendance < score, isTrue,
         reason: '참석 현황이 스코어/시상 아래로 내려가면 안 됨');
-    expect(score < info, isTrue, reason: '스코어/시상 다음에 일정 정보가 와야 함');
     expect(body.contains('class _ReviewMemoCard'), isFalse);
     expect(body.contains('_ReviewMemoCard(schedule: schedule)'), isTrue);
     expect(body.contains('_RsvpWaitingCard(schedule: schedule, isAdmin: isAdmin)'),
