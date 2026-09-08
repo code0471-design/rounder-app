@@ -159,6 +159,11 @@ void main() {
     expect(finance.contains('minHeight: 56'), isTrue);
   });
 
+  test('잔고 등록 완료 회비설정 안내 카드는 없다', () {
+    expect(finance.contains('_SetupDuesHintBanner'), isFalse);
+    expect(finance.contains('잔고 등록 완료!'), isFalse);
+  });
+
   test('게스트는 회비 납부 대상이 아니다', () {
     expect(finance.contains('연회비·특별회비는 전체 활성 회원'), isFalse);
     expect(finance.contains('게스트는 월·연·특별 모두 제외'), isTrue);

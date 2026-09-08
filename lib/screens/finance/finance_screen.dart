@@ -346,12 +346,6 @@ class _FinanceScreenState extends State<FinanceScreen>
               // ── 총무 최초 진입 가이드 ──
               if (isTreasurer && provider.isFinanceSetupPending)
                 const _TreasurerFirstVisitGuideBanner(),
-              // ── 초기잔액 등록됐지만 회비 설정이 없을 때 ──
-              if (isTreasurer &&
-                  !provider.isFinanceEmpty &&
-                  provider.hasOpeningBalance &&
-                  provider.activeDuesSettings.isEmpty)
-                const _SetupDuesHintBanner(),
               // ── 탭바 (+ 회비설정 안내 말풍선) ──
               Container(
                 color: AppColors.cream,
@@ -8264,41 +8258,3 @@ class _OpeningBalanceSettingCard extends StatelessWidget {
   }
 }
 
-// ════════════════════════════════════════════════════════════
-//  회비 설정 안내 배너
-//  · 초기잔액은 등록됐지만 회비 설정이 없을 때 표시
-// ════════════════════════════════════════════════════════════
-class _SetupDuesHintBanner extends StatelessWidget {
-  const _SetupDuesHintBanner();
-
-  @override
-  Widget build(BuildContext context) {
-    return Container(
-      margin: const EdgeInsets.fromLTRB(16, 10, 16, 4),
-      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
-      decoration: BoxDecoration(
-        color: AppColors.primary.withValues(alpha: 0.06),
-        borderRadius: BorderRadius.circular(12),
-        border: Border.all(color: AppColors.primary.withValues(alpha: 0.2)),
-      ),
-      child: Row(
-        children: [
-          const Text('⚙️', style: TextStyle(fontSize: 18)),
-          const SizedBox(width: 10),
-          const Expanded(
-            child: Text(
-              '잔고 등록 완료! 다음은 "회비설정" 탭에서\n월회비·연회비 금액을 추가해 보세요.',
-              style: TextStyle(
-                fontSize: 12,
-                color: AppColors.primary,
-                height: 1.5,
-              ),
-            ),
-          ),
-          const Icon(Icons.arrow_forward_ios,
-              size: 14, color: AppColors.primary),
-        ],
-      ),
-    );
-  }
-}
