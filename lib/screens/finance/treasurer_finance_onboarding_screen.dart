@@ -14,7 +14,7 @@ const _kTossBlue = Color(0xFF3182F6);
 
 /// 신규 모임 총무가 재무 탭에 처음 들어왔을 때 — 토스형 시작 안내
 class TreasurerFinanceOnboardingScreen extends StatefulWidget {
-  final void Function(DuesType kind) onFinished;
+  final void Function(DuesType kind, FinanceStartMode mode) onFinished;
   const TreasurerFinanceOnboardingScreen({
     super.key,
     required this.onFinished,
@@ -244,13 +244,13 @@ class _TreasurerFinanceOnboardingScreenState
         _ChoiceCard(
           title: '연회비를 걷어요',
           subtitle: '1년에 한 번 회비를 걷습니다. 금액과 납부일을 바로 넣을 수 있어요.',
-          onTap: () => widget.onFinished(DuesType.annual),
+          onTap: () => widget.onFinished(DuesType.annual, _mode!),
         ),
         const SizedBox(height: 12),
         _ChoiceCard(
           title: '월회비를 걷어요',
           subtitle: '매달 회비를 걷습니다. 금액과 납부 기간을 바로 넣을 수 있어요.',
-          onTap: () => widget.onFinished(DuesType.monthly),
+          onTap: () => widget.onFinished(DuesType.monthly, _mode!),
         ),
       ],
     );
@@ -311,6 +311,86 @@ class _ChoiceCard extends StatelessWidget {
               ),
               const SizedBox(width: 8),
               const Icon(Icons.chevron_right, color: _kTossBlue),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+/// 회비 설정 직후 — 수입/지출을 지금 넣을지
+class TreasurerTxPromptScreen extends StatelessWidget {
+  final VoidCallback onEnter;
+  final VoidCallback onLater;
+  const TreasurerTxPromptScreen({
+    super.key,
+    required this.onEnter,
+    required this.onLater,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return Scaffold(
+      backgroundColor: Colors.white,
+      body: SafeArea(
+        child: Padding(
+          padding: const EdgeInsets.fromLTRB(22, 52, 22, 16),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              const Text(
+                '회비설정을 잘 마쳤어요',
+                style: TextStyle(
+                  fontSize: 26,
+                  fontWeight: FontWeight.w800,
+                  color: _kTossInk,
+                  height: 1.3,
+                ),
+              ),
+              const SizedBox(height: 10),
+              const Text(
+                '지금 수입/지출 내역을 입력하시겠어요?',
+                style: TextStyle(
+                  fontSize: 16,
+                  height: 1.5,
+                  color: _kTossGray,
+                ),
+              ),
+              const Spacer(),
+              SizedBox(
+                width: double.infinity,
+                height: 52,
+                child: FilledButton(
+                  onPressed: onEnter,
+                  style: FilledButton.styleFrom(
+                    backgroundColor: _kTossInk,
+                    foregroundColor: Colors.white,
+                    shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(14)),
+                    textStyle: const TextStyle(
+                        fontSize: 16, fontWeight: FontWeight.w700),
+                  ),
+                  child: const Text('입력하기'),
+                ),
+              ),
+              const SizedBox(height: 10),
+              SizedBox(
+                width: double.infinity,
+                height: 52,
+                child: OutlinedButton(
+                  onPressed: onLater,
+                  style: OutlinedButton.styleFrom(
+                    foregroundColor: _kTossInk,
+                    side: const BorderSide(color: _kTossLine),
+                    shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(14)),
+                    textStyle: const TextStyle(
+                        fontSize: 16, fontWeight: FontWeight.w700),
+                  ),
+                  child: const Text('나중에 하기'),
+                ),
+              ),
             ],
           ),
         ),

@@ -132,9 +132,18 @@ void main() {
     expect(onboard.contains('이번달 회계자료부터 입력'), isTrue);
     expect(onboard.contains('잔고등록을 잘 마쳤습니다'), isTrue);
     expect(onboard.contains('우리 모임은 연회비를 걷나요? 월회비를 걷나요?'), isTrue);
-    expect(onboard.contains('void Function(DuesType kind) onFinished'), isTrue);
+    expect(
+      onboard.contains(
+          'void Function(DuesType kind, FinanceStartMode mode) onFinished'),
+      isTrue,
+    );
+    expect(onboard.contains('class TreasurerTxPromptScreen'), isTrue);
     expect(finance.contains('_treasurerOnboardingSession'), isTrue);
+    expect(finance.contains('_showTxPrompt'), isTrue);
+    expect(finance.contains('_finishTxPrompt'), isTrue);
     expect(finance.contains("initialType: kind"), isTrue);
+    expect(finance.contains('defaultYear: asOf.year'), isTrue);
+    expect(finance.contains('_date = DateTime(y, m, 1)'), isTrue);
     expect(finance.contains("'예: 모임 월회비'"), isTrue);
     expect(finance.contains("'예: \$y년 월회비'"), isFalse);
     expect(finance.contains('class _YearMonthPickerSheet'), isTrue);

@@ -27,4 +27,11 @@ abstract final class FinanceOnboarding {
 
   static String asOfLabel(DateTime asOf) =>
       '${asOf.year}년 ${asOf.month}월 ${asOf.day}일';
+
+  static FinanceStartMode? modeFromMemo(String? memo) {
+    final t = memo ?? '';
+    if (t.contains('올시즌')) return FinanceStartMode.season;
+    if (t.contains('이번달')) return FinanceStartMode.thisMonth;
+    return null;
+  }
 }

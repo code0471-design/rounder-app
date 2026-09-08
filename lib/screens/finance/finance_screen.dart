@@ -3,6 +3,7 @@ import 'package:provider/provider.dart';
 import '../../models/club_model.dart';
 import '../../providers/club_provider.dart';
 import '../../theme/app_theme.dart';
+import '../../utils/finance_onboarding.dart';
 import 'dues_payment_screen.dart';
 import 'treasurer_finance_onboarding_screen.dart';
 
@@ -166,6 +167,10 @@ class _FinanceScreenState extends State<FinanceScreen>
   late TabController _tab;
   /// 잔고를 저장해도 회비 종류를 고를 때까지 온보딩을 유지한다.
   bool _treasurerOnboardingSession = false;
+  bool _showTxPrompt = false;
+  FinanceStartMode? _startMode;
+  int? _txFocusYear;
+  int? _txFocusMonth;
 
   @override
   void initState() {
@@ -186,6 +191,41 @@ class _FinanceScreenState extends State<FinanceScreen>
   void dispose() {
     _tab.dispose();
     super.dispose();
+  }
+
+  FinanceStartMode _resolvedStartMode(ClubProvider provider) {
+    if (_startMode != null) return _startMode!;
+    for (final t in provider.transactions) {
+      if (t.source != TxSource.openingBalance) continue;
+      final inferred = FinanceOnboarding.modeFromMemo(t.title);
+      if (inferred != null) return inferred;
+    }
+    return FinanceStartMode.thisMonth;
+  }
+
+  void _finishTxPrompt({required bool enter}) {
+    final provider = context.read<ClubProvider>();
+    final asOf = FinanceOnboarding.openingAsOf(_resolvedStartMode(provider));
+    setState(() {
+      _showTxPrompt = false;
+      _txFocusYear = asOf.year;
+      _txFocusMonth = asOf.month;
+    });
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (!mounted) return;
+      _tab.animateTo(1);
+      if (!enter) return;
+      showModalBottomSheet(
+        context: context,
+        isScrollControlled: true,
+        backgroundColor: Colors.transparent,
+        builder: (_) => _TransactionFormSheet(
+          provider: provider,
+          defaultYear: asOf.year,
+          defaultMonth: asOf.month,
+        ),
+      );
+    });
   }
 
   @override
@@ -242,8 +282,11 @@ class _FinanceScreenState extends State<FinanceScreen>
             (provider.needsTreasurerFinanceOnboarding ||
                 _treasurerOnboardingSession)) {
           return TreasurerFinanceOnboardingScreen(
-            onFinished: (kind) {
-              setState(() => _treasurerOnboardingSession = false);
+            onFinished: (kind, mode) {
+              setState(() {
+                _treasurerOnboardingSession = false;
+                _startMode = mode;
+              });
               WidgetsBinding.instance.addPostFrameCallback((_) {
                 if (!mounted) return;
                 _tab.animateTo(3);
@@ -256,10 +299,20 @@ class _FinanceScreenState extends State<FinanceScreen>
                     provider: p,
                     initialType: kind,
                     allowedTypes: [kind, DuesType.special],
+                    onCreated: (_) {
+                      if (!mounted) return;
+                      setState(() => _showTxPrompt = true);
+                    },
                   ),
                 );
               });
             },
+          );
+        }
+        if (isTreasurer && _showTxPrompt) {
+          return TreasurerTxPromptScreen(
+            onEnter: () => _finishTxPrompt(enter: true),
+            onLater: () => _finishTxPrompt(enter: false),
           );
         }
         if (!isTreasurer && provider.isFinanceSetupPending) {
@@ -341,7 +394,11 @@ class _FinanceScreenState extends State<FinanceScreen>
                   controller: _tab,
                   children: [
                     _PaymentStatusTab(isAdmin: isAdmin),
-                    _TransactionTab(isAdmin: isAdmin),
+                    _TransactionTab(
+                      isAdmin: isAdmin,
+                      focusYear: _txFocusYear,
+                      focusMonth: _txFocusMonth,
+                    ),
                     _SettlementReportTab(isAdmin: isAdmin),
                     _DuesSettingTab(isAdmin: isAdmin),
                   ],
@@ -1719,15 +1776,39 @@ class _MemberPaymentTile extends StatelessWidget {
 // ════════════════════════════════════════════════════════════
 class _TransactionTab extends StatefulWidget {
   final bool isAdmin;
-  const _TransactionTab({required this.isAdmin});
+  final int? focusYear;
+  final int? focusMonth;
+  const _TransactionTab({
+    required this.isAdmin,
+    this.focusYear,
+    this.focusMonth,
+  });
 
   @override
   State<_TransactionTab> createState() => _TransactionTabState();
 }
 
 class _TransactionTabState extends State<_TransactionTab> {
-  int _year = DateTime.now().year;
-  int _month = DateTime.now().month;
+  late int _year;
+  late int _month;
+
+  @override
+  void initState() {
+    super.initState();
+    _year = widget.focusYear ?? DateTime.now().year;
+    _month = widget.focusMonth ?? DateTime.now().month;
+  }
+
+  @override
+  void didUpdateWidget(covariant _TransactionTab oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (widget.focusYear != null &&
+        (widget.focusYear != oldWidget.focusYear ||
+            widget.focusMonth != oldWidget.focusMonth)) {
+      _year = widget.focusYear!;
+      _month = widget.focusMonth!;
+    }
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -3256,7 +3337,20 @@ class _TransactionFormSheetState extends State<_TransactionFormSheet> {
   final _memoCtrl = TextEditingController();
   TxType _type = TxType.income;
   String _category = '월회비';
-  DateTime _date = DateTime.now();
+  late DateTime _date;
+
+  @override
+  void initState() {
+    super.initState();
+    final now = DateTime.now();
+    final y = widget.defaultYear;
+    final m = widget.defaultMonth;
+    if (y == now.year && m == now.month) {
+      _date = now;
+    } else {
+      _date = DateTime(y, m, 1);
+    }
+  }
 
   static const _incomeCategories = ['월회비', '연회비', '특별회비', '벌금', '기타'];
   static const _expenseCategories = ['식비', '상품', '운영비', '기타'];

@@ -35,4 +35,35 @@ void main() {
     expect(src.contains('setOpeningBalance'), isTrue);
     expect(src.contains('_step = 2'), isTrue);
   });
+
+  test('회비 설정 다음은 수입/지출 입력 여부다', () {
+    final src = File(
+            'lib/screens/finance/treasurer_finance_onboarding_screen.dart')
+        .readAsStringSync();
+    expect(src.contains('회비설정을 잘 마쳤어요'), isTrue);
+    expect(src.contains('지금 수입/지출 내역을 입력하시겠어요?'), isTrue);
+    expect(src.contains('입력하기'), isTrue);
+    expect(src.contains('나중에 하기'), isTrue);
+    expect(src.contains('class TreasurerTxPromptScreen'), isTrue);
+  });
+
+  test('올시즌은 1월, 이번달은 이번 달 입력이다', () {
+    final now = DateTime(2026, 9, 8);
+    expect(
+      FinanceOnboarding.openingAsOf(FinanceStartMode.season, now),
+      DateTime(2026, 1, 1),
+    );
+    expect(
+      FinanceOnboarding.openingAsOf(FinanceStartMode.thisMonth, now),
+      DateTime(2026, 9, 1),
+    );
+    expect(
+      FinanceOnboarding.modeFromMemo('올시즌 시작 잔고 (2026년 1월 1일 기준)'),
+      FinanceStartMode.season,
+    );
+    expect(
+      FinanceOnboarding.modeFromMemo('이번달 시작 잔고 (2026년 9월 1일 기준)'),
+      FinanceStartMode.thisMonth,
+    );
+  });
 }
