@@ -164,6 +164,8 @@ class FinanceScreen extends StatefulWidget {
 class _FinanceScreenState extends State<FinanceScreen>
     with SingleTickerProviderStateMixin {
   late TabController _tab;
+  /// 잔고를 저장해도 회비 종류를 고를 때까지 온보딩을 유지한다.
+  bool _treasurerOnboardingSession = false;
 
   @override
   void initState() {
@@ -234,10 +236,28 @@ class _FinanceScreenState extends State<FinanceScreen>
         // 회비 미설정: 총무만 진입 가능 (방장·정회원 포함 차단) — Case A
         final isTreasurer = provider.isTreasurer;
         if (isTreasurer && provider.needsTreasurerFinanceOnboarding) {
+          _treasurerOnboardingSession = true;
+        }
+        if (isTreasurer &&
+            (provider.needsTreasurerFinanceOnboarding ||
+                _treasurerOnboardingSession)) {
           return TreasurerFinanceOnboardingScreen(
-            onFinished: () {
+            onFinished: (kind) {
+              setState(() => _treasurerOnboardingSession = false);
               WidgetsBinding.instance.addPostFrameCallback((_) {
-                if (mounted) _tab.animateTo(3);
+                if (!mounted) return;
+                _tab.animateTo(3);
+                final p = context.read<ClubProvider>();
+                showModalBottomSheet(
+                  context: context,
+                  isScrollControlled: true,
+                  backgroundColor: Colors.transparent,
+                  builder: (_) => _DuesSettingFormSheet(
+                    provider: p,
+                    initialType: kind,
+                    allowedTypes: [kind, DuesType.special],
+                  ),
+                );
               });
             },
           );
@@ -3685,7 +3705,7 @@ class _DuesSettingFormSheetState extends State<_DuesSettingFormSheet> {
       case DuesType.annual:
         return '예: $y년 연회비';
       case DuesType.monthly:
-        return '예: $y년 월회비';
+        return '예: 모임 월회비';
       case DuesType.special:
         return '예: $y년 여행 특별회비';
     }
@@ -3723,6 +3743,9 @@ class _DuesSettingFormSheetState extends State<_DuesSettingFormSheet> {
       _dueDate = DateTime(DateTime.now().year, 3, 1);
       if (widget.initialType != null) {
         _applyType(widget.initialType!);
+      }
+      if (_type == DuesType.monthly && _titleCtrl.text.isEmpty) {
+        _titleCtrl.text = '모임 월회비';
       }
     }
   }
@@ -3964,67 +3987,29 @@ class _DuesSettingFormSheetState extends State<_DuesSettingFormSheet> {
                           }
                         }),
                       ),
-                      const SizedBox(height: 6),
-                      Row(
-                        crossAxisAlignment: CrossAxisAlignment.end,
-                        children: [
-                          Expanded(
-                            child: _YearMonthField(
-                              label: '시작',
-                              year: _startYear ?? DateTime.now().year,
-                              month: _startMonth ?? 1,
-                              onYearChanged: (v) =>
-                                  setState(() => _startYear = v),
-                              onMonthChanged: (v) =>
-                                  setState(() => _startMonth = v),
-                            ),
-                          ),
-                          const Padding(
-                            padding: EdgeInsets.symmetric(horizontal: 8),
-                            child: Padding(
-                              padding: EdgeInsets.only(bottom: 12),
-                              child: Text('~',
-                                  style: TextStyle(
-                                      fontSize: 20,
-                                      fontWeight: FontWeight.bold,
-                                      color: AppColors.textSecondary)),
-                            ),
-                          ),
-                          Expanded(
-                            child: _noEndDate
-                                ? Padding(
-                                    padding: const EdgeInsets.only(bottom: 12),
-                                    child: Container(
-                                      width: double.infinity,
-                                      padding: const EdgeInsets.symmetric(
-                                          horizontal: 12, vertical: 14),
-                                      decoration: BoxDecoration(
-                                        color: AppColors.sageLighter,
-                                        borderRadius: BorderRadius.circular(10),
-                                        border: Border.all(
-                                            color: AppColors.primary
-                                                .withValues(alpha: 0.25)),
-                                      ),
-                                      child: const Text('계속',
-                                          textAlign: TextAlign.center,
-                                          style: TextStyle(
-                                              fontSize: 15,
-                                              fontWeight: FontWeight.w800,
-                                              color: AppColors.primary)),
-                                    ),
-                                  )
-                                : _YearMonthField(
-                                    label: '종료',
-                                    year: _endYear ?? DateTime.now().year,
-                                    month: _endMonth ?? 12,
-                                    onYearChanged: (v) =>
-                                        setState(() => _endYear = v),
-                                    onMonthChanged: (v) =>
-                                        setState(() => _endMonth = v),
-                                  ),
-                          ),
-                        ],
+                      const SizedBox(height: 10),
+                      _YearMonthField(
+                        label: '시작',
+                        year: _startYear ?? DateTime.now().year,
+                        month: _startMonth ?? 1,
+                        onYearChanged: (v) =>
+                            setState(() => _startYear = v),
+                        onMonthChanged: (v) =>
+                            setState(() => _startMonth = v),
                       ),
+                      const SizedBox(height: 12),
+                      if (_noEndDate)
+                        _OpenEndedPeriodCard()
+                      else
+                        _YearMonthField(
+                          label: '종료',
+                          year: _endYear ?? DateTime.now().year,
+                          month: _endMonth ?? 12,
+                          onYearChanged: (v) =>
+                              setState(() => _endYear = v),
+                          onMonthChanged: (v) =>
+                              setState(() => _endMonth = v),
+                        ),
                       const SizedBox(height: 16),
                       const Text('납부 기준일 *',
                           style: TextStyle(
@@ -4037,20 +4022,10 @@ class _DuesSettingFormSheetState extends State<_DuesSettingFormSheet> {
                             color: AppColors.textSecondary),
                       ),
                       const SizedBox(height: 8),
-                      DropdownButtonFormField<int>(
-                        value: _dueDayOfMonth ?? 25,
-                        decoration: _deco('매월 ㅇㅇ일'),
-                        items: List.generate(
-                          31,
-                          (i) => DropdownMenuItem(
-                            value: i + 1,
-                            child: Text('매월 ${i + 1}일'),
-                          ),
-                        ),
+                      _DayOfMonthField(
+                        day: _dueDayOfMonth ?? 25,
                         onChanged: (v) =>
                             setState(() => _dueDayOfMonth = v),
-                        validator: (v) =>
-                            v == null ? '납부 기준일을 선택하세요' : null,
                       ),
                       const SizedBox(height: 16),
                     ],
@@ -4110,28 +4085,40 @@ class _DuesSettingFormSheetState extends State<_DuesSettingFormSheet> {
                             setState(() => _dueDate = picked);
                           }
                         },
-                        borderRadius: BorderRadius.circular(10),
-                        child: InputDecorator(
-                          decoration: _deco('ㅇㅇㅇㅇ년 ㅇㅇ월 ㅇㅇ일').copyWith(
-                            suffixIcon: const Icon(
-                              Icons.calendar_today_outlined,
-                              size: 18,
-                              color: AppColors.textSecondary,
-                            ),
+                        borderRadius: BorderRadius.circular(14),
+                        child: Container(
+                          width: double.infinity,
+                          constraints: const BoxConstraints(minHeight: 56),
+                          padding: const EdgeInsets.fromLTRB(16, 16, 14, 16),
+                          decoration: BoxDecoration(
+                            color: const Color(0xFFF8F8F8),
+                            borderRadius: BorderRadius.circular(14),
+                            border: Border.all(color: const Color(0xFFDDDDDD)),
                           ),
-                          child: Text(
-                            _dueDate == null
-                                ? '날짜를 선택하세요'
-                                : '${_dueDate!.year}년 ${_dueDate!.month.toString().padLeft(2, '0')}월 ${_dueDate!.day.toString().padLeft(2, '0')}일',
-                            style: TextStyle(
-                              fontSize: 14,
-                              color: _dueDate == null
-                                  ? AppColors.textSecondary
-                                  : AppColors.textPrimary,
-                              fontWeight: _dueDate == null
-                                  ? FontWeight.w400
-                                  : FontWeight.w600,
-                            ),
+                          child: Row(
+                            children: [
+                              Expanded(
+                                child: Text(
+                                  _dueDate == null
+                                      ? '날짜를 선택하세요'
+                                      : '${_dueDate!.year}년 ${_dueDate!.month}월 ${_dueDate!.day}일',
+                                  style: TextStyle(
+                                    fontSize: 17,
+                                    color: _dueDate == null
+                                        ? AppColors.textSecondary
+                                        : AppColors.textPrimary,
+                                    fontWeight: _dueDate == null
+                                        ? FontWeight.w500
+                                        : FontWeight.w700,
+                                  ),
+                                ),
+                              ),
+                              const Icon(
+                                Icons.calendar_today_outlined,
+                                size: 22,
+                                color: AppColors.textSecondary,
+                              ),
+                            ],
                           ),
                         ),
                       ),
@@ -4347,7 +4334,7 @@ class _DuesSettingFormSheetState extends State<_DuesSettingFormSheet> {
       );
 }
 
-/// 연도+월을 한 필드에서 함께 선택 (예: "2025년 3월")
+/// 연도+월을 큰 버튼으로 고른다 (좁은 드롭다운 대신 시트)
 class _YearMonthField extends StatelessWidget {
   final String label;
   final int year;
@@ -4363,6 +4350,17 @@ class _YearMonthField extends StatelessWidget {
     required this.onMonthChanged,
   });
 
+  Future<void> _open(BuildContext context) async {
+    final picked = await showModalBottomSheet<(int, int)>(
+      context: context,
+      backgroundColor: Colors.transparent,
+      builder: (_) => _YearMonthPickerSheet(year: year, month: month),
+    );
+    if (picked == null) return;
+    onYearChanged(picked.$1);
+    onMonthChanged(picked.$2);
+  }
+
   @override
   Widget build(BuildContext context) {
     return Column(
@@ -4370,62 +4368,326 @@ class _YearMonthField extends StatelessWidget {
       children: [
         Text(label,
             style: const TextStyle(
-                fontSize: 11, color: AppColors.textSecondary)),
-        const SizedBox(height: 4),
-        Container(
-          padding: const EdgeInsets.symmetric(horizontal: 8),
+                fontSize: 13,
+                fontWeight: FontWeight.w600,
+                color: AppColors.textSecondary)),
+        const SizedBox(height: 8),
+        Material(
+          color: const Color(0xFFF8F8F8),
+          borderRadius: BorderRadius.circular(14),
+          child: InkWell(
+            onTap: () => _open(context),
+            borderRadius: BorderRadius.circular(14),
+            child: Container(
+              width: double.infinity,
+              constraints: const BoxConstraints(minHeight: 56),
+              padding: const EdgeInsets.fromLTRB(16, 16, 14, 16),
+              decoration: BoxDecoration(
+                borderRadius: BorderRadius.circular(14),
+                border: Border.all(color: const Color(0xFFDDDDDD)),
+              ),
+              child: Row(
+                children: [
+                  Expanded(
+                    child: Text(
+                      '$year년 $month월',
+                      style: const TextStyle(
+                        fontSize: 18,
+                        fontWeight: FontWeight.w700,
+                        color: AppColors.textPrimary,
+                      ),
+                    ),
+                  ),
+                  const Icon(Icons.expand_more,
+                      size: 26, color: AppColors.textSecondary),
+                ],
+              ),
+            ),
+          ),
+        ),
+      ],
+    );
+  }
+}
+
+class _OpenEndedPeriodCard extends StatelessWidget {
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      width: double.infinity,
+      constraints: const BoxConstraints(minHeight: 56),
+      padding: const EdgeInsets.fromLTRB(16, 16, 16, 16),
+      decoration: BoxDecoration(
+        color: AppColors.sageLighter,
+        borderRadius: BorderRadius.circular(14),
+        border: Border.all(color: AppColors.primary.withValues(alpha: 0.25)),
+      ),
+      child: const Text(
+        '종료 없음 · 계속',
+        style: TextStyle(
+          fontSize: 18,
+          fontWeight: FontWeight.w800,
+          color: AppColors.primary,
+        ),
+      ),
+    );
+  }
+}
+
+class _YearMonthPickerSheet extends StatelessWidget {
+  final int year;
+  final int month;
+  const _YearMonthPickerSheet({required this.year, required this.month});
+
+  @override
+  Widget build(BuildContext context) {
+    var y = year;
+    var m = month;
+    return StatefulBuilder(
+      builder: (ctx, setLocal) {
+        return Container(
+          padding: const EdgeInsets.fromLTRB(20, 12, 20, 24),
+          decoration: const BoxDecoration(
+            color: Colors.white,
+            borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
+          ),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Center(
+                child: Container(
+                  width: 40,
+                  height: 4,
+                  decoration: BoxDecoration(
+                    color: AppColors.divider,
+                    borderRadius: BorderRadius.circular(2),
+                  ),
+                ),
+              ),
+              const SizedBox(height: 16),
+              const Text('연월 선택',
+                  style: TextStyle(
+                      fontSize: 17, fontWeight: FontWeight.w800)),
+              const SizedBox(height: 16),
+              SizedBox(
+                height: 44,
+                child: ListView.separated(
+                  scrollDirection: Axis.horizontal,
+                  itemCount: _duesYearOptions.length,
+                  separatorBuilder: (_, __) => const SizedBox(width: 8),
+                  itemBuilder: (_, i) {
+                    final opt = _duesYearOptions[i];
+                    final sel = opt == y;
+                    return ChoiceChip(
+                      label: Text('$opt년',
+                          style: TextStyle(
+                            fontSize: 15,
+                            fontWeight: FontWeight.w700,
+                            color: sel ? Colors.white : AppColors.textPrimary,
+                          )),
+                      selected: sel,
+                      selectedColor: AppColors.primary,
+                      backgroundColor: const Color(0xFFF3F4F6),
+                      onSelected: (_) => setLocal(() => y = opt),
+                      showCheckmark: false,
+                      padding: const EdgeInsets.symmetric(
+                          horizontal: 10, vertical: 8),
+                    );
+                  },
+                ),
+              ),
+              const SizedBox(height: 16),
+              GridView.count(
+                shrinkWrap: true,
+                physics: const NeverScrollableScrollPhysics(),
+                crossAxisCount: 4,
+                mainAxisSpacing: 8,
+                crossAxisSpacing: 8,
+                childAspectRatio: 1.6,
+                children: List.generate(12, (i) {
+                  final opt = i + 1;
+                  final sel = opt == m;
+                  return Material(
+                    color: sel ? AppColors.primary : const Color(0xFFF3F4F6),
+                    borderRadius: BorderRadius.circular(12),
+                    child: InkWell(
+                      onTap: () => setLocal(() => m = opt),
+                      borderRadius: BorderRadius.circular(12),
+                      child: Center(
+                        child: Text(
+                          '$opt월',
+                          style: TextStyle(
+                            fontSize: 16,
+                            fontWeight: FontWeight.w700,
+                            color: sel ? Colors.white : AppColors.textPrimary,
+                          ),
+                        ),
+                      ),
+                    ),
+                  );
+                }),
+              ),
+              const SizedBox(height: 18),
+              SizedBox(
+                width: double.infinity,
+                height: 52,
+                child: ElevatedButton(
+                  onPressed: () => Navigator.pop(ctx, (y, m)),
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: AppColors.primary,
+                    foregroundColor: Colors.white,
+                    shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(14)),
+                  ),
+                  child: Text('$y년 $m월 선택',
+                      style: const TextStyle(
+                          fontSize: 16, fontWeight: FontWeight.w800)),
+                ),
+              ),
+            ],
+          ),
+        );
+      },
+    );
+  }
+}
+
+class _DayOfMonthField extends StatelessWidget {
+  final int day;
+  final ValueChanged<int> onChanged;
+  const _DayOfMonthField({required this.day, required this.onChanged});
+
+  @override
+  Widget build(BuildContext context) {
+    return Material(
+      color: const Color(0xFFF8F8F8),
+      borderRadius: BorderRadius.circular(14),
+      child: InkWell(
+        onTap: () async {
+          final picked = await showModalBottomSheet<int>(
+            context: context,
+            backgroundColor: Colors.transparent,
+            builder: (_) => _DayOfMonthPickerSheet(day: day),
+          );
+          if (picked != null) onChanged(picked);
+        },
+        borderRadius: BorderRadius.circular(14),
+        child: Container(
+          width: double.infinity,
+          constraints: const BoxConstraints(minHeight: 56),
+          padding: const EdgeInsets.fromLTRB(16, 16, 14, 16),
           decoration: BoxDecoration(
-            color: const Color(0xFFF8F8F8),
-            borderRadius: BorderRadius.circular(10),
+            borderRadius: BorderRadius.circular(14),
             border: Border.all(color: const Color(0xFFDDDDDD)),
           ),
           child: Row(
             children: [
               Expanded(
-                child: DropdownButtonHideUnderline(
-                  child: DropdownButton<int>(
-                    value: year,
-                    isExpanded: true,
-                    isDense: true,
-                    borderRadius: BorderRadius.circular(10),
-                    items: _duesYearOptions
-                        .map((y) => DropdownMenuItem<int>(
-                              value: y,
-                              child: Text('$y년',
-                                  style: const TextStyle(fontSize: 13)),
-                            ))
-                        .toList(),
-                    onChanged: (v) {
-                      if (v != null) onYearChanged(v);
-                    },
+                child: Text(
+                  '매월 $day일',
+                  style: const TextStyle(
+                    fontSize: 18,
+                    fontWeight: FontWeight.w700,
+                    color: AppColors.textPrimary,
                   ),
                 ),
               ),
-              const SizedBox(width: 6),
-              Expanded(
-                child: DropdownButtonHideUnderline(
-                  child: DropdownButton<int>(
-                    value: month,
-                    isExpanded: true,
-                    isDense: true,
-                    borderRadius: BorderRadius.circular(10),
-                    items: List.generate(12, (i) => i + 1)
-                        .map((m) => DropdownMenuItem<int>(
-                              value: m,
-                              child: Text('$m월',
-                                  style: const TextStyle(fontSize: 13)),
-                            ))
-                        .toList(),
-                    onChanged: (v) {
-                      if (v != null) onMonthChanged(v);
-                    },
+              const Icon(Icons.expand_more,
+                  size: 26, color: AppColors.textSecondary),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+class _DayOfMonthPickerSheet extends StatelessWidget {
+  final int day;
+  const _DayOfMonthPickerSheet({required this.day});
+
+  @override
+  Widget build(BuildContext context) {
+    var selected = day;
+    return StatefulBuilder(
+      builder: (ctx, setLocal) {
+        return Container(
+          padding: const EdgeInsets.fromLTRB(20, 12, 20, 24),
+          decoration: const BoxDecoration(
+            color: Colors.white,
+            borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
+          ),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Center(
+                child: Container(
+                  width: 40,
+                  height: 4,
+                  decoration: BoxDecoration(
+                    color: AppColors.divider,
+                    borderRadius: BorderRadius.circular(2),
                   ),
+                ),
+              ),
+              const SizedBox(height: 16),
+              const Text('매월 납부일',
+                  style: TextStyle(
+                      fontSize: 17, fontWeight: FontWeight.w800)),
+              const SizedBox(height: 16),
+              GridView.count(
+                shrinkWrap: true,
+                physics: const NeverScrollableScrollPhysics(),
+                crossAxisCount: 7,
+                mainAxisSpacing: 8,
+                crossAxisSpacing: 8,
+                childAspectRatio: 1.05,
+                children: List.generate(31, (i) {
+                  final opt = i + 1;
+                  final sel = opt == selected;
+                  return Material(
+                    color: sel ? AppColors.primary : const Color(0xFFF3F4F6),
+                    borderRadius: BorderRadius.circular(10),
+                    child: InkWell(
+                      onTap: () => setLocal(() => selected = opt),
+                      borderRadius: BorderRadius.circular(10),
+                      child: Center(
+                        child: Text(
+                          '$opt',
+                          style: TextStyle(
+                            fontSize: 15,
+                            fontWeight: FontWeight.w700,
+                            color: sel ? Colors.white : AppColors.textPrimary,
+                          ),
+                        ),
+                      ),
+                    ),
+                  );
+                }),
+              ),
+              const SizedBox(height: 18),
+              SizedBox(
+                width: double.infinity,
+                height: 52,
+                child: ElevatedButton(
+                  onPressed: () => Navigator.pop(ctx, selected),
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: AppColors.primary,
+                    foregroundColor: Colors.white,
+                    shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(14)),
+                  ),
+                  child: Text('매월 $selected일',
+                      style: const TextStyle(
+                          fontSize: 16, fontWeight: FontWeight.w800)),
                 ),
               ),
             ],
           ),
-        ),
-      ],
+        );
+      },
     );
   }
 }
@@ -4452,17 +4714,23 @@ class _YearDropdown extends StatelessWidget {
                 fontSize: 11, color: AppColors.textSecondary)),
         const SizedBox(height: 4),
         Container(
+          constraints: const BoxConstraints(minHeight: 56),
           decoration: BoxDecoration(
             color: const Color(0xFFF8F8F8),
-            borderRadius: BorderRadius.circular(10),
+            borderRadius: BorderRadius.circular(14),
             border: Border.all(color: const Color(0xFFDDDDDD)),
           ),
           child: DropdownButtonHideUnderline(
             child: DropdownButton<int?>(
               value: value,
               isExpanded: true,
-              padding: const EdgeInsets.symmetric(horizontal: 12),
-              borderRadius: BorderRadius.circular(10),
+              padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+              borderRadius: BorderRadius.circular(14),
+              style: const TextStyle(
+                fontSize: 17,
+                fontWeight: FontWeight.w700,
+                color: AppColors.textPrimary,
+              ),
               items: [
                 DropdownMenuItem<int?>(
                   value: null,
@@ -6715,7 +6983,7 @@ class _TreasurerFirstVisitGuideBanner extends StatelessWidget {
           Expanded(
             child: Text(
               '회비설정 탭에서 설정하고 사용을 시작해요\n'
-              '(예: 2026년 연회비 / 2026년 월회비 / 2026 투어 특별회비 등)',
+              '(예: 2026년 연회비 / 모임 월회비 / 2026 투어 특별회비 등)',
               style: TextStyle(
                 fontSize: 13,
                 color: AppColors.primary,

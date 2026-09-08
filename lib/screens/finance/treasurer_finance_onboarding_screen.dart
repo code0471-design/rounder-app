@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:provider/provider.dart';
 
+import '../../models/club_model.dart';
 import '../../providers/club_provider.dart';
 import '../../utils/finance_onboarding.dart';
 
@@ -13,7 +14,7 @@ const _kTossBlue = Color(0xFF3182F6);
 
 /// 신규 모임 총무가 재무 탭에 처음 들어왔을 때 — 토스형 시작 안내
 class TreasurerFinanceOnboardingScreen extends StatefulWidget {
-  final VoidCallback onFinished;
+  final void Function(DuesType kind) onFinished;
   const TreasurerFinanceOnboardingScreen({
     super.key,
     required this.onFinished,
@@ -48,7 +49,7 @@ class _TreasurerFinanceOnboardingScreenState
     });
   }
 
-  void _saveAndFinish(ClubProvider provider) {
+  void _saveBalance(ClubProvider provider) {
     final mode = _mode;
     if (mode == null) return;
     final now = DateTime.now();
@@ -57,7 +58,7 @@ class _TreasurerFinanceOnboardingScreenState
       asOf: FinanceOnboarding.openingAsOf(mode, now),
       memo: FinanceOnboarding.memoFor(mode, now),
     );
-    widget.onFinished();
+    setState(() => _step = 2);
   }
 
   @override
@@ -70,7 +71,7 @@ class _TreasurerFinanceOnboardingScreenState
           padding: const EdgeInsets.fromLTRB(22, 12, 22, 16),
           child: Column(
             children: [
-              if (_step == 1)
+              if (_step > 0)
                 Align(
                   alignment: Alignment.centerLeft,
                   child: IconButton(
@@ -78,13 +79,17 @@ class _TreasurerFinanceOnboardingScreenState
                     constraints: const BoxConstraints(minWidth: 40, minHeight: 40),
                     icon: const Icon(Icons.arrow_back_ios_new,
                         size: 18, color: _kTossInk),
-                    onPressed: () => setState(() => _step = 0),
+                    onPressed: () => setState(() => _step = _step == 2 ? 1 : 0),
                   ),
                 )
               else
                 const SizedBox(height: 40),
               Expanded(
-                child: _step == 0 ? _buildChoice() : _buildAmount(provider),
+                child: _step == 0
+                    ? _buildChoice()
+                    : _step == 1
+                        ? _buildAmount(provider)
+                        : _buildDuesKind(),
               ),
             ],
           ),
@@ -197,7 +202,7 @@ class _TreasurerFinanceOnboardingScreenState
           width: double.infinity,
           height: 52,
           child: FilledButton(
-            onPressed: () => _saveAndFinish(provider),
+            onPressed: () => _saveBalance(provider),
             style: FilledButton.styleFrom(
               backgroundColor: _kTossInk,
               foregroundColor: Colors.white,
@@ -206,8 +211,46 @@ class _TreasurerFinanceOnboardingScreenState
               textStyle:
                   const TextStyle(fontSize: 16, fontWeight: FontWeight.w700),
             ),
-            child: const Text('잔고 등록하고 회비 설정하기'),
+            child: const Text('잔고 등록하기'),
           ),
+        ),
+      ],
+    );
+  }
+
+  Widget _buildDuesKind() {
+    return ListView(
+      children: [
+        const SizedBox(height: 12),
+        const Text(
+          '잔고등록을 잘 마쳤습니다',
+          style: TextStyle(
+            fontSize: 26,
+            fontWeight: FontWeight.w800,
+            color: _kTossInk,
+            height: 1.3,
+          ),
+        ),
+        const SizedBox(height: 10),
+        const Text(
+          '우리 모임은 연회비를 걷나요? 월회비를 걷나요?',
+          style: TextStyle(
+            fontSize: 16,
+            height: 1.5,
+            color: _kTossGray,
+          ),
+        ),
+        const SizedBox(height: 28),
+        _ChoiceCard(
+          title: '연회비를 걷어요',
+          subtitle: '1년에 한 번 회비를 걷습니다. 금액과 납부일을 바로 넣을 수 있어요.',
+          onTap: () => widget.onFinished(DuesType.annual),
+        ),
+        const SizedBox(height: 12),
+        _ChoiceCard(
+          title: '월회비를 걷어요',
+          subtitle: '매달 회비를 걷습니다. 금액과 납부 기간을 바로 넣을 수 있어요.',
+          onTap: () => widget.onFinished(DuesType.monthly),
         ),
       ],
     );
