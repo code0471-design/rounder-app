@@ -57,4 +57,15 @@ void main() {
     expect(scoresFn.contains('if (mounted) Navigator.pop(context);'), isTrue);
     expect(awardsFn.contains('if (mounted) Navigator.pop(context);'), isTrue);
   });
+
+  test('스코어는 누구나 저장하고 시상 등록은 임원만', () {
+    expect(screen.contains('isClubExecutive'), isTrue);
+    expect(screen.contains('시상 등록은 임원만 할 수 있습니다'), isTrue);
+    expect(screen.contains('canEdit: canEditAwards'), isTrue);
+    final scores = screen.indexOf('void _saveScores()');
+    final awards = screen.indexOf('void _saveAwards()');
+    final scoresFn = screen.substring(scores, awards);
+    expect(scoresFn.contains('_canEditAwards'), isFalse);
+    expect(scoresFn.contains('isClubExecutive'), isFalse);
+  });
 }

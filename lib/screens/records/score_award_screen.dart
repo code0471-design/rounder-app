@@ -215,8 +215,41 @@ class _ScoreAwardScreenState extends State<ScoreAwardScreen>
     return winner;
   }
 
+  bool get _canEditAwards =>
+      context.read<ClubProvider>().isClubExecutive;
+
+  void _guardAwardEdit(VoidCallback onAllowed) {
+    if (_canEditAwards) {
+      onAllowed();
+      return;
+    }
+    showDialog(
+      context: context,
+      useRootNavigator: true,
+      builder: (dialogCtx) => AlertDialog(
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+        title: const Text('권한 안내',
+            style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold)),
+        content: const Text('시상 등록은 임원만 할 수 있습니다.',
+            style: TextStyle(fontSize: 14, height: 1.5)),
+        actions: [
+          TextButton(
+            onPressed: () =>
+                Navigator.of(dialogCtx, rootNavigator: true).pop(),
+            child: const Text('확인',
+                style: TextStyle(color: AppColors.primary)),
+          ),
+        ],
+      ),
+    );
+  }
+
   // ── 시상 추가 ────────────────────────────────────────────
   void _addAward() {
+    _guardAwardEdit(_addAwardForm);
+  }
+
+  void _addAwardForm() {
     final nameCtrl = TextEditingController();
     String selectedIcon = '🏆';
     final icons = ['🏆', '🥇', '🥈', '🥉', '🎯', '🏌️', '⛳', '🎖️', '🌟', '💪'];
@@ -312,6 +345,10 @@ class _ScoreAwardScreenState extends State<ScoreAwardScreen>
 
   // ── 시상 수상자 선택 (다중 선택 지원) ──────────────────────
   void _selectAwardWinner(int index) {
+    if (!_canEditAwards) {
+      _guardAwardEdit(() {});
+      return;
+    }
     final award = _awards[index];
     // 기존 수상자 ID 목록 복사
     final selectedIds = List<String>.from(award.winnerIds);
@@ -551,6 +588,10 @@ class _ScoreAwardScreenState extends State<ScoreAwardScreen>
   }
 
   void _saveAwards() {
+    if (!_canEditAwards) {
+      _guardAwardEdit(() {});
+      return;
+    }
     final provider = context.read<ClubProvider>();
     final records = <AwardRecord>[];
     for (final award in _awards) {
@@ -574,6 +615,7 @@ class _ScoreAwardScreenState extends State<ScoreAwardScreen>
 
   @override
   Widget build(BuildContext context) {
+    final canEditAwards = context.watch<ClubProvider>().isClubExecutive;
     return Scaffold(
       backgroundColor: AppColors.background,
       // ── AppBar — 흰색 배경, 깔끔한 단색 ──
@@ -638,11 +680,16 @@ class _ScoreAwardScreenState extends State<ScoreAwardScreen>
             awards: _awards,
             members: _members,
             saved: _awardsSaved,
+            canEdit: canEditAwards,
             onSave: _saveAwards,
             onAddAward: _addAward,
             onSelectWinner: _selectAwardWinner,
-            onDeleteAward: (i) => setState(() => _awards.removeAt(i)),
-            onUpdateNote: (i, note) => setState(() {
+            onDeleteAward: (i) {
+              _guardAwardEdit(() => setState(() => _awards.removeAt(i)));
+            },
+            onUpdateNote: (i, note) {
+              if (!_canEditAwards) return;
+              setState(() {
               final a = _awards[i];
               _awards[i] = _AwardItem(
                 id: a.id, name: a.name, icon: a.icon,
@@ -651,7 +698,8 @@ class _ScoreAwardScreenState extends State<ScoreAwardScreen>
                 winnerNames: a.winnerNames,
                 winnerNote: note,
               );
-            }),
+            });
+            },
           ),
         ],
       ),
@@ -1032,6 +1080,7 @@ class _AwardTab extends StatelessWidget {
   final List<_AwardItem> awards;
   final List<_ScoreMember> members;
   final bool saved;
+  final bool canEdit;
   final VoidCallback onSave;
   final VoidCallback onAddAward;
   final ValueChanged<int> onSelectWinner;
@@ -1042,6 +1091,7 @@ class _AwardTab extends StatelessWidget {
     required this.awards,
     required this.members,
     required this.saved,
+    required this.canEdit,
     required this.onSave,
     required this.onAddAward,
     required this.onSelectWinner,
@@ -1064,31 +1114,50 @@ class _AwardTab extends StatelessWidget {
                       fontSize: 13, fontWeight: FontWeight.w600,
                       color: AppColors.ink)),
               const Spacer(),
-              GestureDetector(
-                onTap: onAddAward,
-                child: Container(
-                  padding: const EdgeInsets.symmetric(
-                      horizontal: 12, vertical: 6),
-                  decoration: BoxDecoration(
-                    color: AppColors.charcoal,
-                    borderRadius: BorderRadius.circular(20),
+              if (canEdit)
+                GestureDetector(
+                  onTap: onAddAward,
+                  child: Container(
+                    padding: const EdgeInsets.symmetric(
+                        horizontal: 12, vertical: 6),
+                    decoration: BoxDecoration(
+                      color: AppColors.charcoal,
+                      borderRadius: BorderRadius.circular(20),
+                    ),
+                    child: const Row(
+                      children: [
+                        Icon(Icons.add, size: 14, color: Colors.white),
+                        SizedBox(width: 4),
+                        Text('시상 추가',
+                            style: TextStyle(
+                                fontSize: 12,
+                                color: Colors.white,
+                                fontWeight: FontWeight.bold)),
+                      ],
+                    ),
                   ),
-                  child: const Row(
-                    children: [
-                      Icon(Icons.add, size: 14, color: Colors.white),
-                      SizedBox(width: 4),
-                      Text('시상 추가',
-                          style: TextStyle(
-                              fontSize: 12,
-                              color: Colors.white,
-                              fontWeight: FontWeight.bold)),
-                    ],
-                  ),
-                ),
-              ),
+                )
+              else
+                const Text('임원만 등록',
+                    style: TextStyle(
+                        fontSize: 12, color: AppColors.textSecondary)),
             ],
           ),
         ),
+        if (!canEdit)
+          Container(
+            width: double.infinity,
+            color: const Color(0xFFFFF8E1),
+            padding: const EdgeInsets.fromLTRB(16, 8, 16, 8),
+            child: const Text(
+              '시상 등록은 임원만 할 수 있습니다. 내역은 모두 볼 수 있어요.',
+              style: TextStyle(
+                fontSize: 12,
+                fontWeight: FontWeight.w600,
+                color: Color(0xFF92400E),
+              ),
+            ),
+          ),
         const Divider(height: 1),
         Expanded(
           child: awards.isEmpty
@@ -1102,18 +1171,20 @@ class _AwardTab extends StatelessWidget {
                       const Text('시상 항목이 없습니다.',
                           style: TextStyle(
                               fontSize: 15, color: AppColors.textSecondary)),
-                      const SizedBox(height: 8),
-                      ElevatedButton.icon(
-                        onPressed: onAddAward,
-                        icon: const Icon(Icons.add, size: 16),
-                        label: const Text('시상 추가하기'),
-                        style: ElevatedButton.styleFrom(
-                          backgroundColor: AppColors.charcoal,
-                          foregroundColor: Colors.white,
-                          shape: RoundedRectangleBorder(
-                              borderRadius: BorderRadius.circular(10)),
+                      if (canEdit) ...[
+                        const SizedBox(height: 8),
+                        ElevatedButton.icon(
+                          onPressed: onAddAward,
+                          icon: const Icon(Icons.add, size: 16),
+                          label: const Text('시상 추가하기'),
+                          style: ElevatedButton.styleFrom(
+                            backgroundColor: AppColors.charcoal,
+                            foregroundColor: Colors.white,
+                            shape: RoundedRectangleBorder(
+                                borderRadius: BorderRadius.circular(10)),
+                          ),
                         ),
-                      ),
+                      ],
                     ],
                   ),
                 )
@@ -1124,37 +1195,39 @@ class _AwardTab extends StatelessWidget {
                   itemBuilder: (_, i) => _AwardCard(
                     award: awards[i],
                     index: i,
+                    canEdit: canEdit,
                     onSelectWinner: () => onSelectWinner(i),
                     onDelete: () => onDeleteAward(i),
                     onUpdateNote: (note) => onUpdateNote(i, note),
                   ),
                 ),
         ),
-        SafeArea(
-          top: false,
-          child: Padding(
-            padding: const EdgeInsets.fromLTRB(16, 8, 16, 12),
-            child: SizedBox(
-              width: double.infinity,
-              height: 48,
-              child: ElevatedButton(
-                onPressed: onSave,
-                style: ElevatedButton.styleFrom(
-                  backgroundColor:
-                      saved ? AppColors.primary : AppColors.charcoal,
-                  foregroundColor: Colors.white,
-                  shape: RoundedRectangleBorder(
-                      borderRadius: BorderRadius.circular(12)),
-                ),
-                child: Text(
-                  saved ? '시상 저장됨 ✓' : '시상 저장',
-                  style: const TextStyle(
-                      fontSize: 15, fontWeight: FontWeight.bold),
+        if (canEdit)
+          SafeArea(
+            top: false,
+            child: Padding(
+              padding: const EdgeInsets.fromLTRB(16, 8, 16, 12),
+              child: SizedBox(
+                width: double.infinity,
+                height: 48,
+                child: ElevatedButton(
+                  onPressed: onSave,
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor:
+                        saved ? AppColors.primary : AppColors.charcoal,
+                    foregroundColor: Colors.white,
+                    shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(12)),
+                  ),
+                  child: Text(
+                    saved ? '시상 저장됨 ✓' : '시상 저장',
+                    style: const TextStyle(
+                        fontSize: 15, fontWeight: FontWeight.bold),
+                  ),
                 ),
               ),
             ),
           ),
-        ),
       ],
     );
   }
@@ -1163,6 +1236,7 @@ class _AwardTab extends StatelessWidget {
 class _AwardCard extends StatelessWidget {
   final _AwardItem award;
   final int index;
+  final bool canEdit;
   final VoidCallback onSelectWinner;
   final VoidCallback onDelete;
   final ValueChanged<String> onUpdateNote;
@@ -1170,6 +1244,7 @@ class _AwardCard extends StatelessWidget {
   const _AwardCard({
     required this.award,
     required this.index,
+    required this.canEdit,
     required this.onSelectWinner,
     required this.onDelete,
     required this.onUpdateNote,
@@ -1219,13 +1294,14 @@ class _AwardCard extends StatelessWidget {
                         fontSize: 15, fontWeight: FontWeight.bold,
                         color: AppColors.ink)),
                 const Spacer(),
-                IconButton(
-                  icon: const Icon(Icons.delete_outline, size: 18),
-                  color: Colors.grey.shade400,
-                  onPressed: onDelete,
-                  padding: EdgeInsets.zero,
-                  constraints: const BoxConstraints(),
-                ),
+                if (canEdit)
+                  IconButton(
+                    icon: const Icon(Icons.delete_outline, size: 18),
+                    color: Colors.grey.shade400,
+                    onPressed: onDelete,
+                    padding: EdgeInsets.zero,
+                    constraints: const BoxConstraints(),
+                  ),
               ],
             ),
           ),
@@ -1236,7 +1312,7 @@ class _AwardCard extends StatelessWidget {
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 GestureDetector(
-                  onTap: onSelectWinner,
+                  onTap: canEdit ? onSelectWinner : null,
                   child: Container(
                     width: double.infinity,
                     padding: const EdgeInsets.symmetric(
@@ -1290,7 +1366,9 @@ class _AwardCard extends StatelessWidget {
                             crossAxisAlignment: CrossAxisAlignment.start,
                             children: [
                               Text(
-                                hasWinner ? award.winnerDisplay : '수상자 선택하기',
+                                hasWinner
+                                    ? award.winnerDisplay
+                                    : (canEdit ? '수상자 선택하기' : '수상자 없음'),
                                 style: TextStyle(
                                   fontSize: 14,
                                   fontWeight: hasWinner
@@ -1311,13 +1389,14 @@ class _AwardCard extends StatelessWidget {
                             ],
                           ),
                         ),
-                        Icon(
-                          Icons.chevron_right,
-                          size: 18,
-                          color: hasWinner
-                              ? AppColors.goldDeep
-                              : Colors.grey.shade400,
-                        ),
+                        if (canEdit)
+                          Icon(
+                            Icons.chevron_right,
+                            size: 18,
+                            color: hasWinner
+                                ? AppColors.goldDeep
+                                : Colors.grey.shade400,
+                          ),
                       ],
                     ),
                   ),
@@ -1327,6 +1406,8 @@ class _AwardCard extends StatelessWidget {
                   // 비고 입력
                   TextFormField(
                     initialValue: award.winnerNote,
+                    readOnly: !canEdit,
+                    enabled: canEdit,
                     decoration: InputDecoration(
                       hintText: '예: 홀 12번 2m (선택 입력)',
                       hintStyle: TextStyle(

@@ -1736,7 +1736,8 @@ class _TreasurerTransferEntry extends StatelessWidget {
             if (!canAccess) {
               showDialog(
                 context: context,
-                builder: (_) => AlertDialog(
+                useRootNavigator: true,
+                builder: (dialogCtx) => AlertDialog(
                   shape: RoundedRectangleBorder(
                       borderRadius: BorderRadius.circular(16)),
                   title: const Text('접근 제한',
@@ -1748,8 +1749,11 @@ class _TreasurerTransferEntry extends StatelessWidget {
                   ),
                   actions: [
                     TextButton(
-                      onPressed: () => Navigator.pop(context),
-                      child: const Text('확인'),
+                      onPressed: () => Navigator.of(dialogCtx,
+                              rootNavigator: true)
+                          .pop(),
+                      child: const Text('확인',
+                          style: TextStyle(color: AppColors.primary)),
                     ),
                   ],
                 ),

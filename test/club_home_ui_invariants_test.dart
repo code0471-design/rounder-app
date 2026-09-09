@@ -137,6 +137,13 @@ void main() {
     expect(room.contains('GuestInviteFormScreen'), isTrue);
     expect(room.contains('InviteSendScreen'), isTrue);
     expect(members.contains('_TreasurerTransferEntry'), isTrue);
+    expect(members.contains('useRootNavigator: true'), isTrue);
+    expect(members.contains('Navigator.of(dialogCtx'), isTrue);
+    expect(
+      members.contains("onPressed: () => Navigator.pop(context),\n                      child: const Text('확인')"),
+      isFalse,
+      reason: '확인이 회원 탭을 닫으면 팝업만 남아 멈춘다',
+    );
     expect(members.contains('file_download_outlined'), isTrue);
     expect(members.contains('_buildYearAwardsBanner'), isTrue);
     expect(members.contains("'올해 시상'"), isTrue);
