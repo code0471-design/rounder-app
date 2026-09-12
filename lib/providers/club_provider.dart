@@ -3601,17 +3601,19 @@ class ClubProvider extends ChangeNotifier with WidgetsBindingObserver {
     await flushDueD1Alimtalk();
   }
 
-  /// D-1 당일, 앱을 연 기기가 알림톡을 보낸다.
-  /// (푸시는 Cloud Functions 가 오전 10시에 보내고, 알림톡 키는 앱에만 있다)
+  /// D-1 당일 오전 10시(기기 로컬, 한국은 KST) 이후, 앱을 연 기기가 알림톡을 보낸다.
+  /// 푸시는 Cloud Functions 가 오전 10시에 보내고, 알림톡 키는 앱에만 있다.
+  /// 라운딩·회비 모두 10시 전엔 보내지 않는다.
   Future<void> flushDueD1Alimtalk() async {
+    if (_myClubs.isEmpty) return;
     if (!SolapiService.instance.isConfigured) return;
     final docs = await PushNotificationService.dueD1AlimtalkDocs();
     if (docs.isEmpty) return;
     final hour = DateTime.now().hour;
+    if (hour < 10) return;
     for (final doc in docs) {
       final d = doc.data();
       final isDues = d['kind'] == DuesD1Schedule.kind;
-      if (isDues && hour < 10) continue;
       final phone = SolapiService.normalizePhone('${d['phone'] ?? ''}');
       if (phone.length < 10) {
         await PushNotificationService.markD1AlimtalkSent(doc.id);
@@ -3655,6 +3657,7 @@ class ClubProvider extends ChangeNotifier with WidgetsBindingObserver {
   }
 
   Future<void> syncAllDuesD1Reminders() async {
+    if (_myClubs.isEmpty) return;
     for (final s in activeDuesSettings) {
       await syncDuesD1Reminders(s);
     }

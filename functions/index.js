@@ -139,6 +139,7 @@ exports.sendD1Reminders = onSchedule(
     for (const doc of snap.docs) {
       const d = doc.data();
       if (!d.userId) continue;
+      if (d.pushSent === true) continue;
       const isDues = d.kind === "dues";
       const typeId =
         d.pushType || (isDues ? "push_dues_request" : "push_d1_reminder");
@@ -152,7 +153,8 @@ exports.sendD1Reminders = onSchedule(
         typeId,
         d.clubId || ""
       );
-      await doc.ref.delete();
+      // 문서를 지우면 앱이 10시 이후 알림톡을 못 보낸다. 푸시만 표시한다.
+      await doc.ref.set({ pushSent: true }, { merge: true });
     }
   }
 );

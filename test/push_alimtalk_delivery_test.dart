@@ -177,5 +177,29 @@ void main() {
       expect(src, contains('dueD1AlimtalkDocs'));
       expect(src, contains('alimtalkSent'));
     });
+
+    test('라운딩 D-1 알림톡도 오전 10시 전엔 나가지 않는다', () {
+      final src = read('lib/providers/club_provider.dart');
+      final start = src.indexOf('Future<void> flushDueD1Alimtalk()');
+      expect(start, greaterThan(0));
+      final fn = src.substring(start, start + 1600);
+      expect(fn.contains('if (hour < 10) return;'), isTrue);
+      expect(fn.contains('if (_myClubs.isEmpty) return;'), isTrue);
+      expect(fn.contains('if (isDues && hour < 10)'), isFalse,
+          reason: '회비만 10시로 막으면 라운딩 D-1 알림톡이 새벽에 나간다');
+      expect(fn.contains('HqAlimtalkCatalog.d1ReminderId'), isTrue);
+    });
+
+    test('10시 푸시가 D-1 대기열을 지우면 알림톡이 빠진다', () {
+      final fn = read('functions/index.js');
+      final start = fn.indexOf('exports.sendD1Reminders');
+      expect(start, greaterThan(0));
+      final body = fn.substring(start, fn.length);
+      expect(body.contains("schedule: \"0 10 * * *\""), isTrue);
+      expect(body.contains('timeZone: "Asia/Seoul"'), isTrue);
+      expect(body.contains('doc.ref.delete()'), isFalse,
+          reason: '푸시 직후 큐를 지우면 10시 알림톡이 나가지 않는다');
+      expect(body.contains('pushSent: true'), isTrue);
+    });
   });
 }
