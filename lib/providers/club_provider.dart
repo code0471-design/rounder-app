@@ -2709,13 +2709,12 @@ class ClubProvider extends ChangeNotifier with WidgetsBindingObserver {
       month: month,
     );
 
-    // 회비 설정에 clubId가 없으면 현재 모임으로 붙여 동기화·표시가 유지되게 한다
+    // 회비 설정에 clubId가 없으면 현재 모임만 붙인다.
+    // 다른 모임의 회비를 이 모임으로 바꿔 붙이면 재무가 섞인다.
     final setIdx = _duesSettings.indexWhere((d) => d.id == duesSettingId);
     if (setIdx >= 0) {
       final s = _duesSettings[setIdx];
-      if (s.clubId == null ||
-          s.clubId!.isEmpty ||
-          !clubIdAliases(selectedClub.id).contains(s.clubId)) {
+      if (s.clubId == null || s.clubId!.isEmpty) {
         _duesSettings[setIdx] = s.copyWith(clubId: selectedClub.id);
       }
     }
@@ -2818,6 +2817,10 @@ class ClubProvider extends ChangeNotifier with WidgetsBindingObserver {
   /// 신규 모임 총무가 재무 시작 방식(올시즌 / 이번달)을 아직 고르지 않음
   bool get needsTreasurerFinanceOnboarding =>
       isTreasurer && isFinanceSetupPending && !hasOpeningBalance;
+
+  /// 신규 모임 임원이 아직 일정이 없을 때 — 일정 탭 첫 안내
+  bool get needsFirstScheduleGuide =>
+      canCreateSchedule && schedules.isEmpty;
 
   /// 월회비 또는 연회비 중 모임이 쓰는 쪽. 둘 다 있으면 월회비.
   DuesType? get clubPrimaryDuesType {

@@ -66,6 +66,7 @@ void main() {
   test('일정 없는 홈 카드는 크게, 부제와 등록 버튼까지 보여 준다', () {
     expect(room.contains("'예정된 일정이 없습니다'"), isTrue);
     expect(room.contains("'총무가 일정을 등록하면 이곳에 표시됩니다'"), isTrue);
+    expect(room.contains("'첫 일정을 등록해 주세요'"), isTrue);
     expect(room.contains("'예정된 모임이 없습니다'"), isFalse);
     // 임원이 아니어도 버튼을 감추지 않고 안내 팝업을 띄운다
     expect(room.contains('if (provider.canCreateSchedule)\n'), isFalse);

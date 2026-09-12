@@ -184,6 +184,19 @@ void main() {
     expect(unpaid.contains('activeMembers'), isFalse);
   });
 
+  test('납부는 다른 모임 회비의 clubId를 이 모임으로 바꾸지 않는다', () {
+    final start = provider.indexOf('// 잔고 스코프는 selectedClub 기준');
+    expect(start, greaterThan(0));
+    final fn = provider.substring(start, start + 1600);
+    expect(fn.contains('clubId: txClubId'), isTrue);
+    expect(fn.contains("s.clubId == null || s.clubId!.isEmpty"), isTrue);
+    expect(
+      fn.contains('!clubIdAliases(selectedClub.id).contains(s.clubId)'),
+      isFalse,
+      reason: '다른 모임 회비를 현재 모임으로 바꿔 붙이면 재무가 섞인다',
+    );
+  });
+
   test('납부 인원은 현재 회원만 센다', () {
     final start = provider.indexOf('int paidCountForMonth(');
     final end = provider.indexOf('int unpaidCountForMonth(', start);

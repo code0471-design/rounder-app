@@ -67,5 +67,18 @@ void main() {
       final txFn = tx.substring(0, 400);
       expect(txFn.contains('if (!_selectedHasLegacyMock) return;'), isTrue);
     });
+
+    test('일정은 선택 모임 clubId만 보여주고 첫 안내가 있다', () {
+      final src = _read('lib/providers/club_provider.dart');
+      expect(src.contains('bool get needsFirstScheduleGuide'), isTrue);
+      expect(src.contains('canCreateSchedule && schedules.isEmpty'), isTrue);
+      final up = src.substring(src.indexOf('List<RoundSchedule> get upcomingSchedules'));
+      final upFn = up.substring(0, up.indexOf('가장 가까운 예정 일정'));
+      expect(upFn.contains('s.clubId == clubId'), isTrue);
+
+      final finance = _read('lib/screens/finance/finance_screen.dart');
+      expect(finance.contains('TreasurerFinanceOnboardingScreen'), isTrue);
+      expect(src.contains('needsTreasurerFinanceOnboarding'), isTrue);
+    });
   });
 }

@@ -54,8 +54,14 @@ void main() {
         .readAsStringSync();
     expect(tab.contains('PastScheduleImportBanner'), isTrue);
     expect(tab.contains('if (isAdmin)'), isTrue);
+    expect(tab.contains('needsFirstScheduleGuide'), isTrue);
+    expect(tab.contains('onAddUpcoming: _openAddSchedule'), isTrue);
+    expect(tab.contains("'다음 일정 등록하기'"), isTrue);
     expect(flow.contains("'앱이 처음이신가요?'"), isTrue);
+    expect(flow.contains("'총무님 반갑습니다'"), isTrue);
     expect(flow.contains('올해 이미 지난 일정을 일괄로 등록할 수 있습니다'), isTrue);
+    expect(flow.contains('다음 라운딩을 넣으면 회원에게 참석 안내가 갑니다'), isTrue);
+    expect(flow.contains("'다음 일정 등록하기'"), isTrue);
     expect(flow.contains("'다음 일정 이어서 넣기'"), isTrue);
     expect(flow.contains('잘 모르겠어요, 건너뛰기'), isTrue);
     expect(flow.contains("'일정 이름은 꼭 적어 주세요'"), isTrue);

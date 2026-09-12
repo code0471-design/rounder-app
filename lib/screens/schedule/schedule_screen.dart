@@ -59,6 +59,17 @@ class _ScheduleScreenState extends State<ScheduleScreen>
     if (mounted) setState(() => _pastHintEpoch++);
   }
 
+  void _openAddSchedule() {
+    final provider = context.read<ClubProvider>();
+    showAddScheduleSheet(
+      context,
+      provider,
+      onCreated: (created) {
+        if (created.isPast && mounted) _tab.animateTo(1);
+      },
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     return Consumer<ClubProvider>(
@@ -74,6 +85,9 @@ class _ScheduleScreenState extends State<ScheduleScreen>
                   key: ValueKey(_pastHintEpoch),
                   clubId: provider.selectedClub.id,
                   onStart: _openPastImport,
+                  onAddUpcoming: _openAddSchedule,
+                  clubHasSchedules: !provider.needsFirstScheduleGuide,
+                  isTreasurer: provider.isTreasurer,
                 ),
               // ── 탭바 (디자인: border-bottom 1px) ──
               Container(
@@ -110,7 +124,9 @@ class _ScheduleScreenState extends State<ScheduleScreen>
                     _ScheduleList(
                         schedules: provider.upcomingSchedules,
                         isPast: false,
-                        clubId: provider.selectedClub.id),
+                        clubId: provider.selectedClub.id,
+                        onAddUpcoming:
+                            isAdmin ? _openAddSchedule : null),
                     _ScheduleList(
                         schedules: provider.pastSchedules,
                         isPast: true,
@@ -124,13 +140,7 @@ class _ScheduleScreenState extends State<ScheduleScreen>
           // ── FAB (관리자만) ──
           floatingActionButton: isAdmin
               ? FloatingActionButton.extended(
-                  onPressed: () => showAddScheduleSheet(
-                    context,
-                    provider,
-                    onCreated: (created) {
-                      if (created.isPast && mounted) _tab.animateTo(1);
-                    },
-                  ),
+                  onPressed: _openAddSchedule,
                   backgroundColor: AppColors.accent,
                   foregroundColor: Colors.white,
                   elevation: 2,
@@ -177,11 +187,13 @@ class _ScheduleList extends StatefulWidget {
   final bool isPast;
   final String? clubId;
   final VoidCallback? onImportPast;
+  final VoidCallback? onAddUpcoming;
   const _ScheduleList({
     required this.schedules,
     required this.isPast,
     this.clubId,
     this.onImportPast,
+    this.onAddUpcoming,
   });
 
   @override
@@ -221,6 +233,17 @@ class _ScheduleListState extends State<_ScheduleList> {
               style: const TextStyle(
                   color: AppColors.textSecondary, fontSize: 15),
             ),
+            if (!isPast && widget.onAddUpcoming != null) ...[
+              const SizedBox(height: 16),
+              FilledButton(
+                onPressed: widget.onAddUpcoming,
+                style: FilledButton.styleFrom(
+                  backgroundColor: const Color(0xFF191F28),
+                  foregroundColor: Colors.white,
+                ),
+                child: const Text('다음 일정 등록하기'),
+              ),
+            ],
             if (isPast && widget.onImportPast != null) ...[
               const SizedBox(height: 16),
               TextButton(

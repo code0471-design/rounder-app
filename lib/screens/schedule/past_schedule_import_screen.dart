@@ -29,13 +29,20 @@ Future<void> markPastImportHintSeen(String clubId) async {
 }
 
 /// 예정/지난 탭 위 안내. 임원만.
+/// 일정이 하나도 없으면 다음 라운딩 등록이 먼저다.
 class PastScheduleImportBanner extends StatefulWidget {
   final String clubId;
   final VoidCallback onStart;
+  final VoidCallback? onAddUpcoming;
+  final bool clubHasSchedules;
+  final bool isTreasurer;
   const PastScheduleImportBanner({
     super.key,
     required this.clubId,
     required this.onStart,
+    this.onAddUpcoming,
+    this.clubHasSchedules = true,
+    this.isTreasurer = false,
   });
 
   @override
@@ -82,9 +89,11 @@ class _PastScheduleImportBannerState extends State<PastScheduleImportBanner> {
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            const Text(
-              '앱이 처음이신가요?',
-              style: TextStyle(
+            Text(
+              widget.clubHasSchedules
+                  ? '앱이 처음이신가요?'
+                  : (widget.isTreasurer ? '총무님 반갑습니다' : '첫 일정을 등록해 주세요'),
+              style: const TextStyle(
                 fontSize: 20,
                 fontWeight: FontWeight.w800,
                 color: _kTossInk,
@@ -92,30 +101,64 @@ class _PastScheduleImportBannerState extends State<PastScheduleImportBanner> {
               ),
             ),
             const SizedBox(height: 6),
-            const Text(
-              '올해 이미 지난 일정을 일괄로 등록할 수 있습니다',
-              style: TextStyle(
+            Text(
+              widget.clubHasSchedules
+                  ? '올해 이미 지난 일정을 일괄로 등록할 수 있습니다'
+                  : '다음 라운딩을 넣으면 회원에게 참석 안내가 갑니다.\n올해 이미 친 라운딩은 한번에 넣을 수 있어요.',
+              style: const TextStyle(
                 fontSize: 15,
                 height: 1.45,
                 color: _kTossGray,
               ),
             ),
             const SizedBox(height: 16),
+            if (!widget.clubHasSchedules && widget.onAddUpcoming != null) ...[
+              SizedBox(
+                width: double.infinity,
+                height: 52,
+                child: FilledButton(
+                  onPressed: widget.onAddUpcoming,
+                  style: FilledButton.styleFrom(
+                    backgroundColor: _kTossInk,
+                    foregroundColor: Colors.white,
+                    shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(14)),
+                    textStyle: const TextStyle(
+                        fontSize: 16, fontWeight: FontWeight.w700),
+                  ),
+                  child: const Text('다음 일정 등록하기'),
+                ),
+              ),
+              const SizedBox(height: 8),
+            ],
             SizedBox(
               width: double.infinity,
               height: 52,
-              child: FilledButton(
-                onPressed: widget.onStart,
-                style: FilledButton.styleFrom(
-                  backgroundColor: _kTossInk,
-                  foregroundColor: Colors.white,
-                  shape: RoundedRectangleBorder(
-                      borderRadius: BorderRadius.circular(14)),
-                  textStyle: const TextStyle(
-                      fontSize: 16, fontWeight: FontWeight.w700),
-                ),
-                child: const Text('지난 일정 등록하기'),
-              ),
+              child: widget.clubHasSchedules || widget.onAddUpcoming == null
+                  ? FilledButton(
+                      onPressed: widget.onStart,
+                      style: FilledButton.styleFrom(
+                        backgroundColor: _kTossInk,
+                        foregroundColor: Colors.white,
+                        shape: RoundedRectangleBorder(
+                            borderRadius: BorderRadius.circular(14)),
+                        textStyle: const TextStyle(
+                            fontSize: 16, fontWeight: FontWeight.w700),
+                      ),
+                      child: const Text('지난 일정 등록하기'),
+                    )
+                  : OutlinedButton(
+                      onPressed: widget.onStart,
+                      style: OutlinedButton.styleFrom(
+                        foregroundColor: _kTossInk,
+                        side: const BorderSide(color: _kTossLine),
+                        shape: RoundedRectangleBorder(
+                            borderRadius: BorderRadius.circular(14)),
+                        textStyle: const TextStyle(
+                            fontSize: 16, fontWeight: FontWeight.w700),
+                      ),
+                      child: const Text('지난 일정 등록하기'),
+                    ),
             ),
             const SizedBox(height: 4),
             Center(

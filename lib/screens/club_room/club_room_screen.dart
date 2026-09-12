@@ -998,7 +998,9 @@ class ClubHomeTab extends StatelessWidget {
             ),
             const SizedBox(height: 8),
             Text(
-              '총무가 일정을 등록하면 이곳에 표시됩니다',
+              provider.canCreateSchedule
+                  ? '첫 일정을 등록해 주세요'
+                  : '총무가 일정을 등록하면 이곳에 표시됩니다',
               textAlign: TextAlign.center,
               style: TextStyle(
                   fontSize: 13,
