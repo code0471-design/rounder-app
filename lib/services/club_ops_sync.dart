@@ -252,14 +252,18 @@ class ClubOpsSync {
   static Future<ClubDataBundle?> pullMergeClub({
     required String clubId,
     required ClubDataBundle local,
+    bool seedIfMissing = true,
   }) async {
     if (!_enabled || clubId.isEmpty) return null;
     try {
       final snap =
           await _db.doc(FirestorePaths.clubOpsBundle(clubId)).get();
       if (!snap.exists || snap.data() == null) {
-        // 서버 비어 있으면 로컬을 최초 업로드
-        await pushClubOps(clubId: clubId, bundle: local);
+        // 서버 비어 있으면 로컬을 최초 업로드.
+        // 초대 가입자가 빈 번들로 올리면 기존 모임이 비어 보이는 복제가 생긴다.
+        if (seedIfMissing) {
+          await pushClubOps(clubId: clubId, bundle: local);
+        }
         return null;
       }
       final remote = Map<String, dynamic>.from(snap.data()!);

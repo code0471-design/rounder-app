@@ -510,14 +510,17 @@ void main() {
       expect(mypage.contains('handicap.toStringAsFixed(1)'), isFalse);
     });
 
-    test('저장 시 0~54 정수로 검증한다', () {
+    test('저장 시 0~199 정수로 검증한다', () {
       final signup = _read('lib/screens/auth/golf_profile_screen.dart');
       expect(signup.contains('int.tryParse(raw)'), isTrue);
-      expect(signup.contains('n < 0 || n > 54'), isTrue);
+      expect(signup.contains('AppUser.maxAverageScore'), isTrue);
+      expect(signup.contains('LengthLimitingTextInputFormatter(3)'), isTrue);
+      expect(signup.contains('LengthLimitingTextInputFormatter(2)'), isFalse);
 
       final mypage = _read('lib/screens/ad/ad_screen.dart');
       expect(mypage.contains('int.tryParse(handicapCtrl.text.trim())'), isTrue);
-      expect(mypage.contains('rawHandicap > 54'), isTrue);
+      expect(mypage.contains('AppUser.maxAverageScore'), isTrue);
+      expect(mypage.contains('LengthLimitingTextInputFormatter(3)'), isTrue);
     });
 
     test('신페리오 계산 핸디는 소수점을 유지한다', () {

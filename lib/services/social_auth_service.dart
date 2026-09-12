@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'dart:convert';
 import 'dart:math';
 
@@ -96,11 +97,21 @@ abstract final class SocialAuthService {
     while (true) {
       try {
         if (useKakaoTalk) {
-          await UserApi.instance.loginWithKakaoTalk();
+          await UserApi.instance
+              .loginWithKakaoTalk()
+              .timeout(const Duration(seconds: 20));
         } else {
           await UserApi.instance.loginWithKakaoAccount();
         }
         break;
+      } on TimeoutException {
+        debugPrint('[SocialAuth] KakaoTalk login timed out — account fallback');
+        if (!useKakaoTalk) {
+          throw const SocialAuthException(
+            '카카오 로그인이 지연되고 있습니다. 잠시 후 다시 시도해 주세요.',
+          );
+        }
+        useKakaoTalk = false;
       } catch (e) {
         if (_isKakaoCancellation(e)) {
           throw const SocialAuthException('카카오 로그인이 취소되었습니다.');
@@ -225,7 +236,7 @@ abstract final class SocialAuthService {
 
   static Future<User> _kakaoMe() async {
     try {
-      return await UserApi.instance.me();
+      return await UserApi.instance.me().timeout(const Duration(seconds: 10));
     } catch (e) {
       debugPrint('[SocialAuth] Kakao me() failed: $e / ${await _kakaoDebugInfo()}');
       throw const SocialAuthException('카카오 계정 정보를 가져오지 못했습니다.');

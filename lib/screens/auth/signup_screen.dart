@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
+import '../../models/user_model.dart';
 import '../../theme/app_theme.dart';
 import '../../widgets/business_info_footer.dart';
 import 'verify_screen.dart';
@@ -201,14 +202,17 @@ class _SignupScreenState extends State<SignupScreen> {
                 ],
                 textInputAction: TextInputAction.done,
                 decoration: _inputDeco(
-                  hint: '예: 12 (선택사항)',
+                  hint: '예: 100 (선택사항)',
                   icon: Icons.sports_golf_outlined,
                 ),
                 validator: (v) {
                   if (v == null || v.trim().isEmpty) return null; // 선택
                   final val = double.tryParse(v.trim());
                   if (val == null) return '숫자로 입력해 주세요';
-                  if (val < 0 || val > 54) return '평균타수는 0~54 사이로 입력해 주세요';
+                  if (val < AppUser.minAverageScore ||
+                      val > AppUser.maxAverageScore) {
+                    return '평균타수는 ${AppUser.minAverageScore}~${AppUser.maxAverageScore} 사이로 입력해 주세요';
+                  }
                   return null;
                 },
               ),

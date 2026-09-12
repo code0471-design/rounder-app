@@ -529,9 +529,12 @@ class ClubProvider extends ChangeNotifier with WidgetsBindingObserver {
       if (userMerged != null) bundle = userMerged;
 
       for (final club in List<Club>.from(_myClubs)) {
+        final iAmCreator = club.creatorId.isEmpty ||
+            _userIdsMatch(club.creatorId, authUserId);
         final merged = await ClubOpsSync.pullMergeClub(
           clubId: club.id,
           local: bundle,
+          seedIfMissing: iAmCreator,
         );
         if (merged != null) bundle = merged;
       }
@@ -5370,44 +5373,39 @@ class ClubProvider extends ChangeNotifier with WidgetsBindingObserver {
       debugPrint('[ClubProvider] joinViaInvite blocked — invalid clubId');
       return false;
     }
-    final userId = currentUserId;
+    // 실계정은 switchUser 가 currentUserId 를 m1 로 둔다. Firestore 멤버십은
+    // 카카오 id 로 써야 초대한 사람 명단에 같은 사람이 보인다.
+    final authUserId = _persistAuthUserId ?? currentUserId;
     final userName = (displayName != null && displayName.trim().isNotEmpty)
         ? displayName.trim()
         : currentUserName;
     final role = asGuest ? ClubMemberRole.guest : ClubMemberRole.regular;
     final memberType =
         asGuest ? ClubMemberRole.guest : ClubMemberRole.regular;
-    final rosterId = Member.rosterId(clubId, userId);
+    final rosterId = Member.rosterId(clubId, authUserId);
+
+    try {
+      await FirebaseAuthBridge.ensureStagingSession(userId: authUserId);
+    } catch (e) {
+      debugPrint('[ClubProvider] joinViaInvite auth skip: $e');
+    }
 
     Club? club = _myClubs.where((c) => c.id == clubId).firstOrNull ??
         _allClubs.where((c) => c.id == clubId).firstOrNull ??
         AppDependencies.instance.mockDataStore?.clubById(clubId);
 
-    if (club == null) {
+    Future<Club?> readServerClub() async {
       try {
-        club = await AppDependencies.instance.clubRepository
-            .fetchClubById(clubId, userId: userId);
+        return await AppDependencies.instance.clubRepository
+            .fetchClubById(clubId, userId: authUserId)
+            .timeout(const Duration(seconds: 12));
       } catch (e) {
         debugPrint('[ClubProvider] joinViaInvite fetchClub skip: $e');
+        return null;
       }
     }
 
-    final resolvedName = (clubName != null && clubName.trim().isNotEmpty)
-        ? clubName.trim()
-        : (club?.name ?? '모임');
-
-    club ??= Club(
-      id: clubId,
-      name: resolvedName,
-      myRole: role,
-      memberCount: 1,
-      creatorId: '',
-      createdAt: DateTime.now(),
-    );
-
-    if (!_legacyMockClubIds.contains(clubId)) {
-      _freshClubIds.add(clubId);
-    }
+    club ??= await readServerClub();
 
     final member = _selfMember(
       id: rosterId,
@@ -5419,8 +5417,33 @@ class ClubProvider extends ChangeNotifier with WidgetsBindingObserver {
       referrerName: referrerName,
     );
 
+    try {
+      await AppDependencies.instance.clubRepository.addMemberViaInvite(
+        clubId: clubId,
+        userId: authUserId,
+        member: member,
+      );
+    } catch (e) {
+      debugPrint('[ClubProvider] joinViaInvite remote fail: $e');
+      return false;
+    }
+
+    club = await readServerClub() ?? club;
+    if (club == null) {
+      debugPrint('[ClubProvider] joinViaInvite — no server club $clubId');
+      return false;
+    }
+
+    final resolvedName = (clubName != null && clubName.trim().isNotEmpty)
+        ? clubName.trim()
+        : club.name;
+
+    if (!_legacyMockClubIds.contains(clubId)) {
+      _freshClubIds.add(clubId);
+    }
+
     // 예전 초대 가입은 userId 그대로 넣어서 명단 필터에 안 걸렸다. 고쳐서 다시 넣는다.
-    _members.removeWhere((m) => m.id == userId);
+    _members.removeWhere((m) => m.id == currentUserId && m.id != rosterId);
 
     final alreadyListed = _members.any((m) => m.id == rosterId);
     if (!alreadyListed) {
@@ -5430,28 +5453,26 @@ class ClubProvider extends ChangeNotifier with WidgetsBindingObserver {
       AppDependencies.instance.mockDataStore?.addMember(
         clubId: clubId,
         member: member,
-        alsoAsIds: [userId],
+        alsoAsIds: [authUserId, currentUserId],
         bumpCount: !alreadyListed,
       );
     } catch (_) {}
 
-    if (isMyClub(clubId) && alreadyListed) {
-      debugPrint('[ClubProvider] joinViaInvite — already member of $clubId');
-      notifyListeners();
-      _persistImmediately();
-      return true;
-    }
-
     final joinedClub = club.copyWith(
       name: resolvedName,
       myRole: role,
-      memberCount: club.memberCount + (alreadyListed ? 0 : 1),
+      memberCount: club.memberCount < 1 ? 1 : club.memberCount,
     );
     if (!_myClubs.any((c) => c.id == clubId)) {
       _myClubs.add(joinedClub);
     } else {
       final i = _myClubs.indexWhere((c) => c.id == clubId);
-      if (i != -1) _myClubs[i] = _myClubs[i].copyWith(myRole: role);
+      if (i != -1) {
+        _myClubs[i] = _myClubs[i].copyWith(
+          name: resolvedName,
+          myRole: role,
+        );
+      }
     }
     if (!_allClubs.any((c) => c.id == clubId)) {
       _allClubs.add(joinedClub);
@@ -5461,7 +5482,7 @@ class ClubProvider extends ChangeNotifier with WidgetsBindingObserver {
       0,
       ActivityItem(
         id: 'act_invite_${DateTime.now().millisecondsSinceEpoch}',
-        memberId: userId,
+        memberId: authUserId,
         memberName: userName,
         activityType: 'join',
         description: asGuest ? '초대 링크로 게스트 가입' : '초대 링크로 즉시 가입',
@@ -5469,11 +5490,10 @@ class ClubProvider extends ChangeNotifier with WidgetsBindingObserver {
       ),
     );
 
-    // 운영진에게 알림 (승인 요청이 아님)
     final notifyTarget = joinRequestNotifyTargetId(clubId);
     addAppNotification(
       AppNotification(
-        id: 'noti_invite_join_${clubId}_$userId',
+        id: 'noti_invite_join_${clubId}_$authUserId',
         type: AppNotificationType.announcement,
         clubId: clubId,
         clubName: resolvedName,
@@ -5489,15 +5509,17 @@ class ClubProvider extends ChangeNotifier with WidgetsBindingObserver {
     );
 
     try {
-      await AppDependencies.instance.clubRepository.addMemberViaInvite(
+      final merged = await ClubOpsSync.pullMergeClub(
         clubId: clubId,
-        userId: userId,
-        member: member,
+        local: _exportBundle(),
+        seedIfMissing: false,
       );
+      if (merged != null) _importBundle(merged);
     } catch (e) {
-      debugPrint('[ClubProvider] joinViaInvite remote skip: $e');
+      debugPrint('[ClubProvider] joinViaInvite ops pull skip: $e');
     }
 
+    selectClubById(clubId);
     notifyListeners();
     _persistImmediately();
     return true;
@@ -8239,8 +8261,10 @@ class ClubProvider extends ChangeNotifier with WidgetsBindingObserver {
   }
 
   /// clubId 없는 회비 설정에 현재 선택 모임을 붙여 동기화·표시에서 빠지지 않게 한다.
+  /// 신규 모임에는 붙이지 않는다 — 다른 모임의 고아 회비가 재무 온보딩을 건너뛰게 한다.
   void _stampOrphanDuesClubIds() {
     if (_myClubs.isEmpty) return;
+    if (!_selectedHasLegacyMock) return;
     final clubId = selectedClub.id;
     for (var i = 0; i < _duesSettings.length; i++) {
       final d = _duesSettings[i];
@@ -8253,6 +8277,7 @@ class ClubProvider extends ChangeNotifier with WidgetsBindingObserver {
   /// clubId 없는 회비 수입 거래에 현재 모임을 붙여 잔고에 잡히게 한다.
   void _stampOrphanTransactionClubIds() {
     if (_myClubs.isEmpty) return;
+    if (!_selectedHasLegacyMock) return;
     final clubId = selectedClub.id;
     final settingIds = _duesSettings
         .where((d) => d.clubId == null || clubIdAliases(clubId).contains(d.clubId))

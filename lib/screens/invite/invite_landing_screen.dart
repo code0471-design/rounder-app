@@ -96,7 +96,7 @@ class _InviteLandingScreenState extends State<InviteLandingScreen> {
     if (!ok) {
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(
-          content: Text('가입에 실패했습니다. 초대 링크를 다시 확인해 주세요.'),
+          content: Text('가입에 실패했습니다. 초대한 분에게 링크를 다시 받아 주세요.'),
           behavior: SnackBarBehavior.floating,
         ),
       );

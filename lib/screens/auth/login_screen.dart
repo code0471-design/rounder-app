@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
@@ -45,7 +46,9 @@ class _LoginScreenState extends State<LoginScreen> {
           photoUrl: auth.currentUser!.profileImageUrl,
         );
     try {
-      final snap = await AppDependencies.instance.bootstrapForUser(userId);
+      final snap = await AppDependencies.instance
+          .bootstrapForUser(userId)
+          .timeout(const Duration(seconds: 15));
       final pending = AppDependencies.instance.mockDataStore
               ?.pendingJoinRequests
               .where((r) => r.userId == userId)
@@ -83,19 +86,17 @@ class _LoginScreenState extends State<LoginScreen> {
       await auth.loginWithSocial(profile);
       if (!mounted) return;
       final needsPhone = auth.needsPhoneNumber;
-      // 이름·전화 입력은 모임 동기화보다 먼저 — 스피너만 길게 돌지 않게
-      if (needsPhone) {
-        Navigator.of(context).pushReplacementNamed('/phone-required');
-        // ignore: unawaited_futures
-        _syncClubProvider();
-        return;
-      }
-      await _syncClubProvider();
-      // 예전 가입 계정은 생년월일·핸디가 비어 있다. 한 번만 물어본다.
-      final askProfile = await auth.shouldAskGolfProfile();
+      // 모임 동기화는 화면 전환 뒤에 돌린다. 여기서 기다리면
+      // 카카오 로그인 후 스피너만 계속 도는 기기가 있다.
+      final askProfile =
+          needsPhone ? false : await auth.shouldAskGolfProfile();
       if (!mounted) return;
-      Navigator.of(context)
-          .pushReplacementNamed(askProfile ? '/golf-profile' : '/main');
+      Navigator.of(context).pushReplacementNamed(
+        needsPhone
+            ? '/phone-required'
+            : (askProfile ? '/golf-profile' : '/main'),
+      );
+      unawaited(_syncClubProvider());
     } catch (e) {
       if (!mounted) return;
       final msg = e is SocialAuthException

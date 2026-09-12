@@ -264,6 +264,11 @@ class FirestoreClubDataSource {
         SetOptions(merge: true),
       );
 
+      final clubSnap = await clubRef.get();
+      if (!clubSnap.exists) {
+        throw const NetworkDataException('초대 대상 모임이 없습니다');
+      }
+
       batch.set(
         clubRef,
         {

@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:provider/provider.dart';
 
+import '../../models/user_model.dart';
 import '../../providers/auth_provider.dart';
 import '../../providers/club_provider.dart';
 import '../../services/photo_compress_service.dart';
@@ -91,8 +92,11 @@ class _GolfProfileScreenState extends State<GolfProfileScreen> {
     double? handicap;
     if (raw.isNotEmpty) {
       final n = int.tryParse(raw);
-      if (n == null || n < 0 || n > 54) {
-        setState(() => _error = '평균타수는 0~54 사이 정수로 입력해 주세요');
+      if (n == null ||
+          n < AppUser.minAverageScore ||
+          n > AppUser.maxAverageScore) {
+        setState(() => _error =
+            '평균타수는 ${AppUser.minAverageScore}~${AppUser.maxAverageScore} 사이 정수로 입력해 주세요');
         return;
       }
       handicap = n.toDouble();
@@ -303,10 +307,10 @@ class _GolfProfileScreenState extends State<GolfProfileScreen> {
                 // 소수점 핸디는 안 쓴다 — 마이페이지 편집과 같은 규칙.
                 inputFormatters: [
                   FilteringTextInputFormatter.digitsOnly,
-                  LengthLimitingTextInputFormatter(2),
+                  LengthLimitingTextInputFormatter(3),
                 ],
                 decoration: InputDecoration(
-                  hintText: '예: 18 (모르면 비워 두세요)',
+                  hintText: '예: 100 (모르면 비워 두세요)',
                   prefixIcon: const Icon(Icons.sports_golf_rounded),
                   filled: true,
                   fillColor: Colors.white,

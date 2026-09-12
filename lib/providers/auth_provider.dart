@@ -339,7 +339,8 @@ class AuthProvider extends ChangeNotifier {
         final doc = await FirebaseFirestore.instance
             .collection(FirestorePaths.users)
             .doc(profile.appUserId)
-            .get();
+            .get()
+            .timeout(const Duration(seconds: 8));
         remoteUserRead = true;
         final data = doc.data();
         if (data != null) {

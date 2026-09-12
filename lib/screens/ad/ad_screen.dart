@@ -7,6 +7,7 @@ import 'package:provider/provider.dart';
 import '../../features/clubs/application/club_list_controller.dart';
 import '../../models/club_model.dart';
 import '../../models/member_role.dart';
+import '../../models/user_model.dart';
 import '../../providers/auth_provider.dart';
 import '../../providers/club_provider.dart';
 import '../../services/photo_compress_service.dart';
@@ -2172,9 +2173,9 @@ class _AccountSettingsTabState extends State<_AccountSettingsTab> {
                   // 소수점 핸디는 안 쓴다 — 키패드에서 아예 못 넣게 막는다.
                   inputFormatters: [
                     FilteringTextInputFormatter.digitsOnly,
-                    LengthLimitingTextInputFormatter(2),
+                    LengthLimitingTextInputFormatter(3),
                   ],
-                  decoration: fieldDeco('예: 12 (모르면 비워 두세요)'),
+                  decoration: fieldDeco('예: 100 (모르면 비워 두세요)'),
                 ),
                 const SizedBox(height: 14),
 
@@ -2228,7 +2229,9 @@ class _AccountSettingsTabState extends State<_AccountSettingsTab> {
                       // 정수 핸디만. 범위를 벗어나면 없는 것으로 둔다.
                       final rawHandicap = int.tryParse(handicapCtrl.text.trim());
                       final newHandicap =
-                          (rawHandicap == null || rawHandicap < 0 || rawHandicap > 54)
+                          (rawHandicap == null ||
+                                  rawHandicap < AppUser.minAverageScore ||
+                                  rawHandicap > AppUser.maxAverageScore)
                               ? null
                               : rawHandicap.toDouble();
 

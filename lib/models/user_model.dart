@@ -17,6 +17,10 @@ class AppUser {
   final String id;
   final String name;
   final String phone;       // 010-0000-0000 형식
+  /// 평균타수(스코어). USGA 핸디캡(0~54)이 아니다 — 100타도 입력한다.
+  static const int minAverageScore = 0;
+  static const int maxAverageScore = 199;
+
   final double? handicap;   // 평균타수 (선택)
   final DateTime? birthDate; // 생년월일 (선택)
   final bool birthIsLunar;   // 생년월일이 음력인지 (기본 양력)

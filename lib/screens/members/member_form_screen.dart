@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import '../../models/club_model.dart';
 import '../../models/member_role.dart';
+import '../../models/user_model.dart';
 import '../../theme/app_theme.dart';
 
 class MemberFormScreen extends StatefulWidget {
@@ -373,13 +374,15 @@ class _MemberFormScreenState extends State<MemberFormScreen> {
         // 소수점 핸디는 안 쓴다 — 마이페이지·가입 화면과 같은 규칙.
         inputFormatters: [
           FilteringTextInputFormatter.digitsOnly,
-          LengthLimitingTextInputFormatter(2),
+          LengthLimitingTextInputFormatter(3),
         ],
         validator: (v) {
           if (v != null && v.isNotEmpty) {
             final val = double.tryParse(v);
-            if (val == null || val < 0 || val > 54) {
-              return '0~54 사이 값을 입력해주세요';
+            if (val == null ||
+                val < AppUser.minAverageScore ||
+                val > AppUser.maxAverageScore) {
+              return '${AppUser.minAverageScore}~${AppUser.maxAverageScore} 사이 값을 입력해주세요';
             }
           }
           return null;
