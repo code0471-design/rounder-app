@@ -1,15 +1,32 @@
+import 'dart:convert';
+import 'dart:typed_data';
+
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
+import 'package:image_picker/image_picker.dart';
 import 'package:provider/provider.dart';
+
 import '../../models/club_model.dart';
 import '../../models/member_role.dart';
 import '../../providers/auth_provider.dart';
 import '../../providers/club_provider.dart';
 import '../../theme/app_theme.dart';
 
+const _kTossInk = Color(0xFF191F28);
+const _kTossGray = Color(0xFF6B7684);
+const _kTossMuted = Color(0xFF8B95A1);
+const _kTossLine = Color(0xFFE5E8EB);
+const _kTotalSteps = 7;
+
 // ════════════════════════════════════════════════════════════
-//  CreateClubScreen  (2단계 스텝 폼)
-//   Step 1: 모임 기본 정보
-//   Step 2: 내 역할 & 최종 확인
+//  CreateClubScreen  (토스형 7단계)
+//   1. 모임이름
+//   2. 모임 이미지 (선택 · 나중에 하기)
+//   3. 지역 선택
+//   4. 업종 선택
+//   5. 모임 팀수 (조편성때 수정 가능합니다)
+//   6. 모임소개
+//   7. 모임에서의 나의 직책 (기존 직책 UI)
 // ════════════════════════════════════════════════════════════
 class CreateClubScreen extends StatefulWidget {
   const CreateClubScreen({super.key});
@@ -19,30 +36,28 @@ class CreateClubScreen extends StatefulWidget {
 }
 
 class _CreateClubScreenState extends State<CreateClubScreen> {
-  final _pageController = PageController();
-  int _step = 0; // 0: 모임 정보, 1: 내 역할
+  int _step = 0;
 
-  // ── Step 1 폼 ──
   final _formKey1 = GlobalKey<FormState>();
+  final _formKey2 = GlobalKey<FormState>();
   final _nameCtrl = TextEditingController();
-  final _descCtrl = TextEditingController();       // 모임 소개 (필수)
+  final _descCtrl = TextEditingController();
   final _customIndustryCtrl = TextEditingController();
   final _teamCountCtrl = TextEditingController(text: '4');
 
-  // 2단계 지역 선택: 1차 시/도, 2차 구/시
-  String _sido = '지역다양함';  // 선택된 광역시/도 (초기: 지역다양함)
-  String? _sigungu;            // 선택된 구/시 (null = 전체/미선택)
-  String get _region {         // 최종 저장되는 지역값
+  String _sido = '지역다양함';
+  String? _sigungu;
+  String get _region {
     if (_sido == '지역다양함') return '지역다양함';
     if (_sigungu != null) return '$_sido $_sigungu';
     return _sido;
   }
+
   String _industry = '지역모임';
   bool _customIndustry = false;
+  String? _imageUrl;
+  Uint8List? _localImageBytes;
 
-  // ── Step 2 폼 ──
-  final _formKey2 = GlobalKey<FormState>();
-  /// 직책 중복 선택 가능 (예: 회장·총무)
   final Set<String> _myRoles = {ClubMemberRole.president};
   bool _submitting = false;
 
@@ -50,7 +65,6 @@ class _CreateClubScreenState extends State<CreateClubScreen> {
 
   @override
   void dispose() {
-    _pageController.dispose();
     _nameCtrl.dispose();
     _descCtrl.dispose();
     _customIndustryCtrl.dispose();
@@ -58,25 +72,62 @@ class _CreateClubScreenState extends State<CreateClubScreen> {
     super.dispose();
   }
 
-  void _nextStep() {
+  void _goBack() {
+    if (_submitting) return;
     if (_step == 0) {
-      if (!_formKey1.currentState!.validate()) return;
-      _pageController.nextPage(
-          duration: const Duration(milliseconds: 350),
-          curve: Curves.easeInOut);
-      setState(() => _step = 1);
+      Navigator.pop(context);
+      return;
+    }
+    setState(() => _step -= 1);
+  }
+
+  void _goNext() {
+    if (_step == 0) {
+      if (!(_formKey1.currentState?.validate() ?? false)) return;
+    }
+    if (_step == 3 &&
+        _customIndustry &&
+        _customIndustryCtrl.text.trim().isEmpty) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('업종을 직접 입력해주세요')),
+      );
+      return;
+    }
+    if (_step == 5) {
+      if (_descCtrl.text.trim().isEmpty) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('모임 소개를 입력해주세요')),
+        );
+        return;
+      }
+    }
+    if (_step >= _kTotalSteps - 1) return;
+    setState(() => _step += 1);
+  }
+
+  Future<void> _pickImage() async {
+    try {
+      final picked = await ImagePicker().pickImage(
+        source: ImageSource.gallery,
+        maxWidth: 1200,
+        imageQuality: 85,
+      );
+      if (picked == null) return;
+      final bytes = await picked.readAsBytes();
+      setState(() {
+        _localImageBytes = bytes;
+        _imageUrl = 'data:image/jpeg;base64,${base64Encode(bytes)}';
+      });
+    } catch (_) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('이미지를 불러오지 못했습니다')),
+      );
     }
   }
 
-  void _prevStep() {
-    _pageController.previousPage(
-        duration: const Duration(milliseconds: 350),
-        curve: Curves.easeInOut);
-    setState(() => _step = 0);
-  }
-
   Future<void> _submit() async {
-    if (!_formKey2.currentState!.validate()) return;
+    if (!(_formKey2.currentState?.validate() ?? true)) return;
 
     final auth = context.read<AuthProvider>();
     if (!auth.isLoggedIn) {
@@ -92,18 +143,21 @@ class _CreateClubScreenState extends State<CreateClubScreen> {
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(content: Text('모임 이름은 2자 이상 입력해주세요')),
       );
+      setState(() => _step = 0);
       return;
     }
     if (description.isEmpty) {
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(content: Text('모임 소개를 입력해주세요')),
       );
+      setState(() => _step = 5);
       return;
     }
     if (_customIndustry && _customIndustryCtrl.text.trim().isEmpty) {
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(content: Text('업종을 직접 입력해주세요')),
       );
+      setState(() => _step = 3);
       return;
     }
 
@@ -129,6 +183,7 @@ class _CreateClubScreenState extends State<CreateClubScreen> {
       teamCount: _teamCountValue,
       myRole: _myRoleEncoded,
       description: description,
+      imageUrl: _imageUrl,
     );
 
     if (!mounted) return;
@@ -166,166 +221,47 @@ class _CreateClubScreenState extends State<CreateClubScreen> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      backgroundColor: AppColors.background,
-      appBar: AppBar(
-        backgroundColor: AppColors.primaryDark,
-        title: const Text('모임 만들기',
-            style: TextStyle(
-                fontWeight: FontWeight.bold, color: Colors.white)),
-        iconTheme: const IconThemeData(color: Colors.white),
-        bottom: PreferredSize(
-          preferredSize: const Size.fromHeight(4),
-          child: _StepProgressBar(step: _step),
-        ),
-      ),
-      body: Column(
-        children: [
-          // 단계 표시
-          _StepIndicator(step: _step),
-          // 폼 페이지
-          Expanded(
-            child: PageView(
-              controller: _pageController,
-              physics: const NeverScrollableScrollPhysics(),
-              children: [
-                _buildStep1(),
-                _buildStep2(),
-              ],
-            ),
-          ),
-          // 하단 버튼
-          _buildBottomBar(),
-        ],
-      ),
-    );
-  }
-
-  // ════════════════════════════════════════════════════════
-  //  Step 1: 모임 기본 정보
-  // ════════════════════════════════════════════════════════
-  Widget _buildStep1() {
-    return Form(
-      key: _formKey1,
-      child: ListView(
-        padding: const EdgeInsets.all(16),
-        children: [
-          // 모임 이미지
-          _buildImagePicker(),
-          const SizedBox(height: 20),
-
-          _Label('모임 이름 *'),
-          const SizedBox(height: 6),
-          _FormCard(
-            child: TextFormField(
-              controller: _nameCtrl,
-              decoration: _deco(hint: '예: 강남 골프회', icon: Icons.group_outlined),
-              validator: (v) {
-                final t = v?.trim() ?? '';
-                if (t.isEmpty) return '모임 이름을 입력해주세요';
-                if (t.length < 2) return '2자 이상 입력해주세요';
-                if (t.length > 30) return '30자 이내로 입력해주세요';
-                return null;
-              },
-            ),
-          ),
-          const SizedBox(height: 16),
-
-          _Label('지역 *'),
-          const SizedBox(height: 6),
-          _buildRegionGrid(),
-          const SizedBox(height: 16),
-
-          _Label('주요 업종 *'),
-          const SizedBox(height: 6),
-          _buildIndustryChips(),
-          if (_customIndustry) ...[
-            const SizedBox(height: 10),
-            _FormCard(
-              child: TextFormField(
-                controller: _customIndustryCtrl,
-                decoration: _deco(
-                    hint: '업종 직접 입력 (예: 치과, 스타트업...)',
-                    icon: Icons.edit_outlined),
-                validator: _customIndustry
-                    ? (v) => (v == null || v.trim().isEmpty)
-                        ? '업종을 입력해주세요'
-                        : null
-                    : null,
-              ),
-            ),
-          ],
-          const SizedBox(height: 16),
-
-          _Label('팀 수 (1~30)'),
-          const SizedBox(height: 4),
-          const Text(
-            '최대 30팀까지 설정할 수 있습니다. 조편성 때도 수정 가능합니다.',
-            style: TextStyle(fontSize: 11, color: AppColors.textSecondary),
-          ),
-          const SizedBox(height: 6),
-          _buildTeamCountRow(),
-          const SizedBox(height: 16),
-
-          _Label('모임 소개 *'),
-          const SizedBox(height: 4),
-          const Text(
-            '모임 찾기에 표시되는 소개글입니다. 모임의 특징·분위기를 알려주세요.',
-            style: TextStyle(fontSize: 11, color: AppColors.textSecondary),
-          ),
-          const SizedBox(height: 6),
-          _FormCard(
-            child: TextFormField(
-              controller: _descCtrl,
-              decoration: _deco(
-                  hint: '예: 매월 정기 라운딩으로 친목 도모 및 평균타수 향상을 목표로 합니다.',
-                  icon: Icons.notes_outlined),
-              maxLines: 4,
-              minLines: 2,
-              validator: (v) {
-                final t = v?.trim() ?? '';
-                if (t.isEmpty) return '모임 소개를 입력해주세요';
-                return null;
-              },
-            ),
-          ),
-          const SizedBox(height: 80),
-        ],
-      ),
-    );
-  }
-
-  // ── 이미지 피커 ──
-  Widget _buildImagePicker() {
-    return Center(
-      child: GestureDetector(
-        onTap: () => ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(
-            content: Text('이미지 업로드 기능은 준비 중입니다.'),
-            duration: Duration(seconds: 2),
-          ),
-        ),
-        child: Container(
-          width: 100,
-          height: 100,
-          decoration: BoxDecoration(
-            color: AppColors.primary.withValues(alpha: 0.08),
-            borderRadius: BorderRadius.circular(16),
-            border: Border.all(
-                color: AppColors.primary.withValues(alpha: 0.3),
-                width: 1.5,
-                style: BorderStyle.solid),
-          ),
+      backgroundColor: Colors.white,
+      body: SafeArea(
+        child: Padding(
+          padding: const EdgeInsets.fromLTRB(22, 8, 22, 16),
           child: Column(
-            mainAxisAlignment: MainAxisAlignment.center,
             children: [
-              Icon(Icons.add_photo_alternate_outlined,
-                  size: 32,
-                  color: AppColors.primary.withValues(alpha: 0.7)),
-              const SizedBox(height: 4),
-              Text('모임 이미지',
-                  style: TextStyle(
-                      fontSize: 11,
-                      color: AppColors.primary.withValues(alpha: 0.7))),
+              Row(
+                children: [
+                  IconButton(
+                    padding: EdgeInsets.zero,
+                    constraints:
+                        const BoxConstraints(minWidth: 40, minHeight: 40),
+                    icon: const Icon(Icons.arrow_back_ios_new,
+                        size: 18, color: _kTossInk),
+                    onPressed: _goBack,
+                  ),
+                  Expanded(
+                    child: ClipRRect(
+                      borderRadius: BorderRadius.circular(4),
+                      child: LinearProgressIndicator(
+                        value: (_step + 1) / _kTotalSteps,
+                        minHeight: 4,
+                        backgroundColor: _kTossLine,
+                        color: _kTossInk,
+                      ),
+                    ),
+                  ),
+                  const SizedBox(width: 12),
+                  Text(
+                    '${_step + 1}/$_kTotalSteps',
+                    style: const TextStyle(
+                      fontSize: 13,
+                      fontWeight: FontWeight.w700,
+                      color: _kTossMuted,
+                    ),
+                  ),
+                ],
+              ),
+              const SizedBox(height: 8),
+              Expanded(child: _buildCurrentStep()),
+              _buildBottomBar(),
             ],
           ),
         ),
@@ -333,153 +269,389 @@ class _CreateClubScreenState extends State<CreateClubScreen> {
     );
   }
 
-  // ════════════════════════════════════════════════════════
-  //  시/도 → 구/시 2단계 선택 데이터
-  // ════════════════════════════════════════════════════════
+  Widget _buildCurrentStep() {
+    switch (_step) {
+      case 0:
+        return _buildNameStep();
+      case 1:
+        return _buildImageStep();
+      case 2:
+        return _buildRegionStep();
+      case 3:
+        return _buildIndustryStep();
+      case 4:
+        return _buildTeamStep();
+      case 5:
+        return _buildIntroStep();
+      default:
+        return _buildStep2();
+    }
+  }
+
+  Widget _tossTitle(String title, {String? subtitle}) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        const SizedBox(height: 8),
+        Text(
+          title,
+          style: const TextStyle(
+            fontSize: 26,
+            fontWeight: FontWeight.w800,
+            color: _kTossInk,
+            height: 1.3,
+          ),
+        ),
+        if (subtitle != null) ...[
+          const SizedBox(height: 10),
+          Text(
+            subtitle,
+            style: const TextStyle(
+              fontSize: 16,
+              height: 1.5,
+              color: _kTossGray,
+            ),
+          ),
+        ],
+        const SizedBox(height: 28),
+      ],
+    );
+  }
+
+  Widget _buildNameStep() {
+    return Form(
+      key: _formKey1,
+      child: ListView(
+        children: [
+          _tossTitle('모임 이름', subtitle: '테스터들이 바로 알아볼 수 있는 이름을 적어 주세요.'),
+          TextFormField(
+            controller: _nameCtrl,
+            autofocus: true,
+            maxLength: 30,
+            inputFormatters: [LengthLimitingTextInputFormatter(30)],
+            style: const TextStyle(
+              fontSize: 20,
+              fontWeight: FontWeight.w700,
+              color: _kTossInk,
+            ),
+            decoration: const InputDecoration(
+              hintText: '예: 강남 골프회',
+              hintStyle: TextStyle(
+                fontSize: 20,
+                fontWeight: FontWeight.w600,
+                color: _kTossMuted,
+              ),
+              counterText: '',
+              border: InputBorder.none,
+            ),
+            validator: (v) {
+              final t = v?.trim() ?? '';
+              if (t.isEmpty) return '모임 이름을 입력해주세요';
+              if (t.length < 2) return '2자 이상 입력해주세요';
+              if (t.length > 30) return '30자 이내로 입력해주세요';
+              return null;
+            },
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildImageStep() {
+    return ListView(
+      children: [
+        _tossTitle(
+          '모임 이미지',
+          subtitle: '없어도 바로 만들 수 있어요. 나중에 모임 설정에서 넣을 수도 있습니다.',
+        ),
+        Center(
+          child: GestureDetector(
+            onTap: _pickImage,
+            child: Container(
+              width: 140,
+              height: 140,
+              decoration: BoxDecoration(
+                color: const Color(0xFFF2F4F6),
+                borderRadius: BorderRadius.circular(20),
+                border: Border.all(color: _kTossLine),
+              ),
+              clipBehavior: Clip.antiAlias,
+              child: _localImageBytes != null
+                  ? Image.memory(_localImageBytes!, fit: BoxFit.cover)
+                  : const Column(
+                      mainAxisAlignment: MainAxisAlignment.center,
+                      children: [
+                        Icon(Icons.add_photo_alternate_outlined,
+                            size: 36, color: _kTossMuted),
+                        SizedBox(height: 8),
+                        Text(
+                          '사진 선택',
+                          style: TextStyle(
+                            fontSize: 13,
+                            fontWeight: FontWeight.w700,
+                            color: _kTossGray,
+                          ),
+                        ),
+                      ],
+                    ),
+            ),
+          ),
+        ),
+      ],
+    );
+  }
+
+  Widget _buildRegionStep() {
+    return ListView(
+      children: [
+        _tossTitle('지역 선택', subtitle: '모임이 주로 모이는 지역을 골라 주세요.'),
+        _buildRegionGrid(),
+      ],
+    );
+  }
+
+  Widget _buildIndustryStep() {
+    return ListView(
+      children: [
+        _tossTitle('업종 선택', subtitle: '모임 찾기에서 같은 업종끼리 모일 수 있게 도와줍니다.'),
+        _buildIndustryChips(),
+        if (_customIndustry) ...[
+          const SizedBox(height: 16),
+          TextField(
+            controller: _customIndustryCtrl,
+            style: const TextStyle(
+              fontSize: 18,
+              fontWeight: FontWeight.w700,
+              color: _kTossInk,
+            ),
+            decoration: const InputDecoration(
+              hintText: '업종 직접 입력 (예: 치과, 스타트업...)',
+              hintStyle: TextStyle(color: _kTossMuted),
+              border: UnderlineInputBorder(
+                borderSide: BorderSide(color: _kTossLine),
+              ),
+            ),
+          ),
+        ],
+      ],
+    );
+  }
+
+  Widget _buildTeamStep() {
+    return ListView(
+      children: [
+        _tossTitle(
+          '모임 팀수',
+          subtitle: '조편성때 수정 가능합니다',
+        ),
+        _buildTeamCountRow(),
+      ],
+    );
+  }
+
+  Widget _buildIntroStep() {
+    return ListView(
+      children: [
+        _tossTitle(
+          '모임소개',
+          subtitle: '모임 찾기에 표시되는 소개글입니다. 모임의 특징·분위기를 알려주세요.',
+        ),
+        TextField(
+          controller: _descCtrl,
+          maxLines: 6,
+          minLines: 4,
+          style: const TextStyle(
+            fontSize: 16,
+            height: 1.5,
+            color: _kTossInk,
+          ),
+          decoration: const InputDecoration(
+            hintText: '예: 매월 정기 라운딩으로 친목 도모 및 평균타수 향상을 목표로 합니다.',
+            hintStyle: TextStyle(color: _kTossMuted),
+            filled: true,
+            fillColor: Color(0xFFF8F9FA),
+            border: OutlineInputBorder(
+              borderRadius: BorderRadius.all(Radius.circular(14)),
+              borderSide: BorderSide(color: _kTossLine),
+            ),
+            enabledBorder: OutlineInputBorder(
+              borderRadius: BorderRadius.all(Radius.circular(14)),
+              borderSide: BorderSide(color: _kTossLine),
+            ),
+            focusedBorder: OutlineInputBorder(
+              borderRadius: BorderRadius.all(Radius.circular(14)),
+              borderSide: BorderSide(color: _kTossInk, width: 1.5),
+            ),
+          ),
+        ),
+      ],
+    );
+  }
+
   static const _kSidoList = kSidoList;
 
   static const _kSigunguMap = <String, List<String>>{
-    '서울': ['강남구','서초구','송파구','강동구','마포구','용산구','성동구','광진구',
-             '강서구','양천구','영등포구','구로구','동작구','관악구','금천구',
-             '종로구','중구','동대문구','중랑구','성북구','강북구','도봉구','노원구',
-             '은평구','서대문구'],
-    '부산': ['해운대구','수영구','남구','동구','서구','북구','사하구','사상구',
-             '금정구','동래구','연제구','부산진구','중구','영도구','강서구','기장군'],
-    '대구': ['수성구','달서구','동구','서구','남구','북구','중구','달성군'],
-    '인천': ['남동구','부평구','서구','미추홀구','연수구','계양구','동구','중구',
-             '강화군','옹진군'],
-    '광주': ['광산구','북구','동구','서구','남구'],
-    '대전': ['유성구','서구','동구','중구','대덕구'],
-    '울산': ['남구','북구','동구','중구','울주군'],
+    '서울': [
+      '강남구', '서초구', '송파구', '강동구', '마포구', '용산구', '성동구', '광진구',
+      '강서구', '양천구', '영등포구', '구로구', '동작구', '관악구', '금천구',
+      '종로구', '중구', '동대문구', '중랑구', '성북구', '강북구', '도봉구', '노원구',
+      '은평구', '서대문구'
+    ],
+    '부산': [
+      '해운대구', '수영구', '남구', '동구', '서구', '북구', '사하구', '사상구',
+      '금정구', '동래구', '연제구', '부산진구', '중구', '영도구', '강서구', '기장군'
+    ],
+    '대구': ['수성구', '달서구', '동구', '서구', '남구', '북구', '중구', '달성군'],
+    '인천': [
+      '남동구', '부평구', '서구', '미추홀구', '연수구', '계양구', '동구', '중구',
+      '강화군', '옹진군'
+    ],
+    '광주': ['광산구', '북구', '동구', '서구', '남구'],
+    '대전': ['유성구', '서구', '동구', '중구', '대덕구'],
+    '울산': ['남구', '북구', '동구', '중구', '울주군'],
     '세종': ['세종시'],
-    '경기': ['수원시','성남시','고양시','용인시','부천시','안산시','화성시','광명시',
-             '평택시','시흥시','파주시','김포시','의정부시','남양주시','하남시','구리시',
-             '광주시','안양시','군포시','의왕시','과천시','오산시','안성시','이천시',
-             '여주시','양평군','가평군','포천시','동두천시','양주시','연천군'],
-    '강원': ['춘천시','원주시','강릉시','동해시','태백시','속초시','삼척시',
-             '홍천군','횡성군','영월군','평창군','정선군','철원군','화천군',
-             '양구군','인제군','고성군','양양군'],
-    '충북': ['청주시','충주시','제천시','보은군','옥천군','영동군','증평군',
-             '진천군','괴산군','음성군','단양군'],
-    '충남': ['천안시','공주시','보령시','아산시','서산시','논산시','계룡시',
-             '당진시','금산군','부여군','서천군','청양군','홍성군','예산군','태안군'],
-    '전북': ['전주시','군산시','익산시','정읍시','남원시','김제시',
-             '완주군','진안군','무주군','장수군','임실군','순창군','고창군','부안군'],
-    '전남': ['목포시','여수시','순천시','나주시','광양시',
-             '담양군','곡성군','구례군','고흥군','보성군','화순군','장흥군',
-             '강진군','해남군','영암군','무안군','함평군','영광군','장성군',
-             '완도군','진도군','신안군'],
-    '경북': ['포항시','경주시','김천시','안동시','구미시','영주시','영천시',
-             '상주시','문경시','경산시','군위군','의성군','청송군','영양군',
-             '영덕군','청도군','고령군','성주군','칠곡군','예천군','봉화군',
-             '울진군','울릉군'],
-    '경남': ['창원시','진주시','통영시','사천시','김해시','밀양시','거제시',
-             '양산시','의령군','함안군','창녕군','고성군','남해군','하동군',
-             '산청군','함양군','거창군','합천군'],
-    '제주': ['제주시','서귀포시'],
+    '경기': [
+      '수원시', '성남시', '고양시', '용인시', '부천시', '안산시', '화성시', '광명시',
+      '평택시', '시흥시', '파주시', '김포시', '의정부시', '남양주시', '하남시', '구리시',
+      '광주시', '안양시', '군포시', '의왕시', '과천시', '오산시', '안성시', '이천시',
+      '여주시', '양평군', '가평군', '포천시', '동두천시', '양주시', '연천군'
+    ],
+    '강원': [
+      '춘천시', '원주시', '강릉시', '동해시', '태백시', '속초시', '삼척시',
+      '홍천군', '횡성군', '영월군', '평창군', '정선군', '철원군', '화천군',
+      '양구군', '인제군', '고성군', '양양군'
+    ],
+    '충북': [
+      '청주시', '충주시', '제천시', '보은군', '옥천군', '영동군', '증평군',
+      '진천군', '괴산군', '음성군', '단양군'
+    ],
+    '충남': [
+      '천안시', '공주시', '보령시', '아산시', '서산시', '논산시', '계룡시',
+      '당진시', '금산군', '부여군', '서천군', '청양군', '홍성군', '예산군', '태안군'
+    ],
+    '전북': [
+      '전주시', '군산시', '익산시', '정읍시', '남원시', '김제시',
+      '완주군', '진안군', '무주군', '장수군', '임실군', '순창군', '고창군', '부안군'
+    ],
+    '전남': [
+      '목포시', '여수시', '순천시', '나주시', '광양시',
+      '담양군', '곡성군', '구례군', '고흥군', '보성군', '화순군', '장흥군',
+      '강진군', '해남군', '영암군', '무안군', '함평군', '영광군', '장성군',
+      '완도군', '진도군', '신안군'
+    ],
+    '경북': [
+      '포항시', '경주시', '김천시', '안동시', '구미시', '영주시', '영천시',
+      '상주시', '문경시', '경산시', '군위군', '의성군', '청송군', '영양군',
+      '영덕군', '청도군', '고령군', '성주군', '칠곡군', '예천군', '봉화군',
+      '울진군', '울릉군'
+    ],
+    '경남': [
+      '창원시', '진주시', '통영시', '사천시', '김해시', '밀양시', '거제시',
+      '양산시', '의령군', '함안군', '창녕군', '고성군', '남해군', '하동군',
+      '산청군', '함양군', '거창군', '합천군'
+    ],
+    '제주': ['제주시', '서귀포시'],
   };
 
-  // ── 지역 2단계 선택 UI ──
   Widget _buildRegionGrid() {
-    final sigunguList = _sido == '지역다양함' ? <String>[] : (_kSigunguMap[_sido] ?? <String>[]);
+    final sigunguList =
+        _sido == '지역다양함' ? <String>[] : (_kSigunguMap[_sido] ?? <String>[]);
 
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        // 1단계: 광역시/도 드롭다운
         Container(
           padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 4),
           decoration: BoxDecoration(
             color: Colors.white,
-            borderRadius: BorderRadius.circular(10),
-            border: Border.all(color: AppColors.divider),
+            borderRadius: BorderRadius.circular(12),
+            border: Border.all(color: _kTossLine),
           ),
           child: DropdownButtonHideUnderline(
             child: DropdownButton<String>(
               value: _sido,
               isExpanded: true,
-              icon: const Icon(Icons.keyboard_arrow_down, color: AppColors.primary),
+              icon: const Icon(Icons.keyboard_arrow_down, color: _kTossInk),
               style: const TextStyle(
-                  fontSize: 14,
-                  color: AppColors.textPrimary,
-                  fontWeight: FontWeight.w500),
-              items: _kSidoList.map((s) => DropdownMenuItem(
-                value: s,
-                child: Row(
-                  children: [
-                    if (s == '지역다양함') ...[
-                      const Icon(Icons.public, size: 14, color: Color(0xFF6366F1)),
-                      const SizedBox(width: 6),
-                    ],
-                    Text(s),
-                  ],
-                ),
-              )).toList(),
+                  fontSize: 16,
+                  color: _kTossInk,
+                  fontWeight: FontWeight.w600),
+              items: _kSidoList
+                  .map((s) => DropdownMenuItem(
+                        value: s,
+                        child: Row(
+                          children: [
+                            if (s == '지역다양함') ...[
+                              const Icon(Icons.public,
+                                  size: 14, color: Color(0xFF6366F1)),
+                              const SizedBox(width: 6),
+                            ],
+                            Text(s),
+                          ],
+                        ),
+                      ))
+                  .toList(),
               onChanged: (val) {
                 if (val == null) return;
                 setState(() {
                   _sido = val;
-                  _sigungu = null; // 시/도 변경 시 구/시 초기화
+                  _sigungu = null;
                 });
               },
             ),
           ),
         ),
-
-        // 2단계: 구/시 드롭다운 (지역다양함이 아닐 때만 표시)
         if (_sido != '지역다양함' && sigunguList.isNotEmpty) ...[
           const SizedBox(height: 10),
           Container(
             padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 4),
             decoration: BoxDecoration(
               color: Colors.white,
-              borderRadius: BorderRadius.circular(10),
+              borderRadius: BorderRadius.circular(12),
               border: Border.all(
-                color: _sigungu != null ? AppColors.primary : AppColors.divider,
+                color: _sigungu != null ? _kTossInk : _kTossLine,
                 width: _sigungu != null ? 1.5 : 1.0,
               ),
             ),
             child: DropdownButtonHideUnderline(
               child: DropdownButton<String>(
                 value: _sigungu,
-                hint: Text('구/시 선택 (선택사항)',
-                    style: TextStyle(fontSize: 14, color: AppColors.textSecondary)),
+                hint: const Text('구/시 선택 (선택사항)',
+                    style: TextStyle(fontSize: 14, color: _kTossMuted)),
                 isExpanded: true,
-                icon: const Icon(Icons.keyboard_arrow_down, color: AppColors.primary),
+                icon: const Icon(Icons.keyboard_arrow_down, color: _kTossInk),
                 style: const TextStyle(
-                    fontSize: 14,
-                    color: AppColors.textPrimary,
-                    fontWeight: FontWeight.w500),
+                    fontSize: 16,
+                    color: _kTossInk,
+                    fontWeight: FontWeight.w600),
                 items: [
                   const DropdownMenuItem<String>(
                     value: null,
                     child: Text('전체 (구/시 미선택)',
-                        style: TextStyle(color: AppColors.textSecondary)),
+                        style: TextStyle(color: _kTossMuted)),
                   ),
                   ...sigunguList.map((sg) => DropdownMenuItem(
-                    value: sg,
-                    child: Text(sg),
-                  )),
+                        value: sg,
+                        child: Text(sg),
+                      )),
                 ],
                 onChanged: (val) => setState(() => _sigungu = val),
               ),
             ),
           ),
         ],
-
-        // 선택된 지역 표시 칩
         const SizedBox(height: 10),
         Container(
           padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
           decoration: BoxDecoration(
             color: _sido == '지역다양함'
                 ? const Color(0xFF6366F1).withValues(alpha: 0.1)
-                : AppColors.primary.withValues(alpha: 0.08),
+                : const Color(0xFFF2F4F6),
             borderRadius: BorderRadius.circular(8),
             border: Border.all(
               color: _sido == '지역다양함'
                   ? const Color(0xFF6366F1).withValues(alpha: 0.3)
-                  : AppColors.primary.withValues(alpha: 0.3),
+                  : _kTossLine,
             ),
           ),
           child: Row(
@@ -488,7 +660,9 @@ class _CreateClubScreenState extends State<CreateClubScreen> {
               Icon(
                 _sido == '지역다양함' ? Icons.public : Icons.location_on,
                 size: 13,
-                color: _sido == '지역다양함' ? const Color(0xFF6366F1) : AppColors.primary,
+                color: _sido == '지역다양함'
+                    ? const Color(0xFF6366F1)
+                    : _kTossInk,
               ),
               const SizedBox(width: 5),
               Text(
@@ -496,7 +670,9 @@ class _CreateClubScreenState extends State<CreateClubScreen> {
                 style: TextStyle(
                   fontSize: 13,
                   fontWeight: FontWeight.w600,
-                  color: _sido == '지역다양함' ? const Color(0xFF6366F1) : AppColors.primary,
+                  color: _sido == '지역다양함'
+                      ? const Color(0xFF6366F1)
+                      : _kTossInk,
                 ),
               ),
             ],
@@ -506,7 +682,6 @@ class _CreateClubScreenState extends State<CreateClubScreen> {
     );
   }
 
-  // ── 업종 칩 ──
   Widget _buildIndustryChips() {
     final industries = kIndustries.where((i) => i != '기타').toList();
 
@@ -524,7 +699,6 @@ class _CreateClubScreenState extends State<CreateClubScreen> {
             child: _IndustryChip(label: ind, selected: sel),
           );
         }),
-        // 기타 (수기)
         GestureDetector(
           onTap: () => setState(() {
             _industry = '기타';
@@ -546,91 +720,84 @@ class _CreateClubScreenState extends State<CreateClubScreen> {
     setState(() => _teamCountCtrl.text = '$n');
   }
 
-  // ── 팀 수 조절 (1~30) ──
   Widget _buildTeamCountRow() {
     final count = _teamCountValue;
-    return _FormCard(
-      child: Padding(
-        padding: const EdgeInsets.fromLTRB(14, 12, 14, 8),
-        child: Column(
-          children: [
-            Row(
-              children: [
-                const Icon(Icons.people_outline,
-                    size: 18, color: AppColors.textSecondary),
-                const SizedBox(width: 10),
-                const Text('이 모임의 팀 수',
-                    style: TextStyle(
-                        fontSize: 14, color: AppColors.textSecondary)),
-                const Spacer(),
-                Text(
-                  '$count팀',
-                  style: const TextStyle(
-                    fontSize: 20,
-                    fontWeight: FontWeight.w800,
-                    color: AppColors.primary,
-                  ),
+    return Container(
+      padding: const EdgeInsets.fromLTRB(14, 12, 14, 8),
+      decoration: BoxDecoration(
+        color: const Color(0xFFF8F9FA),
+        borderRadius: BorderRadius.circular(16),
+        border: Border.all(color: _kTossLine),
+      ),
+      child: Column(
+        children: [
+          Row(
+            children: [
+              const Icon(Icons.people_outline, size: 18, color: _kTossGray),
+              const SizedBox(width: 10),
+              const Text('이 모임의 팀 수',
+                  style: TextStyle(fontSize: 14, color: _kTossGray)),
+              const Spacer(),
+              Text(
+                '$count팀',
+                style: const TextStyle(
+                  fontSize: 20,
+                  fontWeight: FontWeight.w800,
+                  color: _kTossInk,
                 ),
-              ],
-            ),
-            const SizedBox(height: 4),
-            SliderTheme(
-              data: SliderTheme.of(context).copyWith(
-                trackHeight: 4,
-                thumbShape: const RoundSliderThumbShape(enabledThumbRadius: 10),
               ),
-              child: Slider(
-                value: count.toDouble(),
-                min: 1,
-                max: 30,
-                divisions: 29,
-                label: '$count팀',
-                activeColor: AppColors.primary,
-                onChanged: (v) => _setTeamCount(v.round()),
+            ],
+          ),
+          SliderTheme(
+            data: SliderTheme.of(context).copyWith(
+              trackHeight: 4,
+              thumbShape: const RoundSliderThumbShape(enabledThumbRadius: 10),
+            ),
+            child: Slider(
+              value: count.toDouble(),
+              min: 1,
+              max: 30,
+              divisions: 29,
+              label: '$count팀',
+              activeColor: _kTossInk,
+              onChanged: (v) => _setTeamCount(v.round()),
+            ),
+          ),
+          Row(
+            children: [
+              _CountBtn(
+                icon: Icons.remove,
+                onTap: () => _setTeamCount(count - 1),
               ),
-            ),
-            Row(
-              children: [
-                _CountBtn(
-                  icon: Icons.remove,
-                  onTap: () => _setTeamCount(count - 1),
+              const Spacer(),
+              const Text(
+                '최소 1 · 최대 30',
+                style: TextStyle(
+                  fontSize: 12,
+                  fontWeight: FontWeight.w600,
+                  color: _kTossGray,
                 ),
-                const Spacer(),
-                Text(
-                  '최소 1 · 최대 30',
-                  style: TextStyle(
-                    fontSize: 12,
-                    fontWeight: FontWeight.w600,
-                    color: AppColors.primary.withValues(alpha: 0.9),
-                  ),
-                ),
-                const Spacer(),
-                _CountBtn(
-                  icon: Icons.add,
-                  onTap: () => _setTeamCount(count + 1),
-                ),
-              ],
-            ),
-          ],
-        ),
+              ),
+              const Spacer(),
+              _CountBtn(
+                icon: Icons.add,
+                onTap: () => _setTeamCount(count + 1),
+              ),
+            ],
+          ),
+        ],
       ),
     );
   }
 
-  // ════════════════════════════════════════════════════════
-  //  Step 2: 내 역할
-  // ════════════════════════════════════════════════════════
   Widget _buildStep2() {
     return Form(
       key: _formKey2,
       child: ListView(
-        padding: const EdgeInsets.all(16),
         children: [
-          // 요약 카드
           _buildSummaryCard(),
           const SizedBox(height: 24),
-
-          _Label('모임에서 나의 직책'),
+          const _Label('모임에서 나의 직책'),
           const SizedBox(height: 8),
           Text(
             '모임을 만드는 당신은 자동으로 첫 번째 회원이 됩니다. 직책은 중복 선택할 수 있습니다.',
@@ -642,7 +809,7 @@ class _CreateClubScreenState extends State<CreateClubScreen> {
           _buildDuesNotice(),
           const SizedBox(height: 14),
           _buildRoleSelector(),
-          const SizedBox(height: 80),
+          const SizedBox(height: 16),
         ],
       ),
     );
@@ -704,17 +871,19 @@ class _CreateClubScreenState extends State<CreateClubScreen> {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Row(
+          const Row(
             children: [
-              const Icon(Icons.sports_golf, color: Colors.white70, size: 18),
-              const SizedBox(width: 6),
-              const Text('생성될 모임 정보',
+              Icon(Icons.sports_golf, color: Colors.white70, size: 18),
+              SizedBox(width: 6),
+              Text('생성될 모임 정보',
                   style: TextStyle(color: Colors.white70, fontSize: 12)),
             ],
           ),
           const SizedBox(height: 10),
           Text(
-            _nameCtrl.text.trim().isEmpty ? '(모임 이름 없음)' : _nameCtrl.text.trim(),
+            _nameCtrl.text.trim().isEmpty
+                ? '(모임 이름 없음)'
+                : _nameCtrl.text.trim(),
             style: const TextStyle(
                 color: Colors.white,
                 fontSize: 20,
@@ -729,40 +898,19 @@ class _CreateClubScreenState extends State<CreateClubScreen> {
               _SummaryChip(icon: Icons.business_outlined, label: industry),
               _SummaryChip(
                   icon: Icons.people_outline,
-                  label: '${_teamCountCtrl.text.trim().isEmpty ? "4" : _teamCountCtrl.text.trim()}팀'),
+                  label:
+                      '${_teamCountCtrl.text.trim().isEmpty ? "4" : _teamCountCtrl.text.trim()}팀'),
             ],
           ),
           if (_descCtrl.text.trim().isNotEmpty) ...[
             const SizedBox(height: 8),
-            if (_descCtrl.text.trim().isNotEmpty)
-              Text(
-                _descCtrl.text.trim(),
-                style: const TextStyle(
-                    color: Colors.white70, fontSize: 12, height: 1.4),
-                maxLines: 2,
-                overflow: TextOverflow.ellipsis,
-              ),
-            if (false) ...[
-              const SizedBox(height: 4),
-              Row(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  const Text('📌 ',
-                      style: TextStyle(fontSize: 12)),
-                  Expanded(
-                    child: Text(
-                      '',
-                      style: const TextStyle(
-                          color: Colors.white60,
-                          fontSize: 11,
-                          height: 1.4),
-                      maxLines: 2,
-                      overflow: TextOverflow.ellipsis,
-                    ),
-                  ),
-                ],
-              ),
-            ],
+            Text(
+              _descCtrl.text.trim(),
+              style: const TextStyle(
+                  color: Colors.white70, fontSize: 12, height: 1.4),
+              maxLines: 2,
+              overflow: TextOverflow.ellipsis,
+            ),
           ],
         ],
       ),
@@ -889,165 +1037,49 @@ class _CreateClubScreenState extends State<CreateClubScreen> {
     );
   }
 
-  // ════════════════════════════════════════════════════════
-  //  하단 버튼
-  // ════════════════════════════════════════════════════════
   Widget _buildBottomBar() {
-    return Container(
-      padding: EdgeInsets.fromLTRB(
-          16, 12, 16, MediaQuery.of(context).padding.bottom + 12),
-      decoration: BoxDecoration(
-        color: Colors.white,
-        boxShadow: [
-          BoxShadow(
-              color: Colors.black.withValues(alpha: 0.08),
-              blurRadius: 8,
-              offset: const Offset(0, -2))
-        ],
-      ),
-      child: Row(
-        children: [
-          if (_step == 1) ...[
-            OutlinedButton(
-              onPressed: _prevStep,
-              style: OutlinedButton.styleFrom(
-                foregroundColor: AppColors.primary,
-                side: const BorderSide(color: AppColors.primary),
-                shape: RoundedRectangleBorder(
-                    borderRadius: BorderRadius.circular(10)),
-                minimumSize: const Size(80, 48),
-              ),
-              child: const Text('이전',
-                  style: TextStyle(fontWeight: FontWeight.bold)),
-            ),
-            const SizedBox(width: 12),
-          ],
-          Expanded(
-            child: ElevatedButton(
-              onPressed: _submitting
-                  ? null
-                  : (_step == 0 ? _nextStep : _submit),
-              style: ElevatedButton.styleFrom(
-                backgroundColor: AppColors.primary,
-                foregroundColor: Colors.white,
-                minimumSize: const Size(double.infinity, 48),
-                shape: RoundedRectangleBorder(
-                    borderRadius: BorderRadius.circular(10)),
-                elevation: 0,
-              ),
-              child: _submitting && _step == 1
-                  ? const SizedBox(
-                      width: 22,
-                      height: 22,
-                      child: CircularProgressIndicator(
-                        color: Colors.white,
-                        strokeWidth: 2.5,
-                      ),
-                    )
-                  : Text(
-                _step == 0 ? '다음 단계  →' : '🏌️ 모임 만들기',
-                style: const TextStyle(
-                    fontSize: 15, fontWeight: FontWeight.bold),
-              ),
-            ),
-          ),
-        ],
-      ),
-    );
-  }
-
-  // ── 헬퍼 ──
-  InputDecoration _deco({required String hint, required IconData icon}) {
-    return InputDecoration(
-      hintText: hint,
-      hintStyle:
-          const TextStyle(fontSize: 14, color: AppColors.textSecondary),
-      prefixIcon: Icon(icon, size: 18, color: AppColors.textSecondary),
-      border: InputBorder.none,
-      contentPadding:
-          const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
-    );
-  }
-}
-
-// ════════════════════════════════════════
-//  재사용 위젯
-// ════════════════════════════════════════
-
-class _StepProgressBar extends StatelessWidget {
-  final int step;
-  const _StepProgressBar({required this.step});
-
-  @override
-  Widget build(BuildContext context) {
-    return LinearProgressIndicator(
-      value: (step + 1) / 2,
-      backgroundColor: Colors.white24,
-      color: AppColors.accent,
-      minHeight: 4,
-    );
-  }
-}
-
-class _StepIndicator extends StatelessWidget {
-  final int step;
-  const _StepIndicator({required this.step});
-
-  @override
-  Widget build(BuildContext context) {
-    return Container(
-      color: AppColors.primaryDark,
-      padding: const EdgeInsets.symmetric(vertical: 10),
-      child: Row(
-        mainAxisAlignment: MainAxisAlignment.center,
-        children: [
-          _StepDot(n: 1, active: step >= 0, label: '모임 정보'),
-          Container(
-              width: 48, height: 2,
-              color: step >= 1
-                  ? AppColors.accent
-                  : Colors.white24),
-          _StepDot(n: 2, active: step >= 1, label: '내 역할'),
-        ],
-      ),
-    );
-  }
-}
-
-class _StepDot extends StatelessWidget {
-  final int n;
-  final bool active;
-  final String label;
-  const _StepDot(
-      {required this.n, required this.active, required this.label});
-
-  @override
-  Widget build(BuildContext context) {
+    final last = _step == _kTotalSteps - 1;
     return Column(
       children: [
-        AnimatedContainer(
-          duration: const Duration(milliseconds: 200),
-          width: 28,
-          height: 28,
-          decoration: BoxDecoration(
-            color: active ? AppColors.accent : Colors.white24,
-            shape: BoxShape.circle,
-          ),
-          child: Center(
-            child: Text(
-              '$n',
+        if (_step == 1)
+          TextButton(
+            onPressed: _submitting ? null : _goNext,
+            child: const Text(
+              '나중에 하기',
               style: TextStyle(
-                  fontSize: 13,
-                  fontWeight: FontWeight.bold,
-                  color: active ? Colors.white : Colors.white54),
+                fontSize: 15,
+                fontWeight: FontWeight.w700,
+                color: _kTossGray,
+              ),
             ),
           ),
+        SizedBox(
+          width: double.infinity,
+          height: 52,
+          child: FilledButton(
+            onPressed: _submitting
+                ? null
+                : (last ? _submit : _goNext),
+            style: FilledButton.styleFrom(
+              backgroundColor: _kTossInk,
+              foregroundColor: Colors.white,
+              shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(14)),
+              textStyle:
+                  const TextStyle(fontSize: 16, fontWeight: FontWeight.w700),
+            ),
+            child: _submitting && last
+                ? const SizedBox(
+                    width: 22,
+                    height: 22,
+                    child: CircularProgressIndicator(
+                      color: Colors.white,
+                      strokeWidth: 2.5,
+                    ),
+                  )
+                : Text(last ? '모임 만들기' : '다음'),
+          ),
         ),
-        const SizedBox(height: 4),
-        Text(label,
-            style: TextStyle(
-                fontSize: 10,
-                color: active ? Colors.white : Colors.white38)),
       ],
     );
   }
@@ -1067,28 +1099,6 @@ class _Label extends StatelessWidget {
   }
 }
 
-class _FormCard extends StatelessWidget {
-  final Widget child;
-  const _FormCard({required this.child});
-
-  @override
-  Widget build(BuildContext context) {
-    return Container(
-      decoration: BoxDecoration(
-        color: Colors.white,
-        borderRadius: BorderRadius.circular(10),
-        boxShadow: [
-          BoxShadow(
-              color: Colors.black.withValues(alpha: 0.04),
-              blurRadius: 4,
-              offset: const Offset(0, 1))
-        ],
-      ),
-      child: child,
-    );
-  }
-}
-
 class _IndustryChip extends StatelessWidget {
   final String label;
   final bool selected;
@@ -1098,26 +1108,17 @@ class _IndustryChip extends StatelessWidget {
   Widget build(BuildContext context) {
     return AnimatedContainer(
       duration: const Duration(milliseconds: 120),
-      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 7),
+      padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
       decoration: BoxDecoration(
-        color: selected ? AppColors.primary : Colors.white,
+        color: selected ? _kTossInk : Colors.white,
         borderRadius: BorderRadius.circular(20),
-        border: Border.all(
-            color: selected ? AppColors.primary : AppColors.divider),
-        boxShadow: selected
-            ? [
-                BoxShadow(
-                    color: AppColors.primary.withValues(alpha: 0.2),
-                    blurRadius: 4,
-                    offset: const Offset(0, 2))
-              ]
-            : [],
+        border: Border.all(color: selected ? _kTossInk : _kTossLine),
       ),
       child: Text(label,
           style: TextStyle(
-              fontSize: 12,
+              fontSize: 13,
               fontWeight: FontWeight.w600,
-              color: selected ? Colors.white : AppColors.textSecondary)),
+              color: selected ? Colors.white : _kTossGray)),
     );
   }
 }
@@ -1135,11 +1136,11 @@ class _CountBtn extends StatelessWidget {
         width: 30,
         height: 30,
         decoration: BoxDecoration(
-          color: AppColors.background,
+          color: Colors.white,
           borderRadius: BorderRadius.circular(8),
-          border: Border.all(color: AppColors.divider),
+          border: Border.all(color: _kTossLine),
         ),
-        child: Icon(icon, size: 16, color: AppColors.primary),
+        child: Icon(icon, size: 16, color: _kTossInk),
       ),
     );
   }
