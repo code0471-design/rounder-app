@@ -47,6 +47,11 @@ void main() {
       isTrue,
       reason: '테스터에게 Firestore 샘플 배너가 보이면 안 된다',
     );
+    expect(
+      dash.contains("import 'package:flutter/foundation.dart';"),
+      isTrue,
+      reason: 'kReleaseMode는 foundation import가 있어야 릴리스 빌드가 된다',
+    );
   });
 
   test('내 모임 카드는 원클럽형 커버와 구분선이 있다', () {
