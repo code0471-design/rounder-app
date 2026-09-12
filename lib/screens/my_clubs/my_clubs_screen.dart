@@ -105,11 +105,29 @@ class _MyClubsScreenState extends State<MyClubsScreen> {
                       else
                         SliverList(
                           delegate: SliverChildBuilderDelegate(
-                            (context, i) => HomeClubCard(
-                              club: clubs[i],
-                              onTap: () =>
-                                  _enterClub(context, provider, clubs[i]),
-                            ),
+                            (context, i) {
+                              final card = HomeClubCard(
+                                club: clubs[i],
+                                onTap: () =>
+                                    _enterClub(context, provider, clubs[i]),
+                              );
+                              if (i == clubs.length - 1) return card;
+                              return Column(
+                                mainAxisSize: MainAxisSize.min,
+                                children: [
+                                  card,
+                                  const Padding(
+                                    padding:
+                                        EdgeInsets.fromLTRB(20, 0, 20, 10),
+                                    child: Divider(
+                                      height: 1,
+                                      thickness: 1,
+                                      color: Color(0xFFC9C5B8),
+                                    ),
+                                  ),
+                                ],
+                              );
+                            },
                             childCount: clubs.length,
                           ),
                         ),

@@ -134,6 +134,10 @@ class ClubListController extends ChangeNotifier {
         debugPrint('[ClubListController] 로컬 샘플 폴백 ${_clubs.length}건');
       }
 
+      if (userId != null && userId.isNotEmpty) {
+        await syncMembershipState(userId);
+      }
+
       _state = ClubListLoadState.loaded;
     } catch (e, st) {
       debugPrint('[ClubListController] load 실패: $e\n$st');

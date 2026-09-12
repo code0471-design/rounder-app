@@ -207,8 +207,8 @@ class ClubProvider extends ChangeNotifier with WidgetsBindingObserver {
 
   /// Firestore/Mock bootstrap → ClubProvider(legacy mock) 동기화
   ///
-  /// 이미 로컬에 있는 모임(테스트·사용자 수정 포함)의 이름/팀수/소개/D-day는
-  /// bootstrap으로 덮어쓰지 않는다. 신규 모임만 추가한다.
+  /// 이름·이미지·지역 등 카탈로그 필드는 서버 값을 따른다.
+  /// 일정 기준 D-day와 이미 있는 직책은 로컬을 유지한다.
   void hydrateFromBootstrap(
     AppBootstrapSnapshot snapshot, {
     List<JoinRequest> pendingRequests = const [],
@@ -221,11 +221,14 @@ class ClubProvider extends ChangeNotifier with WidgetsBindingObserver {
       if (_isLeftClub(legacy.id) || _isLeftClub(bootClub.id)) continue;
       final idx = _myClubs.indexWhere((c) => c.id == legacy.id);
       if (idx >= 0) {
-        // 로컬 저장 데이터 유지 — myRole만 비어 있을 때 보정
         final existing = _myClubs[idx];
-        if (existing.myRole.trim().isEmpty && legacy.myRole.isNotEmpty) {
-          _myClubs[idx] = existing.copyWith(myRole: legacy.myRole);
-        }
+        _myClubs[idx] = legacy.copyWith(
+          myRole: existing.myRole.trim().isNotEmpty
+              ? existing.myRole
+              : legacy.myRole,
+          nextRoundDate: existing.nextRoundDate,
+          nextRoundCourse: existing.nextRoundCourse,
+        );
       } else {
         _myClubs.add(legacy);
         if (!_legacyMockClubIds.contains(legacy.id)) {
@@ -241,6 +244,13 @@ class ClubProvider extends ChangeNotifier with WidgetsBindingObserver {
       final idx = _allClubs.indexWhere((c) => c.id == legacy.id);
       if (idx < 0) {
         _allClubs.add(legacy);
+      } else {
+        final existing = _allClubs[idx];
+        _allClubs[idx] = legacy.copyWith(
+          myRole: existing.myRole,
+          nextRoundDate: existing.nextRoundDate,
+          nextRoundCourse: existing.nextRoundCourse,
+        );
       }
     }
 
@@ -302,10 +312,15 @@ class ClubProvider extends ChangeNotifier with WidgetsBindingObserver {
     }();
 
     if (template != null) {
+      final bootUrl = bootClub.imageUrl?.trim() ?? '';
       return template.copyWith(
+        name: bootClub.name.trim().isNotEmpty ? bootClub.name : template.name,
+        imageUrl: bootUrl.isNotEmpty ? bootClub.imageUrl : template.imageUrl,
         myRole: forCatalog ? template.myRole : bootClub.myRole,
         memberCount: bootClub.memberCount,
         teamCount: bootClub.teamCount,
+        region: bootClub.region,
+        industry: bootClub.industry,
         description: bootClub.description.isNotEmpty
             ? bootClub.description
             : template.description,
@@ -1720,7 +1735,14 @@ class ClubProvider extends ChangeNotifier with WidgetsBindingObserver {
     String industry = '전체',
     String keyword = '',
   }) {
-    return _allClubs.where((c) {
+    final byId = <String, Club>{};
+    for (final c in _allClubs) {
+      byId[c.id] = c;
+    }
+    for (final c in _myClubs) {
+      byId.putIfAbsent(c.id, () => c);
+    }
+    return byId.values.where((c) {
       // 지역전체/전체: 전부, '지역다양함': 해당 모임만, 그 외: 시·도 접두사 or 완전일치
       final matchRegion = isAllRegionFilter(region) ||
           c.region == region ||

@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import '../../../models/club_model.dart';
 import '../../../theme/app_theme.dart';
 import '../../../utils/d_day_utils.dart';
+import '../../../widgets/club_cover_mark.dart';
 
 /// 내 모임 카드 — 토스 스타일
 class HomeClubCard extends StatelessWidget {
@@ -33,23 +34,7 @@ class HomeClubCard extends StatelessWidget {
             child: Row(
               crossAxisAlignment: CrossAxisAlignment.center,
               children: [
-                Container(
-                  width: 48,
-                  height: 48,
-                  decoration: BoxDecoration(
-                    color: AppColors.sageLighter,
-                    borderRadius: BorderRadius.circular(14),
-                    border: Border.all(
-                      color: AppColors.primary.withValues(alpha: 0.08),
-                    ),
-                  ),
-                  child: Center(
-                    child: Text(
-                      clubIndustryEmoji(club.industry),
-                      style: const TextStyle(fontSize: 22),
-                    ),
-                  ),
-                ),
+                ClubCoverMark(club: club, size: 80),
                 const SizedBox(width: 14),
                 Expanded(
                   child: Column(

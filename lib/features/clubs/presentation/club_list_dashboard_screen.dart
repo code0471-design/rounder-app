@@ -8,6 +8,7 @@ import '../../../providers/auth_provider.dart';
 import '../../../providers/club_provider.dart';
 import '../../../screens/clubs/create_club_screen.dart';
 import '../../../theme/app_theme.dart';
+import '../../../widgets/club_cover_mark.dart';
 import '../application/club_list_controller.dart';
 import 'club_detail_navigation.dart';
 
@@ -48,6 +49,14 @@ class _ClubListDashboardScreenState extends State<ClubListDashboardScreen> {
             );
       }
       await context.read<ClubListController>().load(userId: userId);
+      if (!mounted) return;
+      final mine = <String>{
+        ...context.read<ClubProvider>().myClubs.map((c) => c.id),
+        if (bootstrap != null) ...bootstrap.myClubs.map((c) => c.id),
+      };
+      context.read<ClubListController>().updateMembershipHints(
+            myClubIds: mine,
+          );
     });
   }
 
@@ -63,13 +72,17 @@ class _ClubListDashboardScreenState extends State<ClubListDashboardScreen> {
 
     return Consumer<ClubListController>(
       builder: (context, controller, _) {
-        // Firebase: Firestore(controller)만. Mock일 때만 ClubProvider 목록 병합
+        // Firestore 탐색 + 내 모임. 같은 id면 서버 이름이 이기고, 로컬만 있는 모임도 빠지지 않는다.
         final byId = <String, Club>{
           for (final c in controller.clubs)
             ClubProvider.legacyClubIdFor(c.id): c,
           if (AppDependencies.instance.isOfflineMockMode)
             for (final c in legacyProvider.allClubs) c.id: c,
         };
+        for (final c in legacyProvider.myClubs) {
+          if (legacyProvider.hasLeftClub(c.id)) continue;
+          byId.putIfAbsent(ClubProvider.legacyClubIdFor(c.id), () => c);
+        }
         final clubs = ClubDiscoveryService.filter(
           clubs: byId.values.toList(),
           region: controller.region,
@@ -336,7 +349,7 @@ class _ClubListCard extends StatelessWidget {
         child: Row(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            _ClubAvatar(club: club),
+            ClubCoverMark(club: club, size: 64),
             const SizedBox(width: 14),
             Expanded(
               child: Column(
@@ -390,28 +403,6 @@ class _ClubListCard extends StatelessWidget {
             ),
           ],
         ),
-      ),
-    );
-  }
-}
-
-class _ClubAvatar extends StatelessWidget {
-  final Club club;
-  const _ClubAvatar({required this.club});
-
-  @override
-  Widget build(BuildContext context) {
-    return Container(
-      width: 64,
-      height: 64,
-      alignment: Alignment.center,
-      decoration: BoxDecoration(
-        color: AppColors.primary.withValues(alpha: 0.1),
-        borderRadius: BorderRadius.circular(14),
-      ),
-      child: Text(
-        clubIndustryEmoji(club.industry),
-        style: const TextStyle(fontSize: 28),
       ),
     );
   }

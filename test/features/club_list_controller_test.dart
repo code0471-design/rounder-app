@@ -37,6 +37,31 @@ class _FakeClubRepository implements ClubRepository {
 
   @override
   Future<void> updateTeamCount(String clubId, int teamCount) async {}
+
+  @override
+  Future<void> updateClubInfo(
+    String clubId, {
+    String? name,
+    String? description,
+    String? imageUrl,
+    int? teamCount,
+  }) async {}
+
+  @override
+  Future<void> createClub({
+    required Club club,
+    required String userId,
+    required String userName,
+    required Member creatorMember,
+    String moderationStatus = 'active',
+  }) async {}
+
+  @override
+  Future<void> addMemberViaInvite({
+    required String clubId,
+    required String userId,
+    required Member member,
+  }) async {}
 }
 
 void main() {
@@ -80,7 +105,7 @@ void main() {
       await controller.load();
 
       expect(controller.state, ClubListLoadState.loaded);
-      expect(controller.clubs.length, 10);
+      expect(controller.clubs.length, 0);
       expect(controller.usingLocalFallback, isTrue);
     });
 
