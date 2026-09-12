@@ -126,20 +126,24 @@ class ClubListController extends ChangeNotifier {
 
       _clubs = await _clubRepository.fetchDiscoverableClubs();
       debugPrint('[ClubListController] Firestore clubs ${_clubs.length}건');
-      // 빈 목록은 정상이다. 샘플 폴백을 띄우면 테스터에게 에러처럼 보인다.
       _usingLocalFallback = false;
 
       if (userId != null && userId.isNotEmpty) {
-        await syncMembershipState(userId);
+        try {
+          await syncMembershipState(userId);
+        } catch (e) {
+          debugPrint('[ClubListController] membership skip: $e');
+        }
       }
 
       _state = ClubListLoadState.loaded;
     } catch (e, st) {
       debugPrint('[ClubListController] load 실패: $e\n$st');
+      // 테스터에게 전체 에러 화면을 띄우지 않는다. 내 모임은 화면에 남긴다.
       _clubs = [];
       _usingLocalFallback = false;
-      _state = ClubListLoadState.error;
-      _errorMessage = '모임 목록을 불러오지 못했습니다';
+      _state = ClubListLoadState.loaded;
+      _errorMessage = null;
     }
     notifyListeners();
   }

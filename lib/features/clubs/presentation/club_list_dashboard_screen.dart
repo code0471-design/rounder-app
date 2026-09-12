@@ -8,6 +8,7 @@ import '../../../models/club_model.dart';
 import '../../../providers/auth_provider.dart';
 import '../../../providers/club_provider.dart';
 import '../../../screens/clubs/create_club_screen.dart';
+import '../../../services/firebase_auth_bridge.dart';
 import '../../../theme/app_theme.dart';
 import '../../../widgets/club_cover_mark.dart';
 import '../application/club_list_controller.dart';
@@ -41,7 +42,12 @@ class _ClubListDashboardScreenState extends State<ClubListDashboardScreen> {
       if (!mounted) return;
 
       final auth = context.read<AuthProvider>();
-      final userId = auth.currentUser?.id ?? '';
+      final user = auth.currentUser;
+      final userId = user?.id ?? '';
+      if (user != null) {
+        await FirebaseAuthBridge.ensureSignedIn(user);
+      }
+      if (!mounted) return;
 
       final bootstrap = AppDependencies.instance.lastBootstrap;
       if (bootstrap != null) {
@@ -159,7 +165,7 @@ class _ClubListDashboardScreenState extends State<ClubListDashboardScreen> {
     List<Club> clubs,
     ClubProvider legacyProvider,
   ) {
-    if (controller.state == ClubListLoadState.error) {
+    if (controller.state == ClubListLoadState.error && clubs.isEmpty) {
       return ListView(
         physics: const AlwaysScrollableScrollPhysics(),
         children: [
