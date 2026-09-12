@@ -97,16 +97,30 @@ void main() {
       expect(controller.usingLocalFallback, isFalse);
     });
 
-    test('load falls back to sample catalog on repository failure', () async {
+    test('empty catalog is success, not sample fallback', () async {
+      final controller = ClubListController(
+        clubRepository: _FakeClubRepository([]),
+      );
+
+      await controller.load();
+
+      expect(controller.state, ClubListLoadState.loaded);
+      expect(controller.clubs, isEmpty);
+      expect(controller.usingLocalFallback, isFalse);
+    });
+
+    test('load shows error instead of sample data on repository failure',
+        () async {
       final controller = ClubListController(
         clubRepository: _FakeClubRepository([], shouldFail: true),
       );
 
       await controller.load();
 
-      expect(controller.state, ClubListLoadState.loaded);
-      expect(controller.clubs.length, 0);
-      expect(controller.usingLocalFallback, isTrue);
+      expect(controller.state, ClubListLoadState.error);
+      expect(controller.clubs, isEmpty);
+      expect(controller.usingLocalFallback, isFalse);
+      expect(controller.errorMessage, isNotNull);
     });
 
     test('updateFilters narrows filteredClubs', () async {

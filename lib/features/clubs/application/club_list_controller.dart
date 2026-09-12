@@ -3,7 +3,6 @@ import 'package:flutter/foundation.dart';
 import '../../../data/repositories/club_repository.dart';
 import '../../../data/repositories/join_request_repository.dart';
 import '../../../di/app_dependencies.dart';
-import '../../../domain/data/club_sample_catalog.dart';
 import '../../../domain/services/club_discovery_service.dart';
 import '../../../models/club_model.dart';
 
@@ -127,12 +126,8 @@ class ClubListController extends ChangeNotifier {
 
       _clubs = await _clubRepository.fetchDiscoverableClubs();
       debugPrint('[ClubListController] Firestore clubs ${_clubs.length}건');
-
-      if (_clubs.isEmpty) {
-        _clubs = ClubSampleCatalog.clubs;
-        _usingLocalFallback = true;
-        debugPrint('[ClubListController] 로컬 샘플 폴백 ${_clubs.length}건');
-      }
+      // 빈 목록은 정상이다. 샘플 폴백을 띄우면 테스터에게 에러처럼 보인다.
+      _usingLocalFallback = false;
 
       if (userId != null && userId.isNotEmpty) {
         await syncMembershipState(userId);
@@ -141,10 +136,10 @@ class ClubListController extends ChangeNotifier {
       _state = ClubListLoadState.loaded;
     } catch (e, st) {
       debugPrint('[ClubListController] load 실패: $e\n$st');
-      _clubs = ClubSampleCatalog.clubs;
-      _usingLocalFallback = true;
-      _state = ClubListLoadState.loaded;
-      _errorMessage = null;
+      _clubs = [];
+      _usingLocalFallback = false;
+      _state = ClubListLoadState.error;
+      _errorMessage = '모임 목록을 불러오지 못했습니다';
     }
     notifyListeners();
   }

@@ -194,7 +194,8 @@ class _ClubListDashboardScreenState extends State<ClubListDashboardScreen> {
 
     return Column(
       children: [
-        if (controller.usingLocalFallback) _LocalFallbackBanner(controller: controller),
+        if (!kReleaseMode && controller.usingLocalFallback)
+          _LocalFallbackBanner(controller: controller),
         _SearchBar(controller: _searchCtrl),
         _FilterRow(
           region: controller.region,
@@ -478,11 +479,13 @@ class _EmptyResult extends StatelessWidget {
             '검색 결과가 없습니다',
             style: TextStyle(color: AppColors.textSecondary),
           ),
-          const SizedBox(height: 8),
-          TextButton(
-            onPressed: onSeed,
-            child: const Text('샘플 모임 데이터 불러오기'),
-          ),
+          if (!kReleaseMode) ...[
+            const SizedBox(height: 8),
+            TextButton(
+              onPressed: onSeed,
+              child: const Text('샘플 모임 데이터 불러오기'),
+            ),
+          ],
         ],
       ),
     );

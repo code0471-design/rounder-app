@@ -42,6 +42,11 @@ void main() {
     expect(dash.contains("label: '업종'"), isTrue);
     expect(dash.contains('kIndustryFilterAll'), isTrue);
     expect(dash.contains('모임 이름, 소개로 검색'), isTrue);
+    expect(
+      dash.contains('if (!kReleaseMode && controller.usingLocalFallback)'),
+      isTrue,
+      reason: '테스터에게 Firestore 샘플 배너가 보이면 안 된다',
+    );
   });
 
   test('내 모임 카드는 원클럽형 커버와 구분선이 있다', () {
