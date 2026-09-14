@@ -467,7 +467,11 @@ class ClubProvider extends ChangeNotifier with WidgetsBindingObserver {
     }
 
     // 저장소/리포에 남은 '내가 만든 모임' 복구 (시드 정리·포트 전환으로 myClubs에서 빠진 경우)
-    final recovered = await _restoreOwnedClubsFromStores(authUserId);
+    var recovered = await _restoreOwnedClubsFromStores(authUserId);
+    if (!_isDemoSession) {
+      if (_purgeDemoIdentityClubs()) recovered = true;
+      if (await _ingestServerMemberships(authUserId)) recovered = true;
+    }
     // 복구 후에도 탈퇴 목록은 제외
     _myClubs.removeWhere((c) => _isLeftClub(c.id));
     if (recovered) {
@@ -529,16 +533,17 @@ class ClubProvider extends ChangeNotifier with WidgetsBindingObserver {
       if (userMerged != null) bundle = userMerged;
 
       for (final club in List<Club>.from(_myClubs)) {
-        final iAmCreator = club.creatorId.isEmpty ||
-            _userIdsMatch(club.creatorId, authUserId);
         final merged = await ClubOpsSync.pullMergeClub(
           clubId: club.id,
           local: bundle,
-          seedIfMissing: iAmCreator,
+          seedIfMissing: _iAmClubCreator(club),
         );
         if (merged != null) bundle = merged;
       }
       _importBundle(bundle);
+      for (final club in List<Club>.from(_myClubs)) {
+        await _hydrateRosterFromServer(club.id);
+      }
       _scrubUndersizedScheduleCapacities();
       _syncAllNextRounds();
     } catch (e) {
@@ -747,18 +752,38 @@ class ClubProvider extends ChangeNotifier with WidgetsBindingObserver {
     notifyListeners();
   }
 
-  Set<String> _authAliases(String authUserId) => {
-        authUserId,
-        currentUserId,
-        if (authUserId == 'user_guest' || currentUserId == 'mg1') ...[
-          'user_guest',
-          'mg1',
-        ],
-        if (authUserId == 'user_me' || currentUserId == 'm1') ...[
-          'user_me',
-          'm1',
-        ],
-      };
+  /// 실계정도 currentUserId 가 m1 이라, persist 키로만 데모 세션을 가린다.
+  bool get _isDemoSession {
+    final id = _persistAuthUserId ?? '';
+    return id == 'user_me' ||
+        id == 'user_guest' ||
+        id == 'user_other' ||
+        id == 'default';
+  }
+
+  bool _iAmClubCreator(Club club) {
+    final cid = club.creatorId.trim();
+    if (cid.isEmpty) return false;
+    if (_userIdsMatch(cid, _persistAuthUserId)) return true;
+    if (_isDemoSession && _userIdsMatch(cid, currentUserId)) return true;
+    return false;
+  }
+
+  Set<String> _authAliases(String authUserId) {
+    final ids = <String>{authUserId};
+    if (authUserId == 'user_guest' || authUserId == 'mg1') {
+      ids.addAll({'user_guest', 'mg1'});
+    } else if (authUserId == 'user_me' ||
+        authUserId == 'default' ||
+        authUserId == 'm1') {
+      ids.addAll({'user_me', 'm1'});
+    } else if (authUserId == 'user_other' || authUserId == 'm4') {
+      ids.addAll({'user_other', 'm4'});
+    }
+    // 실계정 currentUserId 는 항상 m1. 별칭에 넣으면 데모 모임이 전부 내 모임이 된다.
+    if (_isDemoSession) ids.add(currentUserId);
+    return ids;
+  }
 
   bool _isStoreClubOwnedByMe(
     MockDataStore store,
@@ -768,7 +793,8 @@ class ClubProvider extends ChangeNotifier with WidgetsBindingObserver {
     if (aliases.contains(c.creatorId)) return true;
     if (aliases.any((id) => store.isMember(c.id, id))) return true;
 
-    // 어드민 host 판정과 동일: 내 이름이 회원/생성자로 있으면 내 모임
+    if (!_isDemoSession) return false;
+    // 데모 계정만 이름 매칭. 실계정이 홍길동 명단에 걸려 전 모임이 복구되던 경로.
     for (final m in store.membersOf(c.id)) {
       if (m.name == currentUserName) return true;
       if (aliases.contains(m.id)) return true;
@@ -782,9 +808,9 @@ class ClubProvider extends ChangeNotifier with WidgetsBindingObserver {
     var changed = false;
     final aliases = _authAliases(authUserId);
 
-    // 1) Mock 공유 저장소 (+ prefs 보강)
+    // 1) Mock 공유 저장소 — 데모 계정만. 실계정은 폰에 남은 시드가 전 모임으로 복구된다.
     final store = AppDependencies.instance.mockDataStore;
-    if (store != null) {
+    if (_isDemoSession && store != null) {
       try {
         await store.hydrateFromDisk();
       } catch (_) {}
@@ -805,13 +831,11 @@ class ClubProvider extends ChangeNotifier with WidgetsBindingObserver {
       }
     }
 
-    // 2) 계정 번들 — user_guest 의 c_* 는 전부 내 모임으로 복구
-    for (final uid in <String>{
-      authUserId,
-      'user_guest',
-      'user_me',
-      'user_other',
-    }) {
+    // 2) 계정 번들 — 데모 계정만 user_guest / user_me 를 훑는다.
+    final bundleUids = _isDemoSession
+        ? <String>{authUserId, 'user_guest', 'user_me', 'user_other'}
+        : <String>{authUserId};
+    for (final uid in bundleUids) {
       try {
         final bundle = await ClubPersistence.load(uid);
         if (bundle == null) continue;
@@ -835,29 +859,19 @@ class ClubProvider extends ChangeNotifier with WidgetsBindingObserver {
       }
     }
 
-    // 3) Prefs 전수 스캔
-    try {
-      if (await _restoreOwnedClubsFromRawPrefs(aliases, authUserId)) {
-        changed = true;
-      }
-    } catch (e) {
-      debugPrint('[ClubProvider] raw prefs restore skip: $e');
-    }
-
-    // 4) 리포 fetchMyClubs + discoverable(creatorId)
-    for (final uid in aliases) {
+    // 3) Prefs 전수 스캔 — 데모 계정만
+    if (_isDemoSession) {
       try {
-        final remote =
-            await AppDependencies.instance.clubRepository.fetchMyClubs(uid);
-        for (final c in remote) {
-          if (_legacyMockClubIds.contains(c.id)) continue;
-          if (c.id.startsWith('seed_')) continue;
-          if (_ingestOwnedClub(c, const [])) changed = true;
+        if (await _restoreOwnedClubsFromRawPrefs(aliases, authUserId)) {
+          changed = true;
         }
       } catch (e) {
-        debugPrint('[ClubProvider] restore fetchMyClubs($uid) skip: $e');
+        debugPrint('[ClubProvider] raw prefs restore skip: $e');
       }
     }
+
+    // 4) 서버 멤버십 + 내가 만든 공개 모임
+    if (await _ingestServerMemberships(authUserId)) changed = true;
     try {
       final discoverable = await AppDependencies.instance.clubRepository
           .fetchDiscoverableClubs();
@@ -1051,7 +1065,8 @@ class ClubProvider extends ChangeNotifier with WidgetsBindingObserver {
     // 생성자 멤버 최소 보장
     final creatorId = 'm_creator_${club.id}';
     if (!_members.any((m) => m.id == creatorId) &&
-        club.id.startsWith('c_')) {
+        club.id.startsWith('c_') &&
+        _iAmClubCreator(club)) {
       _members.add(_selfMember(
         id: creatorId,
         name: currentUserName,
@@ -1064,6 +1079,97 @@ class ClubProvider extends ChangeNotifier with WidgetsBindingObserver {
       changed = true;
     }
     return changed;
+  }
+
+  Future<bool> _ingestServerMemberships(String authUserId) async {
+    var changed = false;
+    try {
+      final remote = await AppDependencies.instance.clubRepository
+          .fetchMyClubs(authUserId);
+      for (final c in remote) {
+        if (_legacyMockClubIds.contains(c.id)) continue;
+        if (c.id.startsWith('seed_')) continue;
+        if (_ingestOwnedClub(c, const [])) changed = true;
+      }
+    } catch (e) {
+      debugPrint('[ClubProvider] ingest fetchMyClubs skip: $e');
+    }
+    return changed;
+  }
+
+  bool _purgeDemoIdentityClubs() {
+    if (_isDemoSession) return false;
+    const demoCreators = {
+      'user_me',
+      'm1',
+      'user_guest',
+      'mg1',
+      'user_other',
+      'm4',
+    };
+    final drop = <String>{};
+    for (final c in _myClubs) {
+      if (_legacyMockClubIds.contains(c.id) || c.id.startsWith('seed_')) {
+        drop.add(c.id);
+        continue;
+      }
+      final cid = c.creatorId.trim();
+      if (cid.isEmpty || demoCreators.contains(cid)) drop.add(c.id);
+    }
+    if (drop.isEmpty) return false;
+    _myClubs.removeWhere((c) => drop.contains(c.id));
+    _allClubs.removeWhere((c) => drop.contains(c.id));
+    _freshClubIds.removeAll(drop);
+    _members.removeWhere((m) {
+      for (final id in drop) {
+        if (m.id == 'm_creator_$id' || m.id.startsWith('m_${id}_')) {
+          return true;
+        }
+      }
+      return false;
+    });
+    _schedules.removeWhere((s) => drop.contains(s.clubId));
+    debugPrint('[ClubProvider] purged demo-identity clubs $drop');
+    return true;
+  }
+
+  Future<void> _hydrateRosterFromServer(String clubId) async {
+    if (clubId.isEmpty || _legacyMockClubIds.contains(clubId)) return;
+    if (!AppDependencies.instance.isInitialized ||
+        AppDependencies.instance.isOfflineMockMode) {
+      return;
+    }
+    try {
+      final club = _myClubs.where((c) => c.id == clubId).firstOrNull;
+      final creatorUserId = club?.creatorId ?? '';
+      final remote = await AppDependencies.instance.memberRepository
+          .fetchMembers(clubId)
+          .timeout(const Duration(seconds: 8));
+      var changed = false;
+      for (final raw in remote) {
+        final id = Member.canonicalRosterId(
+          clubId: clubId,
+          rawId: raw.id,
+          creatorUserId: creatorUserId,
+        );
+        final row = id == raw.id ? raw : raw.withId(id);
+        final idx = _members.indexWhere((m) => m.id == id);
+        if (idx < 0) {
+          _members.add(row);
+          changed = true;
+        } else if (isPlaceholderMemberName(_members[idx].name) &&
+            row.name.trim().isNotEmpty &&
+            !isPlaceholderMemberName(row.name)) {
+          _members[idx] = row;
+          changed = true;
+        }
+      }
+      if (changed) {
+        _setMemberCount(clubId, membersForClub(clubId).length);
+      }
+    } catch (e) {
+      debugPrint('[ClubProvider] hydrate roster $clubId skip: $e');
+    }
   }
 
   /// 데모용 가짜 알림 제거 — 실제 액션으로 생긴 알림만 남김
@@ -1207,11 +1313,9 @@ class ClubProvider extends ChangeNotifier with WidgetsBindingObserver {
     for (final g in pairs) {
       if (g.contains(a) && g.contains(b)) return true;
     }
-    final me = <String>{
-      currentUserId,
-      if (_persistAuthUserId != null) _persistAuthUserId!,
-    };
-    return me.contains(a) && me.contains(b);
+    // 실계정 currentUserId 는 항상 m1 이다. {m1, 카카오id}를 같은 사람으로
+    // 묶으면 다른 테스터가 생성자·명단이 된다.
+    return false;
   }
 
   /// 명단 ID(m_creator_*, m_{clubId}_*)와 로그인 계정을 같은 사람으로 본다.
@@ -1227,10 +1331,7 @@ class ClubProvider extends ChangeNotifier with WidgetsBindingObserver {
     if (_myClubs.isEmpty) return false;
     final clubId = selectedClub.id;
     if (id == 'm_creator_$clubId') {
-      final cid = selectedClub.creatorId;
-      return cid.isEmpty ||
-          _userIdsMatch(cid, currentUserId) ||
-          _userIdsMatch(cid, _persistAuthUserId);
+      return _iAmClubCreator(selectedClub);
     }
     final prefix = 'm_${clubId}_';
     if (id.startsWith(prefix)) {
@@ -1388,7 +1489,8 @@ class ClubProvider extends ChangeNotifier with WidgetsBindingObserver {
             'user_guest',
             'mg1',
           ],
-          if (_persistAuthUserId == 'user_me' || currentUserId == 'm1') ...[
+          if (_isDemoSession &&
+              (_persistAuthUserId == 'user_me' || currentUserId == 'm1')) ...[
             'user_me',
             'm1',
           ],
@@ -4785,6 +4887,7 @@ class ClubProvider extends ChangeNotifier with WidgetsBindingObserver {
     _selectedClubIndex = index;
     if (index >= 0 && index < _myClubs.length) {
       _syncNextRound(_myClubs[index].id);
+      unawaited(_hydrateRosterFromServer(_myClubs[index].id));
     }
     ensureCreatorMembers();
     _watchSelectedClubOps();
@@ -4798,6 +4901,7 @@ class ClubProvider extends ChangeNotifier with WidgetsBindingObserver {
       _selectedClubIndex = idx;
       _syncNextRound(clubId);
       ensureCreatorMembers();
+      unawaited(_hydrateRosterFromServer(clubId));
       _watchSelectedClubOps();
       notifyListeners();
     }
@@ -4926,10 +5030,7 @@ class ClubProvider extends ChangeNotifier with WidgetsBindingObserver {
       if (_legacyMockClubIds.contains(club.id)) continue;
       _freshClubIds.add(club.id);
       final existing = membersForClub(club.id);
-      final iAmCreator = club.creatorId.isEmpty ||
-          _userIdsMatch(club.creatorId, currentUserId) ||
-          (_persistAuthUserId != null &&
-              _userIdsMatch(club.creatorId, _persistAuthUserId));
+      final iAmCreator = _iAmClubCreator(club);
 
       if (existing.isNotEmpty) {
         if (club.memberCount != existing.length) {
@@ -5019,10 +5120,7 @@ class ClubProvider extends ChangeNotifier with WidgetsBindingObserver {
   /// (전역 시드 'm1' 같은 맨 ID는 제외 — 실계정도 currentUserId 가 m1 이다)
   bool _isMyRosterRowFor(Club club, String memberId) {
     if (memberId == 'm_creator_${club.id}') {
-      final cid = club.creatorId;
-      return cid.isEmpty ||
-          _userIdsMatch(cid, currentUserId) ||
-          _userIdsMatch(cid, _persistAuthUserId);
+      return _iAmClubCreator(club);
     }
     final prefix = 'm_${club.id}_';
     if (!memberId.startsWith(prefix)) return false;
@@ -5033,17 +5131,13 @@ class ClubProvider extends ChangeNotifier with WidgetsBindingObserver {
 
   /// 초대 가입이 userId 그대로 들어가 명단에 안 보이던 행을 `m_{clubId}_{userId}`로 보정한다.
   bool ensureMyRosterRow(String clubId) {
-    final uid = currentUserId.trim();
+    final uid = (_persistAuthUserId ?? currentUserId).trim();
     if (uid.isEmpty || _legacyMockClubIds.contains(clubId)) return false;
     final rid = Member.rosterId(clubId, uid);
     if (_members.any((m) => m.id == rid)) return false;
 
     final club = _myClubs.where((c) => c.id == clubId).firstOrNull;
-    final iAmCreator = club != null &&
-        (club.creatorId.isEmpty ||
-            _userIdsMatch(club.creatorId, uid) ||
-            (_persistAuthUserId != null &&
-                _userIdsMatch(club.creatorId, _persistAuthUserId)));
+    final iAmCreator = club != null && _iAmClubCreator(club);
     if (iAmCreator && _members.any((m) => m.id == 'm_creator_$clubId')) {
       return false;
     }
@@ -5072,10 +5166,7 @@ class ClubProvider extends ChangeNotifier with WidgetsBindingObserver {
     var changed = false;
     for (final club in _myClubs) {
       if (_legacyMockClubIds.contains(club.id)) continue;
-      final iAmCreator = club.creatorId.isEmpty ||
-          _userIdsMatch(club.creatorId, currentUserId) ||
-          (_persistAuthUserId != null &&
-              _userIdsMatch(club.creatorId, _persistAuthUserId));
+      final iAmCreator = _iAmClubCreator(club);
       final authIds = <String>{
         if (club.creatorId.trim().isNotEmpty) club.creatorId.trim(),
       };
@@ -5524,6 +5615,7 @@ class ClubProvider extends ChangeNotifier with WidgetsBindingObserver {
     } catch (e) {
       debugPrint('[ClubProvider] joinViaInvite ops pull skip: $e');
     }
+    await _hydrateRosterFromServer(clubId);
 
     selectClubById(clubId);
     notifyListeners();
@@ -6020,7 +6112,8 @@ class ClubProvider extends ChangeNotifier with WidgetsBindingObserver {
         'user_guest',
         'mg1',
       ],
-      if (_persistAuthUserId == 'user_me' || currentUserId == 'm1') ...[
+      if (_isDemoSession &&
+          (_persistAuthUserId == 'user_me' || currentUserId == 'm1')) ...[
         'user_me',
         'm1',
       ],
@@ -8059,9 +8152,7 @@ class ClubProvider extends ChangeNotifier with WidgetsBindingObserver {
     final me = currentMember;
     final isCreator = isSelectedClubCreator ||
         (me != null && me.id == creatorId) ||
-        (creator != null &&
-            (selectedClub.creatorId.isEmpty ||
-                _userIdsMatch(selectedClub.creatorId, currentUserId)));
+        (creator != null && _iAmClubCreator(selectedClub));
 
     // 모임 스코프 명단을 소스로 사용 (전역 시드 m1 제외)
     Member? source = me;

@@ -326,6 +326,40 @@ class Member {
   static String rosterId(String clubId, String userId) =>
       'm_${clubId}_$userId';
 
+  /// Firestore 문서 id(카카오 id)를 명단 필터가 알아보는 id로 바꾼다.
+  static String canonicalRosterId({
+    required String clubId,
+    required String rawId,
+    String creatorUserId = '',
+  }) {
+    if (rawId == 'm_creator_$clubId' || rawId.startsWith('m_${clubId}_')) {
+      return rawId;
+    }
+    if (creatorUserId.isNotEmpty && rawId == creatorUserId) {
+      return 'm_creator_$clubId';
+    }
+    return rosterId(clubId, rawId);
+  }
+
+  Member withId(String id) => Member(
+        id: id,
+        name: name,
+        gender: gender,
+        birthDate: birthDate,
+        photoUrl: photoUrl,
+        phone: phone,
+        bio: bio,
+        memberType: memberType,
+        role: role,
+        handicap: handicap,
+        joinDate: joinDate,
+        address: address,
+        memo: memo,
+        status: status,
+        referrerId: referrerId,
+        referrerName: referrerName,
+      );
+
   Member({
     required this.id,
     required this.name,

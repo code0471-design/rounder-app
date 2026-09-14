@@ -1,6 +1,7 @@
 import 'dart:io';
 
 import 'package:flutter_test/flutter_test.dart';
+import 'package:golf_rounder/models/club_model.dart';
 
 String _read(String relative) => File(relative).readAsStringSync();
 
@@ -32,12 +33,13 @@ void main() {
       final join = _read('lib/providers/club_provider.dart');
       final start = join.indexOf('Future<bool> joinViaInvite(');
       expect(start, greaterThan(0));
-      final fn = join.substring(start, start + 5500);
+      final fn = join.substring(start, start + 8000);
       expect(fn.contains('club ??= Club('), isFalse);
       expect(fn.contains('joinViaInvite remote skip'), isFalse);
       expect(fn.contains('joinViaInvite remote fail'), isTrue);
       expect(fn.contains('seedIfMissing: false'), isTrue);
       expect(fn.contains('_persistAuthUserId ?? currentUserId'), isTrue);
+      expect(fn.contains('_hydrateRosterFromServer(clubId)'), isTrue);
       expect(fn.contains('addMemberViaInvite('), isTrue);
     });
 
@@ -53,6 +55,45 @@ void main() {
       final ops = _read('lib/services/club_ops_sync.dart');
       expect(ops.contains('bool seedIfMissing = true'), isTrue);
       expect(ops.contains('if (seedIfMissing)'), isTrue);
+      expect(ops.contains('skip empty ops create'), isTrue);
+    });
+  });
+
+  group('내부 테스터 실계정이 데모 명단과 섞이지 않는다', () {
+    test('실계정 별칭에 m1/user_me 를 넣지 않는다', () {
+      final src = _read('lib/providers/club_provider.dart');
+      final start = src.indexOf('Set<String> _authAliases');
+      expect(start, greaterThan(0));
+      final fn = src.substring(start, start + 900);
+      expect(fn.contains("currentUserId == 'm1'"), isFalse);
+      expect(fn.contains('_isDemoSession'), isTrue);
+    });
+
+    test('빈 creatorId 를 실계정 생성자로 보지 않는다', () {
+      final src = _read('lib/providers/club_provider.dart');
+      expect(src.contains('bool _iAmClubCreator'), isTrue);
+      expect(src.contains("if (cid.isEmpty) return false;"), isTrue);
+      expect(src.contains('_purgeDemoIdentityClubs'), isTrue);
+      expect(src.contains('_hydrateRosterFromServer'), isTrue);
+    });
+
+    test('명단 id 는 카카오 id 를 m_creator / m_{club}_ 로 바꾼다', () {
+      expect(
+        Member.canonicalRosterId(
+          clubId: 'c_arena',
+          rawId: 'kakao_1',
+          creatorUserId: 'kakao_1',
+        ),
+        'm_creator_c_arena',
+      );
+      expect(
+        Member.canonicalRosterId(
+          clubId: 'c_arena',
+          rawId: 'kakao_2',
+          creatorUserId: 'kakao_1',
+        ),
+        'm_c_arena_kakao_2',
+      );
     });
   });
 

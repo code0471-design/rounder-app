@@ -50,6 +50,19 @@ class ClubOpsSync {
       // 로컬 회비가 비어 원격만 있는 경우 merge:false 로 원격 납부를 지워버리지 않음
       final existing =
           await _db.doc(FirestorePaths.clubOpsBundle(clubId)).get();
+      if (!existing.exists) {
+        final members = slice['members'] as List? ?? const [];
+        final hasCreator = members.any(
+          (e) => e is Map && e['id'] == 'm_creator_$clubId',
+        );
+        final schedules = slice['schedules'] as List? ?? const [];
+        if (!hasCreator && schedules.isEmpty) {
+          debugPrint(
+            '[ClubOpsSync] skip empty ops create club=$clubId (invitee)',
+          );
+          return;
+        }
+      }
       if (existing.exists && existing.data() != null) {
         final remote = Map<String, dynamic>.from(existing.data()!);
         await _attachOverflowDocs(clubId, remote);
@@ -572,10 +585,14 @@ class ClubOpsSync {
     final encoded = ClubDataCodec.encode(local);
 
     List<dynamic> replaceClubList(List? localList, List? remoteList) {
+      // 초대 가입자가 빈 번들을 올리면 기존 일정이 통째로 사라진다.
+      if (remoteList == null || remoteList.isEmpty) {
+        return List<dynamic>.from(localList ?? const []);
+      }
       final kept = <dynamic>[
         ...(localList ?? []).where((e) => e is Map && e['clubId'] != clubId),
       ];
-      for (final e in remoteList ?? const []) {
+      for (final e in remoteList) {
         if (e is Map) {
           kept.add(Map<String, dynamic>.from(e));
         } else {

@@ -126,6 +126,90 @@ void main() {
     expect(merged.members.any((m) => m.id == 'm_c_test_u2'), isTrue);
   });
 
+  test('빈 원격 일정은 로컬 일정을 지우지 않는다', () {
+    final local = ClubDataBundle(
+      selectedClubIndex: 0,
+      freshClubIds: {'c_test'},
+      myClubs: [
+        Club(
+          id: 'c_test',
+          name: '테스트',
+          myRole: '총무',
+          memberCount: 1,
+          region: '서울',
+          industry: 'IT',
+          teamCount: 4,
+        ),
+      ],
+      allClubs: const [],
+      joinRequests: const [],
+      members: [
+        Member(
+          id: 'm_creator_c_test',
+          name: '안경헌',
+          gender: '남',
+          memberType: '정회원',
+          role: '회장',
+          joinDate: DateTime(2024, 1, 1),
+          status: '활성',
+        ),
+      ],
+      activities: const [],
+      announcements: const [],
+      appNotifications: const [],
+      duesSettings: const [],
+      duesPayments: const [],
+      paymentRequests: const [],
+      transactions: const [],
+      schedules: [
+        RoundSchedule(
+          id: 's_local',
+          clubId: 'c_test',
+          title: '로컬일정',
+          roundDate: DateTime(2026, 9, 1),
+          teeTime: '07:00',
+          courseName: 'A',
+          teamCount: 4,
+          status: ScheduleStatus.upcoming,
+          createdBy: '안경헌',
+        ),
+      ],
+      photos: const [],
+      groupAssignments: const {},
+      adApplications: const [],
+      adNotifications: const [],
+      sponsorApplications: const [],
+      pointEvents: const {},
+      awardRecords: const [],
+      thankYouMessages: const [],
+      waitingList: const [],
+      alimtalkSettings: const {},
+    );
+
+    final merged = ClubOpsSync.applyRemoteSlice(local, 'c_test', {
+      'schedules': <dynamic>[],
+      'announcements': <dynamic>[],
+      'members': <dynamic>[],
+      'activities': <dynamic>[],
+      'duesSettings': <dynamic>[],
+      'duesPayments': <dynamic>[],
+      'paymentRequests': <dynamic>[],
+      'transactions': <dynamic>[],
+      'photos': <dynamic>[],
+      'groupAssignments': <String, dynamic>{},
+      'waitingList': <dynamic>[],
+      'alimtalkSettings': <String, dynamic>{},
+      'adApplications': <dynamic>[],
+      'adNotifications': <dynamic>[],
+      'sponsorApplications': <dynamic>[],
+      'awardRecords': <dynamic>[],
+      'thankYouMessages': <dynamic>[],
+      'pointEvents': <String, dynamic>{},
+    });
+    expect(merged.schedules.any((s) => s.id == 's_local'), isTrue);
+    expect(merged.members.any((m) => m.id == 'm_creator_c_test'), isTrue);
+  });
+
   test('overflow attach 실패로 키가 없으면 로컬 일정·장부를 유지한다', () {
     final local = ClubDataBundle(
       selectedClubIndex: 0,
