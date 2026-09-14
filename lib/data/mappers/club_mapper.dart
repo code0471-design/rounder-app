@@ -57,7 +57,7 @@ abstract final class ClubMapper {
         'description': club.description,
         'created_at': Timestamp.fromDate(club.createdAt),
         'updated_at': FieldValue.serverTimestamp(),
-        'is_sample': true,
+        'is_sample': false,
         // 플랫폼 어드민 검수 상태 — 앱 탐색 목록은 active만 노출
         'moderation_status': 'active',
         'max_members': 20,
