@@ -1,6 +1,7 @@
 import 'dart:io';
 
 import 'package:flutter_test/flutter_test.dart';
+import 'package:golf_rounder/models/club_model.dart';
 import 'package:golf_rounder/providers/club_provider.dart';
 
 /// 실계정 이름이 데모 시드 이름('홍길동')으로 저장되던 버그 방지.
@@ -27,6 +28,24 @@ void main() {
       for (final name in ['안경헌', '김철수', 'Royce', '홍길순']) {
         expect(ClubProvider.isPlaceholderMemberName(name), isFalse);
       }
+    });
+
+    test('실모임 명단에서 홍길동은 회원으로 바꿔 보여 준다', () {
+      expect(provider.contains('withoutSeedDisplayName'), isTrue);
+      expect(provider.contains('_scrubSeedNamesFromFreshClubs'), isTrue);
+      expect(provider.contains('.map(withoutSeedDisplayName)'), isTrue);
+      final m = Member(
+        id: 'm_c_x_u1',
+        name: '홍길동',
+        gender: '남',
+        memberType: '정회원',
+        role: '일반',
+      );
+      expect(ClubProvider.withoutSeedDisplayName(m).name, '회원');
+      expect(
+        ClubProvider.withoutSeedDisplayName(m.copyWith(name: '안경헌')).name,
+        '안경헌',
+      );
     });
   });
 

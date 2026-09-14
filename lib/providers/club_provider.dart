@@ -151,6 +151,12 @@ class ClubProvider extends ChangeNotifier with WidgetsBindingObserver {
     'Apple 회원',
   };
 
+  /// 테스터 실모임 명단에는 시드 이름(홍길동 등)을 절대 보여 주지 않는다.
+  static Member withoutSeedDisplayName(Member m) {
+    if (!seedMemberNames.contains(m.name.trim())) return m;
+    return m.copyWith(name: '회원');
+  }
+
   /// 실제 이름으로 덮어써도 되는(= 사람이 입력한 값이 아닌) 이름인지.
   static bool isPlaceholderMemberName(String name) {
     final t = name.trim();
@@ -481,6 +487,7 @@ class ClubProvider extends ChangeNotifier with WidgetsBindingObserver {
     // 예전 빌드가 '홍길동'으로 저장해 둔 내 명단 행을 실제 이름으로 되돌린다.
     // ensureCreatorMembers 보다 먼저 — 아래에서 새로 만드는 행도 같은 이름을 쓴다.
     repairMyDisplayName(_currentUserName);
+    if (_scrubSeedNamesFromFreshClubs()) _persistImmediately();
 
     // 항상 실제 일정 기준으로 D-day 재동기화
     _syncAllNextRounds();
@@ -1625,6 +1632,7 @@ class ClubProvider extends ChangeNotifier with WidgetsBindingObserver {
     // 원격 명단이 로컬을 덮은 직후다. 여기서 다시 걸지 않으면
     // switchUser 에서 고친 내 이름이 '홍길동'으로 되돌아간다.
     _repairMyRosterNames(_currentUserName);
+    _scrubSeedNamesFromFreshClubs();
     // 강퇴·탈퇴 행은 tombstone 으로 등록해, 원격이 '활성'으로 되살리지 못하게 한다.
     ClubOpsSync.seedRemovedMembers(
       _members.where((m) => m.status != '활성').map((m) => m.id),
@@ -1900,6 +1908,7 @@ class ClubProvider extends ChangeNotifier with WidgetsBindingObserver {
           .where((m) =>
               m.id == 'm_creator_$clubId' ||
               m.id.startsWith('m_${clubId}_'))
+          .map(withoutSeedDisplayName)
           .toList();
     }
     // c1~c5 데모 모임은 공유 mock 회원 명단
@@ -5112,6 +5121,23 @@ class ClubProvider extends ChangeNotifier with WidgetsBindingObserver {
         _members[i] = m.copyWith(name: target);
         changed = true;
       }
+    }
+    return changed;
+  }
+
+  /// 실모임 명단에 남은 시드 이름(홍길동·이민준·박민준)을 '회원'으로 바꾼다.
+  /// 내 행은 `_repairMyRosterNames` 가 실제 이름으로 먼저 고친다.
+  bool _scrubSeedNamesFromFreshClubs() {
+    var changed = false;
+    for (var i = 0; i < _members.length; i++) {
+      final m = _members[i];
+      if (!seedMemberNames.contains(m.name.trim())) continue;
+      final ofFreshClub = _myClubs.any((c) =>
+          !_legacyMockClubIds.contains(c.id) &&
+          (m.id == 'm_creator_${c.id}' || m.id.startsWith('m_${c.id}_')));
+      if (!ofFreshClub) continue;
+      _members[i] = m.copyWith(name: '회원');
+      changed = true;
     }
     return changed;
   }
