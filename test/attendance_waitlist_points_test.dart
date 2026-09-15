@@ -1,0 +1,236 @@
+import 'dart:io';
+
+import 'package:flutter_test/flutter_test.dart';
+import 'package:golf_rounder/di/app_dependencies.dart';
+import 'package:golf_rounder/models/club_model.dart';
+import 'package:golf_rounder/providers/club_provider.dart';
+import 'package:shared_preferences/shared_preferences.dart';
+
+/// 정원 마감→대기, 불참 시 조편성 제외, 대기 1번 앱푸시, leftover 참석 포인트.
+void main() {
+  TestWidgetsFlutterBinding.ensureInitialized();
+
+  late ClubProvider clubs;
+  late String clubId;
+  late String creatorId;
+  late String leftoverId;
+  late String waiterId;
+  late String extraA;
+  late String extraB;
+  late String extraC;
+
+  setUpAll(() async {
+    SharedPreferences.setMockInitialValues({});
+    AppDependencies.instance.init(offlineMock: true);
+    clubs = ClubProvider();
+    await clubs.switchUser('kakao_waitlist', displayName: '안경현');
+    final ok = await clubs.createClub(
+      name: '대기포인트모임',
+      region: '서울',
+      industry: '골프',
+      teamCount: 1,
+      myRole: '회장,총무',
+    );
+    expect(ok, isTrue);
+    clubId = clubs.selectedClub.id;
+    clubs.selectClubById(clubId);
+    creatorId = clubs.currentMember!.id;
+    leftoverId = 'm_${clubId}_m1';
+    waiterId = 'm_${clubId}_kakao_wait';
+    extraA = 'm_${clubId}_a';
+    extraB = 'm_${clubId}_b';
+    extraC = 'm_${clubId}_c';
+    clubs.addMember(Member(
+      id: leftoverId,
+      name: 'Jeongwon Lee',
+      gender: '남',
+      memberType: '정회원',
+      role: '일반',
+      joinDate: DateTime(2026, 1, 1),
+    ));
+    clubs.addMember(Member(
+      id: waiterId,
+      name: '대기김',
+      gender: '남',
+      memberType: '정회원',
+      role: '일반',
+      joinDate: DateTime(2026, 1, 1),
+    ));
+    clubs.addMember(Member(
+      id: extraA,
+      name: '회원A',
+      gender: '남',
+      memberType: '정회원',
+      role: '일반',
+      joinDate: DateTime(2026, 1, 1),
+    ));
+    clubs.addMember(Member(
+      id: extraB,
+      name: '회원B',
+      gender: '남',
+      memberType: '정회원',
+      role: '일반',
+      joinDate: DateTime(2026, 1, 1),
+    ));
+    clubs.addMember(Member(
+      id: extraC,
+      name: '회원C',
+      gender: '남',
+      memberType: '정회원',
+      role: '일반',
+      joinDate: DateTime(2026, 1, 1),
+    ));
+  });
+
+  RoundSchedule sched(String id, {int teamCount = 1}) => RoundSchedule(
+        id: id,
+        clubId: clubId,
+        title: '만원 라운딩',
+        roundDate: DateTime(2026, 6, 1),
+        teeTime: '07:00',
+        courseName: '테스트CC',
+        teamCount: teamCount,
+        createdBy: '총무',
+      );
+
+  test('정원(팀수×4)이 차면 참석은 거부되고 대기로 등록된다', () {
+    clubs.addSchedule(sched('s_full'));
+    clubs.adminSetAttendance(
+      scheduleId: 's_full',
+      memberId: leftoverId,
+      memberName: 'Jeongwon Lee',
+      response: '참석',
+    );
+    clubs.adminSetAttendance(
+      scheduleId: 's_full',
+      memberId: extraA,
+      memberName: '회원A',
+      response: '참석',
+    );
+    clubs.adminSetAttendance(
+      scheduleId: 's_full',
+      memberId: extraB,
+      memberName: '회원B',
+      response: '참석',
+    );
+    clubs.adminSetAttendance(
+      scheduleId: 's_full',
+      memberId: extraC,
+      memberName: '회원C',
+      response: '참석',
+    );
+    expect(clubs.isAttendanceFull('s_full'), isTrue);
+    expect(
+      clubs.respondToSchedule(scheduleId: 's_full', response: '참석'),
+      isFalse,
+      reason: '정원 찬 일정은 참석 확정 대신 대기로 가야 한다',
+    );
+    clubs.addToWaitingList(
+      scheduleId: 's_full',
+      memberId: waiterId,
+      memberName: '대기김',
+    );
+    expect(clubs.waitingListForSchedule('s_full'), isNotEmpty);
+    expect(
+      clubs.waitingListForSchedule('s_full').first.status,
+      WaitingStatus.waiting,
+    );
+  });
+
+  test('불참하면 조편성에서 빠지고 대기 1번에게 앱 알림이 간다', () {
+    clubs.addSchedule(sched('s_drop'));
+    clubs.adminSetAttendance(
+      scheduleId: 's_drop',
+      memberId: leftoverId,
+      memberName: 'Jeongwon Lee',
+      response: '참석',
+    );
+    clubs.assignMember(
+      scheduleId: 's_drop',
+      groupIndex: 0,
+      slotIndex: 0,
+      slot: GroupSlot(
+        memberId: leftoverId,
+        memberName: 'Jeongwon Lee',
+        gender: '남',
+      ),
+    );
+    expect(
+      clubs.groupAssignment('s_drop')?.groupOfAny({leftoverId}),
+      1,
+    );
+    clubs.addToWaitingList(
+      scheduleId: 's_drop',
+      memberId: waiterId,
+      memberName: '대기김',
+    );
+    clubs.adminSetAttendance(
+      scheduleId: 's_drop',
+      memberId: leftoverId,
+      memberName: 'Jeongwon Lee',
+      response: '불참',
+    );
+    expect(
+      clubs.groupAssignment('s_drop')?.groupOfAny({leftoverId}),
+      isNull,
+      reason: '불참 회원이 조편성 슬롯에 남아 있으면 안 된다',
+    );
+    final waiters = clubs.waitingListForSchedule('s_drop');
+    expect(waiters.first.status, WaitingStatus.notified);
+    expect(
+      clubs.appNotifications.any((n) =>
+          n.title.contains('대기') &&
+          (n.targetUserId == waiterId || n.targetUserId == 'kakao_wait')),
+      isTrue,
+      reason: '대기 1번은 알림톡이 아니라 앱 알림+FCM 대상이어야 한다',
+    );
+  });
+
+  test('이정원이 지난 일정에 참석했는데 포인트가 0이면 안 된다', () {
+    final before = clubs.getMembershipPoints(leftoverId, year: 2026);
+    final ok = clubs.importPastSchedule(
+      title: '4월 라운딩',
+      roundDate: DateTime(2026, 4, 12),
+      attendeeIds: [leftoverId],
+    );
+    expect(ok, isTrue);
+    expect(
+      clubs.getMembershipPoints(leftoverId, year: 2026),
+      greaterThanOrEqualTo(before + 10),
+      reason: '지난 일정 참석은 leftover 키로 +10 적립돼야 한다',
+    );
+    expect(
+      clubs.getMembershipPoints(creatorId, year: 2026),
+      0,
+      reason: '이정원 참석 포인트가 생성자 랭킹으로 넘어가면 안 된다',
+    );
+  });
+
+  test('랭킹·시상 연도는 올해만 나오지 않는다', () {
+    final years = clubs.rankingYearsAvailable();
+    expect(years.contains(DateTime.now().year), isTrue);
+    expect(years.contains(DateTime.now().year - 1), isTrue);
+    expect(clubs.awardYearsAvailable(), years);
+    clubs.addMembershipPoint(
+      memberId: leftoverId,
+      type: MembershipPointType.roundAttendance,
+      points: 10,
+      desc: '작년 참석|s_2025',
+      date: DateTime(2025, 5, 1),
+    );
+    expect(clubs.getMembershipPoints(leftoverId, year: 2025), 10);
+    expect(
+      clubs.memberPointsRankingForYear(2025).any((e) => e.key == leftoverId),
+      isTrue,
+    );
+  });
+
+  test('회원 화면 랭킹 자세히보기에 연도 선택이 있다', () {
+    final src =
+        File('lib/screens/members/members_screen.dart').readAsStringSync();
+    expect(src.contains('rankingYearsAvailable()'), isTrue);
+    expect(src.contains('memberPointsRankingForYear(year)'), isTrue);
+    expect(src.contains('(올해 기준)'), isFalse,
+        reason: '랭킹도 시상처럼 연도 드롭다운이어야 한다');
+  });
+}

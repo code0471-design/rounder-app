@@ -388,138 +388,169 @@ class _MembersScreenState extends State<MembersScreen>
   // 전체 랭킹 바텀시트
   // ────────────────────────────────
   void _showFullRankingSheet(ClubProvider provider) {
-    final ranking = provider.memberPointsRanking;
+    var year = DateTime.now().year;
     showModalBottomSheet(
       context: context,
       isScrollControlled: true,
       backgroundColor: AppColors.surface,
       shape: const RoundedRectangleBorder(
           borderRadius: BorderRadius.vertical(top: Radius.circular(20))),
-      builder: (_) => DraggableScrollableSheet(
-        expand: false,
-        initialChildSize: 0.6,
-        maxChildSize: 0.9,
-        builder: (ctx, scrollCtrl) => Column(
-          children: [
-            // 핸들
-            Padding(
-              padding: const EdgeInsets.symmetric(vertical: 12),
-              child: Container(
-                width: 40, height: 4,
-                decoration: BoxDecoration(
-                    color: Colors.grey.shade300,
-                    borderRadius: BorderRadius.circular(2)),
-              ),
-            ),
-            // 헤더
-            const Padding(
-              padding: EdgeInsets.fromLTRB(20, 0, 20, 12),
-              child: Row(
-                children: [
-                  Text('🏅', style: TextStyle(fontSize: 20)),
-                  SizedBox(width: 8),
-                  Text('멤버십 포인트 랭킹',
-                      style: TextStyle(
-                          fontSize: 17, fontWeight: FontWeight.bold)),
-                  SizedBox(width: 6),
-                  Text('(올해 기준)',
-                      style: TextStyle(
-                          fontSize: 12, color: AppColors.textSecondary)),
-                ],
-              ),
-            ),
-            const Divider(height: 1),
-            // 랭킹 목록
-            Expanded(
-              child: ListView.builder(
-                controller: scrollCtrl,
-                padding: const EdgeInsets.symmetric(vertical: 8),
-                itemCount: ranking.length,
-                itemBuilder: (_, idx) {
-                  final entry = ranking[idx];
-                  final memberId = entry.key;
-                  final pts = entry.value;
-                  final memberObj = provider.activeMembers
-                      .where((m) => m.id == memberId)
-                      .firstOrNull;
-                  final name = memberObj?.name ?? memberId;
-                  final rank = idx + 1;
-                  final rankLabel = rank == 1
-                      ? '🥇'
-                      : rank == 2
-                          ? '🥈'
-                          : rank == 3
-                              ? '🥉'
-                              : '$rank';
-                  return ListTile(
-                    leading: SizedBox(
-                      width: 32,
-                      child: Center(
-                        child: Text(rankLabel,
+      builder: (_) => StatefulBuilder(
+        builder: (ctx, setSheet) {
+          final years = provider.rankingYearsAvailable();
+          final ranking = provider.memberPointsRankingForYear(year);
+          return DraggableScrollableSheet(
+            expand: false,
+            initialChildSize: 0.6,
+            maxChildSize: 0.9,
+            builder: (ctx, scrollCtrl) => Column(
+              children: [
+                Padding(
+                  padding: const EdgeInsets.symmetric(vertical: 12),
+                  child: Container(
+                    width: 40,
+                    height: 4,
+                    decoration: BoxDecoration(
+                        color: Colors.grey.shade300,
+                        borderRadius: BorderRadius.circular(2)),
+                  ),
+                ),
+                Padding(
+                  padding: const EdgeInsets.fromLTRB(20, 0, 20, 12),
+                  child: Row(
+                    children: [
+                      const Text('🏅', style: TextStyle(fontSize: 20)),
+                      const SizedBox(width: 8),
+                      const Expanded(
+                        child: Text('멤버십 포인트 랭킹',
                             style: TextStyle(
-                                fontSize: rank <= 3 ? 20 : 14,
-                                fontWeight: FontWeight.bold,
-                                color: AppColors.textSecondary)),
+                                fontSize: 17, fontWeight: FontWeight.bold)),
                       ),
-                    ),
-                    title: Text(name,
-                        style: const TextStyle(
-                            fontWeight: FontWeight.w600, fontSize: 14)),
-                    subtitle: Text(memberObj?.role ?? '',
-                        style: const TextStyle(fontSize: 11)),
-                    trailing: Container(
-                      padding: const EdgeInsets.symmetric(
-                          horizontal: 12, vertical: 4),
-                      decoration: BoxDecoration(
-                        color: rank <= 3
-                            ? const Color(0xFF1A237E).withValues(alpha: 0.1)
-                            : AppColors.background,
-                        borderRadius: BorderRadius.circular(20),
-                      ),
-                      child: Text(
-                        '$pts P',
-                        style: TextStyle(
-                          fontWeight: FontWeight.bold,
-                          color: rank <= 3
-                              ? const Color(0xFF1A237E)
-                              : AppColors.textPrimary,
-                          fontSize: 14,
+                      DropdownButtonHideUnderline(
+                        child: DropdownButton<int>(
+                          value: years.contains(year) ? year : years.first,
+                          isDense: true,
+                          borderRadius: BorderRadius.circular(10),
+                          items: [
+                            for (final y in years)
+                              DropdownMenuItem(
+                                value: y,
+                                child: Text(
+                                  '$y년',
+                                  style: const TextStyle(
+                                    fontSize: 14,
+                                    fontWeight: FontWeight.w700,
+                                  ),
+                                ),
+                              ),
+                          ],
+                          onChanged: (v) {
+                            if (v == null) return;
+                            setSheet(() => year = v);
+                          },
                         ),
                       ),
-                    ),
-                  );
-                },
-              ),
+                    ],
+                  ),
+                ),
+                const Divider(height: 1),
+                Expanded(
+                  child: ranking.isEmpty
+                      ? const Center(
+                          child: Text('해당 연도 포인트가 없습니다',
+                              style: TextStyle(
+                                  fontSize: 13, color: Color(0xFF6B7280))),
+                        )
+                      : ListView.builder(
+                          controller: scrollCtrl,
+                          padding: const EdgeInsets.symmetric(vertical: 8),
+                          itemCount: ranking.length,
+                          itemBuilder: (_, idx) {
+                            final entry = ranking[idx];
+                            final memberId = entry.key;
+                            final pts = entry.value;
+                            final memberObj = provider.activeMembers
+                                .where((m) => m.id == memberId)
+                                .firstOrNull;
+                            final name = memberObj?.name ?? memberId;
+                            final rank = idx + 1;
+                            final rankLabel = rank == 1
+                                ? '🥇'
+                                : rank == 2
+                                    ? '🥈'
+                                    : rank == 3
+                                        ? '🥉'
+                                        : '$rank';
+                            return ListTile(
+                              leading: SizedBox(
+                                width: 32,
+                                child: Center(
+                                  child: Text(rankLabel,
+                                      style: TextStyle(
+                                          fontSize: rank <= 3 ? 20 : 14,
+                                          fontWeight: FontWeight.bold,
+                                          color: AppColors.textSecondary)),
+                                ),
+                              ),
+                              title: Text(name,
+                                  style: const TextStyle(
+                                      fontWeight: FontWeight.w600,
+                                      fontSize: 14)),
+                              subtitle: Text(memberObj?.role ?? '',
+                                  style: const TextStyle(fontSize: 11)),
+                              trailing: Container(
+                                padding: const EdgeInsets.symmetric(
+                                    horizontal: 12, vertical: 4),
+                                decoration: BoxDecoration(
+                                  color: rank <= 3
+                                      ? const Color(0xFF1A237E)
+                                          .withValues(alpha: 0.1)
+                                      : AppColors.background,
+                                  borderRadius: BorderRadius.circular(20),
+                                ),
+                                child: Text(
+                                  '$pts P',
+                                  style: TextStyle(
+                                    fontWeight: FontWeight.bold,
+                                    color: rank <= 3
+                                        ? const Color(0xFF1A237E)
+                                        : AppColors.textPrimary,
+                                    fontSize: 14,
+                                  ),
+                                ),
+                              ),
+                            );
+                          },
+                        ),
+                ),
+                Container(
+                  margin: const EdgeInsets.all(16),
+                  padding: const EdgeInsets.all(12),
+                  decoration: BoxDecoration(
+                    color: AppColors.background,
+                    borderRadius: BorderRadius.circular(10),
+                  ),
+                  child: const Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text('포인트 적립 기준',
+                          style: TextStyle(
+                              fontSize: 12,
+                              fontWeight: FontWeight.bold,
+                              color: AppColors.textSecondary)),
+                      SizedBox(height: 6),
+                      _PointGuideRow(label: '라운딩 참석', pts: '+10 P'),
+                      _PointGuideRow(label: '회비 정시납부', pts: '+5 P'),
+                      _PointGuideRow(label: '공지 댓글', pts: '+2 P'),
+                      _PointGuideRow(
+                          label: '노쇼', pts: '-10 P', negative: true),
+                    ],
+                  ),
+                ),
+              ],
             ),
-            // 포인트 기준 안내
-            Container(
-              margin: const EdgeInsets.all(16),
-              padding: const EdgeInsets.all(12),
-              decoration: BoxDecoration(
-                color: AppColors.background,
-                borderRadius: BorderRadius.circular(10),
-              ),
-              child: const Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Text('포인트 적립 기준',
-                      style: TextStyle(
-                          fontSize: 12,
-                          fontWeight: FontWeight.bold,
-                          color: AppColors.textSecondary)),
-                  SizedBox(height: 6),
-                  _PointGuideRow(label: '라운딩 참석', pts: '+10 P'),
-                  // 마감일 안에 낸 회비만 적립된다 — 연체는 0P.
-                  _PointGuideRow(label: '회비 정시납부', pts: '+5 P'),
-                  // 댓글 1건당 적립.
-                  _PointGuideRow(label: '공지 댓글', pts: '+2 P'),
-                  // _PointGuideRow(label: '후원사 감사인사', pts: '+2 P'),
-                  _PointGuideRow(label: '노쇼', pts: '-10 P', negative: true),
-                ],
-              ),
-            ),
-          ],
-        ),
+          );
+        },
       ),
     );
   }

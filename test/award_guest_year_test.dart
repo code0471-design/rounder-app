@@ -68,6 +68,9 @@ void main() {
     final regularAward =
         clubs.allAwardRecords.firstWhere((r) => r.id == 'ar_regular');
     expect(clubs.regularAwardWinnerNames(regularAward), isNotEmpty);
-    expect(clubs.awardYearsAvailable().contains(DateTime.now().year), isTrue);
+    final years = clubs.awardYearsAvailable();
+    expect(years.contains(DateTime.now().year), isTrue);
+    expect(years.contains(DateTime.now().year - 1), isTrue,
+        reason: '시상 연도가 올해만 나오면 작년 기록을 고를 수 없다');
   });
 }

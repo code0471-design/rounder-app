@@ -13,7 +13,7 @@ void main() {
   late String clubId;
   late String creatorId;
 
-  setUp(() async {
+  setUpAll(() async {
     SharedPreferences.setMockInitialValues({});
     AppDependencies.instance.init(offlineMock: true);
     clubs = ClubProvider();
@@ -157,15 +157,21 @@ void main() {
     expect(clubs.getMemberAwardCount(creatorId, year: 2026), 3);
   });
 
-  test('m_{club}_m1 에 쌓인 포인트는 이정원이 아니라 생성자 점수다', () {
+  test('이정원 leftover 행 포인트는 생성자와 섞이지 않는다', () {
+    final leftoverId = 'm_${clubId}_m1';
+    final creatorBefore = clubs.getMembershipPoints(creatorId);
     clubs.addMembershipPoint(
-      memberId: 'm_${clubId}_m1',
-      type: MembershipPointType.commentActivity,
-      points: 27,
-      desc: 'leaked m1 identity',
+      memberId: leftoverId,
+      type: MembershipPointType.roundAttendance,
+      points: 10,
+      desc: '3월 라운딩 참석|s_past',
     );
-    expect(clubs.getMembershipPoints('m_${clubId}_m1'), 0);
-    expect(clubs.getMembershipPoints(creatorId), greaterThanOrEqualTo(27));
+    expect(clubs.getMembershipPoints(leftoverId), greaterThanOrEqualTo(10));
+    expect(
+      clubs.getMembershipPoints(creatorId),
+      creatorBefore,
+      reason: '이정원 참석 포인트가 안경헌 랭킹으로 넘어가면 안 된다',
+    );
   });
 
   test('이정원 행에 복사된 생성자 사진·생일은 지운다', () {

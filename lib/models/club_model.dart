@@ -1575,6 +1575,16 @@ class GroupAssignment {
     return null;
   }
 
+  /// 별칭 ID(카카오/명단) 중 하나라도 들어 있으면 그 조.
+  int? groupOfAny(Iterable<String> memberIds) {
+    final ids = memberIds.toSet();
+    if (ids.isEmpty) return null;
+    for (final g in groups) {
+      if (g.memberIds.any(ids.contains)) return g.groupNumber;
+    }
+    return null;
+  }
+
   GroupAssignment copyWith({
     int? teamCount,
     int? perGroup,

@@ -75,11 +75,11 @@ void main() {
     // 상세 화면·상세에서 여는 카드/시트가 있는 구간만 본다.
     // (일정 목록·등록 폼은 아직 그린을 쓴다 — 별도 작업)
     const ranges = [
-      [1013, 1969], // ScheduleDetailScreen 본문 + 응답 다이얼로그
-      [2258, 2569], // 응답 마감 · 대기 명단
-      [2560, 2829], // 참석 현황
-      [4831, 5233], // 조편성 카드
-      [5234, 5439], // 스코어 & 시상
+      [1103, 2046], // ScheduleDetailScreen 본문 + 응답 다이얼로그
+      [2357, 2658], // 응답 마감 · 대기 명단
+      [2659, 2895], // 참석 현황
+      [4948, 5341], // 조편성 카드
+      [5342, 5546], // 스코어 & 시상
     ];
 
     final offenders = <String>[];
@@ -139,10 +139,19 @@ void main() {
       isTrue,
     );
     expect(
-      source.contains('조편성이 확정되었기 때문에 불참 변경시 총무에게 알림이 갑니다'),
+      source.contains('조편성에서도 빠집니다'),
       isTrue,
-      reason: '조편성 확정 후 불참 변경 안내 얼럿이 사라짐',
+      reason: '불참 시 조편성 제외 안내가 사라지면 안 됨',
     );
+    expect(
+      source.contains('대기 1번에게 앱 푸시'),
+      isTrue,
+      reason: '대기 1번 연락 방식이 불참 확인에 있어야 한다',
+    );
+    expect(source.contains('provider.isAttendanceFull(schedule.id)'), isTrue,
+        reason: '정원 마감은 effectiveCapacity로 봐야 대기가 열린다');
+    expect(source.contains('maxCapacity ?? 9999'), isFalse,
+        reason: 'maxCapacity 없으면 9999로 봐서 대기가 영영 안 열린다');
   });
 
   test('조편성 보기 헤더는 확정·편집을 세로로 두고 안내를 두 줄로 쓴다', () {

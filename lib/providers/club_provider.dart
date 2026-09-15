@@ -1817,6 +1817,7 @@ class ClubProvider extends ChangeNotifier with WidgetsBindingObserver {
     _scrubSeedAuthorNames();
     _repairCopiedIdentityOnLegacyM1Rows();
     _syncSelfDisplayName();
+    _backfillMissingAttendancePoints();
   }
 
   // ── 내가 속한 모임 선택 인덱스 ─────────────────────────
@@ -4109,16 +4110,18 @@ class ClubProvider extends ChangeNotifier with WidgetsBindingObserver {
   }) {
     final assignment = _groupAssignments[scheduleId];
     if (assignment == null) return;
-    final groupNo = assignment.groupOf(memberId);
+    final groupNo = assignment.groupOfAny(_memberAliasIds(memberId));
     if (groupNo == null && !assignment.isFinalized) return;
 
     if (groupNo != null) {
+      final aliases = _memberAliasIds(memberId);
       final groups = List<AssignGroup>.from(assignment.groups);
       for (var gi = 0; gi < groups.length; gi++) {
         final slots = List<GroupSlot>.from(groups[gi].slots);
         var changed = false;
         for (var si = 0; si < slots.length; si++) {
-          if (slots[si].memberId == memberId) {
+          final sid = slots[si].memberId;
+          if (sid != null && aliases.contains(sid)) {
             slots[si] = const GroupSlot();
             changed = true;
           }
@@ -5552,7 +5555,7 @@ class ClubProvider extends ChangeNotifier with WidgetsBindingObserver {
 
   Future<void> _pushOwnedClubCatalog() async {
     if (_isDemoSession) return;
-    for (final club in _myClubs) {
+    for (final club in List<Club>.from(_myClubs)) {
       if (_legacyMockClubIds.contains(club.id)) continue;
       if (!_iAmClubCreator(club)) continue;
       if (club.name.trim().isEmpty) continue;
@@ -7597,8 +7600,10 @@ class ClubProvider extends ChangeNotifier with WidgetsBindingObserver {
   /// 로그인 사용자의 키를 다른 회원에게 합치면, `m_{club}_m1` 같은
   /// 옛 명단 행이 총무와 같은 점수를 받는다.
   Set<String> _membershipPointKeysFor(String memberId) {
-    // 실계정 m1 시절에 총무 활동이 이 키로 저장됐다. 그 행(이정원) 점수가 아니다.
-    if (_isLegacyM1RosterId(memberId)) return <String>{};
+    // leftover m_{club}_m1 은 이정원 행. 생성자 m1 키를 합치면 안 된다.
+    if (_isLegacyM1RosterId(memberId) && memberId != 'm1') {
+      return <String>{memberId};
+    }
 
     final keys = <String>{memberId};
     if (_myClubs.isEmpty) return keys;
@@ -7616,7 +7621,6 @@ class ClubProvider extends ChangeNotifier with WidgetsBindingObserver {
       if (_iAmClubCreator(selectedClub)) {
         keys.add(creatorId);
         keys.add('m1');
-        keys.add(_legacyM1RosterId(clubId));
       }
     } else if (memberId == creatorId) {
       final cid = selectedClub.creatorId.trim();
@@ -7626,30 +7630,40 @@ class ClubProvider extends ChangeNotifier with WidgetsBindingObserver {
       }
       if (!_isDemoSession) {
         keys.add('m1');
-        keys.add(_legacyM1RosterId(clubId));
       }
     }
     return keys;
   }
 
-  /// 특정 회원의 올해 멤버십 포인트 합산
-  int getMembershipPoints(String memberId) {
-    final now = DateTime.now();
+  Set<String> _memberAliasIds(String memberId) {
+    return {
+      memberId,
+      canonicalMemberId(memberId),
+      ..._membershipPointKeysFor(memberId),
+    };
+  }
+
+  /// 특정 회원의 멤버십 포인트 합산. year 없으면 올해.
+  int getMembershipPoints(String memberId, {int? year}) {
+    final y = year ?? DateTime.now().year;
     var sum = 0;
     for (final key in _membershipPointKeysFor(memberId)) {
       final events = _pointEvents[key] ?? const <MembershipPointEvent>[];
       for (final e in events) {
-        if (e.date.year == now.year) sum += e.points;
+        if (e.date.year == y) sum += e.points;
       }
     }
     return sum;
   }
 
-  /// 선택 모임 활성 회원 포인트 랭킹 (내림차순)
-  List<MapEntry<String, int>> get memberPointsRanking {
+  /// 선택 모임 활성 회원 포인트 랭킹 (올해, 내림차순)
+  List<MapEntry<String, int>> get memberPointsRanking =>
+      memberPointsRankingForYear(DateTime.now().year);
+
+  List<MapEntry<String, int>> memberPointsRankingForYear(int year) {
     final result = <MapEntry<String, int>>[];
     for (final m in activeMembers) {
-      result.add(MapEntry(m.id, getMembershipPoints(m.id)));
+      result.add(MapEntry(m.id, getMembershipPoints(m.id, year: year)));
     }
     result.sort((a, b) => b.value.compareTo(a.value));
     return result;
@@ -7765,6 +7779,50 @@ class ClubProvider extends ChangeNotifier with WidgetsBindingObserver {
     );
   }
 
+  bool _hasAttendanceCredit(String memberId, String scheduleId) {
+    final tag = '|$scheduleId';
+    for (final key in _memberAliasIds(memberId)) {
+      for (final e in _pointEvents[key] ?? const <MembershipPointEvent>[]) {
+        if (e.type == MembershipPointType.roundAttendance &&
+            e.points > 0 &&
+            e.desc.contains(tag)) {
+          return true;
+        }
+      }
+    }
+    return false;
+  }
+
+  bool _hasAttendanceDeducted(String memberId, String scheduleId) {
+    final tag = '|$scheduleId';
+    for (final key in _memberAliasIds(memberId)) {
+      for (final e in _pointEvents[key] ?? const <MembershipPointEvent>[]) {
+        if (e.points < 0 && e.desc.contains(tag)) return true;
+      }
+    }
+    return false;
+  }
+
+  /// 참석 응답은 있는데 포인트 이력이 없는 회원(이정원 leftover 등)을 채운다.
+  void _backfillMissingAttendancePoints() {
+    var added = false;
+    for (final s in _schedules) {
+      for (final r in s.responses) {
+        if (r.response != '참석') continue;
+        if (_hasAttendanceCredit(r.memberId, s.id)) continue;
+        _appendPointEvent(
+          memberId: r.memberId,
+          type: MembershipPointType.roundAttendance,
+          points: 10,
+          desc: '${s.displayTitle} 참석|${s.id}',
+          date: s.roundDate,
+        );
+        added = true;
+      }
+    }
+    if (added && !_suppressPersist) _persistImmediately();
+  }
+
   void _syncAttendancePoints({
     required String memberId,
     required String scheduleId,
@@ -7772,33 +7830,44 @@ class ClubProvider extends ChangeNotifier with WidgetsBindingObserver {
     required String? prev,
     required String response,
   }) {
-    final tag = '|$scheduleId';
-    final events = _pointEvents[memberId] ?? [];
+    final date = scheduleById(scheduleId)?.roundDate ?? DateTime.now();
     if (response == '참석' && prev != '참석') {
-      final already = events.any((e) =>
-          e.type == MembershipPointType.roundAttendance &&
-          e.points > 0 &&
-          e.desc.contains(tag));
-      if (!already) {
+      if (!_hasAttendanceCredit(memberId, scheduleId)) {
         addMembershipPoint(
           memberId: memberId,
           type: MembershipPointType.roundAttendance,
           points: 10,
-          desc: '$scheduleTitle 참석$tag',
+          desc: '$scheduleTitle 참석|$scheduleId',
+          date: date,
         );
       }
     } else if (prev == '참석' && response == '불참') {
-      final alreadyDeducted = events.any((e) =>
-          e.points < 0 && e.desc.contains(tag));
-      if (!alreadyDeducted) {
+      if (!_hasAttendanceDeducted(memberId, scheduleId)) {
         addMembershipPoint(
           memberId: memberId,
           type: MembershipPointType.noShow,
           points: -10,
-          desc: '$scheduleTitle 불참 변경$tag',
+          desc: '$scheduleTitle 불참 변경|$scheduleId',
+          date: date,
         );
       }
     }
+  }
+
+  void _appendPointEvent({
+    required String memberId,
+    required MembershipPointType type,
+    required int points,
+    required String desc,
+    required DateTime date,
+  }) {
+    _pointEvents.putIfAbsent(memberId, () => []);
+    _pointEvents[memberId]!.add(MembershipPointEvent(
+      type: type,
+      points: points,
+      desc: desc,
+      date: date,
+    ));
   }
 
   /// 포인트 적립 (클럽 회원 id 기준으로 저장 + 즉시 영속화)
@@ -7807,6 +7876,7 @@ class ClubProvider extends ChangeNotifier with WidgetsBindingObserver {
     required MembershipPointType type,
     required int points,
     required String desc,
+    DateTime? date,
   }) {
     var canonical = memberId;
     if (memberId == currentUserId ||
@@ -7817,13 +7887,13 @@ class ClubProvider extends ChangeNotifier with WidgetsBindingObserver {
           ? 'm_creator_${selectedClub.id}'
           : canonicalMemberId(me);
     }
-    _pointEvents.putIfAbsent(canonical, () => []);
-    _pointEvents[canonical]!.add(MembershipPointEvent(
+    _appendPointEvent(
+      memberId: canonical,
       type: type,
       points: points,
       desc: desc,
-      date: DateTime.now(),
-    ));
+      date: date ?? DateTime.now(),
+    );
     notifyListeners();
     _persistImmediately();
   }
@@ -7947,12 +8017,26 @@ class ClubProvider extends ChangeNotifier with WidgetsBindingObserver {
     return map;
   }
 
-  List<int> awardYearsAvailable() {
-    final years = {for (final r in _awardRecords) awardEventDate(r).year};
-    years.add(DateTime.now().year);
-    final list = years.toList()..sort((a, b) => b.compareTo(a));
-    return list;
+  List<int> rankingYearsAvailable() {
+    final now = DateTime.now().year;
+    final years = <int>{now, now - 1, now - 2};
+    for (final list in _pointEvents.values) {
+      for (final e in list) {
+        years.add(e.date.year);
+      }
+    }
+    for (final s in _schedules) {
+      years.add(s.roundDate.year);
+    }
+    for (final r in _awardRecords) {
+      years.add(awardEventDate(r).year);
+    }
+    final filtered = years.where((y) => y >= 2020 && y <= now + 1).toList()
+      ..sort((a, b) => b.compareTo(a));
+    return filtered;
   }
+
+  List<int> awardYearsAvailable() => rankingYearsAvailable();
 
   /// 특정 회원의 올해 시상 횟수
   int getMemberAwardCount(String memberId, {int? year}) {
@@ -8292,15 +8376,18 @@ class ClubProvider extends ChangeNotifier with WidgetsBindingObserver {
       status: WaitingStatus.waiting,
     ));
     notifyListeners();
+    _persistImmediately();
   }
 
   /// 대기 취소
   void cancelWaiting(String waitingId) {
     _waitingList.removeWhere((w) => w.id == waitingId);
     notifyListeners();
+    _persistImmediately();
   }
 
-  /// 대기자 알림 (취소자 발생 시 첫 번째 대기자에게 알림 발송 시뮬레이션)
+  /// 대기 1번 연락: 앱 알림 + FCM. 알림톡은 나가지 않는다.
+  /// 자동 참석 확정은 하지 않는다. 대기자가 참석으로 응답해야 들어온다.
   void notifyFirstWaiting(String scheduleId) {
     final waiters = waitingListForSchedule(scheduleId)
         .where((w) => w.status == WaitingStatus.waiting)
@@ -8319,21 +8406,23 @@ class ClubProvider extends ChangeNotifier with WidgetsBindingObserver {
         notifiedAt: DateTime.now(),
       );
     }
-    // 푸시 알림 시뮬레이션
     final schedule = scheduleById(scheduleId);
+    final inboxId = _fcmInboxIdFor(firstWaiter.memberId);
     addAppNotification(AppNotification(
       id: 'noti_wl_${DateTime.now().millisecondsSinceEpoch}',
       type: AppNotificationType.announcement,
       clubId: schedule?.clubId ?? selectedClub.id,
       clubName: selectedClub.name,
-      title: '참석 가능 알림',
+      title: '대기 순번 — 참석 가능',
       body:
-          '${schedule?.title ?? '라운딩'}에 자리가 생겼습니다. 참석으로 응답하면 확정됩니다.',
+          '${schedule?.displayTitle ?? '라운딩'}에 자리가 생겼습니다. 12시간 안에 참석으로 응답하면 확정됩니다.',
       createdAt: DateTime.now(),
-      targetUserId: firstWaiter.memberId,
+      targetId: scheduleId,
+      targetUserId: inboxId.isNotEmpty ? inboxId : firstWaiter.memberId,
       isRead: false,
     ));
     notifyListeners();
+    _persistImmediately();
   }
 
   /// 대기자가 참석으로 확정할 때 대기 상태 → accepted

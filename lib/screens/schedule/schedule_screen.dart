@@ -733,14 +733,12 @@ class _AttendButton extends StatelessWidget {
                   onTap: () async {
                     final sheetCtx = context;
                     // 마감 여부 체크
-                    final cnt = schedule.responses
-                        .where((r) => r.response == '참석').length;
-                    final maxCap = schedule.maxCapacity ?? 9999;
-                    final isFull = cnt >= maxCap && currentResponse != '참석';
+                    final isFull = currentResponse != '참석' &&
+                        provider.isAttendanceFull(schedule.id);
 
                     Navigator.pop(sheetCtx);
                     if (isFull) {
-                      _showAttendFullDialog(sheetCtx);
+                      _showAttendFullDialog(sheetCtx, provider);
                       return;
                     }
                     final confirmed = await _showAttendConfirmDialog(sheetCtx, '참석');
@@ -896,11 +894,29 @@ class _AttendButton extends StatelessWidget {
                 style: TextStyle(fontSize: 17, fontWeight: FontWeight.w700)),
           ],
         ),
-        content: Text(
-          notifyTreasurer
-              ? '조편성이 확정되었기 때문에 불참 변경시 총무에게 알림이 갑니다. 불참으로 변경하시겠습니까?'
-              : '이번 모임에 불참하시겠습니까?\n\n참석명단이 마감될 경우 참석으로 변경하면 대기 상태로 등록됩니다.',
-          style: const TextStyle(fontSize: 14, height: 1.6),
+        content: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            const Text(
+              '불참으로 바꾸면 조편성에서도 빠집니다.',
+              style: TextStyle(
+                  fontSize: 15, height: 1.5, fontWeight: FontWeight.w800),
+            ),
+            const SizedBox(height: 10),
+            const Text(
+              '대기 1번에게 앱 푸시로 자리가 생겼다고 알립니다. 그 사람이 참석으로 응답하면 대신 들어옵니다.',
+              style: TextStyle(fontSize: 14, height: 1.55),
+            ),
+            if (notifyTreasurer) ...[
+              const SizedBox(height: 10),
+              const Text(
+                '조편성이 확정된 일정이라 총무에게도 알림이 갑니다.',
+                style: TextStyle(
+                    fontSize: 13, height: 1.5, fontWeight: FontWeight.w700),
+              ),
+            ],
+          ],
         ),
         actionsPadding: const EdgeInsets.fromLTRB(16, 0, 16, 16),
         actions: [
@@ -943,7 +959,7 @@ class _AttendButton extends StatelessWidget {
   }
 
   // ── 정원 마감 다이얼로그 ──
-  void _showAttendFullDialog(BuildContext context) {
+  void _showAttendFullDialog(BuildContext context, ClubProvider provider) {
     showDialog(
       context: context,
       builder: (ctx) => AlertDialog(
@@ -965,26 +981,59 @@ class _AttendButton extends StatelessWidget {
           ],
         ),
         content: const Text(
-          '이미 정원이 마감된 모임입니다.\n\n대기 상태로 등록되며, 결원 발생 시 자동으로 참석 확정됩니다.',
+          '이미 정원이 마감된 모임입니다.\n\n대기 명단에 등록하면 자리가 생길 때 앱 푸시로 알려 드립니다. 참석으로 응답해야 확정됩니다.',
           style: TextStyle(fontSize: 14, height: 1.6),
         ),
         actionsPadding: const EdgeInsets.fromLTRB(16, 0, 16, 16),
         actions: [
-          SizedBox(
-            width: double.infinity,
-            child: ElevatedButton(
-              onPressed: () => Navigator.pop(ctx),
-              style: ElevatedButton.styleFrom(
-                backgroundColor: AppColors.charcoal,
-                foregroundColor: Colors.white,
-                elevation: 0,
-                shape: RoundedRectangleBorder(
-                    borderRadius: BorderRadius.circular(12)),
-                padding: const EdgeInsets.symmetric(vertical: 12),
+          Row(
+            children: [
+              Expanded(
+                child: OutlinedButton(
+                  onPressed: () => Navigator.pop(ctx),
+                  style: OutlinedButton.styleFrom(
+                    foregroundColor: AppColors.textSecondary,
+                    side: BorderSide(color: Colors.grey.withValues(alpha: 0.3)),
+                    shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(12)),
+                    padding: const EdgeInsets.symmetric(vertical: 12),
+                  ),
+                  child: const Text('취소'),
+                ),
               ),
-              child: const Text('확인',
-                  style: TextStyle(fontWeight: FontWeight.w700)),
-            ),
+              const SizedBox(width: 10),
+              Expanded(
+                child: ElevatedButton(
+                  onPressed: () {
+                    final currentMember = provider.currentMember;
+                    if (currentMember != null) {
+                      provider.addToWaitingList(
+                        scheduleId: schedule.id,
+                        memberId: currentMember.id,
+                        memberName: currentMember.name,
+                      );
+                    }
+                    Navigator.pop(ctx);
+                    ScaffoldMessenger.of(context).showSnackBar(
+                      const SnackBar(
+                        content: Text('대기 명단에 등록되었습니다'),
+                        behavior: SnackBarBehavior.floating,
+                      ),
+                    );
+                  },
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: AppColors.charcoal,
+                    foregroundColor: Colors.white,
+                    elevation: 0,
+                    shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(12)),
+                    padding: const EdgeInsets.symmetric(vertical: 12),
+                  ),
+                  child: const Text('대기 등록',
+                      style: TextStyle(fontWeight: FontWeight.w700)),
+                ),
+              ),
+            ],
           ),
         ],
       ),
@@ -1384,12 +1433,9 @@ class ScheduleDetailScreen extends StatelessWidget {
                 child: GestureDetector(
                   onTap: () async {
                     if (label == '참석') {
-                      final cnt = schedule.responses
-                          .where((r) => r.response == '참석')
-                          .length;
-                      final maxCap = schedule.maxCapacity ?? 9999;
-                      if (cnt >= maxCap && currentResponse != '참석') {
-                        _showAttendFullDialogCard(context);
+                      if (currentResponse != '참석' &&
+                          provider.isAttendanceFull(schedule.id)) {
+                        _showWaitingDialog(context, provider);
                         return;
                       }
                       final ok = await _showAttendConfirmDialogCard(context);
@@ -1501,12 +1547,8 @@ class ScheduleDetailScreen extends StatelessWidget {
                   selected: current == '참석',
                   onTap: () {
                     // 정원 체크: 확정 참석자 수 vs 최대 정원
-                    final confirmed = schedule.responses
-                        .where((r) => r.response == '참석')
-                        .length;
-                    final maxCap = schedule.maxCapacity ?? 9999;
-                    if (confirmed >= maxCap && current != '참석') {
-                      // 이미 정원 초과 → 대기 등록 다이얼로그
+                    if (current != '참석' &&
+                        provider.isAttendanceFull(schedule.id)) {
                       Navigator.pop(context);
                       _showWaitingDialog(context, provider);
                     } else {
@@ -1635,11 +1677,29 @@ class ScheduleDetailScreen extends StatelessWidget {
                 style: TextStyle(fontSize: 17, fontWeight: FontWeight.w700)),
           ],
         ),
-        content: Text(
-          notifyTreasurer
-              ? '조편성이 확정되었기 때문에 불참 변경시 총무에게 알림이 갑니다. 불참으로 변경하시겠습니까?'
-              : '이번 모임에 불참하시겠습니까?\n\n참석명단이 마감될 경우 참석으로 변경하면 대기 상태로 등록됩니다.',
-          style: const TextStyle(fontSize: 14, height: 1.6),
+        content: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            const Text(
+              '불참으로 바꾸면 조편성에서도 빠집니다.',
+              style: TextStyle(
+                  fontSize: 15, height: 1.5, fontWeight: FontWeight.w800),
+            ),
+            const SizedBox(height: 10),
+            const Text(
+              '대기 1번에게 앱 푸시로 자리가 생겼다고 알립니다. 그 사람이 참석으로 응답하면 대신 들어옵니다.',
+              style: TextStyle(fontSize: 14, height: 1.55),
+            ),
+            if (notifyTreasurer) ...[
+              const SizedBox(height: 10),
+              const Text(
+                '조편성이 확정된 일정이라 총무에게도 알림이 갑니다.',
+                style: TextStyle(
+                    fontSize: 13, height: 1.5, fontWeight: FontWeight.w700),
+              ),
+            ],
+          ],
         ),
         actionsPadding: const EdgeInsets.fromLTRB(16, 0, 16, 16),
         actions: [
