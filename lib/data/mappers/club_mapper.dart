@@ -24,7 +24,11 @@ abstract final class ClubMapper {
     try {
       return Club(
         id: id,
-        name: data['name'] as String? ?? '',
+        name: _firstNonEmpty([
+          data['name'] as String?,
+          data['club_name'] as String?,
+          data['title'] as String?,
+        ]),
         imageUrl: data['image_url'] as String? ?? data['imageUrl'] as String?,
         myRole: data['my_role'] as String? ?? data['myRole'] as String? ?? myRole,
         memberCount: _asInt(data['member_count'] ?? data['memberCount']),
@@ -62,6 +66,14 @@ abstract final class ClubMapper {
         'moderation_status': 'active',
         'max_members': 20,
       };
+
+  static String _firstNonEmpty(List<String?> values) {
+    for (final v in values) {
+      final t = (v ?? '').trim();
+      if (t.isNotEmpty) return t;
+    }
+    return '';
+  }
 
   static int _asInt(dynamic v, {int fallback = 0}) {
     if (v == null) return fallback;

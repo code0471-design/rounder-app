@@ -185,6 +185,23 @@ class Club {
     return target.difference(today).inDays;
   }
 
+  /// 모임찾기용. 서버 문서에 이름·소개·사진이 비면 로컬(내가 만든 값)을 쓴다.
+  Club coalesceDisplayFields(Club fallback) {
+    final name = this.name.trim().isNotEmpty ? this.name : fallback.name;
+    final description = this.description.trim().isNotEmpty
+        ? this.description
+        : fallback.description;
+    final image = (imageUrl != null && imageUrl!.trim().isNotEmpty)
+        ? imageUrl
+        : fallback.imageUrl;
+    if (name == this.name &&
+        description == this.description &&
+        image == imageUrl) {
+      return this;
+    }
+    return copyWith(name: name, description: description, imageUrl: image);
+  }
+
   static const Object _unset = Object();
 
   Club copyWith({

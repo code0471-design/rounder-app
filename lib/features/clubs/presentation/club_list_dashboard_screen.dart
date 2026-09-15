@@ -88,7 +88,10 @@ class _ClubListDashboardScreenState extends State<ClubListDashboardScreen> {
         };
         for (final c in legacyProvider.myClubs) {
           if (legacyProvider.hasLeftClub(c.id)) continue;
-          byId.putIfAbsent(ClubProvider.legacyClubIdFor(c.id), () => c);
+          final key = ClubProvider.legacyClubIdFor(c.id);
+          final existing = byId[key];
+          byId[key] =
+              existing == null ? c : existing.coalesceDisplayFields(c);
         }
         final clubs = ClubDiscoveryService.filter(
           clubs: byId.values.toList(),

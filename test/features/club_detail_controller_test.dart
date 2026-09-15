@@ -25,6 +25,31 @@ class _FakeClubRepository implements ClubRepository {
   }
 
   @override
+  Future<void> updateClubInfo(
+    String clubId, {
+    String? name,
+    String? description,
+    String? imageUrl,
+    int? teamCount,
+  }) async {}
+
+  @override
+  Future<void> createClub({
+    required Club club,
+    required String userId,
+    required String userName,
+    required Member creatorMember,
+    String moderationStatus = 'active',
+  }) async {}
+
+  @override
+  Future<void> addMemberViaInvite({
+    required String clubId,
+    required String userId,
+    required Member member,
+  }) async {}
+
+  @override
   Future<List<Club>> fetchDiscoverableClubs() async => [_club];
 
   @override
@@ -185,6 +210,37 @@ void main() {
 
       expect(controller.isAdmin, isTrue);
       expect(controller.pendingRequests.length, 1);
+    });
+
+    test('서버 문서 이름이 비어도 목록에서 넘긴 이름을 보여 준다', () async {
+      final empty = Club(
+        id: 'c_arena',
+        name: '',
+        myRole: '일반',
+        region: '서울',
+        industry: '기타',
+        memberCount: 2,
+        teamCount: 4,
+      );
+      final listed = empty.copyWith(
+        name: '아레나골프회',
+        description: '주말 라운딩',
+        imageUrl: 'https://example.com/arena.jpg',
+      );
+      final controller = ClubDetailController(
+        clubRepository: _FakeClubRepository(empty),
+        joinRequestRepository: _FakeJoinRequestRepository(),
+      );
+
+      await controller.load(
+        clubId: empty.id,
+        userId: user.id,
+        initialClub: listed,
+      );
+
+      expect(controller.club?.name, '아레나골프회');
+      expect(controller.club?.description, '주말 라운딩');
+      expect(controller.club?.imageUrl, 'https://example.com/arena.jpg');
     });
   });
 }

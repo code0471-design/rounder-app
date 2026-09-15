@@ -307,7 +307,7 @@ class FirestoreClubDataSource {
       if (description != null) data['description'] = description;
       if (imageUrl != null) data['image_url'] = imageUrl;
       if (teamCount != null) data['team_count'] = teamCount;
-      await _clubs.doc(clubId).update(data);
+      await _clubs.doc(clubId).set(data, SetOptions(merge: true));
     } on FirebaseException catch (e) {
       throw NetworkDataException('모임 정보 업데이트 실패', cause: e);
     }

@@ -61,6 +61,9 @@ class ClubDetailController extends ChangeNotifier {
       if (_club == null) {
         throw Exception('모임을 찾을 수 없습니다');
       }
+      if (initialClub != null) {
+        _club = _club!.coalesceDisplayFields(initialClub);
+      }
 
       _isMember = await _clubRepository.isUserMember(clubId, userId);
       _myPendingRequest =

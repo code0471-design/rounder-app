@@ -7,6 +7,7 @@ import '../../../providers/auth_provider.dart';
 import '../../../providers/club_provider.dart';
 import '../../../screens/club_room/club_room_screen.dart';
 import '../../../theme/app_theme.dart';
+import '../../../widgets/club_cover_mark.dart';
 import '../application/club_detail_controller.dart';
 
 /// 모임 상세 + 가입신청 — Firestore Controller 기반
@@ -60,7 +61,18 @@ class ClubDetailDashboardScreen extends StatelessWidget {
           );
         }
 
-        final club = controller.club!;
+        final club = () {
+          final loaded = controller.club!;
+          final local = [
+            ...legacyProvider.myClubs,
+            ...legacyProvider.allClubs,
+          ].where((c) =>
+              ClubProvider.legacyClubIdFor(c.id) ==
+              ClubProvider.legacyClubIdFor(loaded.id)).firstOrNull;
+          return local == null
+              ? loaded
+              : loaded.coalesceDisplayFields(local);
+        }();
         final left = legacyProvider.hasLeftClub(club.id);
         // 탈퇴 후 재신청은 left여도 pending으로 보여야 함
         final isPending = controller.isPending ||
@@ -195,20 +207,7 @@ class _DetailAppBar extends StatelessWidget {
                 children: [
                   Row(
                     children: [
-                      Container(
-                        width: 56,
-                        height: 56,
-                        decoration: BoxDecoration(
-                          color: Colors.white.withValues(alpha: 0.2),
-                          borderRadius: BorderRadius.circular(14),
-                        ),
-                        child: Center(
-                          child: Text(
-                            clubIndustryEmoji(club.industry),
-                            style: const TextStyle(fontSize: 26),
-                          ),
-                        ),
-                      ),
+                      ClubCoverMark(club: club, size: 56),
                       const SizedBox(width: 14),
                       Expanded(
                         child: Column(
@@ -712,14 +711,36 @@ class _InfoCardState extends State<_InfoCard> {
           _InfoRow(icon: Icons.business_outlined, label: '업종', value: club.industry),
           _InfoRow(icon: Icons.people_outline, label: '회원 수', value: '${club.memberCount}명'),
           _InfoRow(icon: Icons.sports_golf, label: '팀 수', value: '${club.teamCount}팀'),
-          if (club.description.isNotEmpty) ...[
-            const Divider(height: 1, color: AppColors.divider),
-            Padding(
-              padding: const EdgeInsets.all(16),
-              child: Text(club.description,
-                  style: const TextStyle(fontSize: 13, height: 1.6)),
+          const Divider(height: 1, color: AppColors.divider),
+          Padding(
+            padding: const EdgeInsets.all(16),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                const Text(
+                  '모임 소개',
+                  style: TextStyle(
+                    fontSize: 13,
+                    fontWeight: FontWeight.bold,
+                    color: AppColors.textSecondary,
+                  ),
+                ),
+                const SizedBox(height: 8),
+                Text(
+                  club.description.trim().isEmpty
+                      ? '모임 소개가 없습니다'
+                      : club.description,
+                  style: TextStyle(
+                    fontSize: 13,
+                    height: 1.6,
+                    color: club.description.trim().isEmpty
+                        ? AppColors.textTertiary
+                        : AppColors.textPrimary,
+                  ),
+                ),
+              ],
             ),
-          ],
+          ),
           if (widget.isAdmin) ...[
             const Divider(height: 1, color: AppColors.divider),
             Padding(

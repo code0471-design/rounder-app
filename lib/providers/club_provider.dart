@@ -527,6 +527,7 @@ class ClubProvider extends ChangeNotifier with WidgetsBindingObserver {
     _watchSelectedClubOps();
     unawaited(flushDueD1Alimtalk());
     unawaited(syncAllDuesD1Reminders());
+    unawaited(_pushOwnedClubCatalog());
     notifyListeners();
   }
 
@@ -5453,6 +5454,49 @@ class ClubProvider extends ChangeNotifier with WidgetsBindingObserver {
     apply(_allClubs);
     notifyListeners();
     _persistImmediately();
+    unawaited(_pushClubCatalogToServer(clubId,
+        name: name, description: description, imageUrl: imageUrl, teamCount: teamCount));
+  }
+
+  Future<void> _pushClubCatalogToServer(
+    String clubId, {
+    String? name,
+    String? description,
+    String? imageUrl,
+    int? teamCount,
+  }) async {
+    if (_isDemoSession) return;
+    if (!AppDependencies.instance.isInitialized ||
+        AppDependencies.instance.isOfflineMockMode) {
+      return;
+    }
+    try {
+      await AppDependencies.instance.clubRepository.updateClubInfo(
+        clubId,
+        name: name,
+        description: description,
+        imageUrl: imageUrl,
+        teamCount: teamCount,
+      );
+    } catch (e) {
+      debugPrint('[ClubProvider] catalog push skip: $e');
+    }
+  }
+
+  Future<void> _pushOwnedClubCatalog() async {
+    if (_isDemoSession) return;
+    for (final club in _myClubs) {
+      if (_legacyMockClubIds.contains(club.id)) continue;
+      if (!_iAmClubCreator(club)) continue;
+      if (club.name.trim().isEmpty) continue;
+      await _pushClubCatalogToServer(
+        club.id,
+        name: club.name,
+        description: club.description,
+        imageUrl: club.imageUrl,
+        teamCount: club.teamCount,
+      );
+    }
   }
 
   // ════════════════════════════════════════════════════════
