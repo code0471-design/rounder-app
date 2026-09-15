@@ -53,7 +53,7 @@ class _CreateClubScreenState extends State<CreateClubScreen> {
     return _sido;
   }
 
-  String _industry = '지역모임';
+  String _industry = '';
   bool _customIndustry = false;
   String? _imageUrl;
   Uint8List? _localImageBytes;
@@ -85,13 +85,19 @@ class _CreateClubScreenState extends State<CreateClubScreen> {
     if (_step == 0) {
       if (!(_formKey1.currentState?.validate() ?? false)) return;
     }
-    if (_step == 3 &&
-        _customIndustry &&
-        _customIndustryCtrl.text.trim().isEmpty) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('업종을 직접 입력해주세요')),
-      );
-      return;
+    if (_step == 3) {
+      if (_customIndustry && _customIndustryCtrl.text.trim().isEmpty) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('업종을 직접 입력해주세요')),
+        );
+        return;
+      }
+      if (!_customIndustry && _industry.isEmpty) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('업종을 선택해주세요')),
+        );
+        return;
+      }
     }
     if (_step == 5) {
       if (_descCtrl.text.trim().isEmpty) {
@@ -151,6 +157,13 @@ class _CreateClubScreenState extends State<CreateClubScreen> {
         const SnackBar(content: Text('모임 소개를 입력해주세요')),
       );
       setState(() => _step = 5);
+      return;
+    }
+    if (!_customIndustry && _industry.isEmpty) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('업종을 선택해주세요')),
+      );
+      setState(() => _step = 3);
       return;
     }
     if (_customIndustry && _customIndustryCtrl.text.trim().isEmpty) {

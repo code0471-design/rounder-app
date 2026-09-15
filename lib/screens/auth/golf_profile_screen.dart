@@ -299,6 +299,14 @@ class _GolfProfileScreenState extends State<GolfProfileScreen> {
               ),
               const SizedBox(height: 24),
               const _FieldLabel('평균타수', required: false),
+              const SizedBox(height: 4),
+              const Text(
+                '핸디캡이 아니라 평소 타수입니다. 예: 90, 100',
+                style: TextStyle(
+                  fontSize: 12,
+                  color: AppColors.textSecondary,
+                ),
+              ),
               const SizedBox(height: 8),
               TextField(
                 controller: _handicapCtrl,
@@ -310,7 +318,7 @@ class _GolfProfileScreenState extends State<GolfProfileScreen> {
                   LengthLimitingTextInputFormatter(3),
                 ],
                 decoration: InputDecoration(
-                  hintText: '예: 100 (모르면 비워 두세요)',
+                  hintText: '예: 90, 100',
                   prefixIcon: const Icon(Icons.sports_golf_rounded),
                   filled: true,
                   fillColor: Colors.white,

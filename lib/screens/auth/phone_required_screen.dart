@@ -216,16 +216,35 @@ class _PhoneRequiredScreenState extends State<PhoneRequiredScreen> {
                 ),
                 const SizedBox(height: 8),
                 const Text(
-                  '알림톡·모임 연락에 사용됩니다.\n카카오 알림톡으로 인증번호를 보내 드릴게요.',
+                  '알림톡·모임 연락에 사용됩니다. 카카오 알림톡으로 인증번호를 보내 드릴게요.',
                   style: TextStyle(
                     fontSize: 13,
                     height: 1.45,
                     color: AppColors.textSecondary,
                   ),
                 ),
+                const SizedBox(height: 12),
+                Container(
+                  width: double.infinity,
+                  padding: const EdgeInsets.fromLTRB(12, 10, 12, 10),
+                  decoration: BoxDecoration(
+                    color: const Color(0xFFFFF8E8),
+                    borderRadius: BorderRadius.circular(10),
+                    border: Border.all(color: const Color(0xFFE8D7A8)),
+                  ),
+                  child: const Text(
+                    '이름은 실명으로 입력해 주세요. 카카오 닉네임·별명은 안 됩니다.',
+                    style: TextStyle(
+                      fontSize: 13,
+                      height: 1.4,
+                      fontWeight: FontWeight.w700,
+                      color: Color(0xFF7A5A18),
+                    ),
+                  ),
+                ),
                 const SizedBox(height: 28),
                 const Text(
-                  '이름',
+                  '이름 (실명)',
                   style: TextStyle(
                     fontSize: 13,
                     fontWeight: FontWeight.w600,
@@ -238,7 +257,8 @@ class _PhoneRequiredScreenState extends State<PhoneRequiredScreen> {
                   enabled: !_busy && !_codeSent,
                   textInputAction: TextInputAction.next,
                   decoration: InputDecoration(
-                    hintText: '이름',
+                    hintText: '실명 (예: 홍길동)',
+                    helperText: '닉네임이 아니라 실명으로 입력해 주세요',
                     prefixIcon: const Icon(Icons.person_outline),
                     filled: true,
                     fillColor: Colors.white,

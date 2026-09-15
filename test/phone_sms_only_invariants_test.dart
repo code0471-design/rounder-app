@@ -32,7 +32,9 @@ void main() {
   });
 
   test('phone_required는 이름+전화만 수집해야 한다', () {
-    expect(phoneRequired.contains("'이름'"), isTrue);
+    expect(phoneRequired.contains("'이름 (실명)'"), isTrue);
+    expect(phoneRequired.contains('이름은 실명으로 입력해 주세요'), isTrue);
+    expect(phoneRequired.contains('카카오 닉네임'), isTrue);
     expect(phoneRequired.contains('이름을 2자 이상'), isTrue);
     expect(phoneRequired.contains('enabled: !_busy && !_codeSent'), isTrue);
     expect(phoneRequired.contains('핸디캡'), isFalse);

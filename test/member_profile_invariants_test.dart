@@ -321,6 +321,8 @@ void main() {
       expect(screen.contains('PhotoCompressService.pickProfileDataUrl'), isTrue);
       expect(screen.contains('syncAuthGolfProfile'), isTrue);
       expect(screen.contains('평균타수'), isTrue);
+      expect(screen.contains('예: 90, 100'), isTrue);
+      expect(screen.contains('핸디캡이 아니라 평소 타수'), isTrue);
     });
 
     test('2월 30일 같은 날짜가 남지 않는다', () {

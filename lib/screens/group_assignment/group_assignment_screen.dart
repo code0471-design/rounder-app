@@ -37,6 +37,8 @@ class _GroupAssignmentScreenState extends State<GroupAssignmentScreen> {
   final Set<AutoAssignOption> _selectedOptions = {};
   GroupSlot? _draggingSlot;
   final ScrollController _scrollCtrl = ScrollController();
+  /// 확정된 조편성에서 '수정하기'를 눌렀을 때만 편집 UI. provider 확정 플래그는 건드리지 않는다.
+  bool _editing = false;
 
   @override
   void initState() {
@@ -178,16 +180,21 @@ class _GroupAssignmentScreenState extends State<GroupAssignmentScreen> {
     if (ok == true) p.clearAssignment(widget.schedule.id);
   }
 
-  // ── 확정 / 확정 취소 ──
-  Future<void> _confirmFinalize(ClubProvider p, bool isFinalized) async {
-    if (!isFinalized) {
-      // 저장 보장: 아직 map에 없으면 현재 화면 상태 저장
-      if (p.groupAssignment(widget.schedule.id) == null) {
-        p.saveAssignment(p.getOrCreateAssignment(widget.schedule.id));
-      }
-      final assign = p.groupAssignment(widget.schedule.id);
+  // ── 확정하기 (수정하기는 로컬 편집만, 확정 상태는 유지) ──
+  void _beginEdit() {
+    setState(() => _editing = true);
+  }
+
+  Future<void> _confirmFinalize(ClubProvider p) async {
+    // 저장 보장: 아직 map에 없으면 현재 화면 상태 저장
+    if (p.groupAssignment(widget.schedule.id) == null) {
+      p.saveAssignment(p.getOrCreateAssignment(widget.schedule.id));
+    }
+    final assign = p.groupAssignment(widget.schedule.id);
+    final alreadyFinalized = assign?.isFinalized ?? false;
+    if (!alreadyFinalized) {
       final emptyCount = assign?.emptyCount ?? 0;
-      bool proceed = true;
+      var proceed = true;
       if (emptyCount > 0) {
         proceed = await showDialog<bool>(
               context: context,
@@ -210,7 +217,7 @@ class _GroupAssignmentScreenState extends State<GroupAssignmentScreen> {
                         foregroundColor: Colors.white,
                         shape: RoundedRectangleBorder(
                             borderRadius: BorderRadius.circular(8))),
-                    child: const Text('확정'),
+                    child: const Text('확정하기'),
                   ),
                 ],
               ),
@@ -229,11 +236,9 @@ class _GroupAssignmentScreenState extends State<GroupAssignmentScreen> {
         ),
       );
 
-      final live =
-          p.scheduleById(widget.schedule.id) ?? widget.schedule;
+      final live = p.scheduleById(widget.schedule.id) ?? widget.schedule;
       final settings = p.alimtalkSettingsOf(live.clubId);
-      final isAdmin =
-          p.isClubExecutive;
+      final isAdmin = p.isClubExecutive;
       if (isAdmin && settings.promptOnGroupFinalize) {
         final sent = await AlimtalkUtils.runGroupFlow(
           provider: p,
@@ -245,18 +250,8 @@ class _GroupAssignmentScreenState extends State<GroupAssignmentScreen> {
           return;
         }
       }
-      if (mounted) Navigator.of(context).pop(); // 일정 상세로 복귀
-    } else {
-      p.unfinalizeAssignment(widget.schedule.id);
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(
-            content: Text('확정이 취소되었습니다. 조편성을 수정할 수 있습니다.'),
-            behavior: SnackBarBehavior.floating,
-          ),
-        );
-      }
     }
+    if (mounted) Navigator.of(context).pop(); // 일정 상세로 복귀
   }
 
   @override
@@ -269,6 +264,7 @@ class _GroupAssignmentScreenState extends State<GroupAssignmentScreen> {
           .where((r) => r.response == '참석')
           .toList();
       final isFinalized = assignment.isFinalized;
+      final canEdit = !isFinalized || _editing;
       final assignedCount = assignment.assignedCount;
       final totalAttend = attendees.length;
 
@@ -323,7 +319,7 @@ class _GroupAssignmentScreenState extends State<GroupAssignmentScreen> {
             ],
           ),
           actions: [
-            if (!isFinalized)
+            if (canEdit)
               IconButton(
                 icon: const Icon(Icons.refresh_rounded,
                     color: Color(0xFF999999), size: 20),
@@ -333,12 +329,14 @@ class _GroupAssignmentScreenState extends State<GroupAssignmentScreen> {
             Padding(
               padding: const EdgeInsets.only(right: 10),
               child: FilledButton(
-                onPressed: () => _confirmFinalize(provider, isFinalized),
+                onPressed: isFinalized && !_editing
+                    ? _beginEdit
+                    : () => _confirmFinalize(provider),
                 style: FilledButton.styleFrom(
-                  backgroundColor: isFinalized
+                  backgroundColor: isFinalized && !_editing
                       ? const Color(0xFFF5F5F5)
                       : AppColors.primary,
-                  foregroundColor: isFinalized
+                  foregroundColor: isFinalized && !_editing
                       ? const Color(0xFF777777)
                       : Colors.white,
                   shape: RoundedRectangleBorder(
@@ -348,7 +346,7 @@ class _GroupAssignmentScreenState extends State<GroupAssignmentScreen> {
                   minimumSize: const Size(0, 34),
                 ),
                 child: Text(
-                  isFinalized ? '수정하기' : '확  정',
+                  isFinalized && !_editing ? '수정하기' : '확정하기',
                   style: const TextStyle(
                       fontWeight: FontWeight.w800, fontSize: 13),
                 ),
@@ -389,8 +387,8 @@ class _GroupAssignmentScreenState extends State<GroupAssignmentScreen> {
           controller: _scrollCtrl,
           slivers: [
 
-            // ── 조편성 방식 3가지 선택 (확정 전) ──
-            if (!isFinalized)
+            // ── 조편성 방식 3가지 선택 (확정 전·수정 중) ──
+            if (canEdit)
               SliverToBoxAdapter(
                 child: _ModeSelector(
                   selected: assignment.mode,
@@ -399,7 +397,7 @@ class _GroupAssignmentScreenState extends State<GroupAssignmentScreen> {
               ),
 
             // ── 컨트롤 패널 (조 수 + 자동배정 옵션: 모드에 따라) ──
-            if (!isFinalized)
+            if (canEdit)
               SliverToBoxAdapter(
                 child: _ControlPanel(
                   assignment: assignment,
@@ -412,8 +410,8 @@ class _GroupAssignmentScreenState extends State<GroupAssignmentScreen> {
                 ),
               ),
 
-            // ── 미배정 멤버 풀 (확정 전만 표시) ──
-            if (!isFinalized)
+            // ── 미배정 멤버 풀 (확정 전·수정 중만 표시) ──
+            if (canEdit)
               SliverToBoxAdapter(
                 child: _UnassignedPool(
                   assignment: assignment,
@@ -438,7 +436,7 @@ class _GroupAssignmentScreenState extends State<GroupAssignmentScreen> {
                     Widget buildCard(int gi) => _GroupCard(
                           group: assignment.groups[gi],
                           assignment: assignment,
-                          isFinalized: isFinalized,
+                          isFinalized: !canEdit,
                           draggingSlot: _draggingSlot,
                           onDragStarted: (slot) =>
                               setState(() => _draggingSlot = slot),
@@ -740,73 +738,115 @@ class _ControlPanel extends StatelessWidget {
             const SizedBox(height: 12),
 
             // ── 자동배정 옵션 ──
-            Row(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                const Padding(
-                  padding: EdgeInsets.only(top: 2),
-                  child: Icon(Icons.auto_awesome,
-                      size: 15, color: Color(0xFF546E7A)),
-                ),
-                const SizedBox(width: 6),
-                const Padding(
-                  padding: EdgeInsets.only(top: 2),
-                  child: Text('자동배정 옵션',
-                      style: TextStyle(
-                          fontSize: 13,
-                          fontWeight: FontWeight.w700,
-                          color: Color(0xFF37474F))),
-                ),
-                const SizedBox(width: 10),
-                Expanded(
-                  child: Wrap(
-                    spacing: 6,
-                    runSpacing: 6,
-                    children: AutoAssignOption.values.map((opt) {
-                      final sel = selectedOptions.contains(opt);
-                      return GestureDetector(
-                        onTap: () => onOptionToggled(opt),
-                        child: AnimatedContainer(
-                          duration: const Duration(milliseconds: 150),
-                          padding: const EdgeInsets.symmetric(
-                              horizontal: 10, vertical: 6),
-                          decoration: BoxDecoration(
-                            color: sel
-                                ? AppColors.primary
-                                : const Color(0xFFF5F5F5),
-                            borderRadius: BorderRadius.circular(20),
-                            border: Border.all(
-                              color: sel
-                                  ? AppColors.primary
-                                  : const Color(0xFFE0E0E0),
+            Container(
+              width: double.infinity,
+              padding: const EdgeInsets.fromLTRB(12, 12, 12, 10),
+              decoration: BoxDecoration(
+                color: const Color(0xFFFFF8E8),
+                borderRadius: BorderRadius.circular(14),
+                border: Border.all(color: const Color(0xFFE8D7A8), width: 1.4),
+              ),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  const Row(
+                    children: [
+                      Icon(Icons.auto_awesome, size: 18, color: Color(0xFFB8860B)),
+                      SizedBox(width: 6),
+                      Text(
+                        '자동배정 옵션',
+                        style: TextStyle(
+                          fontSize: 15,
+                          fontWeight: FontWeight.w800,
+                          color: Color(0xFF5C4A12),
+                        ),
+                      ),
+                    ],
+                  ),
+                  const SizedBox(height: 4),
+                  const Text(
+                    '적용할 규칙을 골라 주세요. 여러 개 선택할 수 있습니다.',
+                    style: TextStyle(
+                      fontSize: 12,
+                      height: 1.35,
+                      color: Color(0xFF7A5A18),
+                    ),
+                  ),
+                  const SizedBox(height: 10),
+                  ...AutoAssignOption.values.map((opt) {
+                    final sel = selectedOptions.contains(opt);
+                    return Padding(
+                      padding: const EdgeInsets.only(bottom: 8),
+                      child: Material(
+                        color: sel ? AppColors.primary : Colors.white,
+                        borderRadius: BorderRadius.circular(12),
+                        child: InkWell(
+                          onTap: () => onOptionToggled(opt),
+                          borderRadius: BorderRadius.circular(12),
+                          child: Container(
+                            width: double.infinity,
+                            padding: const EdgeInsets.fromLTRB(12, 10, 12, 10),
+                            decoration: BoxDecoration(
+                              borderRadius: BorderRadius.circular(12),
+                              border: Border.all(
+                                color: sel
+                                    ? AppColors.primary
+                                    : const Color(0xFFD8C48A),
+                                width: sel ? 1.6 : 1,
+                              ),
                             ),
-                          ),
-                          child: Row(
-                            mainAxisSize: MainAxisSize.min,
-                            children: [
-                              if (sel) ...[
-                                const Icon(Icons.check,
-                                    size: 11, color: Colors.white),
-                                const SizedBox(width: 3),
-                              ],
-                              Text(
-                                opt.label,
-                                style: TextStyle(
-                                  fontSize: 11,
-                                  fontWeight: FontWeight.w600,
+                            child: Row(
+                              children: [
+                                Text(opt.icon,
+                                    style: const TextStyle(fontSize: 20)),
+                                const SizedBox(width: 10),
+                                Expanded(
+                                  child: Column(
+                                    crossAxisAlignment: CrossAxisAlignment.start,
+                                    children: [
+                                      Text(
+                                        opt.label,
+                                        style: TextStyle(
+                                          fontSize: 14,
+                                          fontWeight: FontWeight.w800,
+                                          color: sel
+                                              ? Colors.white
+                                              : AppColors.textPrimary,
+                                        ),
+                                      ),
+                                      const SizedBox(height: 2),
+                                      Text(
+                                        opt.description,
+                                        style: TextStyle(
+                                          fontSize: 11,
+                                          height: 1.3,
+                                          color: sel
+                                              ? Colors.white.withValues(alpha: 0.88)
+                                              : AppColors.textSecondary,
+                                        ),
+                                      ),
+                                    ],
+                                  ),
+                                ),
+                                const SizedBox(width: 8),
+                                Icon(
+                                  sel
+                                      ? Icons.check_box_rounded
+                                      : Icons.check_box_outline_blank_rounded,
+                                  size: 22,
                                   color: sel
                                       ? Colors.white
-                                      : const Color(0xFF78909C),
+                                      : const Color(0xFFB0B8C1),
                                 ),
-                              ),
-                            ],
+                              ],
+                            ),
                           ),
                         ),
-                      );
-                    }).toList(),
-                  ),
-                ),
-              ],
+                      ),
+                    );
+                  }),
+                ],
+              ),
             ),
 
             const SizedBox(height: 12),

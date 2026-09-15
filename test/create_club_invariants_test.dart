@@ -73,5 +73,11 @@ void main() {
       expect(src.contains('로그인이 필요합니다'), isTrue);
       expect(src.contains('어드민 동기화 실패'), isTrue);
     });
+
+    test('업종은 처음부터 고르게 하고 지역모임을 미리 고르지 않는다', () {
+      expect(src.contains("String _industry = '';"), isTrue);
+      expect(src.contains("String _industry = '지역모임';"), isFalse);
+      expect(src.contains('업종을 선택해주세요'), isTrue);
+    });
   });
 }

@@ -6836,6 +6836,11 @@ class ClubProvider extends ChangeNotifier with WidgetsBindingObserver {
       scheduleId: scheduleId,
       teamCount: current.teamCount,
       perGroup: current.perGroup,
+    ).copyWith(
+      isFinalized: current.isFinalized,
+      finalizedAt: current.finalizedAt,
+      mode: current.mode,
+      selectedOptions: current.selectedOptions,
     );
     notifyListeners();
     _persistImmediately();
@@ -7917,6 +7922,15 @@ class ClubProvider extends ChangeNotifier with WidgetsBindingObserver {
         regularMembers.where((m) => m.name.trim() == name).toList();
     if (hits.length == 1) return hits.single.id;
     return null;
+  }
+
+  /// 시상 목록용 정회원 수상자 이름. 게스트는 빠져 있다.
+  List<String> regularAwardWinnerNames(AwardRecord r) {
+    final ids = _uniqueCanonicalWinners(r);
+    if (ids.isEmpty) return const [];
+    return [
+      for (final id in ids) memberById(id)?.name ?? id,
+    ];
   }
 
   Map<int, List<AwardRecord>> awardsByMonthForYear(int year) {

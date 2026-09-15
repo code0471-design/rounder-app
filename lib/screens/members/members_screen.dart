@@ -670,51 +670,33 @@ class _MembersScreenState extends State<MembersScreen>
                             style: TextStyle(
                                 fontSize: 17, fontWeight: FontWeight.bold)),
                       ),
-                      Text('$year년',
-                          style: const TextStyle(
-                              fontSize: 13, color: AppColors.textSecondary)),
+                      DropdownButtonHideUnderline(
+                        child: DropdownButton<int>(
+                          value: years.contains(year) ? year : years.first,
+                          isDense: true,
+                          borderRadius: BorderRadius.circular(10),
+                          items: [
+                            for (final y in years)
+                              DropdownMenuItem(
+                                value: y,
+                                child: Text(
+                                  '$y년',
+                                  style: const TextStyle(
+                                    fontSize: 14,
+                                    fontWeight: FontWeight.w700,
+                                  ),
+                                ),
+                              ),
+                          ],
+                          onChanged: (v) {
+                            if (v == null) return;
+                            setSheet(() => year = v);
+                          },
+                        ),
+                      ),
                     ],
                   ),
                 ),
-                if (years.length > 1)
-                  Padding(
-                    padding: const EdgeInsets.fromLTRB(16, 0, 16, 8),
-                    child: SizedBox(
-                      height: 34,
-                      child: ListView.separated(
-                        scrollDirection: Axis.horizontal,
-                        itemCount: years.length,
-                        separatorBuilder: (_, __) => const SizedBox(width: 8),
-                        itemBuilder: (_, i) {
-                          final y = years[i];
-                          final on = y == year;
-                          return GestureDetector(
-                            onTap: () => setSheet(() => year = y),
-                            child: Container(
-                              padding: const EdgeInsets.symmetric(
-                                  horizontal: 12, vertical: 6),
-                              decoration: BoxDecoration(
-                                color: on ? AppColors.ink : Colors.white,
-                                borderRadius: BorderRadius.circular(16),
-                                border: Border.all(
-                                    color: on
-                                        ? AppColors.ink
-                                        : _kMemberCardBorder),
-                              ),
-                              child: Text(
-                                '$y년',
-                                style: TextStyle(
-                                  fontSize: 12,
-                                  fontWeight: FontWeight.w700,
-                                  color: on ? Colors.white : AppColors.ink,
-                                ),
-                              ),
-                            ),
-                          );
-                        },
-                      ),
-                    ),
-                  ),
                 const Divider(height: 1),
                 Expanded(
                   child: ListView(
@@ -779,7 +761,11 @@ class _MembersScreenState extends State<MembersScreen>
                                 fontSize: 13, color: Color(0xFF6B7280)))
                       else
                         ...months.expand((m) {
-                          final recs = byMonth[m]!;
+                          final recs = byMonth[m]!
+                              .where((r) =>
+                                  provider.regularAwardWinnerNames(r).isNotEmpty)
+                              .toList();
+                          if (recs.isEmpty) return <Widget>[];
                           return [
                             Padding(
                               padding: const EdgeInsets.fromLTRB(0, 10, 0, 6),
@@ -790,12 +776,8 @@ class _MembersScreenState extends State<MembersScreen>
                                       color: AppColors.inkSoft)),
                             ),
                             ...recs.map((r) {
-                              final names = r.winnerNames.isNotEmpty
-                                  ? r.winnerNames.join(', ')
-                                  : r.winnerIds
-                                      .map((id) =>
-                                          provider.memberById(id)?.name ?? id)
-                                      .join(', ');
+                              final names =
+                                  provider.regularAwardWinnerNames(r).join(', ');
                               return Padding(
                                 padding: const EdgeInsets.only(bottom: 8),
                                 child: Row(

@@ -150,6 +150,10 @@ void main() {
     expect(members.contains("'올해 시상'"), isTrue);
     expect(members.contains('_kMemberCardBorder'), isTrue);
     expect(members.contains('regularAwardRankingForYear'), isTrue);
+    expect(members.contains('DropdownButton<int>'), isTrue);
+    expect(members.contains('regularAwardWinnerNames'), isTrue);
+    expect(members.contains("years.length > 1"), isFalse,
+        reason: '연도는 올해 기본 드롭다운으로 고른다');
   });
 
   test('홈 모임찾기는 모임명과 같은 줄이고 플랫폼 홈으로 간다', () {

@@ -144,13 +144,18 @@ class _SignupScreenState extends State<SignupScreen> {
               const SizedBox(height: 28),
 
               // ── 이름 ──
-              _FieldLabel(label: '이름', required: true),
+              _FieldLabel(label: '이름 (실명)', required: true),
+              const SizedBox(height: 4),
+              const Text(
+                '닉네임이 아니라 실명으로 입력해 주세요',
+                style: TextStyle(fontSize: 11, color: AppColors.textSecondary),
+              ),
               const SizedBox(height: 8),
               TextFormField(
                 controller: _nameCtrl,
                 textInputAction: TextInputAction.next,
                 decoration: _inputDeco(
-                  hint: '홍길동',
+                  hint: '실명 (예: 홍길동)',
                   icon: Icons.person_outline,
                 ),
                 validator: (v) {
@@ -190,7 +195,7 @@ class _SignupScreenState extends State<SignupScreen> {
               _FieldLabel(label: '평균타수', required: false),
               const SizedBox(height: 4),
               const Text(
-                '정확한 평균타수를 입력하면 모임 팀 구성에 도움이 됩니다',
+                '핸디캡이 아니라 평소 타수입니다. 예: 90, 100',
                 style: TextStyle(fontSize: 11, color: AppColors.textSecondary),
               ),
               const SizedBox(height: 8),
@@ -202,7 +207,7 @@ class _SignupScreenState extends State<SignupScreen> {
                 ],
                 textInputAction: TextInputAction.done,
                 decoration: _inputDeco(
-                  hint: '예: 100 (선택사항)',
+                  hint: '예: 90, 100',
                   icon: Icons.sports_golf_outlined,
                 ),
                 validator: (v) {
