@@ -94,8 +94,8 @@ class AlimtalkUtils {
     );
   }
 
-  static Future<bool?> promptGroupFinalize() {
-    final ctx = AppNavigator.context;
+  static Future<bool?> promptGroupFinalize([BuildContext? context]) {
+    final ctx = context ?? AppNavigator.context;
     if (ctx == null) return Future.value(false);
 
     return showDialog<bool>(
@@ -107,13 +107,13 @@ class AlimtalkUtils {
         title: const Text('알림톡 발송',
             style: TextStyle(fontWeight: FontWeight.w700, fontSize: 17)),
         content: const Text(
-          '이번 라운딩 조편성이 확정되었습니다.\n참석 회원들에게 알림톡을 발송할까요?',
+          '조편성이 확정되었습니다.\n참석 회원에게 알림톡을 보낼까요?',
           style: TextStyle(fontSize: 14, height: 1.5),
         ),
         actions: [
           TextButton(
             onPressed: () => Navigator.pop(dialogCtx, false),
-            child: const Text('나중에'),
+            child: const Text('안 보내기'),
           ),
           ElevatedButton(
             onPressed: () => Navigator.pop(dialogCtx, true),
@@ -123,7 +123,7 @@ class AlimtalkUtils {
               shape: RoundedRectangleBorder(
                   borderRadius: BorderRadius.circular(8)),
             ),
-            child: const Text('발송하기'),
+            child: const Text('보내기'),
           ),
         ],
       ),
@@ -175,7 +175,7 @@ class AlimtalkUtils {
     return false;
   }
 
-  /// 조편성 확정 — ClubProvider.finalizeAssignment 이 바로 보낸다.
+  /// 조편성 확정 — 화면에서 보내기를 고른 뒤에만 발송한다.
   static Future<bool?> runGroupFlow({
     required ClubProvider provider,
     required RoundSchedule schedule,

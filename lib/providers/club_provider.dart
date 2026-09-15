@@ -7084,7 +7084,7 @@ class ClubProvider extends ChangeNotifier with WidgetsBindingObserver {
     );
   }
 
-  /// 조편성 확정
+  /// 조편성 확정. 알림톡은 총무가 보내기를 고른 뒤에만 [sendGroupFinalizeAlimtalk].
   void finalizeAssignment(String scheduleId) {
     final current = _groupAssignments[scheduleId] ??
         getOrCreateAssignment(scheduleId);
@@ -7094,14 +7094,17 @@ class ClubProvider extends ChangeNotifier with WidgetsBindingObserver {
     );
     notifyListeners();
     _persistImmediately();
+  }
+
+  /// 조편성 확정 알림톡 — 확정 직후 보내기를 고른 경우에만 호출한다.
+  void sendGroupFinalizeAlimtalk(String scheduleId) {
     final schedule = scheduleById(scheduleId);
-    if (schedule != null) {
-      _dispatchClubAlimtalk(
-        hqTypeId: HqAlimtalkCatalog.groupFinalizeId,
-        members: groupAlimtalkRecipientMembers(scheduleId),
-        variablesFor: (m) => _alimtalkScheduleVars(schedule, m),
-      );
-    }
+    if (schedule == null) return;
+    _dispatchClubAlimtalk(
+      hqTypeId: HqAlimtalkCatalog.groupFinalizeId,
+      members: groupAlimtalkRecipientMembers(scheduleId),
+      variablesFor: (m) => _alimtalkScheduleVars(schedule, m),
+    );
   }
 
   /// 조편성 확정 취소

@@ -155,13 +155,17 @@ void main() {
   });
 
   group('알림톡은 버튼 없이 나간다', () {
-    test('일정 등록·변경·조편성 확정이 자동 발송한다', () {
+    test('일정 등록·변경은 자동 발송하고 조편성 확정은 보내기 선택 시에만 나간다', () {
       final src = read('lib/providers/club_provider.dart');
       expect(src, contains('HqAlimtalkCatalog.scheduleUploadId'));
       expect(src, contains('HqAlimtalkCatalog.scheduleChangeId'));
       expect(src, contains('HqAlimtalkCatalog.groupFinalizeId'));
+      expect(src, contains('void sendGroupFinalizeAlimtalk'));
       expect(src, contains('HqAlimtalkCatalog.d1ReminderId'),
           reason: 'D-1 알림톡도 대기열에서 보내야 한다');
+      final start = src.indexOf('void finalizeAssignment(');
+      final end = src.indexOf('void sendGroupFinalizeAlimtalk(');
+      expect(src.substring(start, end).contains('_dispatchClubAlimtalk'), isFalse);
     });
 
     test('발송하기 다이얼로그를 건너뛴다', () {

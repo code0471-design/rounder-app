@@ -26,4 +26,24 @@ void main() {
     expect(source.contains('자동배정 옵션'), isTrue);
     expect(source.contains('opt.description'), isTrue);
   });
+
+  test('편집 화면에 초기화가 있고 확정 알림톡은 보내기를 고른 뒤에만 나간다', () {
+    expect(source.contains("label: const Text("), isTrue);
+    expect(source.contains("'초기화'"), isTrue);
+    expect(source.contains('onClear: () => _confirmClear(provider)'), isTrue);
+    expect(source.contains('_confirmClear'), isTrue);
+    expect(source.contains('AlimtalkUtils.promptGroupFinalize'), isTrue);
+    expect(source.contains('sendGroupFinalizeAlimtalk'), isTrue);
+    expect(source.contains('alreadyFinalized'), isTrue);
+    final provider = File('lib/providers/club_provider.dart').readAsStringSync();
+    final start = provider.indexOf('void finalizeAssignment(');
+    final end = provider.indexOf('void sendGroupFinalizeAlimtalk(');
+    expect(start, greaterThan(0));
+    expect(end, greaterThan(start));
+    expect(provider.substring(start, end).contains('_dispatchClubAlimtalk'),
+        isFalse,
+        reason: '확정만으로 알림톡이 나가면 수정·초기화마다 다시 발송된다');
+    expect(provider.substring(end, end + 500).contains('_dispatchClubAlimtalk'),
+        isTrue);
+  });
 }

@@ -236,19 +236,9 @@ class _GroupAssignmentScreenState extends State<GroupAssignmentScreen> {
         ),
       );
 
-      final live = p.scheduleById(widget.schedule.id) ?? widget.schedule;
-      final settings = p.alimtalkSettingsOf(live.clubId);
-      final isAdmin = p.isClubExecutive;
-      if (isAdmin && settings.promptOnGroupFinalize) {
-        final sent = await AlimtalkUtils.runGroupFlow(
-          provider: p,
-          schedule: live,
-        );
-        if (sent == true && mounted) {
-          Navigator.of(context).pop(); // 조편성 → 일정 상세
-          if (mounted) Navigator.of(context).pop(); // 일정 상세 → 일정 목록
-          return;
-        }
+      final send = await AlimtalkUtils.promptGroupFinalize(context);
+      if (send == true) {
+        p.sendGroupFinalizeAlimtalk(widget.schedule.id);
       }
     }
     if (mounted) Navigator.of(context).pop(); // 일정 상세로 복귀
@@ -320,11 +310,19 @@ class _GroupAssignmentScreenState extends State<GroupAssignmentScreen> {
           ),
           actions: [
             if (canEdit)
-              IconButton(
-                icon: const Icon(Icons.refresh_rounded,
-                    color: Color(0xFF999999), size: 20),
-                tooltip: '전체 초기화',
-                onPressed: () => _confirmClear(provider),
+              Padding(
+                padding: const EdgeInsets.only(right: 4),
+                child: TextButton(
+                  onPressed: () => _confirmClear(provider),
+                  child: const Text(
+                    '초기화',
+                    style: TextStyle(
+                      color: Color(0xFFC62828),
+                      fontWeight: FontWeight.w800,
+                      fontSize: 13,
+                    ),
+                  ),
+                ),
               ),
             Padding(
               padding: const EdgeInsets.only(right: 10),
@@ -407,6 +405,7 @@ class _GroupAssignmentScreenState extends State<GroupAssignmentScreen> {
                   onOptionToggled: (opt) =>
                       _onOptionToggled(provider, opt),
                   onAutoAssign: () => _runAutoAssign(provider),
+                  onClear: () => _confirmClear(provider),
                 ),
               ),
 
@@ -653,6 +652,7 @@ class _ControlPanel extends StatelessWidget {
   final ValueChanged<int> onTeamCountChanged;
   final ValueChanged<AutoAssignOption> onOptionToggled;
   final VoidCallback onAutoAssign;
+  final VoidCallback onClear;
 
   const _ControlPanel({
     required this.assignment,
@@ -660,6 +660,7 @@ class _ControlPanel extends StatelessWidget {
     required this.onTeamCountChanged,
     required this.onOptionToggled,
     required this.onAutoAssign,
+    required this.onClear,
   });
 
   @override
@@ -893,6 +894,25 @@ class _ControlPanel extends StatelessWidget {
               ),
             ),
           ],
+          const SizedBox(height: 10),
+          SizedBox(
+            width: double.infinity,
+            height: 44,
+            child: OutlinedButton.icon(
+              onPressed: onClear,
+              icon: const Icon(Icons.refresh_rounded, size: 18),
+              label: const Text(
+                '초기화',
+                style: TextStyle(fontWeight: FontWeight.w800, fontSize: 14),
+              ),
+              style: OutlinedButton.styleFrom(
+                foregroundColor: const Color(0xFFC62828),
+                side: const BorderSide(color: Color(0xFFEF9A9A)),
+                shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(10)),
+              ),
+            ),
+          ),
         ],
       ),
     );
