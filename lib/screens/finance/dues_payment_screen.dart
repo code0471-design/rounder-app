@@ -146,7 +146,7 @@ class _DuesPaymentScreenState extends State<DuesPaymentScreen>
       amount: widget.duesSetting.amount,
       category: '회비',
       title: title,
-      memo: '홍길동 $method 결제',
+      memo: '${provider.currentUserName} $method 결제',
       date: now,
       recordedBy: '시스템(자동)',
       source: TxSource.dues,
@@ -154,8 +154,8 @@ class _DuesPaymentScreenState extends State<DuesPaymentScreen>
 
     // submitPaymentRequest → 총무 확인 필요 흐름 (선택적)
     provider.submitPaymentRequest(
-      memberId: 'user_me',
-      memberName: '홍길동',
+      memberId: provider.currentUserId,
+      memberName: provider.currentUserName,
       duesSettingId: widget.duesSetting.id,
       amount: widget.duesSetting.amount,
       year: now.year,

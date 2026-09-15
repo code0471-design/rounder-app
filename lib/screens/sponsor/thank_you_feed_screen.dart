@@ -352,7 +352,7 @@ class _ThankYouFeedScreenState extends State<ThankYouFeedScreen> {
                     if (msg.isEmpty) return;
                     provider.addThankYouMessage(
                       senderId: provider.currentUserId,
-                      senderName: '홍길동',
+                      senderName: provider.currentUserName,
                       sponsorName: selectedSponsor,
                       message: msg,
                     );

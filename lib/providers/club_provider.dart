@@ -9,6 +9,7 @@ import '../di/app_dependencies.dart';
 import '../domain/services/app_data_bootstrap_service.dart';
 import '../domain/services/club_discovery_service.dart';
 import '../domain/services/group_assignment_service.dart';
+import '../domain/data/sample_club_filter.dart';
 import '../domain/services/roster_dedupe.dart';
 import '../models/club_model.dart';
 import '../models/member_role.dart';
@@ -476,7 +477,9 @@ class ClubProvider extends ChangeNotifier with WidgetsBindingObserver {
     var recovered = await _restoreOwnedClubsFromStores(authUserId);
     if (!_isDemoSession) {
       if (_purgeDemoIdentityClubs()) recovered = true;
+      _stripHardcodedDemoPayload();
       if (await _ingestServerMemberships(authUserId)) recovered = true;
+      if (_purgeDemoIdentityClubs()) recovered = true;
     }
     // 복구 후에도 탈퇴 목록은 제외
     _myClubs.removeWhere((c) => _isLeftClub(c.id));
@@ -548,6 +551,10 @@ class ClubProvider extends ChangeNotifier with WidgetsBindingObserver {
         if (merged != null) bundle = merged;
       }
       _importBundle(bundle);
+      if (!_isDemoSession) {
+        _purgeDemoIdentityClubs();
+        _stripHardcodedDemoPayload();
+      }
       for (final club in List<Club>.from(_myClubs)) {
         await _hydrateRosterFromServer(club.id);
       }
@@ -883,6 +890,7 @@ class ClubProvider extends ChangeNotifier with WidgetsBindingObserver {
       final discoverable = await AppDependencies.instance.clubRepository
           .fetchDiscoverableClubs();
       for (final c in discoverable) {
+        if (SampleClubFilter.isSample(id: c.id, name: c.name)) continue;
         if (!c.id.startsWith('c_')) continue;
         if (c.creatorId.isEmpty || !aliases.contains(c.creatorId)) continue;
         if (_ingestOwnedClub(c, const [])) changed = true;
@@ -1094,8 +1102,7 @@ class ClubProvider extends ChangeNotifier with WidgetsBindingObserver {
       final remote = await AppDependencies.instance.clubRepository
           .fetchMyClubs(authUserId);
       for (final c in remote) {
-        if (_legacyMockClubIds.contains(c.id)) continue;
-        if (c.id.startsWith('seed_')) continue;
+        if (SampleClubFilter.isSample(id: c.id, name: c.name)) continue;
         if (_ingestOwnedClub(c, const [])) changed = true;
       }
     } catch (e) {
@@ -1116,7 +1123,7 @@ class ClubProvider extends ChangeNotifier with WidgetsBindingObserver {
     };
     final drop = <String>{};
     for (final c in _myClubs) {
-      if (_legacyMockClubIds.contains(c.id) || c.id.startsWith('seed_')) {
+      if (SampleClubFilter.isSample(id: c.id, name: c.name)) {
         drop.add(c.id);
         continue;
       }
@@ -1140,8 +1147,48 @@ class ClubProvider extends ChangeNotifier with WidgetsBindingObserver {
     return true;
   }
 
+  /// 예전 빌드가 폰에 저장해 둔 홍길동 회비·사진·광고 시드를 실계정에서 지운다.
+  void _stripHardcodedDemoPayload() {
+    if (_isDemoSession) return;
+    _members.removeWhere((m) =>
+        m.id == 'm1' ||
+        m.id == 'mg1' ||
+        m.id == 'm4' ||
+        RegExp(r'^m\d+$').hasMatch(m.id));
+    _photos.removeWhere((p) =>
+        p.clubId == 'c1' ||
+        const {'p1', 'p2', 'p3', 'p4', 'p5', 'p6'}.contains(p.id));
+    _transactions.removeWhere((t) =>
+        t.id == 'ob_demo' ||
+        t.id == 't0' ||
+        t.id.startsWith('t_m') ||
+        t.id.startsWith('t_ad_') ||
+        t.recordedBy == '홍길동');
+    _duesSettings.removeWhere((d) =>
+        d.clubId == null && RegExp(r'^ds\d+$').hasMatch(d.id));
+    _duesPayments.removeWhere((p) =>
+        RegExp(r'^m\d+$').hasMatch(p.memberId) ||
+        seedMemberNames.contains(p.memberName));
+    _paymentRequests.removeWhere((r) => r.id == 'pr1' || r.id == 'pr2');
+    _adApplications.removeWhere((a) =>
+        a.clubId == 'c1' || a.id == 'ad1' || a.id == 'ad2');
+    _sponsorApplications.removeWhere((s) =>
+        s.clubId == 'c1' || s.id == 'sp1');
+    _pointEvents.removeWhere((id, _) =>
+        id == 'm1' ||
+        id == 'mg1' ||
+        id == 'm4' ||
+        RegExp(r'^m\d+$').hasMatch(id));
+    _awardRecords.removeWhere((r) => r.id.startsWith('ar') && r.scheduleId == 's3');
+    _thankYouMessages.removeWhere((t) =>
+        t.id == 'ty1' || t.id == 'ty2' || t.id == 'ty3');
+    _allClubs.removeWhere(
+      (c) => SampleClubFilter.isSample(id: c.id, name: c.name),
+    );
+  }
+
   Future<void> _hydrateRosterFromServer(String clubId) async {
-    if (clubId.isEmpty || _legacyMockClubIds.contains(clubId)) return;
+    if (clubId.isEmpty || SampleClubFilter.isSample(id: clubId)) return;
     if (!AppDependencies.instance.isInitialized ||
         AppDependencies.instance.isOfflineMockMode) {
       return;
@@ -1791,20 +1838,7 @@ class ClubProvider extends ChangeNotifier with WidgetsBindingObserver {
   // ────────────────────────────────────────────────────────
   //  Members mock
   // ────────────────────────────────────────────────────────
-  final List<Member> _members = [
-    Member(id: 'm1', name: '홍길동', gender: '남',
-        birthDate: DateTime(1974, 3, 15), memberType: '정회원', role: '일반',
-        phone: '010-1234-5678',
-        bio: '',
-        handicap: 12.0, joinDate: DateTime(2018, 1, 1),
-        address: '서울시 강남구', status: '활성'),
-    Member(id: 'mg1', name: '이민준', gender: '남',
-        birthDate: DateTime(1991, 9, 20), memberType: '정회원', role: '일반',
-        phone: '010-9999-0000',
-        bio: '',
-        handicap: 18.0, joinDate: DateTime(2022, 7, 1),
-        address: '서울시 강남구', status: '활성'),
-  ];
+  final List<Member> _members = [];
 
   // ────────────────────────────────────────────────────────
   //  Activity / Attendance / Announcement
@@ -2003,210 +2037,11 @@ class ClubProvider extends ChangeNotifier with WidgetsBindingObserver {
   // ════════════════════════════════════════════════════════
   //  재무 — 회비 설정 mock (현재 연/월 기준 — 하드코딩 연도 금지)
   // ════════════════════════════════════════════════════════
-  late final List<DuesSetting> _duesSettings = _seedDuesSettings();
-  late final List<DuesPayment> _duesPayments = _seedDuesPayments();
-  late final List<PaymentRequest> _paymentRequests = _seedPaymentRequests();
+  late final List<DuesSetting> _duesSettings = <DuesSetting>[];
+  late final List<DuesPayment> _duesPayments = <DuesPayment>[];
+  late final List<PaymentRequest> _paymentRequests = <PaymentRequest>[];
 
-  // ── 수입/지출 내역 mock ──
-  final List<Transaction> _transactions = [
-    // ✅ 신규 모임 온보딩: 초기 잔액 (앱 도입 전 잔액 세팅 예시)
-    Transaction(id: 'ob_demo', type: TxType.income, amount: 1200000,
-        category: '초기잔액', title: '앱 도입 전 잔액',
-        date: DateTime(2025, 1, 1), recordedBy: '홍길동',
-        source: TxSource.openingBalance),
-    // 2024년 이월 잔액 (연도 시작 시 이전 연도 잔액 이월)
-    Transaction(id: 't0', type: TxType.income, amount: 850000,
-        category: '이월잔액', title: '2024년 잔액 이월',
-        date: DateTime(2025, 1, 1), recordedBy: '시스템',
-        source: TxSource.carryover),
-    // 3월 월회비
-    Transaction(id: 't_m3_1', type: TxType.income, amount: 50000,
-        category: '월회비', title: '3월 월회비 - 홍길동',
-        date: DateTime(2025, 3, 3), recordedBy: '이영희',
-        source: TxSource.dues),
-    Transaction(id: 't_m3_2', type: TxType.income, amount: 50000,
-        category: '월회비', title: '3월 월회비 - 김철수',
-        date: DateTime(2025, 3, 4), recordedBy: '이영희',
-        source: TxSource.dues),
-    Transaction(id: 't_m3_3', type: TxType.income, amount: 50000,
-        category: '월회비', title: '3월 월회비 - 이영희',
-        date: DateTime(2025, 3, 5), recordedBy: '이영희',
-        source: TxSource.dues),
-    Transaction(id: 't_m3_e1', type: TxType.expense, amount: 150000,
-        category: '식비', title: '3월 라운딩 후 식사',
-        date: DateTime(2025, 3, 10), recordedBy: '이영희',
-        source: TxSource.manual),
-    // 4월
-    Transaction(id: 't9', type: TxType.income, amount: 50000,
-        category: '월회비', title: '4월 월회비 - 홍길동',
-        date: DateTime(2025, 4, 3), recordedBy: '이영희',
-        source: TxSource.dues),
-    Transaction(id: 't9b', type: TxType.income, amount: 50000,
-        category: '월회비', title: '4월 월회비 - 김철수',
-        date: DateTime(2025, 4, 4), recordedBy: '이영희',
-        source: TxSource.dues),
-    Transaction(id: 't9c', type: TxType.income, amount: 50000,
-        category: '월회비', title: '4월 월회비 - 이영희',
-        date: DateTime(2025, 4, 4), recordedBy: '이영희',
-        source: TxSource.dues),
-    Transaction(id: 't9d', type: TxType.income, amount: 50000,
-        category: '월회비', title: '4월 월회비 - 박민준',
-        date: DateTime(2025, 4, 5), recordedBy: '이영희',
-        source: TxSource.dues),
-    Transaction(id: 't9e', type: TxType.income, amount: 50000,
-        category: '월회비', title: '4월 월회비 - 최수연',
-        date: DateTime(2025, 4, 6), recordedBy: '이영희',
-        source: TxSource.dues),
-    Transaction(id: 't9f', type: TxType.income, amount: 50000,
-        category: '월회비', title: '4월 월회비 - 정다은',
-        date: DateTime(2025, 4, 7), recordedBy: '이영희',
-        source: TxSource.dues),
-    Transaction(id: 't9g', type: TxType.income, amount: 50000,
-        category: '월회비', title: '4월 월회비 - 강동원',
-        date: DateTime(2025, 4, 8), recordedBy: '이영희',
-        source: TxSource.dues),
-    Transaction(id: 't9h', type: TxType.income, amount: 50000,
-        category: '월회비', title: '4월 월회비 - 윤서준',
-        date: DateTime(2025, 4, 9), recordedBy: '이영희',
-        source: TxSource.dues),
-    Transaction(id: 't10', type: TxType.expense, amount: 150000,
-        category: '식비', title: '4월 라운딩 후 식사',
-        date: DateTime(2025, 4, 20), recordedBy: '이영희',
-        source: TxSource.manual),
-    Transaction(id: 't11', type: TxType.income, amount: 50000,
-        category: '벌금', title: '지각 벌금 (3명)',
-        date: DateTime(2025, 4, 20), recordedBy: '이영희',
-        source: TxSource.manual),
-    // 5월
-    Transaction(id: 't4', type: TxType.income, amount: 50000,
-        category: '월회비', title: '5월 월회비 - 홍길동',
-        date: DateTime(2025, 5, 2), recordedBy: '이영희',
-        source: TxSource.dues),
-    Transaction(id: 't4b', type: TxType.income, amount: 50000,
-        category: '월회비', title: '5월 월회비 - 김철수',
-        date: DateTime(2025, 5, 4), recordedBy: '이영희',
-        source: TxSource.dues),
-    Transaction(id: 't4c', type: TxType.income, amount: 50000,
-        category: '월회비', title: '5월 월회비 - 이영희',
-        date: DateTime(2025, 5, 4), recordedBy: '이영희',
-        source: TxSource.dues),
-    Transaction(id: 't4d', type: TxType.income, amount: 50000,
-        category: '월회비', title: '5월 월회비 - 박민준',
-        date: DateTime(2025, 5, 6), recordedBy: '이영희',
-        source: TxSource.dues),
-    Transaction(id: 't4e', type: TxType.income, amount: 50000,
-        category: '월회비', title: '5월 월회비 - 최수연',
-        date: DateTime(2025, 5, 8), recordedBy: '이영희',
-        source: TxSource.dues),
-    Transaction(id: 't4f', type: TxType.income, amount: 50000,
-        category: '월회비', title: '5월 월회비 - 정다은',
-        date: DateTime(2025, 5, 9), recordedBy: '이영희',
-        source: TxSource.dues),
-    Transaction(id: 't4g', type: TxType.income, amount: 50000,
-        category: '월회비', title: '5월 월회비 - 강동원',
-        date: DateTime(2025, 5, 10), recordedBy: '이영희',
-        source: TxSource.dues),
-    Transaction(id: 't4h', type: TxType.income, amount: 50000,
-        category: '월회비', title: '5월 월회비 - 윤서준',
-        date: DateTime(2025, 5, 12), recordedBy: '이영희',
-        source: TxSource.dues),
-    Transaction(id: 't5', type: TxType.income, amount: 100000,
-        category: '특별회비', title: '대회 특별회비 - 홍길동',
-        date: DateTime(2025, 5, 20), recordedBy: '이영희',
-        source: TxSource.dues),
-    Transaction(id: 't5b', type: TxType.income, amount: 100000,
-        category: '특별회비', title: '대회 특별회비 - 김철수',
-        date: DateTime(2025, 5, 22), recordedBy: '이영희',
-        source: TxSource.dues),
-    Transaction(id: 't5c', type: TxType.income, amount: 100000,
-        category: '특별회비', title: '대회 특별회비 - 이영희',
-        date: DateTime(2025, 5, 22), recordedBy: '이영희',
-        source: TxSource.dues),
-    Transaction(id: 't5d', type: TxType.income, amount: 100000,
-        category: '특별회비', title: '대회 특별회비 - 정다은',
-        date: DateTime(2025, 5, 25), recordedBy: '이영희',
-        source: TxSource.dues),
-    Transaction(id: 't5e', type: TxType.income, amount: 100000,
-        category: '특별회비', title: '대회 특별회비 - 강동원',
-        date: DateTime(2025, 5, 25), recordedBy: '이영희',
-        source: TxSource.dues),
-    Transaction(id: 't6', type: TxType.expense, amount: 200000,
-        category: '식비', title: '5월 라운딩 후 식사',
-        date: DateTime(2025, 5, 18), recordedBy: '이영희',
-        source: TxSource.manual),
-    Transaction(id: 't7', type: TxType.expense, amount: 80000,
-        category: '상품', title: '롱기스트 상품',
-        date: DateTime(2025, 5, 18), recordedBy: '이영희',
-        source: TxSource.manual),
-    Transaction(id: 't8', type: TxType.expense, amount: 30000,
-        category: '기타', title: '스코어카드 인쇄',
-        date: DateTime(2025, 5, 3), recordedBy: '이영희',
-        source: TxSource.manual),
-    // 6월
-    Transaction(id: 't1', type: TxType.income, amount: 50000,
-        category: '월회비', title: '6월 월회비 - 홍길동',
-        date: DateTime(2025, 6, 3), recordedBy: '이영희',
-        source: TxSource.dues),
-    Transaction(id: 't1b', type: TxType.income, amount: 50000,
-        category: '월회비', title: '6월 월회비 - 김철수',
-        date: DateTime(2025, 6, 5), recordedBy: '이영희',
-        source: TxSource.dues),
-    Transaction(id: 't1c', type: TxType.income, amount: 50000,
-        category: '월회비', title: '6월 월회비 - 이영희',
-        date: DateTime(2025, 6, 5), recordedBy: '이영희',
-        source: TxSource.dues),
-    Transaction(id: 't1d', type: TxType.income, amount: 50000,
-        category: '월회비', title: '6월 월회비 - 정다은',
-        date: DateTime(2025, 6, 7), recordedBy: '이영희',
-        source: TxSource.dues),
-    Transaction(id: 't1e', type: TxType.income, amount: 50000,
-        category: '월회비', title: '6월 월회비 - 강동원',
-        date: DateTime(2025, 6, 8), recordedBy: '이영희',
-        source: TxSource.dues),
-    Transaction(id: 't1f', type: TxType.income, amount: 50000,
-        category: '월회비', title: '6월 월회비 - 윤서준',
-        date: DateTime(2025, 6, 10), recordedBy: '이영희',
-        source: TxSource.dues),
-    Transaction(id: 't2', type: TxType.expense, amount: 120000,
-        category: '식비', title: '6월 라운딩 후 식사',
-        date: DateTime(2025, 6, 8), recordedBy: '이영희',
-        source: TxSource.manual),
-    Transaction(id: 't3', type: TxType.expense, amount: 50000,
-        category: '상품', title: '니어리스트 상품',
-        date: DateTime(2025, 6, 8), recordedBy: '이영희',
-        source: TxSource.manual),
-
-    // ── 2025년 7월 월회비 수입 (dp20~dp25와 매핑) ──
-    Transaction(id: 't_m7_1', type: TxType.income, amount: 50000,
-        category: '월회비', title: '7월 월회비 - 홍길동',
-        date: DateTime(2025, 7, 2), recordedBy: '이영희',
-        source: TxSource.dues, duesPaymentId: 'dp20'),
-    Transaction(id: 't_m7_2', type: TxType.income, amount: 50000,
-        category: '월회비', title: '7월 월회비 - 김철수',
-        date: DateTime(2025, 7, 3), recordedBy: '이영희',
-        source: TxSource.dues, duesPaymentId: 'dp21'),
-    Transaction(id: 't_m7_3', type: TxType.income, amount: 50000,
-        category: '월회비', title: '7월 월회비 - 이영희',
-        date: DateTime(2025, 7, 4), recordedBy: '이영희',
-        source: TxSource.dues, duesPaymentId: 'dp22'),
-    Transaction(id: 't_m7_4', type: TxType.income, amount: 50000,
-        category: '월회비', title: '7월 월회비 - 정다은',
-        date: DateTime(2025, 7, 5), recordedBy: '이영희',
-        source: TxSource.dues, duesPaymentId: 'dp23'),
-    Transaction(id: 't_m7_5', type: TxType.income, amount: 50000,
-        category: '월회비', title: '7월 월회비 - 강동원',
-        date: DateTime(2025, 7, 7), recordedBy: '이영희',
-        source: TxSource.dues, duesPaymentId: 'dp24'),
-    Transaction(id: 't_m7_6', type: TxType.income, amount: 50000,
-        category: '월회비', title: '7월 월회비 - 윤서준',
-        date: DateTime(2025, 7, 8), recordedBy: '이영희',
-        source: TxSource.dues, duesPaymentId: 'dp25'),
-    // 광고비 수입 (ad1 — 스카이72, 2개월 × 100,000원 × 90%)
-    Transaction(id: 't_ad_sky72', type: TxType.income, amount: 180000,
-        category: '제휴광고', title: '광고비 수입 - 김철수 (홈 배너)',
-        date: DateTime(2025, 5, 25), recordedBy: '시스템',
-        source: TxSource.ad),
-  ];
+  final List<Transaction> _transactions = [];
 
   // ════════════════════════════════════════════════════════
   //  Getters — 재무
@@ -4805,8 +4640,8 @@ class ClubProvider extends ChangeNotifier with WidgetsBindingObserver {
     _appNotifications.insert(0, AppNotification(
       id: 'noti_cmt_${DateTime.now().millisecondsSinceEpoch}',
       type: AppNotificationType.comment,
-      clubId: 'c1',
-      clubName: '강남 골프회',
+      clubId: selectedClub.id,
+      clubName: selectedClub.name,
       title: '댓글',
       body: '$currentUserName님이 댓글을 달았습니다: ${text.length > 20 ? text.substring(0, 20) + '…' : text}',
       isAdmin: false,
@@ -6470,51 +6305,7 @@ class ClubProvider extends ChangeNotifier with WidgetsBindingObserver {
   //  Photos — 라운딩 사진 목업
   // ════════════════════════════════════════════════════════
 
-  final List<RoundPhoto> _photos = [
-    // s3 (지난 일정: 5월 월례회) 샘플 사진
-    RoundPhoto(
-      id: 'p1', scheduleId: 's3', clubId: 'c1',
-      uploaderId: 'm1', uploaderName: '홍길동',
-      imageUrl: 'https://picsum.photos/seed/golf1/600/400',
-      caption: '레이크사이드 18번 홀 파 버디!',
-      takenAt: DateTime.now().subtract(const Duration(days: 20, hours: 2)),
-    ),
-    RoundPhoto(
-      id: 'p2', scheduleId: 's3', clubId: 'c1',
-      uploaderId: 'm2', uploaderName: '김철수',
-      imageUrl: 'https://picsum.photos/seed/golf2/600/400',
-      caption: '오늘 동반자들과 함께',
-      takenAt: DateTime.now().subtract(const Duration(days: 20, hours: 1)),
-    ),
-    RoundPhoto(
-      id: 'p3', scheduleId: 's3', clubId: 'c1',
-      uploaderId: 'm3', uploaderName: '이영희',
-      imageUrl: 'https://picsum.photos/seed/golf3/600/400',
-      caption: '클럽하우스에서 점심',
-      takenAt: DateTime.now().subtract(const Duration(days: 20)),
-    ),
-    RoundPhoto(
-      id: 'p4', scheduleId: 's3', clubId: 'c1',
-      uploaderId: 'm6', uploaderName: '정다은',
-      imageUrl: 'https://picsum.photos/seed/golf4/600/400',
-      caption: null,
-      takenAt: DateTime.now().subtract(const Duration(days: 19, hours: 20)),
-    ),
-    RoundPhoto(
-      id: 'p5', scheduleId: 's3', clubId: 'c1',
-      uploaderId: 'm1', uploaderName: '홍길동',
-      imageUrl: 'https://picsum.photos/seed/golf5/600/400',
-      caption: '코스 뷰 최고였던 9번홀',
-      takenAt: DateTime.now().subtract(const Duration(days: 19, hours: 18)),
-    ),
-    RoundPhoto(
-      id: 'p6', scheduleId: 's3', clubId: 'c1',
-      uploaderId: 'm4', uploaderName: '박민준',
-      imageUrl: 'https://picsum.photos/seed/golf6/600/400',
-      caption: '마지막 홀 기념샷',
-      takenAt: DateTime.now().subtract(const Duration(days: 19, hours: 16)),
-    ),
-  ];
+  final List<RoundPhoto> _photos = [];
 
   /// 특정 일정의 사진 목록 (최신순)
   List<RoundPhoto> photosOf(String scheduleId) {
@@ -6649,54 +6440,7 @@ class ClubProvider extends ChangeNotifier with WidgetsBindingObserver {
   // ════════════════════════════════════════════════════════
 
   /// scheduleId → GroupAssignment 저장소
-  final Map<String, GroupAssignment> _groupAssignments = {
-    // ── s4 — 확정 조편성 (참석 응답자만: mg1/m1/m2/m4) ──
-    's4': GroupAssignment(
-      scheduleId: 's4',
-      teamCount: 6,
-      perGroup: 4,
-      isFinalized: true,
-      finalizedAt: DateTime.now().subtract(const Duration(days: 1)),
-      groups: [
-        AssignGroup(groupNumber: 1, slots: [
-          const GroupSlot(memberId: 'm1',  memberName: '홍길동', gender: '남', handicap: 12.0),
-          const GroupSlot(memberId: 'm2',  memberName: '김철수', gender: '남', handicap: 15.0),
-          const GroupSlot(memberId: 'mg1', memberName: '이민준', gender: '남', handicap: 18.0),
-          const GroupSlot(memberId: 'm4',  memberName: '박민준', gender: '남', handicap: 20.0),
-        ]),
-        AssignGroup(groupNumber: 2, slots: [
-          const GroupSlot(),
-          const GroupSlot(),
-          const GroupSlot(),
-          const GroupSlot(),
-        ]),
-        AssignGroup(groupNumber: 3, slots: [
-          const GroupSlot(),
-          const GroupSlot(),
-          const GroupSlot(),
-          const GroupSlot(),
-        ]),
-        AssignGroup(groupNumber: 4, slots: [
-          const GroupSlot(),
-          const GroupSlot(),
-          const GroupSlot(),
-          const GroupSlot(),
-        ]),
-        AssignGroup(groupNumber: 5, slots: [
-          const GroupSlot(),
-          const GroupSlot(),
-          const GroupSlot(),
-          const GroupSlot(),
-        ]),
-        AssignGroup(groupNumber: 6, slots: [
-          const GroupSlot(),
-          const GroupSlot(),
-          const GroupSlot(),
-          const GroupSlot(),
-        ]),
-      ],
-    ),
-  };
+  final Map<String, GroupAssignment> _groupAssignments = {};
 
   /// 해당 일정의 조편성 반환 (없으면 null)
   GroupAssignment? groupAssignment(String scheduleId) =>
@@ -7024,62 +6768,7 @@ class ClubProvider extends ChangeNotifier with WidgetsBindingObserver {
 
   List<AdApplication> _adApplications = _createDefaultAdApplications();
 
-  static List<AdApplication> _createDefaultAdApplications() {
-    final now = DateTime.now();
-    final thisMonth = DateTime(now.year, now.month, 1);
-    final nextMonth = DateTime(now.year, now.month + 1, 1);
-    return <AdApplication>[
-      // 샘플: 현재 게재 중인 광고 (홈 배너 — 스카이72) — 이번달부터 2개월
-      AdApplication(
-        id: 'ad1',
-        clubId: 'c1',
-        clubName: '강남 골프회',
-        applicantId: 'm2',
-        applicantName: '김철수',
-        slotType: AdSlotType.home,
-        startMonth: thisMonth,                              // ← 현재 월
-        durationMonths: 2,
-        status: AdStatus.active,
-        appliedAt: thisMonth.subtract(const Duration(days: 20)),
-        title: '스카이72 골프 & 리조트',
-        description: '인천 영종도 36홀 · 지금 예약 시 그린피 15% 할인',
-        bannerImageUrl: 'assets/ads/sky72.png',
-        landingUrl: 'https://sky72.com',
-        paidAt: thisMonth.subtract(const Duration(days: 15)),
-        paidAmount: 200000,
-      ),
-      // 샘플: 일정 탭 — 승인 대기 중 (다음달)
-      AdApplication(
-        id: 'ad2',
-        clubId: 'c1',
-        clubName: '강남 골프회',
-        applicantId: 'm4',
-        applicantName: '박민준',
-        slotType: AdSlotType.schedule,
-        startMonth: nextMonth,                             // ← 다음달
-        durationMonths: 1,
-        status: AdStatus.pending,
-        appliedAt: thisMonth.subtract(const Duration(days: 3)),
-        title: 'TITLEIST Pro V1x 한정 특가',
-        description: '공식 파트너 온라인몰 단독 15% 할인',
-      ),
-      // 샘플: 홈 배너 — 승인 완료 대기 (후원과 함께 전체 내역에 표시)
-      AdApplication(
-        id: 'ad3',
-        clubId: 'c1',
-        clubName: '강남 골프회',
-        applicantId: 'user_me',
-        applicantName: '홍길동',
-        slotType: AdSlotType.home,
-        startMonth: nextMonth,                             // ← 다음달
-        durationMonths: 2,
-        status: AdStatus.approved,
-        appliedAt: thisMonth.subtract(const Duration(days: 15)),
-        title: '레이크사이드CC 회원권 특가',
-        description: '강남 회원 전용 주중 그린피 20% 할인',
-      ),
-    ];
-  }
+  static List<AdApplication> _createDefaultAdApplications() => <AdApplication>[];
 
   final List<AdNotification> _adNotifications = [];
 
@@ -7368,35 +7057,10 @@ class ClubProvider extends ChangeNotifier with WidgetsBindingObserver {
   //  후원(Sponsor) 시스템
   // ════════════════════════════════════════════════════════
 
-  // 샘플 데이터: 현재 월 기준 동적 계산 (항상 현재 활성화 상태 유지)
-  static DateTime _thisMonth() {
-    final n = DateTime.now();
-    return DateTime(n.year, n.month, 1);
-  }
-
   List<SponsorApplication> _sponsorApplications =
       _createDefaultSponsorApplications();
 
-  static List<SponsorApplication> _createDefaultSponsorApplications() => [
-    // 샘플: 현재 후원 중 (다다치과) — 이번달부터 3개월
-    SponsorApplication(
-      id: 'sp1',
-      clubId: 'c1',
-      clubName: '강남 골프회',
-      applicantId: 'user_me',
-      applicantName: '홍길동',
-      sponsorName: '다다치과',
-      description: '강남구 소재 치과. 회원 대상 첫 방문 20% 할인 제공',
-      landingUrl: 'https://dadaclinic.kr',
-      amount: 300000,
-      durationMonths: 3,
-      startMonth: _thisMonth(),                          // ← 앱 시작 시 현재 월
-      status: SponsorStatus.active,
-      appliedAt: DateTime(DateTime.now().year, DateTime.now().month, 1).subtract(const Duration(days: 20)),
-      paidAt: DateTime(DateTime.now().year, DateTime.now().month, 1).subtract(const Duration(days: 10)),
-      paidAmount: 300000,
-    ),
-  ];
+  static List<SponsorApplication> _createDefaultSponsorApplications() => <SponsorApplication>[];
 
   // ── Getters ──────────────────────────────────────────────
 
@@ -7571,40 +7235,8 @@ class ClubProvider extends ChangeNotifier with WidgetsBindingObserver {
   //  · 후원사 인사 +2, 노쇼 -10
   // ════════════════════════════════════════════════════════
 
-  /// 데모 시드 데이터용 연도 = 올해.
-  static int get _seedYear => DateTime.now().year;
-
   // 포인트 이벤트 기록 (memberId → 이벤트 목록)
-  //
-  // 데모 모임(c1~c5) 시드. 랭킹은 '올해' 기준으로 합산하므로 연도를 고정하면
-  // 해가 바뀌는 순간 데모 랭킹이 전부 0점이 된다 → _seedYear 로 올해에 맞춘다.
-  final Map<String, List<MembershipPointEvent>> _pointEvents = {
-    'm1': [
-      MembershipPointEvent(type: MembershipPointType.roundAttendance, points: 10, desc: '5월 월례회 참석', date: DateTime(_seedYear, 5, 20)),
-      MembershipPointEvent(type: MembershipPointType.roundAttendance, points: 10, desc: '4월 월례회 참석', date: DateTime(_seedYear, 4, 15)),
-      MembershipPointEvent(type: MembershipPointType.duesOnTime, points: 5, desc: '5월 회비 정시납부', date: DateTime(_seedYear, 5, 1)),
-      MembershipPointEvent(type: MembershipPointType.commentActivity, points: 2, desc: '공지 참여', date: DateTime(_seedYear, 5, 10)),
-      MembershipPointEvent(type: MembershipPointType.sponsorGreeting, points: 2, desc: '후원사 감사인사', date: DateTime(_seedYear, 5, 15)),
-    ],
-    'm2': [
-      MembershipPointEvent(type: MembershipPointType.roundAttendance, points: 10, desc: '5월 월례회 참석', date: DateTime(_seedYear, 5, 20)),
-      MembershipPointEvent(type: MembershipPointType.duesOnTime, points: 5, desc: '5월 회비 정시납부', date: DateTime(_seedYear, 5, 1)),
-      MembershipPointEvent(type: MembershipPointType.noShow, points: -10, desc: '4월 노쇼', date: DateTime(_seedYear, 4, 15)),
-    ],
-    'm3': [
-      MembershipPointEvent(type: MembershipPointType.roundAttendance, points: 10, desc: '5월 월례회 참석', date: DateTime(_seedYear, 5, 20)),
-      MembershipPointEvent(type: MembershipPointType.duesOnTime, points: 5, desc: '5월 회비 정시납부', date: DateTime(_seedYear, 5, 1)),
-      MembershipPointEvent(type: MembershipPointType.commentActivity, points: 2, desc: '댓글 활동', date: DateTime(_seedYear, 5, 8)),
-      MembershipPointEvent(type: MembershipPointType.sponsorGreeting, points: 2, desc: '후원사 감사인사', date: DateTime(_seedYear, 5, 12)),
-    ],
-    'm4': [
-      MembershipPointEvent(type: MembershipPointType.roundAttendance, points: 10, desc: '5월 월례회 참석', date: DateTime(_seedYear, 5, 20)),
-      MembershipPointEvent(type: MembershipPointType.duesOnTime, points: 5, desc: '5월 회비 정시납부', date: DateTime(_seedYear, 5, 1)),
-    ],
-    'm5': [
-      MembershipPointEvent(type: MembershipPointType.roundAttendance, points: 10, desc: '5월 월례회 참석', date: DateTime(_seedYear, 5, 20)),
-    ],
-  };
+  final Map<String, List<MembershipPointEvent>> _pointEvents = {};
 
   /// 같은 사람의 포인트 키 (auth id / m_creator / currentMember 혼용 보정)
   Set<String> _membershipPointKeysFor(String memberId) {
@@ -7806,38 +7438,7 @@ class ClubProvider extends ChangeNotifier with WidgetsBindingObserver {
   //  · 회원별 올해 시상 횟수 계산
   // ════════════════════════════════════════════════════════
 
-  final List<AwardRecord> _awardRecords = [
-    AwardRecord(
-      id: 'ar1',
-      scheduleId: 's3',
-      scheduleName: '5월 월례회',
-      awardName: '메달리스트',
-      awardIcon: '🥇',
-      winnerIds: ['m1'],
-      winnerNames: ['홍길동'],
-      recordedAt: DateTime(2025, 5, 20),
-    ),
-    AwardRecord(
-      id: 'ar2',
-      scheduleId: 's3',
-      scheduleName: '5월 월례회',
-      awardName: '니어리스트',
-      awardIcon: '🎯',
-      winnerIds: ['m3'],
-      winnerNames: ['이영희'],
-      recordedAt: DateTime(2025, 5, 20),
-    ),
-    AwardRecord(
-      id: 'ar3',
-      scheduleId: 's3',
-      scheduleName: '5월 월례회',
-      awardName: '롱기스트',
-      awardIcon: '🏌️',
-      winnerIds: ['m2', 'm4'],
-      winnerNames: ['김철수', '박민준'],
-      recordedAt: DateTime(2025, 5, 20),
-    ),
-  ];
+  final List<AwardRecord> _awardRecords = [];
 
   final List<RoundScoreRecord> _roundScores = [];
 
@@ -7957,32 +7558,7 @@ class ClubProvider extends ChangeNotifier with WidgetsBindingObserver {
   //  · ThankYouMessage: 보낸 사람, 후원사, 메시지, 시각
   // ════════════════════════════════════════════════════════
 
-  final List<ThankYouMessage> _thankYouMessages = [
-    ThankYouMessage(
-      id: 'ty1',
-      senderId: 'm1',
-      senderName: '홍길동',
-      sponsorName: '골프존마켓',
-      message: '항상 좋은 골프용품 제공해 주셔서 감사합니다! 덕분에 이번 라운드도 즐거웠습니다 😊',
-      createdAt: DateTime.now().subtract(const Duration(days: 3, hours: 2)),
-    ),
-    ThankYouMessage(
-      id: 'ty2',
-      senderId: 'm3',
-      senderName: '이영희',
-      sponsorName: '스카이72골프장',
-      message: '그린피 할인 혜택 정말 감사해요! 다음 라운딩도 기대됩니다 ⛳',
-      createdAt: DateTime.now().subtract(const Duration(days: 1, hours: 5)),
-    ),
-    ThankYouMessage(
-      id: 'ty3',
-      senderId: 'm2',
-      senderName: '김철수',
-      sponsorName: '골프존마켓',
-      message: '회원들을 위해 후원해 주셔서 진심으로 감사드립니다. 앞으로도 잘 부탁드립니다!',
-      createdAt: DateTime.now().subtract(const Duration(hours: 8)),
-    ),
-  ];
+  final List<ThankYouMessage> _thankYouMessages = [];
 
   List<ThankYouMessage> get thankYouMessages =>
       List.unmodifiable(_thankYouMessages..sort((a, b) => b.createdAt.compareTo(a.createdAt)));
@@ -8436,161 +8012,6 @@ class ClubProvider extends ChangeNotifier with WidgetsBindingObserver {
     }
   }
 
-  static List<DuesSetting> _seedDuesSettings() {
-    final now = DateTime.now();
-    final y = now.year;
-    return [
-      DuesSetting(
-        id: 'ds1',
-        type: DuesType.monthly,
-        amount: 50000,
-        title: '$y년 월회비',
-        description: '매월 말일까지 납부',
-        createdAt: DateTime(y, 1, 1),
-        isActive: true,
-        startMonth: 3,
-        endMonth: 11,
-        startYear: y,
-        endYear: y,
-        dueDayOfMonth: 25,
-      ),
-      DuesSetting(
-        id: 'ds2',
-        type: DuesType.special,
-        amount: 100000,
-        title: '상반기 골프대회 특별회비',
-        description: '대회 운영비',
-        createdAt: DateTime(y, 5, 1),
-        isActive: true,
-        dueDate: DateTime(y, 5, 15),
-      ),
-      DuesSetting(
-        id: 'ds3',
-        type: DuesType.annual,
-        amount: 300000,
-        title: '$y년 연회비',
-        description: '연 1회 납부',
-        createdAt: DateTime(y, 1, 1),
-        isActive: true,
-        year: y,
-        dueDate: DateTime(y, 3, 1),
-      ),
-      DuesSetting(
-        id: 'ds4',
-        type: DuesType.annual,
-        amount: 300000,
-        title: '${y - 1}년 연회비',
-        description: '',
-        createdAt: DateTime(y - 1, 1, 1),
-        isActive: false,
-        year: y - 1,
-        dueDate: DateTime(y - 1, 3, 1),
-      ),
-    ];
-  }
-
-  static List<DuesPayment> _seedDuesPayments() {
-    final now = DateTime.now();
-    final y = now.year;
-    // 납부 기간(3~11월) 안에서 현재/직전 월 샘플
-    final curMonth = now.month.clamp(3, 11);
-    final prevMonth = curMonth == 3 ? 3 : curMonth - 1;
-    final membersPaidCur = [
-      ('m1', '홍길동'),
-      ('m2', '김철수'),
-      ('m3', '이영희'),
-      ('m6', '정다은'),
-      ('m7', '강동원'),
-      ('m8', '윤서준'),
-    ];
-    final membersPaidPrev = [
-      ('m1', '홍길동'),
-      ('m2', '김철수'),
-      ('m3', '이영희'),
-      ('m4', '박민준'),
-      ('m5', '최수연'),
-      ('m6', '정다은'),
-      ('m7', '강동원'),
-      ('m8', '윤서준'),
-    ];
-    final list = <DuesPayment>[];
-    var i = 1;
-    for (final (id, name) in membersPaidPrev) {
-      list.add(DuesPayment(
-        id: 'dp${i++}',
-        memberId: id,
-        memberName: name,
-        duesSettingId: 'ds1',
-        amount: 50000,
-        paidAt: DateTime(y, prevMonth, 5),
-        recordedBy: '이영희',
-      ));
-    }
-    for (final (id, name) in membersPaidCur) {
-      list.add(DuesPayment(
-        id: 'dp${i++}',
-        memberId: id,
-        memberName: name,
-        duesSettingId: 'ds1',
-        amount: 50000,
-        paidAt: DateTime(y, curMonth, 4),
-        recordedBy: '이영희',
-      ));
-    }
-    // 특별회비 일부 납부
-    for (final (id, name) in [
-      ('m1', '홍길동'),
-      ('m2', '김철수'),
-      ('m3', '이영희'),
-      ('m6', '정다은'),
-      ('m7', '강동원'),
-    ]) {
-      list.add(DuesPayment(
-        id: 'dp${i++}',
-        memberId: id,
-        memberName: name,
-        duesSettingId: 'ds2',
-        amount: 100000,
-        paidAt: DateTime(y, 5, 20),
-        recordedBy: '이영희',
-      ));
-    }
-    return list;
-  }
-
-  static List<PaymentRequest> _seedPaymentRequests() {
-    final now = DateTime.now();
-    final y = now.year;
-    final m = now.month.clamp(3, 11);
-    return [
-      PaymentRequest(
-        id: 'pr1',
-        memberId: 'm4',
-        memberName: '박민준',
-        duesSettingId: 'ds1',
-        duesTitle: '$y년 월회비',
-        amount: 50000,
-        year: y,
-        month: m,
-        memo: '방금 이체했습니다 :)',
-        status: PaymentRequestStatus.pending,
-        requestedAt: now.subtract(const Duration(minutes: 30)),
-      ),
-      PaymentRequest(
-        id: 'pr2',
-        memberId: 'm5',
-        memberName: '최수연',
-        duesSettingId: 'ds1',
-        duesTitle: '$y년 월회비',
-        amount: 50000,
-        year: y,
-        month: m,
-        memo: '토스로 보냈어요',
-        status: PaymentRequestStatus.pending,
-        requestedAt: now.subtract(const Duration(hours: 1)),
-      ),
-    ];
-  }
 }
 
 class LeaveClubResult {

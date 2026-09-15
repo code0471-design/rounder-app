@@ -137,23 +137,9 @@ class AttendanceStatusWidget extends StatelessWidget {
 
   void _showAttendanceDetail(BuildContext context) {
     // mock 멤버 데이터 (실제는 provider에서)
-    final confirmed = [
-      _AttendMember('홍길동', '남', '정회원', '회장', Icons.sports_golf),
-      _AttendMember('김철수', '남', '정회원', '부회장', Icons.sports_golf),
-      _AttendMember('이영희', '여', '정회원', '총무', Icons.sports_golf),
-      _AttendMember('박민준', '남', '정회원', '일반', Icons.sports_golf),
-      _AttendMember('강동원', '남', '정회원', '일반', Icons.sports_golf),
-      _AttendMember('윤서준', '남', '정회원', '일반', Icons.sports_golf),
-      _AttendMember('이준호', '남', '정회원', '일반', Icons.sports_golf),
-      _AttendMember('김지수', '여', '정회원', '일반', Icons.sports_golf),
-    ];
-    final noResponse = [
-      _AttendMember('정다은', '여', '정회원', '일반', Icons.help_outline),
-      _AttendMember('최수연', '여', '정회원', '일반', Icons.help_outline),
-    ];
-    final declined = [
-      _AttendMember('오세훈', '남', '준회원', '일반', Icons.cancel_outlined),
-    ];
+    final confirmed = <_AttendMember>[];
+    final noResponse = <_AttendMember>[];
+    final declined = <_AttendMember>[];
 
     showModalBottomSheet(
       context: context,

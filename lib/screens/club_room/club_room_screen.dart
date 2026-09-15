@@ -3694,7 +3694,7 @@ class _SponsorBadge extends StatelessWidget {
               // Provider에 저장 (포인트 +2 자동 처리)
               provider.addThankYouMessage(
                 senderId: provider.currentUserId,
-                senderName: '홍길동',
+                senderName: provider.currentUserName,
                 sponsorName: sponsorName,
                 message: msg,
               );

@@ -3,6 +3,7 @@ import 'package:flutter/foundation.dart';
 import '../../../data/repositories/club_repository.dart';
 import '../../../data/repositories/join_request_repository.dart';
 import '../../../di/app_dependencies.dart';
+import '../../../domain/data/sample_club_filter.dart';
 import '../../../domain/services/club_discovery_service.dart';
 import '../../../models/club_model.dart';
 
@@ -110,7 +111,9 @@ class ClubListController extends ChangeNotifier {
 
     try {
       if (AppDependencies.instance.isOfflineMockMode) {
-        _clubs = await _clubRepository.fetchDiscoverableClubs();
+        _clubs = (await _clubRepository.fetchDiscoverableClubs())
+          .where((c) => !SampleClubFilter.isSample(id: c.id, name: c.name))
+          .toList();
         if (userId != null && userId.isNotEmpty) {
           await syncMembershipState(userId);
         }
@@ -124,7 +127,9 @@ class ClubListController extends ChangeNotifier {
         debugPrint('[ClubListController] Firestore 샘플 모임 시드 완료');
       }
 
-      _clubs = await _clubRepository.fetchDiscoverableClubs();
+      _clubs = (await _clubRepository.fetchDiscoverableClubs())
+          .where((c) => !SampleClubFilter.isSample(id: c.id, name: c.name))
+          .toList();
       debugPrint('[ClubListController] Firestore clubs ${_clubs.length}건');
       _usingLocalFallback = false;
 

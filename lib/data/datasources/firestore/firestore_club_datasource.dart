@@ -3,6 +3,7 @@ import 'package:flutter/foundation.dart';
 
 import '../../../core/errors/data_exception.dart';
 import '../../../core/firebase/firestore_paths.dart';
+import '../../../domain/data/sample_club_filter.dart';
 import '../../../models/club_model.dart';
 import '../../mappers/club_mapper.dart';
 import '../../mappers/member_mapper.dart';
@@ -34,8 +35,9 @@ class FirestoreClubDataSource {
     }
   }
 
-  /// 블라인드·종료만 탐색 숨김
+  /// 블라인드·종료·샘플 숨김
   bool _isDiscoverable(DocumentSnapshot<Map<String, dynamic>> doc) {
+    if (SampleClubFilter.isSampleDoc(doc.id, doc.data())) return false;
     final status = doc.data()?['moderation_status'] as String?;
     if (status == null || status.isEmpty) return true;
     return status == 'active' || status == 'pending';
@@ -160,7 +162,9 @@ class FirestoreClubDataSource {
         final snap = await _clubs
             .where(FieldPath.documentId, whereIn: clubIds)
             .get();
-        return snap.docs.map((d) {
+        return snap.docs
+            .where((d) => !SampleClubFilter.isSampleDoc(d.id, d.data()))
+            .map((d) {
           final role = membershipSnap.docs
               .firstWhere(
                 (m) => m.data()['club_id'] == d.id,
