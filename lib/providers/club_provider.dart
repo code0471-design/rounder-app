@@ -8,6 +8,7 @@ import '../data/repositories/mock/mock_store_persistence.dart';
 import '../di/app_dependencies.dart';
 import '../domain/services/app_data_bootstrap_service.dart';
 import '../domain/services/club_discovery_service.dart';
+import '../domain/services/demo_finance_strip.dart';
 import '../domain/services/group_assignment_service.dart';
 import '../domain/data/sample_club_filter.dart';
 import '../domain/services/roster_dedupe.dart';
@@ -1158,17 +1159,23 @@ class ClubProvider extends ChangeNotifier with WidgetsBindingObserver {
     _photos.removeWhere((p) =>
         p.clubId == 'c1' ||
         const {'p1', 'p2', 'p3', 'p4', 'p5', 'p6'}.contains(p.id));
-    _transactions.removeWhere((t) =>
-        t.id == 'ob_demo' ||
-        t.id == 't0' ||
-        t.id.startsWith('t_m') ||
-        t.id.startsWith('t_ad_') ||
-        t.recordedBy == '홍길동');
+    _transactions.removeWhere((t) => DemoFinanceStrip.isSeedTransaction(
+          id: t.id,
+          clubId: t.clubId,
+        ));
+    final realClubIds = {
+      for (final c in _myClubs)
+        if (!SampleClubFilter.isSample(id: c.id, name: c.name) &&
+            !_legacyMockClubIds.contains(c.id))
+          c.id,
+    };
     _duesSettings.removeWhere((d) =>
         d.clubId == null && RegExp(r'^ds\d+$').hasMatch(d.id));
-    _duesPayments.removeWhere((p) =>
-        RegExp(r'^m\d+$').hasMatch(p.memberId) ||
-        seedMemberNames.contains(p.memberName));
+    _duesPayments.removeWhere((p) => DemoFinanceStrip.isSeedDuesPayment(
+          id: p.id,
+          memberId: p.memberId,
+          inRealClub: realClubIds.isNotEmpty,
+        ));
     _paymentRequests.removeWhere((r) => r.id == 'pr1' || r.id == 'pr2');
     _adApplications.removeWhere((a) =>
         a.clubId == 'c1' || a.id == 'ad1' || a.id == 'ad2');
