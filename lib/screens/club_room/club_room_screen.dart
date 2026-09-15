@@ -3762,20 +3762,14 @@ class _PaymentReminderSheetState extends State<_PaymentReminderSheet> {
 
   ClubProvider get pv => widget.provider;
 
-  // 선택된 회비의 미납자 목록
-  List<Member> get _unpaidMembers {
+  // 선택된 회비의 미납자 (월회비: 지난달 + 납부일이 지난 이번달)
+  List<DuesReminderUnpaidRow> get _unpaidRows {
     if (_selectedDues == null) return [];
-    final club = pv.selectedClub;
-    final paid = pv.duesPayments
-        .where((p) => p.duesSettingId == _selectedDues!.id &&
-            p.paidAt.year == DateTime.now().year &&
-            p.paidAt.month == DateTime.now().month)
-        .map((p) => p.memberId)
-        .toSet();
-    return pv.activeMembers
-        .where((m) => m.memberType == '정회원' && !paid.contains(m.id))
-        .toList();
+    return pv.reminderUnpaidMembers(_selectedDues!);
   }
+
+  List<Member> get _unpaidMembers =>
+      _unpaidRows.map((e) => e.member).toList();
 
   @override
   Widget build(BuildContext context) {
@@ -3898,7 +3892,7 @@ class _PaymentReminderSheetState extends State<_PaymentReminderSheet> {
           children: [
             Icon(Icons.check_circle, size: 40, color: AppColors.success),
             SizedBox(height: 8),
-            Text('모든 회원이 납부했습니다! 🎉',
+            Text('독촉할 미납자가 없습니다',
                 style: TextStyle(fontWeight: FontWeight.w600)),
           ],
         ),
@@ -3942,7 +3936,8 @@ class _PaymentReminderSheetState extends State<_PaymentReminderSheet> {
             shrinkWrap: true,
             itemCount: unpaid.length,
             itemBuilder: (_, i) {
-              final m = unpaid[i];
+              final row = _unpaidRows[i];
+              final m = row.member;
               final sel = _selectedMemberIds.contains(m.id);
               return CheckboxListTile(
                 value: sel,
@@ -3957,7 +3952,7 @@ class _PaymentReminderSheetState extends State<_PaymentReminderSheet> {
                 },
                 title: Text(m.name,
                     style: const TextStyle(fontSize: 14, fontWeight: FontWeight.w500)),
-                subtitle: Text(m.role,
+                subtitle: Text(row.periodLabel,
                     style: const TextStyle(fontSize: 11)),
                 secondary: CircleAvatar(
                   radius: 16,

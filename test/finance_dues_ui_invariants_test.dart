@@ -164,6 +164,18 @@ void main() {
     expect(finance.contains('잔고 등록 완료!'), isFalse);
   });
 
+  test('독촉하기 미납자는 지난달과 납부일이 지난 이번달만', () {
+    expect(provider.contains('List<DuesReminderUnpaidRow> reminderUnpaidMembers'),
+        isTrue);
+    expect(provider.contains('_reminderMonthCollectable'), isTrue);
+    expect(provider.contains('today.isAfter(due)'), isTrue);
+    final room =
+        File('lib/screens/club_room/club_room_screen.dart').readAsStringSync();
+    expect(room.contains('pv.reminderUnpaidMembers(_selectedDues!)'), isTrue);
+    expect(room.contains('p.paidAt.year == DateTime.now().year'), isFalse);
+    expect(room.contains('row.periodLabel'), isTrue);
+  });
+
   test('게스트는 회비 납부 대상이 아니다', () {
     expect(finance.contains('연회비·특별회비는 전체 활성 회원'), isFalse);
     expect(finance.contains('게스트는 월·연·특별 모두 제외'), isTrue);

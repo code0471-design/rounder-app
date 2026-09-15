@@ -2197,6 +2197,73 @@ class ClubProvider extends ChangeNotifier with WidgetsBindingObserver {
     return members.where((m) => !paidIds.contains(m.id)).length;
   }
 
+  /// 독촉하기 미납자. 월회비는 지난달 + (납부일이 지난) 이번달만.
+  List<DuesReminderUnpaidRow> reminderUnpaidMembers(
+    DuesSetting setting, {
+    DateTime? asOf,
+  }) {
+    final now = asOf ?? DateTime.now();
+    final members = regularMembers;
+    if (members.isEmpty) return const [];
+
+    if (setting.type != DuesType.monthly) {
+      final due = setting.dueDateFor();
+      final today = DateTime(now.year, now.month, now.day);
+      if (due != null && !today.isAfter(due)) return const [];
+      return [
+        for (final m in members)
+          if (setting.type == DuesType.special
+              ? !hasPaid(m.id, setting.id)
+              : !hasPaid(m.id, setting.id, year: now.year))
+            DuesReminderUnpaidRow(
+              member: m,
+              owesPreviousMonth: false,
+              owesCurrentMonth: true,
+            ),
+      ];
+    }
+
+    var prevY = now.year;
+    var prevM = now.month - 1;
+    if (prevM < 1) {
+      prevM = 12;
+      prevY--;
+    }
+    final thisOk =
+        _reminderMonthCollectable(setting, now.year, now.month, now);
+    final prevOk = _reminderMonthCollectable(setting, prevY, prevM, now);
+
+    final rows = <DuesReminderUnpaidRow>[];
+    for (final m in members) {
+      final owesPrev = prevOk &&
+          !hasPaid(m.id, setting.id, year: prevY, month: prevM);
+      final owesCur = thisOk &&
+          !hasPaid(m.id, setting.id, year: now.year, month: now.month);
+      if (!owesPrev && !owesCur) continue;
+      rows.add(DuesReminderUnpaidRow(
+        member: m,
+        owesPreviousMonth: owesPrev,
+        owesCurrentMonth: owesCur,
+      ));
+    }
+    return rows;
+  }
+
+  /// 이번달은 납부 기준일이 지난 뒤에만 미납으로 본다.
+  bool _reminderMonthCollectable(
+    DuesSetting setting,
+    int year,
+    int month,
+    DateTime asOf,
+  ) {
+    if (!setting.isActiveForYearMonth(year, month)) return false;
+    final due = setting.dueDateFor(year: year, month: month);
+    final today = DateTime(asOf.year, asOf.month, asOf.day);
+    if (due != null) return today.isAfter(due);
+    final isCurrentMonth = year == asOf.year && month == asOf.month;
+    return !isCurrentMonth;
+  }
+
   /// 홈 회계 카드 미납 뱃지 — 기준: 이번 달 월회비(있으면), 복수 회비 시 라벨 보강
   MonthUnpaidSummary monthUnpaidSummary(int year, int month) {
     final applicable = applicableDuesInMonth(year, month);

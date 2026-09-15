@@ -935,6 +935,25 @@ class MonthUnpaidSummary {
   });
 }
 
+/// 독촉하기 미납자 한 줄. 월회비는 지난달·이번달만.
+class DuesReminderUnpaidRow {
+  final Member member;
+  final bool owesPreviousMonth;
+  final bool owesCurrentMonth;
+
+  const DuesReminderUnpaidRow({
+    required this.member,
+    required this.owesPreviousMonth,
+    required this.owesCurrentMonth,
+  });
+
+  String get periodLabel {
+    if (owesPreviousMonth && owesCurrentMonth) return '지난달 · 이번달 미납';
+    if (owesPreviousMonth) return '지난달 미납';
+    return '이번달 미납';
+  }
+}
+
 /// 납부 기록 (회원 1명 × 회비 1건)
 class DuesPayment {
   final String id;
