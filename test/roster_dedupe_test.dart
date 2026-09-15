@@ -52,11 +52,28 @@ void main() {
     final result = RosterDedupe.collapseMembers(
       members: [
         _m(id: 'm_creator_c1', name: '안경헌', role: '총무'),
-        _m(id: 'm_c1_uidB', name: '홍길동', role: '정회원'),
+        _m(id: 'm_c1_uidB', name: '김철수', role: '정회원'),
       ],
       clubId: 'c1',
     );
     expect(result.droppedIds, isEmpty);
     expect(result.members.length, 2);
+  });
+
+  test('이정원 m1 행은 안경헌과 다른 회원이면 합치지 않는다', () {
+    final result = RosterDedupe.collapseMembers(
+      members: [
+        _m(id: 'm_creator_c1', name: '안경헌', role: '총무'),
+        _m(id: 'm_c1_m1', name: 'Jeongwon Lee', role: '정회원'),
+      ],
+      clubId: 'c1',
+      creatorAuthIds: {'kakao_ahn'},
+    );
+    expect(result.droppedIds, isEmpty);
+    expect(result.members.length, 2);
+    expect(result.members.map((m) => m.name).toSet(), {
+      '안경헌',
+      'Jeongwon Lee',
+    });
   });
 }

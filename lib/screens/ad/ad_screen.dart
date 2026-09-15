@@ -1482,8 +1482,10 @@ class _AccountSettingsTabState extends State<_AccountSettingsTab> {
     return Consumer2<ClubProvider, AuthProvider>(
       builder: (_, provider, auth, __) {
         final myClubs = provider.myClubs;
-        final displayName =
-            provider.currentMember?.name ?? auth.currentUser?.name ?? '회원';
+        final displayName = provider.currentMember?.name ??
+            provider.currentUserName ??
+            auth.currentUser?.name ??
+            '회원';
 
         // 계정(AppUser)에 저장된 값을 우선 쓰고, 없으면 모임 명단 값으로 채운다.
         final me = provider.currentMember;
@@ -1861,8 +1863,7 @@ class _AccountSettingsTabState extends State<_AccountSettingsTab> {
 
   // ── 프로필 편집 다이얼로그 (전체 필드) ──────────────────────
   void _showProfileEditDialog(BuildContext context, ClubProvider provider) {
-    final member = provider.currentMember ??
-        (provider.activeMembers.isNotEmpty ? provider.activeMembers.first : null);
+    final member = provider.currentMember;
     if (member == null) return;
 
     final messenger = ScaffoldMessenger.of(context);

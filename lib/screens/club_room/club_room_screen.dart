@@ -2293,6 +2293,15 @@ class _CommentItem extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final c = comment;
+    final clubId = provider.announcements
+        .where((a) => a.id == announcementId)
+        .firstOrNull
+        ?.clubId;
+    final authorName = provider.displayAuthorName(
+      authorId: c.authorId,
+      authorName: c.authorName,
+      clubId: clubId,
+    );
     final canManage =
         provider.isOwnAnnouncementComment(c) || provider.isClubExecutive;
     return Padding(
@@ -2308,7 +2317,7 @@ class _CommentItem extends StatelessWidget {
             ),
             child: Center(
               child: Text(
-                c.authorName.isNotEmpty ? c.authorName[0] : '?',
+                authorName.isNotEmpty ? authorName[0] : '?',
                 style: const TextStyle(fontSize: 11, fontWeight: FontWeight.bold, color: AppColors.sageDarker),
               ),
             ),
@@ -2319,7 +2328,7 @@ class _CommentItem extends StatelessWidget {
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 Row(children: [
-                  Text(c.authorName,
+                  Text(authorName,
                       style: const TextStyle(fontSize: 12, fontWeight: FontWeight.w700, color: AppColors.textPrimary)),
                   const SizedBox(width: 6),
                   Text(_timeAgo(c.createdAt),

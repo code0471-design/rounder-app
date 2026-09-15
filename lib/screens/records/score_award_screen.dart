@@ -69,77 +69,73 @@ class _ScoreAwardScreenState extends State<ScoreAwardScreen>
   void _buildMembersFromSchedule() {
     final provider = context.read<ClubProvider>();
 
+    _ScoreMember fromId(String id, String? fallbackName, String? fallbackRole) {
+      final clubMember = provider.memberById(id);
+      return _ScoreMember(
+        id: clubMember?.id ?? id,
+        name: clubMember?.name ?? fallbackName ?? '?',
+        role: clubMember?.role ?? fallbackRole ?? '일반',
+      );
+    }
+
     // ── 조 필터가 있으면 해당 조 슬롯 멤버만 사용 ──
     if (widget.groupFilter != null) {
       final group = widget.groupFilter!;
-      _members = group.slots
-          .where((s) => s.isFilled)
-          .map((s) {
-            final clubMember = provider.members
-                .cast<Member?>()
-                .firstWhere((m) => m?.id == s.memberId, orElse: () => null);
-            return _ScoreMember(
-              id: s.memberId ?? s.memberName ?? '',
-              name: s.memberName ?? '?',
-              role: clubMember?.role ?? '일반',
-            );
-          })
-          .toList();
+      final seen = <String>{};
+      _members = [];
+      for (final s in group.slots.where((s) => s.isFilled)) {
+        final id = s.memberId ?? s.memberName ?? '';
+        if (id.isEmpty) continue;
+        final row = fromId(id, s.memberName, null);
+        if (!seen.add(row.id)) continue;
+        _members.add(row);
+      }
     } else {
-      // 전체 참석자: 조편성 배정 인원을 우선 (조별로 나뉜 전원)
-      final assignment = provider.groupAssignment(widget.schedule.id);
-      if (assignment != null) {
+      // 시상·스코어는 참석 응답이 있으면 그 사람만. 조편성 옛 이름이
+      // 다른 회원과 섞여 수상자가 왔다 갔다 하던 경로.
+      final schedule =
+          provider.scheduleById(widget.schedule.id) ?? widget.schedule;
+      final attendingResponses = schedule.responses
+          .where((r) => r.response == '참석')
+          .toList();
+
+      if (attendingResponses.isNotEmpty) {
         final seen = <String>{};
-        final fromGroups = <_ScoreMember>[];
-        for (final g in assignment.groups) {
-          for (final s in g.slots) {
-            if (!s.isFilled) continue;
-            final id = s.memberId ?? s.memberName ?? '';
-            if (id.isEmpty || seen.contains(id)) continue;
-            seen.add(id);
-            final clubMember = provider.members
-                .cast<Member?>()
-                .firstWhere((m) => m?.id == s.memberId, orElse: () => null);
-            fromGroups.add(_ScoreMember(
-              id: id,
-              name: s.memberName ?? '?',
-              role: clubMember?.role ?? '일반',
-            ));
-          }
+        _members = [];
+        for (final r in attendingResponses) {
+          final row = fromId(r.memberId, r.memberName, null);
+          if (!seen.add(row.id)) continue;
+          _members.add(row);
         }
-        if (fromGroups.isNotEmpty) {
-          _members = fromGroups;
+      } else {
+        final assignment = provider.groupAssignment(widget.schedule.id);
+        if (assignment != null) {
+          final seen = <String>{};
+          final fromGroups = <_ScoreMember>[];
+          for (final g in assignment.groups) {
+            for (final s in g.slots) {
+              if (!s.isFilled) continue;
+              final id = s.memberId ?? s.memberName ?? '';
+              if (id.isEmpty) continue;
+              final row = fromId(id, s.memberName, null);
+              if (!seen.add(row.id)) continue;
+              fromGroups.add(row);
+            }
+          }
+          if (fromGroups.isNotEmpty) {
+            _members = fromGroups;
+          }
         }
       }
 
-      // 조편성 없으면 참석 응답 기준
       if (_members.isEmpty) {
-        final schedule =
-            provider.scheduleById(widget.schedule.id) ?? widget.schedule;
-        final attendingResponses = schedule.responses
-            .where((r) => r.response == '참석')
+        _members = provider.members
+            .map((m) => _ScoreMember(
+                  id: m.id,
+                  name: m.name,
+                  role: m.role,
+                ))
             .toList();
-
-        if (attendingResponses.isNotEmpty) {
-          _members = attendingResponses.map((r) {
-            final clubMember = provider.members
-                .cast<Member?>()
-                .firstWhere((m) => m?.id == r.memberId, orElse: () => null);
-            return _ScoreMember(
-              id: r.memberId,
-              name: clubMember?.name ?? r.memberName,
-              role: clubMember?.role ?? '일반',
-            );
-          }).toList();
-        } else {
-          _members = provider.members
-              .map((m) => _ScoreMember(
-                    id: m.id,
-                    name: m.name,
-                    role: m.role,
-                  ))
-              .toList();
-        }
       }
     }
 

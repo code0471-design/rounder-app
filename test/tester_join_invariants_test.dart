@@ -69,10 +69,12 @@ void main() {
       expect(fn.contains('_isDemoSession'), isTrue);
     });
 
-    test('빈 creatorId 를 실계정 생성자로 보지 않는다', () {
+    test('빈 creatorId 를 아무 실계정 생성자로 보지 않는다', () {
       final src = _read('lib/providers/club_provider.dart');
       expect(src.contains('bool _iAmClubCreator'), isTrue);
-      expect(src.contains("if (cid.isEmpty) return false;"), isTrue);
+      // m1/빈 creatorId 는 임원+생성자 행이 있을 때만 나다.
+      expect(src.contains("cid == 'm1'"), isTrue);
+      expect(src.contains('ClubMemberRole.isOfficer(club.myRole)'), isTrue);
       expect(src.contains('_purgeDemoIdentityClubs'), isTrue);
       expect(src.contains('_hydrateRosterFromServer'), isTrue);
     });

@@ -64,9 +64,11 @@ void main() {
       final userMe = block.indexOf("case 'user_me':");
       final fallthrough = block.indexOf('default:');
       expect(fallthrough, greaterThan(userMe));
-      // default 분기가 홍길동을 쓰면 안 된다.
+      // default 분기가 홍길동/m1 을 쓰면 안 된다.
       final defaultBlock = block.substring(fallthrough);
       expect(defaultBlock.contains("_currentUserName = '홍길동'"), isFalse);
+      expect(defaultBlock.contains("_currentUserId = 'm1'"), isFalse);
+      expect(defaultBlock.contains('_currentUserId = authUserId'), isTrue);
     });
 
     test('이름·생년월일·핸디를 받는 시그니처다', () {
