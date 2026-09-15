@@ -156,4 +156,53 @@ void main() {
     expect(ranking.first.value, 3, reason: '월별 3건이 위에 2회로 줄면 안 된다');
     expect(clubs.getMemberAwardCount(creatorId, year: 2026), 3);
   });
+
+  test('m_{club}_m1 에 쌓인 포인트는 이정원이 아니라 생성자 점수다', () {
+    clubs.addMembershipPoint(
+      memberId: 'm_${clubId}_m1',
+      type: MembershipPointType.commentActivity,
+      points: 27,
+      desc: 'leaked m1 identity',
+    );
+    expect(clubs.getMembershipPoints('m_${clubId}_m1'), 0);
+    expect(clubs.getMembershipPoints(creatorId), greaterThanOrEqualTo(27));
+  });
+
+  test('이정원 행에 복사된 생성자 사진·생일은 지운다', () {
+    final photo = 'https://example.com/ahn.jpg';
+    final birth = DateTime(1971, 3, 1);
+    clubs.syncAuthGolfProfile(photoUrl: photo, birthDate: birth);
+    final leftoverId = 'm_${clubId}_m1';
+    final leftover =
+        clubs.activeMembers.where((m) => m.id == leftoverId).first;
+    clubs.updateMember(Member(
+      id: leftover.id,
+      name: leftover.name,
+      gender: leftover.gender,
+      birthDate: birth,
+      photoUrl: photo,
+      memberType: leftover.memberType,
+      role: leftover.role,
+      joinDate: leftover.joinDate,
+    ));
+    expect(clubs.ensureCreatorMembers(), isTrue);
+    final repaired =
+        clubs.activeMembers.where((m) => m.id == leftoverId).first;
+    expect(repaired.photoUrl, isNull);
+    expect(repaired.birthDate, isNull);
+    expect(repaired.name, 'Jeongwon Lee');
+    final creator = clubs.activeMembers.where((m) => m.id == creatorId).first;
+    expect(creator.photoUrl, photo);
+  });
+
+  test('골프 프로필 동기화가 이정원 m1 행을 다시 덮지 않는다', () {
+    clubs.syncAuthGolfProfile(
+      photoUrl: 'https://example.com/ahn2.jpg',
+      birthDate: DateTime(1971, 3, 1),
+    );
+    final leftover =
+        clubs.activeMembers.where((m) => m.id == 'm_${clubId}_m1').first;
+    expect(leftover.photoUrl, isNull);
+    expect(leftover.birthDate, isNull);
+  });
 }

@@ -508,6 +508,7 @@ class ClubProvider extends ChangeNotifier with WidgetsBindingObserver {
       photoUrl: photoUrl,
     );
     if (pruneDuplicateRosterRows()) _persistImmediately();
+    if (_repairCopiedIdentityOnLegacyM1Rows()) _persistImmediately();
     _syncSelfDisplayName();
     // 데모 모임(c1~c5) 회원수 — 과거에 저장된 임의값이 남아있어도 실제 명단 기준으로 교정
     _reconcileLegacyMemberCounts();
@@ -623,7 +624,9 @@ class ClubProvider extends ChangeNotifier with WidgetsBindingObserver {
     final duesPart = _duesPayments.map((p) => p.id).join(',');
     final waitPart = _waitingList.map((w) => '${w.scheduleId}:${w.memberId}').join(',');
     final memberPart =
-        _members.map((m) => '${m.id}:${m.name}:${m.status}').join(',');
+        _members.map((m) =>
+            '${m.id}:${m.name}:${m.status}:${m.photoUrl ?? ''}:${m.birthDate?.millisecondsSinceEpoch ?? 0}')
+            .join(',');
     // 댓글 수 포함 — 다른 기기가 댓글을 달면 공지 개수는 그대로라 놓쳤다.
     final announcePart =
         _announcements.map((a) => '${a.id}:${a.comments.length}').join(',');
@@ -1399,6 +1402,20 @@ class ClubProvider extends ChangeNotifier with WidgetsBindingObserver {
     return false;
   }
 
+  /// 실계정이 m1 이던 시절에 생긴 초대 회원 명단 id.
+  String _legacyM1RosterId(String clubId) => 'm_${clubId}_m1';
+
+  bool _isLegacyM1RosterId(String memberId, {String? clubId}) {
+    if (_isDemoSession) return false;
+    if (memberId == 'm1') return true;
+    if (clubId != null && clubId.isNotEmpty) {
+      return memberId == _legacyM1RosterId(clubId);
+    }
+    return memberId.startsWith('m_') &&
+        memberId.endsWith('_m1') &&
+        !memberId.startsWith('m_creator_');
+  }
+
   /// 명단 ID(m_creator_*, m_{clubId}_*)와 로그인 계정을 같은 사람으로 본다.
   ///
   /// 실계정 `currentUserId` 는 카카오/구글/애플 id 다. `m1` 과 같다고 보면
@@ -1797,6 +1814,7 @@ class ClubProvider extends ChangeNotifier with WidgetsBindingObserver {
     _normalizeScheduleTitles();
     pruneDuplicateRosterRows();
     _scrubSeedAuthorNames();
+    _repairCopiedIdentityOnLegacyM1Rows();
     _syncSelfDisplayName();
   }
 
@@ -4913,6 +4931,7 @@ class ClubProvider extends ChangeNotifier with WidgetsBindingObserver {
   /// 내 모임(데모 c1~c5 제외)에 생성자 회원이 없으면 복구. 변경 여부 반환.
   bool ensureCreatorMembers() {
     var changed = false;
+    if (_repairCopiedIdentityOnLegacyM1Rows()) changed = true;
     for (final club in _myClubs) {
       if (_legacyMockClubIds.contains(club.id)) continue;
       _freshClubIds.add(club.id);
@@ -4960,6 +4979,7 @@ class ClubProvider extends ChangeNotifier with WidgetsBindingObserver {
       changed = true;
     }
     if (pruneDuplicateRosterRows()) changed = true;
+    if (_repairCopiedIdentityOnLegacyM1Rows()) changed = true;
     if (changed) _persistImmediately();
     return changed;
   }
@@ -5113,6 +5133,42 @@ class ClubProvider extends ChangeNotifier with WidgetsBindingObserver {
         .firstOrNull;
   }
 
+  /// 실계정 m1 시절에 생성자 사진·생일·전화가 초대 회원 행에 복사된 것을 되돌린다.
+  bool _repairCopiedIdentityOnLegacyM1Rows() {
+    if (_isDemoSession) return false;
+    var changed = false;
+    for (final club in _myClubs) {
+      if (_legacyMockClubIds.contains(club.id)) continue;
+      final leftoverId = _legacyM1RosterId(club.id);
+      if (_isMyRosterRowFor(club, leftoverId)) continue;
+      final creatorIdx =
+          _members.indexWhere((m) => m.id == 'm_creator_${club.id}');
+      final leftoverIdx = _members.indexWhere((m) => m.id == leftoverId);
+      if (creatorIdx < 0 || leftoverIdx < 0) continue;
+      final creator = _members[creatorIdx];
+      final leftover = _members[leftoverIdx];
+      final samePhoto = (leftover.photoUrl ?? '').trim().isNotEmpty &&
+          leftover.photoUrl!.trim() == (creator.photoUrl ?? '').trim();
+      final sameBirth = leftover.birthDate != null &&
+          creator.birthDate != null &&
+          leftover.birthDate == creator.birthDate;
+      final samePhone = (leftover.phone ?? '').trim().isNotEmpty &&
+          leftover.phone!.trim() == (creator.phone ?? '').trim();
+      final sameHandicap = leftover.handicap != null &&
+          creator.handicap != null &&
+          leftover.handicap == creator.handicap;
+      if (!samePhoto && !sameBirth && !samePhone && !sameHandicap) continue;
+      _members[leftoverIdx] = leftover.copyWith(
+        clearPhoto: samePhoto,
+        clearBirthDate: sameBirth,
+        clearPhone: samePhone,
+        clearHandicap: sameHandicap,
+      );
+      changed = true;
+    }
+    return changed;
+  }
+
   /// 모임 명단에 내가 쓴 이름(안경헌)이 있으면 카카오 영문 이름보다 그걸 쓴다.
   void _syncSelfDisplayName() {
     if (_isDemoSession) return;
@@ -5150,6 +5206,17 @@ class ClubProvider extends ChangeNotifier with WidgetsBindingObserver {
 
     final club = _myClubs.where((c) => c.id == clubId).firstOrNull;
     final iAmCreator = club != null && _iAmClubCreator(club);
+    if (!_isDemoSession &&
+        uid != 'm1' &&
+        uid != 'user_me' &&
+        !iAmCreator) {
+      final leftoverId = _legacyM1RosterId(clubId);
+      final leftoverIdx = _members.indexWhere((m) => m.id == leftoverId);
+      if (leftoverIdx >= 0) {
+        _members[leftoverIdx] = _members[leftoverIdx].withId(rid);
+        return true;
+      }
+    }
     if (iAmCreator && _members.any((m) => m.id == 'm_creator_$clubId')) {
       return false;
     }
@@ -6322,6 +6389,7 @@ class ClubProvider extends ChangeNotifier with WidgetsBindingObserver {
     var changed = false;
     for (var i = 0; i < _members.length; i++) {
       final m = _members[i];
+      if (_isLegacyM1RosterId(m.id)) continue;
       var match = m.id == authId ||
           m.id.endsWith('_$authId') ||
           (_persistAuthUserId != null &&
@@ -7410,6 +7478,9 @@ class ClubProvider extends ChangeNotifier with WidgetsBindingObserver {
   /// 로그인 사용자의 키를 다른 회원에게 합치면, `m_{club}_m1` 같은
   /// 옛 명단 행이 총무와 같은 점수를 받는다.
   Set<String> _membershipPointKeysFor(String memberId) {
+    // 실계정 m1 시절에 총무 활동이 이 키로 저장됐다. 그 행(이정원) 점수가 아니다.
+    if (_isLegacyM1RosterId(memberId)) return <String>{};
+
     final keys = <String>{memberId};
     if (_myClubs.isEmpty) return keys;
     final clubId = selectedClub.id;
@@ -7426,12 +7497,17 @@ class ClubProvider extends ChangeNotifier with WidgetsBindingObserver {
       if (_iAmClubCreator(selectedClub)) {
         keys.add(creatorId);
         keys.add('m1');
+        keys.add(_legacyM1RosterId(clubId));
       }
     } else if (memberId == creatorId) {
       final cid = selectedClub.creatorId.trim();
       if (cid.isNotEmpty) {
         keys.add(cid);
         keys.add(Member.rosterId(clubId, cid));
+      }
+      if (!_isDemoSession) {
+        keys.add('m1');
+        keys.add(_legacyM1RosterId(clubId));
       }
     }
     return keys;
@@ -7613,11 +7689,15 @@ class ClubProvider extends ChangeNotifier with WidgetsBindingObserver {
     required int points,
     required String desc,
   }) {
-    // 가능하면 현재 클럽 멤버 id로 정규화
-    final canonical = (memberId == currentUserId ||
-            memberId == _persistAuthUserId)
-        ? (currentMember?.id ?? memberId)
-        : memberId;
+    var canonical = memberId;
+    if (memberId == currentUserId ||
+        memberId == _persistAuthUserId ||
+        _isSelfTarget(memberId)) {
+      final me = currentMember?.id ?? memberId;
+      canonical = _isLegacyM1RosterId(me)
+          ? 'm_creator_${selectedClub.id}'
+          : canonicalMemberId(me);
+    }
     _pointEvents.putIfAbsent(canonical, () => []);
     _pointEvents[canonical]!.add(MembershipPointEvent(
       type: type,
