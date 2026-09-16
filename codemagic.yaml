@@ -3,7 +3,8 @@
 # Version comes from pubspec.yaml (e.g. 1.0.0+30) — do NOT hardcode --build-number.
 #
 # 백엔드 환경은 APP_ENV 로 정한다.
-# Play AAB(android-release) 만 prod. 시작 화면에 환경변수 칸이 없다.
+# iOS App Store(ios-first)와 Play AAB(android-release)는 prod.
+# 사이드로드 APK만 staging. 시작 화면에 환경변수 칸이 없다.
 # tool/select_firebase_env.js 가 네이티브 설정을 바꾸고, --dart-define=APP_ENV 가
 # Dart 쪽 옵션을 맞춘다. 둘이 어긋나면 앱이 시작 시점에 막는다.
 workflows:
@@ -18,7 +19,7 @@ workflows:
       xcode: latest
       cocoapods: default
       vars:
-        APP_ENV: staging
+        APP_ENV: prod
       groups:
         - solapi
       android_signing:

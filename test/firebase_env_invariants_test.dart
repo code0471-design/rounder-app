@@ -245,8 +245,9 @@ void main() {
           isTrue,
           reason: '${workflows[i]} 가 네이티브 설정을 안 바꾸면 APP_ENV 와 어긋난다',
         );
-        final expectedEnv =
-            workflows[i] == 'android-release' ? 'prod' : 'staging';
+        final expectedEnv = workflows[i] == 'android-release-apk'
+            ? 'staging'
+            : 'prod';
         expect(
           block.contains('APP_ENV: $expectedEnv'),
           isTrue,
