@@ -161,7 +161,8 @@ void main() {
       expect(src, contains('HqAlimtalkCatalog.scheduleChangeId'));
       expect(src, contains('HqAlimtalkCatalog.groupFinalizeId'));
       expect(src, contains('void sendGroupFinalizeAlimtalk'));
-      expect(src, contains('HqAlimtalkCatalog.d1ReminderId'),
+      expect(read('lib/services/d1_alimtalk_flush.dart'),
+          contains('HqAlimtalkCatalog.d1ReminderId'),
           reason: 'D-1 알림톡도 대기열에서 보내야 한다');
       final start = src.indexOf('void finalizeAssignment(');
       final end = src.indexOf('void sendGroupFinalizeAlimtalk(');
@@ -183,15 +184,12 @@ void main() {
     });
 
     test('라운딩 D-1 알림톡도 오전 10시 전엔 나가지 않는다', () {
-      final src = read('lib/providers/club_provider.dart');
-      final start = src.indexOf('Future<void> flushDueD1Alimtalk()');
-      expect(start, greaterThan(0));
-      final fn = src.substring(start, start + 1600);
-      expect(fn.contains('if (hour < 10) return;'), isTrue);
-      expect(fn.contains('if (_myClubs.isEmpty) return;'), isTrue);
-      expect(fn.contains('if (isDues && hour < 10)'), isFalse,
-          reason: '회비만 10시로 막으면 라운딩 D-1 알림톡이 새벽에 나간다');
-      expect(fn.contains('HqAlimtalkCatalog.d1ReminderId'), isTrue);
+      final src = read('lib/services/d1_alimtalk_flush.dart');
+      expect(src.contains('DateTime.now().hour < 10'), isTrue);
+      expect(src.contains('HqAlimtalkCatalog.d1ReminderId'), isTrue);
+      expect(src.contains('markD1AlimtalkSent'), isTrue);
+      expect(src.contains('skip no phone'), isTrue,
+          reason: '번호 없다고 보낸 처리하면 나중에 번호를 채워도 안 나간다');
     });
 
     test('10시 푸시가 D-1 대기열을 지우면 알림톡이 빠진다', () {
@@ -204,6 +202,10 @@ void main() {
       expect(body.contains('doc.ref.delete()'), isFalse,
           reason: '푸시 직후 큐를 지우면 10시 알림톡이 나가지 않는다');
       expect(body.contains('pushSent: true'), isTrue);
+      expect(fn.contains('api.solapi.com'), isTrue,
+          reason: '푸시만 보내고 알림톡을 앱 오픈에 맡기면 10시에 안 온다');
+      expect(fn.contains('atk_d1_reminder'), isTrue);
+      expect(fn.contains('exports.flushD1Alimtalk'), isTrue);
     });
   });
 }

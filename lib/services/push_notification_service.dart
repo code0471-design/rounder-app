@@ -41,6 +41,7 @@ abstract final class PushNotificationService {
   static DateTime? _lastLocalAt;
   static bool _initialized = false;
   static bool _backgroundHandlerRegistered = false;
+  static Future<void> Function()? onD1AlimtalkHint;
 
   /// runApp 이전에 한 번 호출. 백그라운드 핸들러 등록용.
   static void registerBackgroundHandler() {
@@ -95,6 +96,11 @@ abstract final class PushNotificationService {
         final title = msg.notification?.title ?? msg.data['title'] ?? '라운더';
         final body = msg.notification?.body ?? msg.data['body'] ?? '';
         unawaited(showLocal(title: title, body: body));
+        final type = '${msg.data['type'] ?? ''}';
+        if (type == HqPushCatalog.d1Reminder ||
+            type == HqPushCatalog.duesRequest) {
+          unawaited(onD1AlimtalkHint?.call());
+        }
       });
 
       _tokenSub ??= messaging.onTokenRefresh.listen((token) {
@@ -220,6 +226,8 @@ abstract final class PushNotificationService {
       final today = DateTime(DateTime.now().year, DateTime.now().month,
           DateTime.now().day);
       if (sendOn.isBefore(today)) return;
+      final existing = await doc.get();
+      if (existing.data()?['alimtalkSent'] == true) return;
       final t = HqPushCatalog.byIdSync(HqPushCatalog.d1Reminder);
       await doc.set({
         'userId': userId,
@@ -239,7 +247,7 @@ abstract final class PushNotificationService {
         'clubName': clubName,
         'alimtalkSent': false,
         'updatedAt': FieldValue.serverTimestamp(),
-      });
+      }, SetOptions(merge: true));
     } catch (e) {
       debugPrint('[Push] d1 sync skip: $e');
     }

@@ -16,6 +16,7 @@ import '../models/club_model.dart';
 import '../models/member_role.dart';
 import '../services/club_data_codec.dart';
 import '../services/club_ops_sync.dart';
+import '../services/d1_alimtalk_flush.dart';
 import '../services/club_persistence.dart';
 import '../services/firebase_auth_bridge.dart';
 import '../services/hq_alimtalk_catalog.dart';
@@ -41,6 +42,7 @@ class ClubProvider extends ChangeNotifier with WidgetsBindingObserver {
     _normalizeScheduleTitles();
     _syncAllNextRounds();
     WidgetsBinding.instance.addObserver(this);
+    PushNotificationService.onD1AlimtalkHint = flushDueD1Alimtalk;
   }
 
   @override
@@ -3677,59 +3679,19 @@ class ClubProvider extends ChangeNotifier with WidgetsBindingObserver {
     await flushDueD1Alimtalk();
   }
 
-  /// D-1 당일 오전 10시(기기 로컬, 한국은 KST) 이후, 앱을 연 기기가 알림톡을 보낸다.
-  /// 푸시는 Cloud Functions 가 오전 10시에 보내고, 알림톡 키는 앱에만 있다.
-  /// 라운딩·회비 모두 10시 전엔 보내지 않는다.
+  /// D-1 알림톡. 기본은 Functions 10시 발송. 앱은 보조·재시도.
   Future<void> flushDueD1Alimtalk() async {
-    if (_myClubs.isEmpty) return;
-    if (!SolapiService.instance.isConfigured) return;
-    final docs = await PushNotificationService.dueD1AlimtalkDocs();
-    if (docs.isEmpty) return;
-    final hour = DateTime.now().hour;
-    if (hour < 10) return;
-    for (final doc in docs) {
-      final d = doc.data();
-      final isDues = d['kind'] == DuesD1Schedule.kind;
-      final phone = SolapiService.normalizePhone('${d['phone'] ?? ''}');
-      if (phone.length < 10) {
-        await PushNotificationService.markD1AlimtalkSent(doc.id);
-        continue;
-      }
-      final fake = Member(
-        id: '${d['userId'] ?? doc.id}',
-        name: '${d['memberName'] ?? '회원'}',
-        gender: '남',
-        memberType: '정회원',
-        role: '회원',
-        phone: phone,
-      );
-      final result = await sendClubAlimtalk(
-        hqTypeId: isDues
-            ? HqAlimtalkCatalog.duesRequestId
-            : HqAlimtalkCatalog.d1ReminderId,
-        members: [fake],
-        clubIdOverride: '${d['clubId'] ?? ''}',
-        variablesFor: (_) => isDues
-            ? {
-                '#{이름}': fake.name,
-                '#{모임명}': '${d['clubName'] ?? selectedClub.name}',
-                '#{금액}': '${d['amount'] ?? ''}',
-                '#{기한}': '${d['dueText'] ?? '-'}',
-              }
-            : {
-                '#{이름}': fake.name,
-                '#{모임명}': '${d['clubName'] ?? selectedClub.name}',
-                '#{일정명}': '${d['scheduleTitle'] ?? ''}',
-                '#{일시}': '${d['whenText'] ?? ''}',
-                '#{장소}': '${d['place'] ?? '장소 미정'}',
-              },
-      );
-      if (result.success ||
-          (result.errorMessage ?? '').contains('꺼져 있습니다') ||
-          (result.errorMessage ?? '').contains('사용중지')) {
-        await PushNotificationService.markD1AlimtalkSent(doc.id);
-      }
-    }
+    await D1AlimtalkFlush.run(
+      clubEnabled: isClubAlimtalkTypeEnabled,
+      resolvePhone: (userId, clubId) {
+        for (final m in _members) {
+          if (m.id == userId || _fcmInboxIdFor(m.id) == userId) {
+            return m.phone;
+          }
+        }
+        return null;
+      },
+    );
   }
 
   Future<void> syncAllDuesD1Reminders() async {
