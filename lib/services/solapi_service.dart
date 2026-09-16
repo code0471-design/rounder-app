@@ -153,6 +153,15 @@ class SolapiService {
         '${two(n.hour)}:${two(n.minute)}:${two(n.second)}Z';
   }
 
+  /// 솔라피 예약 시각. `2026-09-17T10:00:00+09:00`
+  @visibleForTesting
+  static String kstIso(DateTime kst) {
+    String two(int v) => v.toString().padLeft(2, '0');
+    return '${kst.year.toString().padLeft(4, '0')}-'
+        '${two(kst.month)}-${two(kst.day)}T'
+        '${two(kst.hour)}:${two(kst.minute)}:${two(kst.second)}+09:00';
+  }
+
   Map<String, String> _authHeaders() {
     final date = hmacDate(DateTime.now().toUtc());
     final salt = _randomSalt();
@@ -239,7 +248,11 @@ class SolapiService {
     return sendManyRaw([message]);
   }
 
-  Future<SolapiResult> sendManyRaw(List<Map<String, dynamic>> messages) async {
+  /// [scheduledAtKst] 이 있으면 그 시각(한국)에 보낸다. 지난 시각이면 즉시 발송.
+  Future<SolapiResult> sendManyRaw(
+    List<Map<String, dynamic>> messages, {
+    DateTime? scheduledAtKst,
+  }) async {
     if (!isConfigured) {
       return SolapiResult.error('SOLAPI API Key가 설정되지 않았습니다.');
     }
@@ -248,10 +261,14 @@ class SolapiService {
     }
 
     try {
+      final payload = <String, dynamic>{'messages': messages};
+      if (scheduledAtKst != null) {
+        payload['scheduledDate'] = kstIso(scheduledAtKst);
+      }
       final res = await http.post(
         Uri.parse('$_baseUrl/messages/v4/send-many/detail'),
         headers: _authHeaders(),
-        body: jsonEncode({'messages': messages}),
+        body: jsonEncode(payload),
       );
       final body = jsonDecode(res.body);
       if (res.statusCode >= 200 && res.statusCode < 300) {

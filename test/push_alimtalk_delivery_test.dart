@@ -5,6 +5,7 @@ import 'package:golf_rounder/di/app_dependencies.dart';
 import 'package:golf_rounder/models/club_model.dart';
 import 'package:golf_rounder/providers/auth_provider.dart';
 import 'package:golf_rounder/providers/club_provider.dart';
+import 'package:golf_rounder/services/solapi_service.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
 /// 푸시·알림톡 전달 회귀 테스트.
@@ -180,16 +181,23 @@ void main() {
       final src = read('lib/services/push_notification_service.dart');
       expect(src, contains("'phone': phone"));
       expect(src, contains('dueD1AlimtalkDocs'));
+      expect(src, contains('pendingD1AlimtalkDocs'));
       expect(src, contains('alimtalkSent'));
     });
 
-    test('라운딩 D-1 알림톡도 오전 10시 전엔 나가지 않는다', () {
+    test('라운딩 D-1 알림톡은 10시 이전이면 솔라피에 예약한다', () {
       final src = read('lib/services/d1_alimtalk_flush.dart');
-      expect(src.contains('DateTime.now().hour < 10'), isTrue);
+      expect(src.contains('scheduledAtKst'), isTrue);
+      expect(src.contains('pendingD1AlimtalkDocs'), isTrue);
       expect(src.contains('HqAlimtalkCatalog.d1ReminderId'), isTrue);
       expect(src.contains('markD1AlimtalkSent'), isTrue);
       expect(src.contains('skip no phone'), isTrue,
           reason: '번호 없다고 보낸 처리하면 나중에 번호를 채워도 안 나간다');
+      expect(read('lib/services/solapi_service.dart'), contains('scheduledDate'));
+      expect(
+        SolapiService.kstIso(DateTime(2026, 9, 17, 10)),
+        '2026-09-17T10:00:00+09:00',
+      );
     });
 
     test('10시 푸시가 D-1 대기열을 지우면 알림톡이 빠진다', () {
@@ -206,6 +214,8 @@ void main() {
           reason: '푸시만 보내고 알림톡을 앱 오픈에 맡기면 10시에 안 온다');
       expect(fn.contains('atk_d1_reminder'), isTrue);
       expect(fn.contains('exports.flushD1Alimtalk'), isTrue);
+      expect(fn.contains('defineSecret'), isFalse,
+          reason: 'Secret Manager 없으면 운영 Functions 배포가 막힌다');
     });
   });
 }

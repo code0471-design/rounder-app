@@ -272,6 +272,26 @@ abstract final class PushNotificationService {
     }
   }
 
+  /// 오늘 이후(포함) 아직 안 보낸 D-1. 10시 예약용.
+  static Future<List<QueryDocumentSnapshot<Map<String, dynamic>>>>
+      pendingD1AlimtalkDocs() async {
+    if (!HqRemoteSettings.available) return const [];
+    try {
+      final kst = DateTime.now().toUtc().add(const Duration(hours: 9));
+      final lookback = _ymd(kst.subtract(const Duration(days: 1)));
+      final snap = await FirebaseFirestore.instance
+          .collection(FirestorePaths.d1Queue)
+          .where('sendOn', isGreaterThanOrEqualTo: lookback)
+          .get();
+      return snap.docs
+          .where((d) => d.data()['alimtalkSent'] != true)
+          .toList();
+    } catch (e) {
+      debugPrint('[Push] d1 pending query skip: $e');
+      return const [];
+    }
+  }
+
   static Future<void> markD1AlimtalkSent(String docId) async {
     if (!HqRemoteSettings.available || docId.isEmpty) return;
     try {

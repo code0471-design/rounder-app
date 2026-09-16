@@ -4,8 +4,9 @@ import 'hq_alimtalk_catalog.dart';
 import 'push_notification_service.dart';
 import 'solapi_service.dart';
 
-/// D-1 알림톡. 푸시는 Functions 10시고, 알림톡도 서버가 보내는 게 기본이다.
-/// 앱 경로는 서버 키가 없을 때·이미 온 푸시를 받은 기기의 보조 발송이다.
+/// D-1 알림톡.
+/// 앱에 솔라피 키가 있으므로, 참석 확정·앱 오픈 때 솔라피에 10시 예약을 넣는다.
+/// Functions도 10시에 한 번 더 보내되, 이미 보낸 건 건너뛴다.
 abstract final class D1AlimtalkFlush {
   static Future<void> run({
     bool Function(String clubId, String typeId)? clubEnabled,
@@ -13,9 +14,10 @@ abstract final class D1AlimtalkFlush {
   }) async {
     final solapi = SolapiService.instance;
     if (!solapi.isConfigured || !solapi.hasKakaoChannel) return;
-    if (DateTime.now().hour < 10) return;
-    final docs = await PushNotificationService.dueD1AlimtalkDocs();
+    final docs = await PushNotificationService.pendingD1AlimtalkDocs();
     if (docs.isEmpty) return;
+    final utc = DateTime.now().toUtc();
+    final now = utc.add(const Duration(hours: 9));
 
     for (final doc in docs) {
       final d = doc.data();
@@ -50,32 +52,50 @@ abstract final class D1AlimtalkFlush {
           SolapiService.templateIdForHqType(hqTypeId)?.trim() ?? '';
       if (templateId.isEmpty) continue;
 
+      final sendOn = _parseYmd('${d['sendOn'] ?? ''}');
+      if (sendOn == null) continue;
+      final dueAt10 = DateTime(sendOn.year, sendOn.month, sendOn.day, 10);
+      final sendNow = !dueAt10.isAfter(now);
+
       final name = '${d['memberName'] ?? '회원'}';
-      final result = await solapi.sendManyRaw([
-        solapi.buildAlimtalkMessage(
-          to: phone,
-          templateId: templateId,
-          variables: isDues
-              ? {
-                  '#{이름}': name,
-                  '#{모임명}': '${d['clubName'] ?? ''}',
-                  '#{금액}': '${d['amount'] ?? ''}',
-                  '#{기한}': '${d['dueText'] ?? '-'}',
-                }
-              : {
-                  '#{이름}': name,
-                  '#{모임명}': '${d['clubName'] ?? ''}',
-                  '#{일정명}': '${d['scheduleTitle'] ?? ''}',
-                  '#{일시}': '${d['whenText'] ?? ''}',
-                  '#{장소}': '${d['place'] ?? '장소 미정'}',
-                },
-        ),
-      ]);
+      final result = await solapi.sendManyRaw(
+        [
+          solapi.buildAlimtalkMessage(
+            to: phone,
+            templateId: templateId,
+            variables: isDues
+                ? {
+                    '#{이름}': name,
+                    '#{모임명}': '${d['clubName'] ?? ''}',
+                    '#{금액}': '${d['amount'] ?? ''}',
+                    '#{기한}': '${d['dueText'] ?? '-'}',
+                  }
+                : {
+                    '#{이름}': name,
+                    '#{모임명}': '${d['clubName'] ?? ''}',
+                    '#{일정명}': '${d['scheduleTitle'] ?? ''}',
+                    '#{일시}': '${d['whenText'] ?? ''}',
+                    '#{장소}': '${d['place'] ?? '장소 미정'}',
+                  },
+          ),
+        ],
+        scheduledAtKst: sendNow ? null : dueAt10,
+      );
       if (result.success ||
           (result.errorMessage ?? '').contains('꺼져 있습니다') ||
           (result.errorMessage ?? '').contains('사용중지')) {
         await PushNotificationService.markD1AlimtalkSent(doc.id);
       }
     }
+  }
+
+  static DateTime? _parseYmd(String raw) {
+    final p = raw.split('-');
+    if (p.length != 3) return null;
+    final y = int.tryParse(p[0]);
+    final m = int.tryParse(p[1]);
+    final d = int.tryParse(p[2]);
+    if (y == null || m == null || d == null) return null;
+    return DateTime(y, m, d);
   }
 }

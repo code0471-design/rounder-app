@@ -1,13 +1,10 @@
 const crypto = require("crypto");
 const { onDocumentCreated } = require("firebase-functions/v2/firestore");
 const { onSchedule } = require("firebase-functions/v2/scheduler");
-const { defineSecret } = require("firebase-functions/params");
 const { initializeApp } = require("firebase-admin/app");
 const { getFirestore } = require("firebase-admin/firestore");
 const { getMessaging } = require("firebase-admin/messaging");
 
-const SOLAPI_API_KEY = defineSecret("SOLAPI_API_KEY");
-const SOLAPI_API_SECRET = defineSecret("SOLAPI_API_SECRET");
 const D1_TEMPLATE = "KA01TP260819170856743YpkKVjb5WfS";
 const DUES_TEMPLATE = "KA01TP260819171813223rmS1ByutYaw";
 const DEFAULT_PFID = "KA01PF260819163601284VyeVGcfZZWg";
@@ -282,7 +279,6 @@ exports.sendD1Reminders = onSchedule(
     schedule: "0 10 * * *",
     timeZone: "Asia/Seoul",
     region: REGION,
-    secrets: [SOLAPI_API_KEY, SOLAPI_API_SECRET],
   },
   async () => {
     const snap = await getFirestore()
@@ -318,7 +314,6 @@ exports.flushD1Alimtalk = onSchedule(
     schedule: "every 15 minutes",
     timeZone: "Asia/Seoul",
     region: REGION,
-    secrets: [SOLAPI_API_KEY, SOLAPI_API_SECRET],
   },
   async () => {
     await flushDueD1Alimtalk();
