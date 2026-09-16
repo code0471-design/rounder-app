@@ -82,12 +82,13 @@ void main() {
   test('지난 날짜 일정 등록은 알림을 보내지 않는다', () {
     final src = File('lib/providers/club_provider.dart').readAsStringSync();
     final start = src.indexOf('void addSchedule(RoundSchedule schedule)');
-    final end = src.indexOf('bool importPastSchedule(', start);
+    final end = src.indexOf('void sendScheduleUploadAlimtalk(', start);
     expect(start, greaterThan(0));
     expect(end, greaterThan(start));
     final fn = src.substring(start, end);
     expect(fn.contains('if (schedule.isDateOver) return;'), isTrue);
-    expect(fn.contains('_dispatchClubAlimtalk'), isTrue);
+    expect(fn.contains('_dispatchClubAlimtalk'), isFalse,
+        reason: '등록 직후 자동 발송이면 지난 날짜 가드와 별개로 얼럿을 건너뛴다');
     expect(fn.contains('_notifyHqPush'), isTrue);
   });
 }

@@ -3415,6 +3415,15 @@ class _ScheduleFormSheetState extends State<_ScheduleFormSheet> {
       final provider = widget.provider;
       final materialChanged = provider.updateSchedule(updated);
       setState(() => _saving = false);
+      if (materialChanged &&
+          provider
+              .alimtalkSettingsOf(provider.selectedClub.id)
+              .promptOnScheduleChange) {
+        final send = await AlimtalkUtils.promptScheduleChange(context);
+        if (send == true) {
+          provider.sendScheduleChangeAlimtalk(updated.id);
+        }
+      }
       if (mounted) Navigator.pop(context);
       final messenger = AppNavigator.context != null
           ? ScaffoldMessenger.maybeOf(AppNavigator.context!)
@@ -3428,16 +3437,6 @@ class _ScheduleFormSheetState extends State<_ScheduleFormSheet> {
               borderRadius: BorderRadius.circular(10)),
         ),
       );
-      final settings =
-          provider.alimtalkSettingsOf(provider.selectedClub.id);
-      // 제목·공지만 바뀐 경우 재참석 알림톡 생략
-      if (materialChanged && settings.promptOnScheduleChange) {
-        await Future.delayed(const Duration(milliseconds: 300));
-        await AlimtalkUtils.runScheduleChangeFlow(
-          provider: provider,
-          schedule: updated,
-        );
-      }
       return;
     }
 
@@ -3462,6 +3461,12 @@ class _ScheduleFormSheetState extends State<_ScheduleFormSheet> {
     provider.addSchedule(schedule);
     widget.onCreated?.call(schedule);
 
+    if (!schedule.isPast) {
+      final send = await AlimtalkUtils.promptScheduleUpload(context);
+      if (send == true) {
+        provider.sendScheduleUploadAlimtalk(schedule.id);
+      }
+    }
     if (mounted) Navigator.pop(context);
     final messenger = AppNavigator.context != null
         ? ScaffoldMessenger.maybeOf(AppNavigator.context!)
@@ -3474,12 +3479,6 @@ class _ScheduleFormSheetState extends State<_ScheduleFormSheet> {
         shape: RoundedRectangleBorder(
             borderRadius: BorderRadius.circular(10)),
       ),
-    );
-    if (schedule.isPast) return;
-    await Future.delayed(const Duration(milliseconds: 400));
-    await AlimtalkUtils.runAttendanceFlow(
-      provider: provider,
-      schedule: schedule,
     );
   }
 

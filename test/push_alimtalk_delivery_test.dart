@@ -156,23 +156,38 @@ void main() {
   });
 
   group('알림톡은 버튼 없이 나간다', () {
-    test('일정 등록·변경은 자동 발송하고 조편성 확정은 보내기 선택 시에만 나간다', () {
+    test('일정 등록·변경·조편성 확정은 보내기 선택 시에만 나간다', () {
       final src = read('lib/providers/club_provider.dart');
       expect(src, contains('HqAlimtalkCatalog.scheduleUploadId'));
       expect(src, contains('HqAlimtalkCatalog.scheduleChangeId'));
       expect(src, contains('HqAlimtalkCatalog.groupFinalizeId'));
       expect(src, contains('void sendGroupFinalizeAlimtalk'));
+      expect(src, contains('void sendScheduleUploadAlimtalk'));
+      expect(src, contains('void sendScheduleChangeAlimtalk'));
       expect(read('lib/services/d1_alimtalk_flush.dart'),
           contains('HqAlimtalkCatalog.d1ReminderId'),
           reason: 'D-1 알림톡도 대기열에서 보내야 한다');
+      final addStart = src.indexOf('void addSchedule(RoundSchedule schedule)');
+      final addEnd = src.indexOf('void sendScheduleUploadAlimtalk(');
+      expect(src.substring(addStart, addEnd).contains('_dispatchClubAlimtalk'),
+          isFalse,
+          reason: '등록만으로 알림톡이 나가면 얼럿을 건너뛴다');
+      final updStart = src.indexOf('bool updateSchedule(RoundSchedule updated)');
+      final updEnd = src.indexOf('void sendScheduleChangeAlimtalk(');
+      expect(src.substring(updStart, updEnd).contains('_dispatchClubAlimtalk'),
+          isFalse,
+          reason: '변경만으로 알림톡이 나가면 얼럿을 건너뛴다');
       final start = src.indexOf('void finalizeAssignment(');
       final end = src.indexOf('void sendGroupFinalizeAlimtalk(');
       expect(src.substring(start, end).contains('_dispatchClubAlimtalk'), isFalse);
     });
 
-    test('발송하기 다이얼로그를 건너뛴다', () {
+    test('일정 등록·변경도 알림톡 확인 얼럿을 띄운다', () {
       final src = read('lib/utils/alimtalk_utils.dart');
-      expect(src, contains('addSchedule 이 바로 보낸다'));
+      expect(src, contains('promptScheduleUpload'));
+      expect(src, contains('promptScheduleChange'));
+      expect(src, contains('sendScheduleUploadAlimtalk'));
+      expect(src, contains('sendScheduleChangeAlimtalk'));
       expect(src, isNot(contains('recipientNames: provider.attendanceAlimtalkRecipientNames()')),
           reason: '발송 화면을 또 열면 두 번 나간다');
     });

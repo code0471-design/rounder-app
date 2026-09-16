@@ -306,8 +306,12 @@ void main() {
     expect(source.contains('created.isPast'), isTrue,
         reason: '지난 날짜 저장 후 지난 일정 탭 전환이 없음');
     expect(source.contains('_tab.animateTo(1)'), isTrue);
-    expect(source.contains('if (schedule.isPast) return;'), isTrue,
+    expect(source.contains('if (!schedule.isPast)'), isTrue,
         reason: '지난 일정 등록 후 참석 알림톡을 띄우면 안 됨');
+    expect(source.contains('AlimtalkUtils.promptScheduleUpload'), isTrue);
+    expect(source.contains('AlimtalkUtils.promptScheduleChange'), isTrue);
+    expect(source.contains('sendScheduleUploadAlimtalk'), isTrue);
+    expect(source.contains('sendScheduleChangeAlimtalk'), isTrue);
     expect(source.contains('onCreated:'), isTrue);
   });
 }

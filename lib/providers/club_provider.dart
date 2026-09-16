@@ -3215,7 +3215,13 @@ class ClubProvider extends ChangeNotifier with WidgetsBindingObserver {
       targetId: schedule.id,
       notifySelf: true,
     );
-    // 발송하기를 안 눌러도 나간다. 예전엔 다이얼로그에서 '나중에'면 한 통도 안 갔다.
+    // 알림톡은 총무가 보내기를 고른 뒤에만 [sendScheduleUploadAlimtalk].
+  }
+
+  /// 일정 등록 알림톡 — 등록 직후 보내기를 고른 경우에만 호출한다.
+  void sendScheduleUploadAlimtalk(String scheduleId) {
+    final schedule = scheduleById(scheduleId);
+    if (schedule == null || schedule.isDateOver) return;
     _dispatchClubAlimtalk(
       hqTypeId: HqAlimtalkCatalog.scheduleUploadId,
       members: attendanceAlimtalkRecipients(),
@@ -3843,14 +3849,18 @@ class ClubProvider extends ChangeNotifier with WidgetsBindingObserver {
     _syncNextRound(next.clubId);
     notifyListeners();
     _persistImmediately();
-    if (materialChanged) {
-      _dispatchClubAlimtalk(
-        hqTypeId: HqAlimtalkCatalog.scheduleChangeId,
-        members: scheduleChangeAlimtalkRecipients(next.id),
-        variablesFor: (m) => _alimtalkScheduleVars(next, m),
-      );
-    }
     return materialChanged;
+  }
+
+  /// 일정 변경 알림톡 — 변경 직후 보내기를 고른 경우에만 호출한다.
+  void sendScheduleChangeAlimtalk(String scheduleId) {
+    final schedule = scheduleById(scheduleId);
+    if (schedule == null) return;
+    _dispatchClubAlimtalk(
+      hqTypeId: HqAlimtalkCatalog.scheduleChangeId,
+      members: scheduleChangeAlimtalkRecipients(scheduleId),
+      variablesFor: (m) => _alimtalkScheduleVars(schedule, m),
+    );
   }
 
   /// 날짜·시간·코스·정원 변경 여부 (제목·공지 제외)

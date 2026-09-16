@@ -22,8 +22,8 @@ class AlimtalkUtils {
     return HqAlimtalkCatalog.isGloballyEnabled(hqTypeId);
   }
 
-  static Future<bool?> promptScheduleUpload() {
-    final ctx = AppNavigator.context;
+  static Future<bool?> promptScheduleUpload([BuildContext? context]) {
+    final ctx = context ?? AppNavigator.context;
     if (ctx == null) return Future.value(false);
 
     return showDialog<bool>(
@@ -41,7 +41,7 @@ class AlimtalkUtils {
         actions: [
           TextButton(
             onPressed: () => Navigator.pop(dialogCtx, false),
-            child: const Text('나중에'),
+            child: const Text('안 보내기'),
           ),
           ElevatedButton(
             onPressed: () => Navigator.pop(dialogCtx, true),
@@ -51,15 +51,15 @@ class AlimtalkUtils {
               shape: RoundedRectangleBorder(
                   borderRadius: BorderRadius.circular(8)),
             ),
-            child: const Text('발송하기'),
+            child: const Text('보내기'),
           ),
         ],
       ),
     );
   }
 
-  static Future<bool?> promptScheduleChange() {
-    final ctx = AppNavigator.context;
+  static Future<bool?> promptScheduleChange([BuildContext? context]) {
+    final ctx = context ?? AppNavigator.context;
     if (ctx == null) return Future.value(false);
 
     return showDialog<bool>(
@@ -77,7 +77,7 @@ class AlimtalkUtils {
         actions: [
           TextButton(
             onPressed: () => Navigator.pop(dialogCtx, false),
-            child: const Text('나중에'),
+            child: const Text('안 보내기'),
           ),
           ElevatedButton(
             onPressed: () => Navigator.pop(dialogCtx, true),
@@ -87,7 +87,7 @@ class AlimtalkUtils {
               shape: RoundedRectangleBorder(
                   borderRadius: BorderRadius.circular(8)),
             ),
-            child: const Text('발송하기'),
+            child: const Text('보내기'),
           ),
         ],
       ),
@@ -157,22 +157,44 @@ class AlimtalkUtils {
     );
   }
 
-  /// 일정 등록 — 알림톡은 ClubProvider.addSchedule 이 바로 보낸다.
-  /// 발송 화면을 또 열면 같은 템플릿이 두 번 나간다.
+  /// 일정 등록 — 보내기를 고른 뒤에만 발송한다.
   static Future<bool?> runAttendanceFlow({
     required ClubProvider provider,
     required RoundSchedule schedule,
+    BuildContext? context,
   }) async {
-    return false;
+    if (schedule.isPast || schedule.isDateOver) return false;
+    final ok = await shouldPrompt(
+      provider: provider,
+      hqTypeId: HqAlimtalkCatalog.scheduleUploadId,
+      clubFlag: (s) => s.promptOnScheduleUpload,
+    );
+    if (!ok) return false;
+    final send = await promptScheduleUpload(context);
+    if (send == true) {
+      provider.sendScheduleUploadAlimtalk(schedule.id);
+    }
+    return send;
   }
 
-  /// 일정 변경 — ClubProvider.updateSchedule 이 바로 보낸다.
+  /// 일정 변경 — 보내기를 고른 뒤에만 발송한다.
   static Future<bool?> runScheduleChangeFlow({
     required ClubProvider provider,
     required RoundSchedule schedule,
     List<String>? recipientNames,
+    BuildContext? context,
   }) async {
-    return false;
+    final ok = await shouldPrompt(
+      provider: provider,
+      hqTypeId: HqAlimtalkCatalog.scheduleChangeId,
+      clubFlag: (s) => s.promptOnScheduleChange,
+    );
+    if (!ok) return false;
+    final send = await promptScheduleChange(context);
+    if (send == true) {
+      provider.sendScheduleChangeAlimtalk(schedule.id);
+    }
+    return send;
   }
 
   /// 조편성 확정 — 화면에서 보내기를 고른 뒤에만 발송한다.
