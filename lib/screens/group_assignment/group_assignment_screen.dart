@@ -180,68 +180,80 @@ class _GroupAssignmentScreenState extends State<GroupAssignmentScreen> {
     if (ok == true) p.clearAssignment(widget.schedule.id);
   }
 
-  // ── 확정하기 (수정하기는 로컬 편집만, 확정 상태는 유지) ──
+  // ── 저장: 비면 미확정(알림톡 없음) / 다시 짜면 확정+알림톡 얼럿 ──
   void _beginEdit() {
     setState(() => _editing = true);
   }
 
   Future<void> _confirmFinalize(ClubProvider p) async {
-    // 저장 보장: 아직 map에 없으면 현재 화면 상태 저장
     if (p.groupAssignment(widget.schedule.id) == null) {
       p.saveAssignment(p.getOrCreateAssignment(widget.schedule.id));
     }
     final assign = p.groupAssignment(widget.schedule.id);
-    final alreadyFinalized = assign?.isFinalized ?? false;
-    if (!alreadyFinalized) {
-      final emptyCount = assign?.emptyCount ?? 0;
-      var proceed = true;
-      if (emptyCount > 0) {
-        proceed = await showDialog<bool>(
-              context: context,
-              useRootNavigator: true,
-              barrierDismissible: false,
-              builder: (dialogCtx) => AlertDialog(
-                shape: RoundedRectangleBorder(
-                    borderRadius: BorderRadius.circular(16)),
-                title: const Text('조편성 확정',
-                    style: TextStyle(fontWeight: FontWeight.w700)),
-                content: Text('빈 슬롯이 $emptyCount개 있습니다.\n그래도 확정하시겠습니까?'),
-                actions: [
-                  TextButton(
-                      onPressed: () => Navigator.of(dialogCtx).pop(false),
-                      child: const Text('취소')),
-                  ElevatedButton(
-                    onPressed: () => Navigator.of(dialogCtx).pop(true),
-                    style: ElevatedButton.styleFrom(
-                        backgroundColor: AppColors.primary,
-                        foregroundColor: Colors.white,
-                        shape: RoundedRectangleBorder(
-                            borderRadius: BorderRadius.circular(8))),
-                    child: const Text('확정하기'),
-                  ),
-                ],
-              ),
-            ) ??
-            false;
-      }
-      if (!proceed || !mounted) return;
-      p.finalizeAssignment(widget.schedule.id);
+    final assigned = assign?.assignedCount ?? 0;
+    if (assigned == 0) {
+      p.unfinalizeAssignment(widget.schedule.id);
       if (!mounted) return;
-
+      setState(() => _editing = false);
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(
-          content: Text('조편성이 확정되었습니다'),
-          backgroundColor: AppColors.primary,
+          content: Text('조편성을 미확정으로 저장했습니다'),
           behavior: SnackBarBehavior.floating,
         ),
       );
-
-      final send = await AlimtalkUtils.promptGroupFinalize(context);
-      if (send == true) {
-        p.sendGroupFinalizeAlimtalk(widget.schedule.id);
-      }
+      Navigator.of(context).pop();
+      return;
     }
-    if (mounted) Navigator.of(context).pop(); // 일정 상세로 복귀
+
+    final emptyCount = assign?.emptyCount ?? 0;
+    var proceed = true;
+    if (emptyCount > 0) {
+      proceed = await showDialog<bool>(
+            context: context,
+            useRootNavigator: true,
+            barrierDismissible: false,
+            builder: (dialogCtx) => AlertDialog(
+              shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(16)),
+              title: const Text('조편성 저장',
+                  style: TextStyle(fontWeight: FontWeight.w700)),
+              content: Text('빈 슬롯이 $emptyCount개 있습니다.\n그래도 확정 저장할까요?'),
+              actions: [
+                TextButton(
+                    onPressed: () => Navigator.of(dialogCtx).pop(false),
+                    child: const Text('취소')),
+                ElevatedButton(
+                  onPressed: () => Navigator.of(dialogCtx).pop(true),
+                  style: ElevatedButton.styleFrom(
+                      backgroundColor: AppColors.primary,
+                      foregroundColor: Colors.white,
+                      shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(8))),
+                  child: const Text('저장'),
+                ),
+              ],
+            ),
+          ) ??
+          false;
+    }
+    if (!proceed || !mounted) return;
+    p.finalizeAssignment(widget.schedule.id);
+    if (!mounted) return;
+    setState(() => _editing = false);
+
+    ScaffoldMessenger.of(context).showSnackBar(
+      const SnackBar(
+        content: Text('조편성이 확정되었습니다'),
+        backgroundColor: AppColors.primary,
+        behavior: SnackBarBehavior.floating,
+      ),
+    );
+
+    final send = await AlimtalkUtils.promptGroupFinalize(context);
+    if (send == true) {
+      p.sendGroupFinalizeAlimtalk(widget.schedule.id);
+    }
+    if (mounted) Navigator.of(context).pop();
   }
 
   @override
@@ -344,7 +356,7 @@ class _GroupAssignmentScreenState extends State<GroupAssignmentScreen> {
                   minimumSize: const Size(0, 34),
                 ),
                 child: Text(
-                  isFinalized && !_editing ? '수정하기' : '확정하기',
+                  isFinalized && !_editing ? '수정하기' : '저장',
                   style: const TextStyle(
                       fontWeight: FontWeight.w800, fontSize: 13),
                 ),
