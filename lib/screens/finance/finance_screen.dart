@@ -1570,6 +1570,38 @@ class _YearSelector extends StatelessWidget {
   }
 }
 
+// 납부/미납 칩 — 연한 파스텔 배경 없이 솔리드 색 + 흰 글자
+Widget _duesPayStatusChip({
+  required bool paid,
+  VoidCallback? onTap,
+}) {
+  final chip = AnimatedContainer(
+    duration: const Duration(milliseconds: 200),
+    padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+    decoration: BoxDecoration(
+      color: paid ? AppColors.success : AppColors.danger,
+      borderRadius: BorderRadius.circular(20),
+    ),
+    child: Text(
+      paid ? '납부 ✓' : '미납',
+      style: const TextStyle(
+        fontSize: 11,
+        fontWeight: FontWeight.w800,
+        color: Colors.white,
+      ),
+    ),
+  );
+  if (onTap == null) return chip;
+  return Material(
+    color: Colors.transparent,
+    child: InkWell(
+      onTap: onTap,
+      borderRadius: BorderRadius.circular(20),
+      child: chip,
+    ),
+  );
+}
+
 // ════════════════════════════════════════════════════════════
 //  회원 납부 타일 — 역할별 3분기 UI
 //  관리자: 납부✓/미납 직접 토글
@@ -1700,57 +1732,14 @@ class _MemberPaymentTile extends StatelessWidget {
   Widget _buildTrailing(BuildContext context) {
     // ── 관리자: 납부✓/미납 직접 토글 ──
     if (isAdmin) {
-      return Material(
-        color: Colors.transparent,
-        child: InkWell(
-          onTap: onToggle,
-          borderRadius: BorderRadius.circular(20),
-          child: AnimatedContainer(
-            duration: const Duration(milliseconds: 200),
-            padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
-            decoration: BoxDecoration(
-              color: paid
-                  ? AppColors.success.withValues(alpha: 0.12)
-                  : AppColors.danger.withValues(alpha: 0.1),
-              borderRadius: BorderRadius.circular(20),
-              border: Border.all(
-                color: paid
-                    ? AppColors.success.withValues(alpha: 0.5)
-                    : AppColors.danger.withValues(alpha: 0.4),
-              ),
-            ),
-            child: Text(
-              paid ? '납부 ✓' : '미납',
-              style: TextStyle(
-                fontSize: 11,
-                fontWeight: FontWeight.bold,
-                color: paid ? AppColors.success : AppColors.danger,
-              ),
-            ),
-          ),
-        ),
-      );
+      return _duesPayStatusChip(paid: paid, onTap: onToggle);
     }
 
     // ── 일반 회원(본인): 입금 확인 요청 버튼 / 대기 중 취소 ──
     if (_isSelf) {
       // 이미 납부 완료된 경우 → 상태 표시
       if (paid) {
-        return Container(
-          padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
-          decoration: BoxDecoration(
-            color: AppColors.success.withValues(alpha: 0.1),
-            borderRadius: BorderRadius.circular(20),
-          ),
-          child: const Text(
-            '납부 ✓',
-            style: TextStyle(
-              fontSize: 11,
-              fontWeight: FontWeight.w600,
-              color: AppColors.success,
-            ),
-          ),
-        );
+        return _duesPayStatusChip(paid: true);
       }
 
       // 대기 중인 요청이 있을 때
@@ -1844,23 +1833,7 @@ class _MemberPaymentTile extends StatelessWidget {
       return Row(
         mainAxisSize: MainAxisSize.min,
         children: [
-          Container(
-            padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 5),
-            decoration: BoxDecoration(
-              color: AppColors.danger.withValues(alpha: 0.12),
-              borderRadius: BorderRadius.circular(20),
-              border: Border.all(
-                  color: AppColors.danger.withValues(alpha: 0.35)),
-            ),
-            child: const Text(
-              '미납',
-              style: TextStyle(
-                fontSize: 11,
-                fontWeight: FontWeight.w800,
-                color: AppColors.danger,
-              ),
-            ),
-          ),
+          _duesPayStatusChip(paid: false),
           const SizedBox(width: 6),
           GestureDetector(
             onTap: onRequestPayment,
@@ -1961,23 +1934,7 @@ class _MemberPaymentTile extends StatelessWidget {
     }
 
     // ── 일반 회원(타인): 납부/미납 상태 표시만 ──
-    return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
-      decoration: BoxDecoration(
-        color: paid
-            ? AppColors.success.withValues(alpha: 0.1)
-            : AppColors.danger.withValues(alpha: 0.08),
-        borderRadius: BorderRadius.circular(20),
-      ),
-      child: Text(
-        paid ? '납부 ✓' : '미납',
-        style: TextStyle(
-          fontSize: 11,
-          fontWeight: FontWeight.w600,
-          color: paid ? AppColors.success : AppColors.danger,
-        ),
-      ),
-    );
+    return _duesPayStatusChip(paid: paid);
   }
 }
 

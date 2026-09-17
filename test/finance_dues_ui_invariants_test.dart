@@ -166,6 +166,23 @@ void main() {
     expect(finance.contains('minHeight: 56'), isTrue);
   });
 
+  test('납부·미납 칩은 파스텔이 아니라 솔리드 색이다', () {
+    expect(finance.contains('Widget _duesPayStatusChip'), isTrue);
+    expect(
+      finance.contains('color: paid ? AppColors.success : AppColors.danger,'),
+      isTrue,
+    );
+    expect(
+      finance.contains("color: Colors.white,"),
+      isTrue,
+    );
+    expect(
+      finance.contains(
+          'AppColors.success.withValues(alpha: 0.12)\n                  : AppColors.danger.withValues(alpha: 0.1)'),
+      isFalse,
+    );
+  });
+
   test('잔고 등록 완료 회비설정 안내 카드는 없다', () {
     expect(finance.contains('_SetupDuesHintBanner'), isFalse);
     expect(finance.contains('잔고 등록 완료!'), isFalse);
