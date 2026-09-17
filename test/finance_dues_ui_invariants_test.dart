@@ -247,6 +247,14 @@ void main() {
     expect(finance.contains('전체 선택'), isTrue);
     expect(finance.contains('_bulkSelectedIds'), isTrue);
     expect(finance.contains('showBulkCheckbox'), isTrue);
+    expect(finance.contains('child: Checkbox('), isTrue);
+    expect(
+      finance.contains('width: 28,\n              height: 28,\n              child: Checkbox('),
+      isFalse,
+      reason: '28px 상자에 넣으면 체크박스 탭이 먹히지 않는다',
+    );
+    expect(finance.contains('NeverScrollableScrollPhysics'), isTrue,
+        reason: '가로 스와이프 탭뷰가 전체선택·체크 탭을 가로채면 안 된다');
     expect(finance.contains('skipsBalance: false'), isTrue);
     expect(finance.contains('amountForPeriod'), isTrue,
         reason: '일괄 납부도 기간별 금액을 써야 200% 회비가 어긋나지 않는다');

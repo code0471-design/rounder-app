@@ -423,6 +423,7 @@ class _FinanceScreenState extends State<FinanceScreen>
               Expanded(
                 child: TabBarView(
                   controller: _tab,
+                  physics: const NeverScrollableScrollPhysics(),
                   children: [
                     _PaymentStatusTab(isAdmin: isAdmin),
                     _TransactionTab(
@@ -1010,37 +1011,58 @@ class _PaymentStatusTabState extends State<_PaymentStatusTab> {
                   const Divider(height: 1, color: AppColors.divider),
                   if (widget.isAdmin && !isOutOfRange)
                     Padding(
-                      padding: const EdgeInsets.fromLTRB(12, 8, 12, 4),
+                      padding: const EdgeInsets.fromLTRB(4, 4, 12, 4),
                       child: Row(
                         children: [
-                          TextButton(
-                            onPressed: () {
+                          Builder(
+                            builder: (_) {
                               final eligible = members
                                   .where((m) => !paidIds.contains(m.id))
                                   .map((m) => m.id)
                                   .toSet();
-                              setState(() {
-                                if (_bulkSelectedIds.length ==
-                                        eligible.length &&
-                                    eligible.isNotEmpty) {
-                                  _bulkSelectedIds.clear();
-                                } else {
-                                  _bulkSelectedIds
-                                    ..clear()
-                                    ..addAll(eligible);
-                                }
-                              });
+                              final allOn = eligible.isNotEmpty &&
+                                  _bulkSelectedIds.length == eligible.length;
+                              void toggleAll() {
+                                setState(() {
+                                  if (allOn) {
+                                    _bulkSelectedIds.clear();
+                                  } else {
+                                    _bulkSelectedIds
+                                      ..clear()
+                                      ..addAll(eligible);
+                                  }
+                                });
+                              }
+                              return InkWell(
+                                onTap: eligible.isEmpty ? null : toggleAll,
+                                borderRadius: BorderRadius.circular(8),
+                                child: Padding(
+                                  padding: const EdgeInsets.symmetric(
+                                      horizontal: 8, vertical: 8),
+                                  child: Row(
+                                    children: [
+                                      Checkbox(
+                                        value: allOn,
+                                        onChanged: eligible.isEmpty
+                                            ? null
+                                            : (_) => toggleAll(),
+                                        activeColor: AppColors.primary,
+                                        materialTapTargetSize:
+                                            MaterialTapTargetSize.padded,
+                                        visualDensity: VisualDensity.compact,
+                                      ),
+                                      Text(
+                                        allOn ? '전체 해제' : '전체 선택',
+                                        style: const TextStyle(
+                                          fontSize: 13,
+                                          fontWeight: FontWeight.w600,
+                                        ),
+                                      ),
+                                    ],
+                                  ),
+                                ),
+                              );
                             },
-                            child: Text(
-                              _bulkSelectedIds.isNotEmpty &&
-                                      _bulkSelectedIds.length ==
-                                          members
-                                              .where((m) =>
-                                                  !paidIds.contains(m.id))
-                                              .length
-                                  ? '전체 해제'
-                                  : '전체 선택',
-                            ),
                           ),
                           const Spacer(),
                           ElevatedButton(
@@ -1616,40 +1638,45 @@ class _MemberPaymentTile extends StatelessWidget {
     );
 
     if (showBulkCheckbox) {
-      return Padding(
-        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 6),
-        child: Row(
-          children: [
-            SizedBox(
-              width: 28,
-              height: 28,
-              child: Checkbox(
-                value: bulkSelected,
-                onChanged: bulkEnabled
-                    ? (v) => onBulkToggle?.call(v ?? false)
-                    : null,
-                activeColor: AppColors.primary,
-                materialTapTargetSize: MaterialTapTargetSize.shrinkWrap,
-              ),
+      return Material(
+        color: Colors.transparent,
+        child: InkWell(
+          onTap: bulkEnabled
+              ? () => onBulkToggle?.call(!bulkSelected)
+              : null,
+          child: Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 6),
+            child: Row(
+              children: [
+                Checkbox(
+                  value: bulkSelected,
+                  onChanged: bulkEnabled
+                      ? (v) => onBulkToggle?.call(v ?? false)
+                      : null,
+                  activeColor: AppColors.primary,
+                  materialTapTargetSize: MaterialTapTargetSize.padded,
+                  visualDensity: VisualDensity.compact,
+                ),
+                const SizedBox(width: 4),
+                avatar,
+                const SizedBox(width: 12),
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(member.name,
+                          style: const TextStyle(
+                              fontSize: 13, fontWeight: FontWeight.w500)),
+                      Text(member.role,
+                          style: const TextStyle(
+                              fontSize: 11, color: AppColors.textSecondary)),
+                    ],
+                  ),
+                ),
+                _buildTrailing(context),
+              ],
             ),
-            const SizedBox(width: 12),
-            avatar,
-            const SizedBox(width: 12),
-            Expanded(
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Text(member.name,
-                      style: const TextStyle(
-                          fontSize: 13, fontWeight: FontWeight.w500)),
-                  Text(member.role,
-                      style: const TextStyle(
-                          fontSize: 11, color: AppColors.textSecondary)),
-                ],
-              ),
-            ),
-            _buildTrailing(context),
-          ],
+          ),
         ),
       );
     }
