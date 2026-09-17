@@ -64,7 +64,6 @@ List<List<String>> clubMemberRosterRows(List<Member> members) => [
 List<List<String>> adminMemberRosterRows(List<AdminMember> members) => [
       [
         '이름',
-        '닉네임',
         '연락처',
         '성별',
         '가입일',
@@ -76,7 +75,6 @@ List<List<String>> adminMemberRosterRows(List<AdminMember> members) => [
       ...members.map(
         (m) => [
           m.name,
-          m.nickname,
           m.phone,
           m.gender,
           m.joinDate,

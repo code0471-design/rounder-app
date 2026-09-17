@@ -31,8 +31,7 @@ class _AdminMembersScreenState extends State<AdminMembersScreen> {
       final q = _searchCtrl.text.trim().toLowerCase();
       final matchSearch = q.isEmpty ||
           m.name.toLowerCase().contains(q) ||
-          m.phone.contains(q) ||
-          m.nickname.toLowerCase().contains(q);
+          m.phone.contains(q);
       final matchStatus = _statusFilter == 'all' || m.status == _statusFilter;
       final matchGender = _genderFilter == 'all' || m.gender == _genderFilter;
       return matchSearch && matchStatus && matchGender;
@@ -190,7 +189,7 @@ class _AdminMembersScreenState extends State<AdminMembersScreen> {
             controller: _searchCtrl,
             onChanged: (_) => setState(() {}),
             decoration: InputDecoration(
-              hintText: '이름, 연락처, 닉네임 검색',
+              hintText: '이름, 연락처 검색',
               hintStyle: const TextStyle(fontSize: 13, color: AdminColors.textHint),
               prefixIcon: const Icon(Icons.search, size: 18, color: AdminColors.textHint),
               border: OutlineInputBorder(
@@ -367,9 +366,8 @@ class _AdminMembersScreenState extends State<AdminMembersScreen> {
       child: Row(
         children: const [
           SizedBox(width: 40, child: Text('',         style: AdminTextStyles.tableHeader)),
-          Expanded(flex: 3, child: Text('이름',       style: AdminTextStyles.tableHeader)),
+          Expanded(flex: 4, child: Text('이름',       style: AdminTextStyles.tableHeader)),
           Expanded(flex: 4, child: Text('연락처',     style: AdminTextStyles.tableHeader)),
-          Expanded(flex: 3, child: Text('닉네임',     style: AdminTextStyles.tableHeader)),
           Expanded(flex: 2, child: Text('성별',       style: AdminTextStyles.tableHeader)),
           Expanded(flex: 3, child: Text('가입일',     style: AdminTextStyles.tableHeader)),
           Expanded(flex: 2, child: Text('모임수',     style: AdminTextStyles.tableHeader)),
@@ -415,13 +413,11 @@ class _AdminMembersScreenState extends State<AdminMembersScreen> {
             ),
             // Name
             Expanded(
-              flex: 3,
+              flex: 4,
               child: Text(m.name, style: AdminTextStyles.tableCell.copyWith(fontWeight: FontWeight.w600)),
             ),
             // Phone
             Expanded(flex: 4, child: Text(m.phone, style: AdminTextStyles.tableCell)),
-            // Nickname
-            Expanded(flex: 3, child: Text(m.nickname, style: AdminTextStyles.tableCell.copyWith(color: AdminColors.textSecond))),
             // Gender — 읽기 쉬운 칩
             Expanded(
               flex: 2,
@@ -597,7 +593,6 @@ class _AdminMembersScreenState extends State<AdminMembersScreen> {
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
                       Text(m.name, style: const TextStyle(color: Colors.white, fontSize: 16, fontWeight: FontWeight.w700)),
-                      Text(m.nickname, style: TextStyle(color: Colors.white.withValues(alpha: 0.8), fontSize: 13)),
                     ],
                   ),
                 ),

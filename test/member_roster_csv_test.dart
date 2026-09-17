@@ -25,7 +25,7 @@ void main() {
     expect(csv, contains('총무'));
   });
 
-  test('본사 회원 명단 CSV에 닉네임과 상태가 들어간다', () {
+  test('본사 회원 명단 CSV에 이름과 상태가 들어간다', () {
     final csv = adminMemberRosterCsv(const [
       AdminMember(
         id: 'u1',
@@ -39,8 +39,9 @@ void main() {
         email: 'a@b.com',
       ),
     ]);
-    expect(csv, contains('닉네임'));
-    expect(csv, contains('라운더'));
+    expect(csv, contains('이름'));
+    expect(csv, contains('김골프'));
+    expect(csv, isNot(contains('닉네임')));
     expect(csv, contains('정상'));
   });
 

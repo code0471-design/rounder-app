@@ -8,6 +8,8 @@ void main() {
         File('lib/screens/admin/admin_members_screen.dart').readAsStringSync();
     expect(members.contains('인증 초기화'), isTrue);
     expect(members.contains('resetMemberPhoneAuth'), isTrue);
+    expect(members.contains('닉네임'), isFalse,
+        reason: '본사 회원 목록에 닉네임 칸이 있으면 안 된다');
   });
 
   test('소셜 로그인은 Firestore 번호가 비어 있으면 인증 화면을 건너뛰지 않는다', () {
