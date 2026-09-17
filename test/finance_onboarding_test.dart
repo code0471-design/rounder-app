@@ -46,6 +46,9 @@ void main() {
     expect(src.contains('나중에'), isTrue);
     expect(src.contains('class TreasurerTxPromptScreen'), isTrue);
     expect(src.contains('Spacer(flex: 2)'), isTrue);
+    final prompt = src.split('class TreasurerTxPromptScreen').last;
+    expect(prompt.contains('width: double.infinity'), isTrue,
+        reason: '글자 너비로 줄어 왼쪽에 붙지 않게 가로를 채운다');
   });
 
   test('올시즌은 1월, 이번달은 이번 달 입력이다', () {

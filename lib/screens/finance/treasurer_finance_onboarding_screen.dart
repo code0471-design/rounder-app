@@ -336,57 +336,62 @@ class TreasurerTxPromptScreen extends StatelessWidget {
       body: SafeArea(
         child: Padding(
           padding: const EdgeInsets.symmetric(horizontal: 28),
-          child: Column(
-            children: [
-              const Spacer(flex: 2),
-              const Text(
-                '회비설정을 잘 마쳤습니다.',
-                textAlign: TextAlign.center,
-                style: TextStyle(
-                  fontSize: 22,
-                  fontWeight: FontWeight.w800,
-                  color: _kTossInk,
-                  height: 1.35,
-                ),
-              ),
-              const SizedBox(height: 10),
-              const Text(
-                '입력하시겠습니까?',
-                textAlign: TextAlign.center,
-                style: TextStyle(
-                  fontSize: 18,
-                  fontWeight: FontWeight.w600,
-                  color: _kTossInk,
-                  height: 1.4,
-                ),
-              ),
-              const SizedBox(height: 28),
-              SizedBox(
-                width: 220,
-                height: 52,
-                child: FilledButton(
-                  onPressed: onEnter,
-                  style: FilledButton.styleFrom(
-                    backgroundColor: _kTossInk,
-                    foregroundColor: Colors.white,
-                    shape: RoundedRectangleBorder(
-                        borderRadius: BorderRadius.circular(14)),
-                    textStyle: const TextStyle(
-                        fontSize: 16, fontWeight: FontWeight.w700),
+          child: SizedBox(
+            width: double.infinity,
+            child: Column(
+              children: [
+                const Spacer(flex: 2),
+                const Text(
+                  '회비설정을 잘 마쳤습니다.',
+                  textAlign: TextAlign.center,
+                  style: TextStyle(
+                    fontSize: 22,
+                    fontWeight: FontWeight.w800,
+                    color: _kTossInk,
+                    height: 1.35,
                   ),
-                  child: const Text('입력하기'),
                 ),
-              ),
-              const Spacer(flex: 3),
-              TextButton(
-                onPressed: onLater,
-                child: const Text(
-                  '나중에',
-                  style: TextStyle(fontSize: 14, color: _kTossMuted),
+                const SizedBox(height: 10),
+                const Text(
+                  '입력하시겠습니까?',
+                  textAlign: TextAlign.center,
+                  style: TextStyle(
+                    fontSize: 18,
+                    fontWeight: FontWeight.w600,
+                    color: _kTossInk,
+                    height: 1.4,
+                  ),
                 ),
-              ),
-              const SizedBox(height: 12),
-            ],
+                const SizedBox(height: 28),
+                Center(
+                  child: SizedBox(
+                    width: 220,
+                    height: 52,
+                    child: FilledButton(
+                      onPressed: onEnter,
+                      style: FilledButton.styleFrom(
+                        backgroundColor: _kTossInk,
+                        foregroundColor: Colors.white,
+                        shape: RoundedRectangleBorder(
+                            borderRadius: BorderRadius.circular(14)),
+                        textStyle: const TextStyle(
+                            fontSize: 16, fontWeight: FontWeight.w700),
+                      ),
+                      child: const Text('입력하기'),
+                    ),
+                  ),
+                ),
+                const Spacer(flex: 3),
+                TextButton(
+                  onPressed: onLater,
+                  child: const Text(
+                    '나중에',
+                    style: TextStyle(fontSize: 14, color: _kTossMuted),
+                  ),
+                ),
+                const SizedBox(height: 12),
+              ],
+            ),
           ),
         ),
       ),

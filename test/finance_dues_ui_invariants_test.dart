@@ -146,6 +146,13 @@ void main() {
       isTrue,
     );
     expect(onboard.contains('class TreasurerTxPromptScreen'), isTrue);
+    expect(
+      onboard.split('class TreasurerTxPromptScreen').last.contains(
+            'width: double.infinity',
+          ),
+      isTrue,
+      reason: '입력하기 안내가 왼쪽으로 치우치지 않게',
+    );
     expect(finance.contains('_treasurerOnboardingSession'), isTrue);
     expect(finance.contains('_showTxPrompt'), isTrue);
     expect(finance.contains('_finishTxPrompt'), isTrue);
