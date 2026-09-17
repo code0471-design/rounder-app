@@ -198,6 +198,8 @@ void main() {
       expect(src, contains('dueD1AlimtalkDocs'));
       expect(src, contains('pendingD1AlimtalkDocs'));
       expect(src, contains('alimtalkSent'));
+      expect(src, contains('alimtalkScheduled'),
+          reason: '10시 예약 후 앱이 다시 열리면 같은 알림톡이 또 나간다');
     });
 
     test('라운딩 D-1 알림톡은 10시 이전이면 솔라피에 예약한다', () {
@@ -231,6 +233,8 @@ void main() {
       expect(fn.contains('exports.flushD1Alimtalk'), isTrue);
       expect(fn.contains('defineSecret'), isFalse,
           reason: 'Secret Manager 없으면 운영 Functions 배포가 막힌다');
+      expect(fn.contains('alimtalkScheduled'), isTrue,
+          reason: '앱이 이미 예약한 건 Functions가 10시 15분에 또 보내면 안 된다');
     });
   });
 }

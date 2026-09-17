@@ -227,7 +227,10 @@ abstract final class PushNotificationService {
           DateTime.now().day);
       if (sendOn.isBefore(today)) return;
       final existing = await doc.get();
-      if (existing.data()?['alimtalkSent'] == true) return;
+      if (existing.data()?['alimtalkSent'] == true ||
+          existing.data()?['alimtalkScheduled'] == true) {
+        return;
+      }
       final t = HqPushCatalog.byIdSync(HqPushCatalog.d1Reminder);
       await doc.set({
         'userId': userId,
@@ -263,9 +266,7 @@ abstract final class PushNotificationService {
           .collection(FirestorePaths.d1Queue)
           .where('sendOn', isEqualTo: today)
           .get();
-      return snap.docs
-          .where((d) => d.data()['alimtalkSent'] != true)
-          .toList();
+      return snap.docs.where(_d1AlimtalkOpen).toList();
     } catch (e) {
       debugPrint('[Push] d1 alimtalk query skip: $e');
       return const [];
@@ -283,22 +284,31 @@ abstract final class PushNotificationService {
           .collection(FirestorePaths.d1Queue)
           .where('sendOn', isGreaterThanOrEqualTo: lookback)
           .get();
-      return snap.docs
-          .where((d) => d.data()['alimtalkSent'] != true)
-          .toList();
+      return snap.docs.where(_d1AlimtalkOpen).toList();
     } catch (e) {
       debugPrint('[Push] d1 pending query skip: $e');
       return const [];
     }
   }
 
-  static Future<void> markD1AlimtalkSent(String docId) async {
+  static bool _d1AlimtalkOpen(QueryDocumentSnapshot<Map<String, dynamic>> d) {
+    final data = d.data();
+    return data['alimtalkSent'] != true && data['alimtalkScheduled'] != true;
+  }
+
+  static Future<void> markD1AlimtalkSent(
+    String docId, {
+    bool scheduled = false,
+  }) async {
     if (!HqRemoteSettings.available || docId.isEmpty) return;
     try {
       await FirebaseFirestore.instance
           .collection(FirestorePaths.d1Queue)
           .doc(docId)
-          .set({'alimtalkSent': true}, SetOptions(merge: true));
+          .set({
+        'alimtalkSent': true,
+        if (scheduled) 'alimtalkScheduled': true,
+      }, SetOptions(merge: true));
     } catch (e) {
       debugPrint('[Push] d1 alimtalk mark skip: $e');
     }
@@ -338,7 +348,10 @@ abstract final class PushNotificationService {
           DateTime.now().day);
       if (sendOn.isBefore(today)) return;
       final existing = await doc.get();
-      if (existing.data()?['alimtalkSent'] == true) return;
+      if (existing.data()?['alimtalkSent'] == true ||
+          existing.data()?['alimtalkScheduled'] == true) {
+        return;
+      }
       final t = HqPushCatalog.byIdSync(HqPushCatalog.duesRequest);
       await doc.set({
         'userId': userId,

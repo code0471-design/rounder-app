@@ -454,6 +454,47 @@ void main() {
       expect(myPoints() - before, 0, reason: '어뷰징 경로가 열려선 안 된다');
     });
 
+    test('참석 +10, 불참 -10, 다시 참석하면 +10이 다시 적립된다', () {
+      clubs.addSchedule(RoundSchedule(
+        id: 's_rejoin',
+        clubId: clubId,
+        title: '재참석 라운딩',
+        roundDate: DateTime.now(),
+        teeTime: '07:00',
+        courseName: '테스트CC',
+        teamCount: 4,
+        createdBy: '총무',
+      ));
+      final before = myPoints();
+
+      expect(
+          clubs.respondToSchedule(scheduleId: 's_rejoin', response: '불참'),
+          isTrue);
+      expect(myPoints() - before, 0, reason: '최초 불참은 0점');
+
+      expect(
+          clubs.respondToSchedule(scheduleId: 's_rejoin', response: '참석'),
+          isTrue);
+      expect(myPoints() - before, 10);
+
+      expect(
+          clubs.respondToSchedule(scheduleId: 's_rejoin', response: '불참'),
+          isTrue);
+      expect(myPoints() - before, 0);
+
+      expect(
+          clubs.respondToSchedule(scheduleId: 's_rejoin', response: '참석'),
+          isTrue);
+      expect(myPoints() - before, 10,
+          reason: '불참 후 다시 참석하면 +10이 다시 적립돼야 한다');
+
+      expect(
+          clubs.respondToSchedule(scheduleId: 's_rejoin', response: '불참'),
+          isTrue);
+      expect(myPoints() - before, 0,
+          reason: '두 번째 불참도 -10으로 상쇄돼야 한다');
+    });
+
     test('랭킹은 포인트 내림차순이고 나도 포함된다', () {
       clubs.addAnnouncement(title: '공지', content: 'x');
       final annId = clubs.announcements.first.id;

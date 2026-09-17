@@ -241,4 +241,22 @@ void main() {
     expect(addBlock.contains('_dispatchClubAlimtalk'), isFalse);
     expect(addBlock.contains('syncDuesD1Reminders'), isTrue);
   });
+
+  test('납부현황에서 여러 명을 한꺼번에 납부 처리할 수 있다', () {
+    expect(finance.contains('선택 납부 처리'), isTrue);
+    expect(finance.contains('전체 선택'), isTrue);
+    expect(finance.contains('_bulkSelectedIds'), isTrue);
+    expect(finance.contains('showBulkCheckbox'), isTrue);
+    expect(finance.contains('skipsBalance: false'), isTrue);
+    expect(finance.contains('amountForPeriod'), isTrue,
+        reason: '일괄 납부도 기간별 금액을 써야 200% 회비가 어긋나지 않는다');
+    final start = finance.indexOf('_bulkSelectedIds.isEmpty');
+    final end = finance.indexOf('선택 납부 처리', start);
+    expect(start, greaterThan(0));
+    expect(end, greaterThan(start));
+    expect(finance.substring(start, end).contains('recordPayment'), isTrue);
+    expect(finance.contains('final members = provider.regularMembers;'),
+        isTrue,
+        reason: '일괄 납부 대상에 게스트가 들어가면 안 됨');
+  });
 }

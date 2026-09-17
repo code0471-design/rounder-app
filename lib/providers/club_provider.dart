@@ -2742,7 +2742,7 @@ class ClubProvider extends ChangeNotifier with WidgetsBindingObserver {
         ? DateTime(year, month, now.day)
         : now;
 
-    final paymentId = 'dp_${DateTime.now().millisecondsSinceEpoch}';
+    final paymentId = 'dp_${now.microsecondsSinceEpoch}_$memberId';
     _duesPayments.add(DuesPayment(
       id: paymentId,
       memberId: memberId,
@@ -2764,7 +2764,7 @@ class ClubProvider extends ChangeNotifier with WidgetsBindingObserver {
       // 잔고 스코프는 selectedClub 기준 — setting.clubId 불일치로 잔고 미반영 방지
       final txClubId = selectedClub.id;
       _transactions.add(Transaction(
-        id: 'tx_${DateTime.now().millisecondsSinceEpoch}',
+        id: 'tx_${now.microsecondsSinceEpoch}_$memberId',
         type: TxType.income,
         amount: amount,
         category: setting.type.label,
@@ -7751,29 +7751,23 @@ class ClubProvider extends ChangeNotifier with WidgetsBindingObserver {
     );
   }
 
-  bool _hasAttendanceCredit(String memberId, String scheduleId) {
+  /// 이 일정의 참석 포인트 순액. +10 / -10 을 합산한다.
+  ///
+  /// 예전에 "한 번이라도 +10 이력이 있으면 다시 주지 않음"이라
+  /// 참석→불참(-10)→다시 참석 때 +10이 막혔다. 순액이 0이면 다시 적립한다.
+  int _attendancePointNet(String memberId, String scheduleId) {
     final tag = '|$scheduleId';
+    var net = 0;
     for (final key in _memberAliasIds(memberId)) {
       for (final e in _pointEvents[key] ?? const <MembershipPointEvent>[]) {
-        if (e.type == MembershipPointType.roundAttendance &&
-            e.points > 0 &&
-            e.desc.contains(tag)) {
-          return true;
-        }
+        if (e.desc.contains(tag)) net += e.points;
       }
     }
-    return false;
+    return net;
   }
 
-  bool _hasAttendanceDeducted(String memberId, String scheduleId) {
-    final tag = '|$scheduleId';
-    for (final key in _memberAliasIds(memberId)) {
-      for (final e in _pointEvents[key] ?? const <MembershipPointEvent>[]) {
-        if (e.points < 0 && e.desc.contains(tag)) return true;
-      }
-    }
-    return false;
-  }
+  bool _hasAttendanceCredit(String memberId, String scheduleId) =>
+      _attendancePointNet(memberId, scheduleId) > 0;
 
   /// 참석 응답은 있는데 포인트 이력이 없는 회원(이정원 leftover 등)을 채운다.
   void _backfillMissingAttendancePoints() {
@@ -7804,7 +7798,7 @@ class ClubProvider extends ChangeNotifier with WidgetsBindingObserver {
   }) {
     final date = scheduleById(scheduleId)?.roundDate ?? DateTime.now();
     if (response == '참석' && prev != '참석') {
-      if (!_hasAttendanceCredit(memberId, scheduleId)) {
+      if (_attendancePointNet(memberId, scheduleId) <= 0) {
         addMembershipPoint(
           memberId: memberId,
           type: MembershipPointType.roundAttendance,
@@ -7814,7 +7808,7 @@ class ClubProvider extends ChangeNotifier with WidgetsBindingObserver {
         );
       }
     } else if (prev == '참석' && response == '불참') {
-      if (!_hasAttendanceDeducted(memberId, scheduleId)) {
+      if (_attendancePointNet(memberId, scheduleId) > 0) {
         addMembershipPoint(
           memberId: memberId,
           type: MembershipPointType.noShow,

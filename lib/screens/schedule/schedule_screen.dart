@@ -316,10 +316,7 @@ class _ScheduleCard extends StatelessWidget {
     final hasNotice =
         schedule.notice != null && schedule.notice!.trim().isNotEmpty;
 
-    return GestureDetector(
-      onTap: () => Navigator.push(context,
-          MaterialPageRoute(builder: (_) => ScheduleDetailScreen(schedule: schedule))),
-      child: Container(
+    return Container(
         margin: EdgeInsets.zero,
         decoration: BoxDecoration(
           color: Colors.white,
@@ -336,7 +333,11 @@ class _ScheduleCard extends StatelessWidget {
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            Padding(
+            GestureDetector(
+              onTap: () => Navigator.push(context,
+                  MaterialPageRoute(builder: (_) => ScheduleDetailScreen(schedule: schedule))),
+              behavior: HitTestBehavior.opaque,
+              child: Padding(
               padding: const EdgeInsets.fromLTRB(14, 14, 14, 12),
               child: Row(
                 crossAxisAlignment: CrossAxisAlignment.start,
@@ -408,6 +409,7 @@ class _ScheduleCard extends StatelessWidget {
                   ),
                 ],
               ),
+            ),
             ),
             Container(
               width: double.infinity,
@@ -503,7 +505,6 @@ class _ScheduleCard extends StatelessWidget {
               ),
           ],
         ),
-      ),
     );
   }
 }
@@ -652,6 +653,7 @@ class _AttendButton extends StatelessWidget {
 
     return GestureDetector(
       onTap: () => _showResponseSheet(context),
+      behavior: HitTestBehavior.opaque,
       child: Container(
         padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
         decoration: BoxDecoration(
@@ -683,18 +685,26 @@ class _AttendButton extends StatelessWidget {
 
   void _showResponseSheet(BuildContext context) {
     final provider = context.read<ClubProvider>();
+    // attend sheet: root + scroll so buttons aren't clipped
     showModalBottomSheet(
       context: context,
-      backgroundColor: Colors.transparent,
-      builder: (_) => Container(
-        decoration: const BoxDecoration(
-          color: Colors.white,
-          borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
+      isScrollControlled: true,
+      useRootNavigator: true,
+      useSafeArea: true,
+      backgroundColor: Colors.white,
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
+      ),
+      builder: (sheetBuildCtx) => Padding(
+        padding: EdgeInsets.only(
+          bottom: MediaQuery.viewInsetsOf(sheetBuildCtx).bottom,
         ),
-        padding: const EdgeInsets.fromLTRB(24, 20, 24, 36),
-        child: Column(
+        child: SafeArea(
+          child: Padding(
+            padding: const EdgeInsets.fromLTRB(24, 20, 24, 16),
+            child: Column(
           mainAxisSize: MainAxisSize.min,
-          crossAxisAlignment: CrossAxisAlignment.start,
+          crossAxisAlignment: CrossAxisAlignment.stretch,
           children: [
             // 핸들
             Center(
@@ -736,7 +746,7 @@ class _AttendButton extends StatelessWidget {
                     final isFull = currentResponse != '참석' &&
                         provider.isAttendanceFull(schedule.id);
 
-                    Navigator.pop(sheetCtx);
+                    Navigator.of(sheetCtx, rootNavigator: true).pop();
                     if (isFull) {
                       _showAttendFullDialog(sheetCtx, provider);
                       return;
@@ -762,7 +772,7 @@ class _AttendButton extends StatelessWidget {
                   onTap: () {
                     provider.respondToSchedule(
                         scheduleId: schedule.id, response: '미정');
-                    Navigator.pop(context);
+                    Navigator.of(context, rootNavigator: true).pop();
                     ScaffoldMessenger.of(context).showSnackBar(
                       _snack('미정으로 응답했습니다', AppColors.warning),
                     );
@@ -776,7 +786,7 @@ class _AttendButton extends StatelessWidget {
                   selected: currentResponse == '불참',
                   onTap: () async {
                     final sheetCtx = context;
-                    Navigator.pop(sheetCtx);
+                    Navigator.of(sheetCtx, rootNavigator: true).pop();
                     final warnTreasurer = currentResponse == '참석' &&
                         (provider.groupAssignment(schedule.id)?.isFinalized ??
                             false);
@@ -798,6 +808,8 @@ class _AttendButton extends StatelessWidget {
               ],
             ),
           ],
+            ),
+          ),
         ),
       ),
     );
@@ -1078,6 +1090,7 @@ class _ResponseBtn extends StatelessWidget {
                 width: 1.5),
           ),
           child: Column(
+            mainAxisSize: MainAxisSize.min,
             children: [
               Icon(icon, color: selected ? Colors.white : color, size: 24),
               const SizedBox(height: 4),
@@ -1515,14 +1528,21 @@ class ScheduleDetailScreen extends StatelessWidget {
       BuildContext context, ClubProvider provider, String? current) {
     showModalBottomSheet(
       context: context,
-      backgroundColor: Colors.transparent,
-      builder: (_) => Container(
-        decoration: const BoxDecoration(
-          color: Colors.white,
-          borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
+      isScrollControlled: true,
+      useRootNavigator: true,
+      useSafeArea: true,
+      backgroundColor: Colors.white,
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
+      ),
+      builder: (sheetBuildCtx) => Padding(
+        padding: EdgeInsets.only(
+          bottom: MediaQuery.viewInsetsOf(sheetBuildCtx).bottom,
         ),
-        padding: const EdgeInsets.fromLTRB(24, 20, 24, 36),
-        child: Column(
+        child: SafeArea(
+          child: Padding(
+            padding: const EdgeInsets.fromLTRB(24, 20, 24, 16),
+            child: Column(
           mainAxisSize: MainAxisSize.min,
           children: [
             Container(
@@ -1585,6 +1605,8 @@ class ScheduleDetailScreen extends StatelessWidget {
               ],
             ),
           ],
+            ),
+          ),
         ),
       ),
     );

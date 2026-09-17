@@ -125,6 +125,15 @@ class _GalleryScreenState extends State<GalleryScreen>
 
         return Scaffold(
           backgroundColor: AppColors.background,
+          floatingActionButton: provider.activeSchedules.isEmpty
+              ? null
+              : FloatingActionButton.extended(
+                  onPressed: () => _uploadForSchedule(context, provider),
+                  backgroundColor: AppColors.primary,
+                  foregroundColor: Colors.white,
+                  icon: const Icon(Icons.add_a_photo_outlined),
+                  label: const Text('사진 올리기'),
+                ),
           body: allPhotos.isEmpty && albums.isEmpty
               ? const _EmptyGallery(hasPastSchedules: false)
               : CustomScrollView(
@@ -285,6 +294,76 @@ class _GalleryScreenState extends State<GalleryScreen>
       ),
     );
   }
+
+  Future<void> _uploadForSchedule(
+    BuildContext context,
+    ClubProvider provider,
+  ) async {
+    final schedule = await _pickGallerySchedule(context, provider);
+    if (schedule == null || !context.mounted) return;
+    await showRoundPhotoUploadSheet(
+      context,
+      schedule: schedule,
+      provider: provider,
+    );
+  }
+}
+
+Future<RoundSchedule?> _pickGallerySchedule(
+  BuildContext context,
+  ClubProvider provider,
+) {
+  final schedules = List<RoundSchedule>.from(provider.activeSchedules)
+    ..sort((a, b) => b.roundDate.compareTo(a.roundDate));
+  if (schedules.isEmpty) {
+    ScaffoldMessenger.of(context).showSnackBar(
+      const SnackBar(content: Text('사진을 올릴 일정이 없습니다')),
+    );
+    return Future<RoundSchedule?>.value();
+  }
+  return showModalBottomSheet<RoundSchedule>(
+    context: context,
+    isScrollControlled: true,
+    shape: const RoundedRectangleBorder(
+      borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
+    ),
+    builder: (ctx) => SafeArea(
+      child: SizedBox(
+        height: MediaQuery.of(ctx).size.height * 0.6,
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            const Padding(
+              padding: EdgeInsets.fromLTRB(20, 18, 20, 8),
+              child: Text(
+                '사진을 올릴 일정을 선택하세요',
+                style: TextStyle(fontSize: 16, fontWeight: FontWeight.w700),
+              ),
+            ),
+            Expanded(
+              child: ListView.separated(
+                itemCount: schedules.length,
+                separatorBuilder: (_, __) =>
+                    const Divider(height: 1, color: AppColors.divider),
+                itemBuilder: (_, i) {
+                  final s = schedules[i];
+                  final d = s.roundDate;
+                  final date =
+                      '${d.year}.${d.month.toString().padLeft(2, '0')}.${d.day.toString().padLeft(2, '0')}';
+                  return ListTile(
+                    title: Text(s.displayTitle,
+                        style: const TextStyle(fontWeight: FontWeight.w600)),
+                    subtitle: Text('$date  ${s.courseName}'.trim()),
+                    onTap: () => Navigator.pop(ctx, s),
+                  );
+                },
+              ),
+            ),
+          ],
+        ),
+      ),
+    ),
+  );
 }
 
 class _GalleryAlbum {
@@ -693,6 +772,17 @@ class _RoundAlbumScreenState extends State<_RoundAlbumScreen> {
               ],
             ),
             actions: [
+              if (!_selecting)
+                IconButton(
+                  tooltip: '사진 올리기',
+                  onPressed: () => showRoundPhotoUploadSheet(
+                    context,
+                    schedule: widget.album.schedule,
+                    provider: provider,
+                  ),
+                  icon: const Icon(Icons.add_a_photo_outlined,
+                      color: AppColors.primary),
+                ),
               if (photos.isNotEmpty && canBulk)
                 TextButton(
                   onPressed: _toggleSelectMode,
@@ -718,15 +808,29 @@ class _RoundAlbumScreenState extends State<_RoundAlbumScreen> {
             ],
           ),
           body: photos.isEmpty
-              ? const Center(
+              ? Center(
                   child: Column(
                     mainAxisAlignment: MainAxisAlignment.center,
                     children: [
-                      Icon(Icons.photo_album_outlined,
+                      const Icon(Icons.photo_album_outlined,
                           size: 48, color: AppColors.textSecondary),
-                      SizedBox(height: 12),
-                      Text('아직 사진이 없습니다',
+                      const SizedBox(height: 12),
+                      const Text('아직 사진이 없습니다',
                           style: TextStyle(color: AppColors.textSecondary)),
+                      const SizedBox(height: 16),
+                      ElevatedButton.icon(
+                        onPressed: () => showRoundPhotoUploadSheet(
+                          context,
+                          schedule: widget.album.schedule,
+                          provider: provider,
+                        ),
+                        icon: const Icon(Icons.add_a_photo_outlined, size: 18),
+                        label: const Text('사진 올리기'),
+                        style: ElevatedButton.styleFrom(
+                          backgroundColor: AppColors.primary,
+                          foregroundColor: Colors.white,
+                        ),
+                      ),
                     ],
                   ),
                 )
@@ -901,8 +1005,8 @@ class _EmptyGallery extends StatelessWidget {
           const SizedBox(height: 8),
           Text(
             hasPastSchedules
-                ? '일정 상세에서 사진을 올려 보세요!'
-                : '라운딩 일정에서 사진을 올려 추억을 기록하세요!',
+                ? '일정을 선택한 뒤 사진을 올려 보세요!'
+                : '라운딩 일정을 선택한 뒤 사진을 올려 추억을 기록하세요!',
             textAlign: TextAlign.center,
             style: const TextStyle(
                 fontSize: 13, color: AppColors.textSecondary, height: 1.5),

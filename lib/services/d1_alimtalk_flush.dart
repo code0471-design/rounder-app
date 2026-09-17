@@ -8,7 +8,25 @@ import 'solapi_service.dart';
 /// 앱에 솔라피 키가 있으므로, 참석 확정·앱 오픈 때 솔라피에 10시 예약을 넣는다.
 /// Functions도 10시에 한 번 더 보내되, 이미 보낸 건 건너뛴다.
 abstract final class D1AlimtalkFlush {
+  static bool _running = false;
+
   static Future<void> run({
+    bool Function(String clubId, String typeId)? clubEnabled,
+    String? Function(String userId, String clubId)? resolvePhone,
+  }) async {
+    if (_running) return;
+    _running = true;
+    try {
+      await _runBody(
+        clubEnabled: clubEnabled,
+        resolvePhone: resolvePhone,
+      );
+    } finally {
+      _running = false;
+    }
+  }
+
+  static Future<void> _runBody({
     bool Function(String clubId, String typeId)? clubEnabled,
     String? Function(String userId, String clubId)? resolvePhone,
   }) async {
@@ -84,7 +102,10 @@ abstract final class D1AlimtalkFlush {
       if (result.success ||
           (result.errorMessage ?? '').contains('꺼져 있습니다') ||
           (result.errorMessage ?? '').contains('사용중지')) {
-        await PushNotificationService.markD1AlimtalkSent(doc.id);
+        await PushNotificationService.markD1AlimtalkSent(
+          doc.id,
+          scheduled: !sendNow,
+        );
       }
     }
   }

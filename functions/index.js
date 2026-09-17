@@ -231,7 +231,7 @@ async function flushDueD1Alimtalk() {
     .get();
   for (const doc of snap.docs) {
     const d = doc.data();
-    if (d.alimtalkSent === true) continue;
+    if (d.alimtalkSent === true || d.alimtalkScheduled === true) continue;
     const isDues = d.kind === "dues";
     const typeId = isDues ? "atk_dues_request" : "atk_d1_reminder";
     if (!(await hqAlimtalkEnabled(typeId))) {

@@ -653,6 +653,7 @@ class _PaymentStatusTabState extends State<_PaymentStatusTab> {
   String? _selectedDuesId;
   int _year = DateTime.now().year;
   int _month = DateTime.now().month;
+  final Set<String> _bulkSelectedIds = {};
 
   @override
   Widget build(BuildContext context) {
@@ -771,6 +772,7 @@ class _PaymentStatusTabState extends State<_PaymentStatusTab> {
                     onTap: () {
                       setState(() {
                         _selectedDuesId = s.id;
+                        _bulkSelectedIds.clear();
                         // 월회비 선택 시 현재 월이 기간 내인지 확인 후 조정
                         if (s.type == DuesType.monthly &&
                             !s.isMonthInPeriod(_month)) {
@@ -856,12 +858,16 @@ class _PaymentStatusTabState extends State<_PaymentStatusTab> {
                 onChanged: (y, m) => setState(() {
                   _year = y;
                   _month = m;
+                  _bulkSelectedIds.clear();
                 }),
               ),
             if (!isMonthly)
               _YearSelector(
                 year: _year,
-                onChanged: (y) => setState(() => _year = y),
+                onChanged: (y) => setState(() {
+                  _year = y;
+                  _bulkSelectedIds.clear();
+                }),
               ),
             const SizedBox(height: 14),
 
@@ -1002,6 +1008,86 @@ class _PaymentStatusTabState extends State<_PaymentStatusTab> {
                     ),
                   ),
                   const Divider(height: 1, color: AppColors.divider),
+                  if (widget.isAdmin && !isOutOfRange)
+                    Padding(
+                      padding: const EdgeInsets.fromLTRB(12, 8, 12, 4),
+                      child: Row(
+                        children: [
+                          TextButton(
+                            onPressed: () {
+                              final eligible = members
+                                  .where((m) => !paidIds.contains(m.id))
+                                  .map((m) => m.id)
+                                  .toSet();
+                              setState(() {
+                                if (_bulkSelectedIds.length ==
+                                        eligible.length &&
+                                    eligible.isNotEmpty) {
+                                  _bulkSelectedIds.clear();
+                                } else {
+                                  _bulkSelectedIds
+                                    ..clear()
+                                    ..addAll(eligible);
+                                }
+                              });
+                            },
+                            child: Text(
+                              _bulkSelectedIds.isNotEmpty &&
+                                      _bulkSelectedIds.length ==
+                                          members
+                                              .where((m) =>
+                                                  !paidIds.contains(m.id))
+                                              .length
+                                  ? '전체 해제'
+                                  : '전체 선택',
+                            ),
+                          ),
+                          const Spacer(),
+                          ElevatedButton(
+                            onPressed: _bulkSelectedIds.isEmpty
+                                ? null
+                                : () {
+                                    final selectedMembers = members
+                                        .where((m) =>
+                                            _bulkSelectedIds.contains(m.id) &&
+                                            !paidIds.contains(m.id))
+                                        .toList();
+                                    for (final m in selectedMembers) {
+                                      provider.recordPayment(
+                                        memberId: m.id,
+                                        memberName: m.name,
+                                        duesSettingId: selected.id,
+                                        amount: selected.amountForPeriod(
+                                          year: _year,
+                                          month: isMonthly ? _month : 1,
+                                        ),
+                                        year: _year,
+                                        month: isMonthly ? _month : null,
+                                        skipsBalance: false,
+                                      );
+                                    }
+                                    final count = selectedMembers.length;
+                                    setState(() => _bulkSelectedIds.clear());
+                                    ScaffoldMessenger.of(context).showSnackBar(
+                                      SnackBar(
+                                        content: Text(
+                                            '$count명 납부 완료 처리했습니다'),
+                                        backgroundColor: AppColors.success,
+                                        behavior: SnackBarBehavior.floating,
+                                      ),
+                                    );
+                                  },
+                            style: ElevatedButton.styleFrom(
+                              backgroundColor: AppColors.primary,
+                              foregroundColor: Colors.white,
+                            ),
+                            child: Text(
+                              '선택 납부 처리 (${_bulkSelectedIds.length})',
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
                   ...members.map((m) {
                     final paid = paidIds.contains(m.id);
                     // 나의 대기 중인 요청 조회
@@ -1017,6 +1103,18 @@ class _PaymentStatusTabState extends State<_PaymentStatusTab> {
                       isAdmin: widget.isAdmin,
                       currentUserId: currentUserId,
                       pendingRequest: myRequest,
+                      showBulkCheckbox: widget.isAdmin && !isOutOfRange,
+                      bulkSelected: _bulkSelectedIds.contains(m.id),
+                      bulkEnabled: !paid,
+                      onBulkToggle: (v) {
+                        setState(() {
+                          if (v) {
+                            _bulkSelectedIds.add(m.id);
+                          } else {
+                            _bulkSelectedIds.remove(m.id);
+                          }
+                        });
+                      },
                       onToggle: isOutOfRange
                           ? null
                           : () => _showPaymentToggleDialog(
@@ -1464,6 +1562,10 @@ class _MemberPaymentTile extends StatelessWidget {
   final PaymentRequest? pendingRequest; // 이 회원의 대기 중인 요청 (있으면)
   final VoidCallback? onToggle;     // 관리자용 토글 (null = 기간 외 비활성)
   final VoidCallback? onRequestPayment; // 본인용 요청 (null = 기간 외)
+  final bool showBulkCheckbox;
+  final bool bulkSelected;
+  final bool bulkEnabled;
+  final ValueChanged<bool>? onBulkToggle;
 
   const _MemberPaymentTile({
     required this.member,
@@ -1473,6 +1575,10 @@ class _MemberPaymentTile extends StatelessWidget {
     this.pendingRequest,
     required this.onToggle,
     this.onRequestPayment,
+    this.showBulkCheckbox = false,
+    this.bulkSelected = false,
+    this.bulkEnabled = true,
+    this.onBulkToggle,
   });
 
   // currentUserId (provider) == member.id 로 본인 확인
@@ -1496,24 +1602,65 @@ class _MemberPaymentTile extends StatelessWidget {
 
     // 대기 중 상태(본인)는 트레일링이 2줄이라 dense 높이로는 부족해 오버플로 발생
     final needsExtraHeight = _isSelf && !paid && pendingRequest != null;
+    final avatar = CircleAvatar(
+      radius: 18,
+      backgroundColor: avatarBg,
+      child: Text(
+        member.name[0],
+        style: TextStyle(
+          fontSize: 14,
+          fontWeight: FontWeight.bold,
+          color: avatarFg,
+        ),
+      ),
+    );
+
+    if (showBulkCheckbox) {
+      return Padding(
+        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 6),
+        child: Row(
+          children: [
+            SizedBox(
+              width: 28,
+              height: 28,
+              child: Checkbox(
+                value: bulkSelected,
+                onChanged: bulkEnabled
+                    ? (v) => onBulkToggle?.call(v ?? false)
+                    : null,
+                activeColor: AppColors.primary,
+                materialTapTargetSize: MaterialTapTargetSize.shrinkWrap,
+              ),
+            ),
+            const SizedBox(width: 12),
+            avatar,
+            const SizedBox(width: 12),
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(member.name,
+                      style: const TextStyle(
+                          fontSize: 13, fontWeight: FontWeight.w500)),
+                  Text(member.role,
+                      style: const TextStyle(
+                          fontSize: 11, color: AppColors.textSecondary)),
+                ],
+              ),
+            ),
+            _buildTrailing(context),
+          ],
+        ),
+      );
+    }
+
     return ListTile(
       dense: !needsExtraHeight,
       contentPadding: needsExtraHeight
           ? const EdgeInsets.symmetric(horizontal: 16, vertical: 6)
           : null,
       onTap: isAdmin ? onToggle : null,
-      leading: CircleAvatar(
-        radius: 18,
-        backgroundColor: avatarBg,
-        child: Text(
-          member.name[0],
-          style: TextStyle(
-            fontSize: 14,
-            fontWeight: FontWeight.bold,
-            color: avatarFg,
-          ),
-        ),
-      ),
+      leading: avatar,
       title: Text(member.name,
           style: const TextStyle(fontSize: 13, fontWeight: FontWeight.w500)),
       subtitle: Text(member.role,

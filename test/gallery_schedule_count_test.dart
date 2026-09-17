@@ -184,6 +184,22 @@ void main() {
     });
   });
 
+  group('갤러리에서도 일정 선택 후 사진을 올린다', () {
+    final gallery = _read('lib/screens/gallery/gallery_screen.dart');
+    final widgets = _read('lib/screens/schedule/round_photo_widgets.dart');
+
+    test('기존 업로드 시트·삭제 경로를 재사용한다', () {
+      expect(gallery.contains('showRoundPhotoUploadSheet'), isTrue);
+      expect(gallery.contains('_pickGallerySchedule'), isTrue);
+      expect(gallery.contains('provider.activeSchedules'), isTrue);
+      expect(gallery.contains('사진 올리기'), isTrue);
+      expect(gallery.contains('deletePhotos'), isTrue);
+      expect(widgets.contains('Future<void> showRoundPhotoUploadSheet'), isTrue);
+      expect(widgets.contains('PhotoUploadSheet'), isTrue);
+      expect(widgets.contains('pickRoundPhotoDataUrls'), isTrue);
+    });
+  });
+
   group('동기화가 남은 사진을 지우지 않는다', () {
     final provider = _read('lib/providers/club_provider.dart');
 

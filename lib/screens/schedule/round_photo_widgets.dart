@@ -25,6 +25,41 @@ Future<(List<String>, bool)> pickRoundPhotoDataUrls() async {
   return (out, exceeded);
 }
 
+Future<void> showRoundPhotoUploadSheet(
+  BuildContext context, {
+  required RoundSchedule schedule,
+  required ClubProvider provider,
+}) async {
+  List<String> dataUrls;
+  var exceeded = false;
+  try {
+    (dataUrls, exceeded) = await pickRoundPhotoDataUrls();
+  } catch (_) {
+    if (!context.mounted) return;
+    ScaffoldMessenger.of(context).showSnackBar(
+      const SnackBar(content: Text('사진을 불러오지 못했습니다')),
+    );
+    return;
+  }
+  if (dataUrls.isEmpty || !context.mounted) return;
+  if (exceeded) {
+    await showRoundPhotoLimitAlert(context);
+    if (!context.mounted) return;
+  }
+  await showModalBottomSheet<void>(
+    context: context,
+    isScrollControlled: true,
+    shape: const RoundedRectangleBorder(
+      borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
+    ),
+    builder: (ctx) => PhotoUploadSheet(
+      schedule: schedule,
+      provider: provider,
+      initialDataUrls: dataUrls,
+    ),
+  );
+}
+
 Future<String?> pickRoundPhotoDataUrl() async {
   final (list, _) = await pickRoundPhotoDataUrls();
   if (list.isEmpty) return null;

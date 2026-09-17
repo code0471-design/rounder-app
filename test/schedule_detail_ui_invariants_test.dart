@@ -298,6 +298,37 @@ void main() {
         reason: '일정 카드·상세 헤더에 팀수가 없음');
   });
 
+  test('목록 참석 시트는 버튼이 잘리지 않고 카드 탭과 겹치지 않는다', () {
+    final attend = source.substring(source.indexOf('class _AttendButton'));
+    final sheet = attend.substring(
+      0,
+      attend.indexOf('참석 확인 다이얼로그'),
+    );
+    expect(sheet.contains('isScrollControlled: true'), isTrue,
+        reason: '참석 시트 높이가 내용보다 짧으면 참석/불참 버튼이 사라짐');
+    expect(sheet.contains('useRootNavigator: true'), isTrue,
+        reason: '탭 Navigator에 띄우면 헤더·탭바 사이에서 시트가 잘림');
+    expect(sheet.contains('useSafeArea: true'), isTrue);
+    expect(sheet.contains("attend sheet: root + scroll so buttons aren't clipped"),
+        isTrue);
+    expect(sheet.contains('rootNavigator: true).pop()'), isTrue,
+        reason: 'root에 올린 시트를 탭 Navigator.pop 하면 시트가 안 닫힘');
+
+    final card = source.substring(
+      source.indexOf('class _ScheduleCard'),
+      source.indexOf('class _ScheduleDateTile'),
+    );
+    expect(card.contains('HitTestBehavior.opaque'), isTrue,
+        reason: '헤더만 상세로 가야 참석 버튼 탭이 상세 push와 겹치지 않음');
+    expect(
+      RegExp(r'return\s+GestureDetector\(\s*onTap:\s*\(\)\s*=>\s*Navigator\.push')
+          .hasMatch(card),
+      isFalse,
+      reason: '카드 전체가 GestureDetector면 참석 버튼과 상세 이동이 같이 뜸',
+    );
+    expect(source.contains('mainAxisSize: MainAxisSize.min,'), isTrue);
+  });
+
   test('일정 등록은 지난 날짜를 고를 수 있고 지난 탭으로 간다', () {
     expect(source.contains('DateTime(now.year - 2, 1, 1)'), isTrue,
         reason: '지난 날짜 firstDate가 막혀 있음');
