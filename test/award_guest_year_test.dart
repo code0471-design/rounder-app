@@ -73,4 +73,40 @@ void main() {
     expect(years.contains(DateTime.now().year - 1), isTrue,
         reason: '시상 연도가 올해만 나오면 작년 기록을 고를 수 없다');
   });
+
+  test('다른 모임 시상은 이 모임 횟수에 안 잡힌다', () async {
+    final clubA = clubs.selectedClub.id;
+    expect(clubs.getMemberAwardCount(regularId, year: 2026), 1);
+
+    final ok = await clubs.createClub(
+      name: '강남 미용모임',
+      region: '서울',
+      industry: '미용',
+      teamCount: 4,
+      myRole: '회장',
+    );
+    expect(ok, isTrue);
+    final meB = clubs.currentMember!.id;
+    expect(clubs.getMemberAwardCount(meB, year: 2026), 0,
+        reason: '이름만 같다고 다른 모임 시상까지 5회로 세면 안 된다');
+    expect(
+      clubs.regularAwardRankingForYear(2026).any((e) => e.key == meB),
+      isFalse,
+    );
+
+    clubs.saveAwardRecord(AwardRecord(
+      id: 'ar_beauty',
+      scheduleId: 's_beauty',
+      scheduleName: '9월 월례회',
+      awardName: '메달리스트',
+      awardIcon: '🥇',
+      winnerIds: [meB],
+      winnerNames: const ['안경현'],
+      recordedAt: DateTime(2026, 9, 1),
+    ));
+    expect(clubs.getMemberAwardCount(meB, year: 2026), 1);
+
+    clubs.selectClubById(clubA);
+    expect(clubs.getMemberAwardCount(regularId, year: 2026), 1);
+  });
 }

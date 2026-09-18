@@ -117,6 +117,17 @@ void main() {
 
   test('시상 winnerId 가 m1 이어도 생성자 횟수에 포함된다', () {
     final when = DateTime(2026, 9, 2);
+    clubs.addSchedule(RoundSchedule(
+      id: 's_sep',
+      clubId: clubId,
+      title: '9월',
+      roundDate: when,
+      teeTime: '07:00',
+      courseName: 'A',
+      teamCount: 4,
+      status: ScheduleStatus.upcoming,
+      createdBy: '안경현',
+    ));
     clubs.saveAwardsForSchedule('s_sep', [
       AwardRecord(
         id: 'ar1',

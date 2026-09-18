@@ -7897,8 +7897,21 @@ class ClubProvider extends ChangeNotifier with WidgetsBindingObserver {
   }
 
   List<AwardRecord> awardsInYear(int year) => _awardRecords
-      .where((r) => awardEventDate(r).year == year)
+      .where((r) =>
+          awardEventDate(r).year == year && _awardBelongsToSelectedClub(r))
       .toList(growable: false);
+
+  /// 시상 원장은 기기 전역이다. 선택 모임이 아니면 횟수에 넣지 않는다.
+  /// (이름만 같으면 다른 모임 시상까지 강남 미용모임 5회로 보이던 원인)
+  bool _awardBelongsToSelectedClub(AwardRecord r) {
+    if (_myClubs.isEmpty) return true;
+    final clubId = selectedClub.id;
+    final s = scheduleById(r.scheduleId);
+    if (s != null) return s.clubId == clubId;
+    final creator = 'm_creator_$clubId';
+    final prefix = 'm_${clubId}_';
+    return r.winnerIds.any((id) => id == creator || id.startsWith(prefix));
+  }
 
   /// 정회원(게스트 제외) 연간 시상 횟수, 많은 순.
   List<MapEntry<String, int>> regularAwardRankingForYear(int year) {
@@ -7961,6 +7974,11 @@ class ClubProvider extends ChangeNotifier with WidgetsBindingObserver {
       if (!_isDemoSession && rawId == 'm1' && club != null) {
         final creatorId = 'm_creator_$club';
         if (regularMembers.any((m) => m.id == creatorId)) return creatorId;
+      }
+      // 다른 모임 명단 id 는 이름만 같다고 이 모임 사람에게 붙이지 않는다.
+      if (Member.isStoredRosterId(rawId) &&
+          (club == null || !Member.isClubRosterId(club, rawId))) {
+        return null;
       }
     }
     final name = (rawName ?? '').trim();
