@@ -280,6 +280,12 @@ void main() {
     expect(finance.contains('NeverScrollableScrollPhysics'), isTrue,
         reason: '가로 스와이프 탭뷰가 전체선택·체크 탭을 가로채면 안 된다');
     expect(finance.contains('skipsBalance: false'), isTrue);
+    expect(finance.contains('bulkEnabled: !paid'), isTrue);
+    expect(finance.contains('opacity: bulkEnabled ? 1 : 0.32'), isTrue,
+        reason: '이미 납부한 회원 체크박스는 흐려서 선택 불가로 보여야 한다');
+    expect(finance.contains('value: bulkEnabled && bulkSelected'), isTrue,
+        reason: '납부 완료 회원이 체크된 채로 비활성화되면 아직 되는 줄 안다');
+    expect(finance.contains('if (paid) return;'), isTrue);
     expect(finance.contains('amountForPeriod'), isTrue,
         reason: '일괄 납부도 기간별 금액을 써야 200% 회비가 어긋나지 않는다');
     final start = finance.indexOf('_bulkSelectedIds.isEmpty');
@@ -290,5 +296,21 @@ void main() {
     expect(finance.contains('final members = provider.regularMembers;'),
         isTrue,
         reason: '일괄 납부 대상에 게스트가 들어가면 안 됨');
+    expect(
+      finance.contains('_bulkSelectedIds.remove(member.id)'),
+      isTrue,
+      reason: '개인 납부 처리 뒤에도 일괄 선택에 남아 있으면 안 됨',
+    );
+    expect(finance.contains('provider.cancelPayment('), isTrue,
+        reason: '납부 칩으로 취소가 가능해야 한다');
+    final record = File('lib/providers/club_provider.dart').readAsStringSync();
+    final recStart = record.indexOf('void recordPayment(');
+    final recEnd = record.indexOf('void cancelPayment(');
+    expect(recStart, greaterThan(0));
+    expect(recEnd, greaterThan(recStart));
+    final rec = record.substring(recStart, recEnd);
+    expect(rec.contains('_duesPayments.add'), isTrue);
+    expect(rec.contains('TxSource.dues'), isTrue,
+        reason: '납부 처리 시 잔고 거래도 같이 남아야 한다');
   });
 }

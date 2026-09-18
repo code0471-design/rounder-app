@@ -1041,15 +1041,18 @@ class _PaymentStatusTabState extends State<_PaymentStatusTab> {
                                       horizontal: 8, vertical: 8),
                                   child: Row(
                                     children: [
-                                      Checkbox(
-                                        value: allOn,
-                                        onChanged: eligible.isEmpty
-                                            ? null
-                                            : (_) => toggleAll(),
-                                        activeColor: AppColors.primary,
-                                        materialTapTargetSize:
-                                            MaterialTapTargetSize.padded,
-                                        visualDensity: VisualDensity.compact,
+                                      Opacity(
+                                        opacity: eligible.isEmpty ? 0.32 : 1,
+                                        child: Checkbox(
+                                          value: allOn,
+                                          onChanged: eligible.isEmpty
+                                              ? null
+                                              : (_) => toggleAll(),
+                                          activeColor: AppColors.primary,
+                                          materialTapTargetSize:
+                                              MaterialTapTargetSize.padded,
+                                          visualDensity: VisualDensity.compact,
+                                        ),
                                       ),
                                       Text(
                                         allOn ? '전체 해제' : '전체 선택',
@@ -1129,6 +1132,7 @@ class _PaymentStatusTabState extends State<_PaymentStatusTab> {
                       bulkSelected: _bulkSelectedIds.contains(m.id),
                       bulkEnabled: !paid,
                       onBulkToggle: (v) {
+                        if (paid) return;
                         setState(() {
                           if (v) {
                             _bulkSelectedIds.add(m.id);
@@ -1338,6 +1342,7 @@ class _PaymentStatusTabState extends State<_PaymentStatusTab> {
                         month: month,
                         skipsBalance: skipsBalance,
                       );
+                      setState(() => _bulkSelectedIds.remove(member.id));
                       final msg = skipsBalance
                           ? '${member.name} 납부 처리 (잔고 미반영)'
                           : '${member.name} 납부 완료 처리했습니다';
@@ -1680,14 +1685,17 @@ class _MemberPaymentTile extends StatelessWidget {
             padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 6),
             child: Row(
               children: [
-                Checkbox(
-                  value: bulkSelected,
-                  onChanged: bulkEnabled
-                      ? (v) => onBulkToggle?.call(v ?? false)
-                      : null,
-                  activeColor: AppColors.primary,
-                  materialTapTargetSize: MaterialTapTargetSize.padded,
-                  visualDensity: VisualDensity.compact,
+                Opacity(
+                  opacity: bulkEnabled ? 1 : 0.32,
+                  child: Checkbox(
+                    value: bulkEnabled && bulkSelected,
+                    onChanged: bulkEnabled
+                        ? (v) => onBulkToggle?.call(v ?? false)
+                        : null,
+                    activeColor: AppColors.primary,
+                    materialTapTargetSize: MaterialTapTargetSize.padded,
+                    visualDensity: VisualDensity.compact,
+                  ),
                 ),
                 const SizedBox(width: 4),
                 avatar,
