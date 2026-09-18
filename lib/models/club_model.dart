@@ -215,6 +215,7 @@ class Club {
     String? industry,
     int? teamCount,
     String? description,
+    String? creatorId,
   }) {
     return Club(
       id: id,
@@ -230,7 +231,7 @@ class Club {
       nextRoundCourse: identical(nextRoundCourse, _unset)
           ? this.nextRoundCourse
           : nextRoundCourse as String?,
-      creatorId: creatorId,
+      creatorId: creatorId ?? this.creatorId,
       region: region ?? this.region,
       industry: industry ?? this.industry,
       teamCount: teamCount ?? this.teamCount,

@@ -14,7 +14,7 @@ abstract final class MemberMapper {
 
   static Member fromMap(String id, Map<String, dynamic> data) {
     try {
-      final stored = (data['id'] as String?)?.trim() ?? '';
+      final stored = data['id'] is String ? (data['id'] as String).trim() : '';
       final resolvedId =
           Member.isStoredRosterId(stored) ? stored : id;
       return Member(

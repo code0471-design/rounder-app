@@ -17,7 +17,14 @@ class FirestoreMemberDataSource {
       // 본인만 남는 원인이었다. 정렬은 메모리에서 한다.
       final snap =
           await _db.collection(FirestorePaths.clubMembers(clubId)).get();
-      final members = snap.docs.map(MemberMapper.fromFirestore).toList();
+      final members = <Member>[];
+      for (final doc in snap.docs) {
+        try {
+          members.add(MemberMapper.fromFirestore(doc));
+        } catch (_) {
+          // 한 명 파싱 실패로 모임 명단 전체를 버리지 않는다.
+        }
+      }
       members.sort((a, b) => (b.joinDate ?? DateTime(0))
           .compareTo(a.joinDate ?? DateTime(0)));
       return members;
@@ -31,7 +38,12 @@ class FirestoreMemberDataSource {
         .collection(FirestorePaths.clubMembers(clubId))
         .snapshots()
         .map((snap) {
-      final members = snap.docs.map(MemberMapper.fromFirestore).toList();
+      final members = <Member>[];
+      for (final doc in snap.docs) {
+        try {
+          members.add(MemberMapper.fromFirestore(doc));
+        } catch (_) {}
+      }
       members.sort((a, b) => (b.joinDate ?? DateTime(0))
           .compareTo(a.joinDate ?? DateTime(0)));
       return members;

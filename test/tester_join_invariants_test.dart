@@ -98,6 +98,22 @@ void main() {
       );
       expect(
         Member.canonicalRosterId(
+          clubId: 'c_aladdin',
+          rawId: 'kakao_host',
+          creatorUserId: 'kakao_host',
+        ),
+        'm_creator_c_aladdin',
+      );
+      expect(
+        Member.canonicalRosterId(
+          clubId: 'c_aladdin',
+          rawId: 'kakao_guest',
+          creatorUserId: 'kakao_host',
+        ),
+        'm_c_aladdin_kakao_guest',
+      );
+      expect(
+        Member.canonicalRosterId(
           clubId: 'c_arena',
           rawId: 'm_c_other_kakao_2',
           creatorUserId: 'kakao_1',
@@ -146,6 +162,28 @@ void main() {
         isFalse,
         reason: '정회원 모임 랭킹에 로그인 id 점수를 합치면 안 된다',
       );
+    });
+
+    test('서버 명단을 받으면 화면에 바로 반영한다', () {
+      final src = _read('lib/providers/club_provider.dart');
+      final start = src.indexOf('Future<void> _mergeRemoteRoster(');
+      expect(start, greaterThan(0));
+      final fn = src.substring(
+        start,
+        src.indexOf('void _purgeDemoSeedNotifications()'),
+      );
+      expect(fn.contains('notifyListeners()'), isTrue);
+      expect(fn.contains('_persistImmediately()'), isTrue);
+      expect(fn.contains('ClubMemberRole.president'), isTrue);
+      expect(src.contains('_watchSelectedClubMembers()'), isTrue);
+    });
+
+    test('회원 문서 하나 깨져도 나머지 명단은 살린다', () {
+      final src = _read(
+        'lib/data/datasources/firestore/firestore_member_datasource.dart',
+      );
+      expect(src.contains('for (final doc in snap.docs)'), isTrue);
+      expect(src.contains('MemberMapper.fromFirestore(doc)'), isTrue);
     });
   });
 

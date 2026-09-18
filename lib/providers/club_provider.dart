@@ -35,6 +35,8 @@ class ClubProvider extends ChangeNotifier with WidgetsBindingObserver {
   bool _suppressPersist = false;
   bool _applyingCloudOps = false;
   String? _watchingClubId;
+  String? _watchingMembersClubId;
+  StreamSubscription<List<Member>>? _memberWatchSub;
   Timer? _persistTimer;
   Timer? _cloudPushTimer;
 
@@ -51,6 +53,7 @@ class ClubProvider extends ChangeNotifier with WidgetsBindingObserver {
     _persistTimer?.cancel();
     _cloudPushTimer?.cancel();
     ClubOpsSync.stopAllWatches();
+    unawaited(_memberWatchSub?.cancel());
     super.dispose();
   }
 
@@ -615,6 +618,26 @@ class ClubProvider extends ChangeNotifier with WidgetsBindingObserver {
         }
       }
     });
+    _watchSelectedClubMembers();
+  }
+
+  void _watchSelectedClubMembers() {
+    if (_myClubs.isEmpty) return;
+    if (!AppDependencies.instance.isInitialized ||
+        AppDependencies.instance.isOfflineMockMode) {
+      return;
+    }
+    final clubId = selectedClub.id;
+    if (_watchingMembersClubId == clubId) return;
+    unawaited(_memberWatchSub?.cancel());
+    _watchingMembersClubId = clubId;
+    _memberWatchSub = AppDependencies.instance.memberRepository
+        .watchMembers(clubId)
+        .listen((remote) {
+      unawaited(_mergeRemoteRoster(clubId, remote));
+    }, onError: (e) {
+      debugPrint('[ClubProvider] watch members $clubId skip: $e');
+    });
   }
 
   String _galleryWatchSignature() {
@@ -1088,6 +1111,13 @@ class ClubProvider extends ChangeNotifier with WidgetsBindingObserver {
       final role = club.myRole.trim().isEmpty ? '회장' : club.myRole;
       _myClubs.add(club.copyWith(myRole: role));
       changed = true;
+    } else {
+      final i = _myClubs.indexWhere((c) => c.id == club.id);
+      final cur = _myClubs[i];
+      if (cur.creatorId.trim().isEmpty && club.creatorId.trim().isNotEmpty) {
+        _myClubs[i] = cur.copyWith(creatorId: club.creatorId);
+        changed = true;
+      }
     }
     if (!_allClubs.any((c) => c.id == club.id)) {
       _allClubs.add(club);
@@ -1225,42 +1255,61 @@ class ClubProvider extends ChangeNotifier with WidgetsBindingObserver {
       return;
     }
     try {
-      final club = _myClubs.where((c) => c.id == clubId).firstOrNull;
-      final creatorUserId = club?.creatorId ?? '';
       final remote = await AppDependencies.instance.memberRepository
           .fetchMembers(clubId)
           .timeout(const Duration(seconds: 8));
-      var changed = false;
-      for (final raw in remote) {
-        final id = Member.canonicalRosterId(
-          clubId: clubId,
-          rawId: raw.id,
-          creatorUserId: creatorUserId,
-        );
-        final row = id == raw.id ? raw : raw.withId(id);
-        final idx = _members.indexWhere((m) => m.id == id || m.id == raw.id);
-        if (idx < 0) {
-          if (ClubOpsSync.isMemberRemoved(id)) continue;
-          _members.add(row);
-          changed = true;
-        } else if (_members[idx].id != id) {
-          _members[idx] = row;
-          changed = true;
-        } else if (isPlaceholderMemberName(_members[idx].name) &&
-            row.name.trim().isNotEmpty &&
-            !isPlaceholderMemberName(row.name)) {
-          _members[idx] = row;
-          changed = true;
-        }
-      }
-      if (pruneDuplicateRosterRows()) changed = true;
-      if (changed) {
-        _syncSelfDisplayName();
-        _setMemberCount(clubId, membersForClub(clubId).length);
-      }
+      await _mergeRemoteRoster(clubId, remote);
     } catch (e) {
       debugPrint('[ClubProvider] hydrate roster $clubId skip: $e');
     }
+  }
+
+  Future<void> _mergeRemoteRoster(String clubId, List<Member> remote) async {
+    if (clubId.isEmpty || remote.isEmpty) return;
+    var creatorUserId = (_clubById(clubId)?.creatorId ?? '').trim();
+    if (creatorUserId.isEmpty) {
+      for (final m in remote) {
+        if (ClubMemberRole.hasRole(m.role, ClubMemberRole.president)) {
+          creatorUserId = m.id;
+          break;
+        }
+      }
+      if (creatorUserId.isNotEmpty) {
+        final i = _myClubs.indexWhere((c) => c.id == clubId);
+        if (i != -1) {
+          _myClubs[i] = _myClubs[i].copyWith(creatorId: creatorUserId);
+        }
+      }
+    }
+    var changed = false;
+    for (final raw in remote) {
+      final id = Member.canonicalRosterId(
+        clubId: clubId,
+        rawId: raw.id,
+        creatorUserId: creatorUserId,
+      );
+      final row = id == raw.id ? raw : raw.withId(id);
+      final idx = _members.indexWhere((m) => m.id == id || m.id == raw.id);
+      if (idx < 0) {
+        if (ClubOpsSync.isMemberRemoved(id)) continue;
+        _members.add(row);
+        changed = true;
+      } else if (_members[idx].id != id) {
+        _members[idx] = row;
+        changed = true;
+      } else if (isPlaceholderMemberName(_members[idx].name) &&
+          row.name.trim().isNotEmpty &&
+          !isPlaceholderMemberName(row.name)) {
+        _members[idx] = row;
+        changed = true;
+      }
+    }
+    if (pruneDuplicateRosterRows()) changed = true;
+    if (!changed) return;
+    _syncSelfDisplayName();
+    _setMemberCount(clubId, membersForClub(clubId).length);
+    notifyListeners();
+    if (!_suppressPersist) _persistImmediately();
   }
 
   /// 데모용 가짜 알림 제거 — 실제 액션으로 생긴 알림만 남김
