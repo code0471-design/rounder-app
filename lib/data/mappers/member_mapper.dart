@@ -14,8 +14,11 @@ abstract final class MemberMapper {
 
   static Member fromMap(String id, Map<String, dynamic> data) {
     try {
+      final stored = (data['id'] as String?)?.trim() ?? '';
+      final resolvedId =
+          Member.isStoredRosterId(stored) ? stored : id;
       return Member(
-        id: id,
+        id: resolvedId,
         name: data['name'] as String? ?? '',
         gender: data['gender'] as String? ?? '남',
         birthDate: _asDateTime(data['birth_date']) ?? DateTime(1980, 1, 1),
@@ -36,6 +39,7 @@ abstract final class MemberMapper {
   }
 
   static Map<String, dynamic> toMap(Member member) => {
+        'id': member.id,
         'name': member.name,
         'gender': member.gender,
         'birth_date': member.birthDate?.toIso8601String(),

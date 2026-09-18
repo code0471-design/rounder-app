@@ -603,6 +603,7 @@ class ClubProvider extends ChangeNotifier with WidgetsBindingObserver {
         );
         _importBundle(merged);
         _syncNextRound(clubId);
+        unawaited(_hydrateRosterFromServer(clubId));
       } catch (e) {
         debugPrint('[ClubProvider] cloud watch apply fail: $e');
       } finally {
@@ -1237,10 +1238,13 @@ class ClubProvider extends ChangeNotifier with WidgetsBindingObserver {
           creatorUserId: creatorUserId,
         );
         final row = id == raw.id ? raw : raw.withId(id);
-        final idx = _members.indexWhere((m) => m.id == id);
+        final idx = _members.indexWhere((m) => m.id == id || m.id == raw.id);
         if (idx < 0) {
           if (ClubOpsSync.isMemberRemoved(id)) continue;
           _members.add(row);
+          changed = true;
+        } else if (_members[idx].id != id) {
+          _members[idx] = row;
           changed = true;
         } else if (isPlaceholderMemberName(_members[idx].name) &&
             row.name.trim().isNotEmpty &&
@@ -7584,7 +7588,8 @@ class ClubProvider extends ChangeNotifier with WidgetsBindingObserver {
 
     if (_isSelfTarget(memberId)) {
       if (_persistAuthUserId != null) {
-        keys.add(_persistAuthUserId!);
+        // 로그인 id 로 합산하면 다른 모임의 정시납부 +5 가
+        // 일정·회비 없는 모임 랭킹에도 붙는다.
         keys.add(Member.rosterId(clubId, _persistAuthUserId!));
       }
       if (_isDemoSession) {
@@ -7593,6 +7598,9 @@ class ClubProvider extends ChangeNotifier with WidgetsBindingObserver {
       if (_iAmClubCreator(selectedClub)) {
         keys.add(creatorId);
         keys.add('m1');
+        if (_persistAuthUserId != null) {
+          keys.add(_persistAuthUserId!);
+        }
       }
     } else if (memberId == creatorId) {
       final cid = selectedClub.creatorId.trim();

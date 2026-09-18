@@ -13,11 +13,14 @@ class FirestoreMemberDataSource {
 
   Future<List<Member>> fetchMembers(String clubId) async {
     try {
-      final snap = await _db
-          .collection(FirestorePaths.clubMembers(clubId))
-          .orderBy('join_date', descending: true)
-          .get();
-      return snap.docs.map(MemberMapper.fromFirestore).toList();
+      // join_date 없는 문서는 orderBy 에서 빠져 정회원 화면에
+      // 본인만 남는 원인이었다. 정렬은 메모리에서 한다.
+      final snap =
+          await _db.collection(FirestorePaths.clubMembers(clubId)).get();
+      final members = snap.docs.map(MemberMapper.fromFirestore).toList();
+      members.sort((a, b) => (b.joinDate ?? DateTime(0))
+          .compareTo(a.joinDate ?? DateTime(0)));
+      return members;
     } on FirebaseException catch (e) {
       throw NetworkDataException('members 조회 실패 ($clubId)', cause: e);
     }
@@ -26,8 +29,12 @@ class FirestoreMemberDataSource {
   Stream<List<Member>> watchMembers(String clubId) {
     return _db
         .collection(FirestorePaths.clubMembers(clubId))
-        .orderBy('join_date', descending: true)
         .snapshots()
-        .map((snap) => snap.docs.map(MemberMapper.fromFirestore).toList());
+        .map((snap) {
+      final members = snap.docs.map(MemberMapper.fromFirestore).toList();
+      members.sort((a, b) => (b.joinDate ?? DateTime(0))
+          .compareTo(a.joinDate ?? DateTime(0)));
+      return members;
+    });
   }
 }

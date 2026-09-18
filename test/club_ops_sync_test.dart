@@ -1131,4 +1131,71 @@ void main() {
     final names = merged.members.map((m) => '${m.id}:${m.name}').toList();
     expect(names, ['m_creator_c_test:안경헌']);
   });
+
+  test('원격 생성자가 카카오 uid 여도 명단 필터 id 로 맞춘다', () {
+    final local = ClubDataBundle(
+      selectedClubIndex: 0,
+      freshClubIds: {'c_test'},
+      myClubs: [
+        Club(
+          id: 'c_test',
+          name: '알라딘 정기월례회',
+          myRole: '정회원',
+          memberCount: 1,
+          region: '서울',
+          industry: '골프',
+          teamCount: 4,
+          creatorId: 'kakao_host',
+        ),
+      ],
+      allClubs: const [],
+      joinRequests: const [],
+      members: [
+        Member(
+          id: 'm_c_test_kakao_guest',
+          name: '안경헌',
+          gender: '남',
+          memberType: '정회원',
+          role: '정회원',
+          joinDate: DateTime(2026, 9, 1),
+          status: '활성',
+        ),
+      ],
+      activities: const [],
+      announcements: const [],
+      appNotifications: const [],
+      duesSettings: const [],
+      duesPayments: const [],
+      paymentRequests: const [],
+      transactions: const [],
+      schedules: const [],
+      photos: const [],
+      groupAssignments: const {},
+      adApplications: const [],
+      adNotifications: const [],
+      sponsorApplications: const [],
+      pointEvents: const {},
+      awardRecords: const [],
+      thankYouMessages: const [],
+      waitingList: const [],
+      alimtalkSettings: const {},
+    );
+    final merged = ClubOpsSync.applyRemoteSlice(local, 'c_test', {
+      'clubId': 'c_test',
+      'members': [
+        {
+          'id': 'kakao_host',
+          'name': '모임장',
+          'gender': '남',
+          'memberType': '정회원',
+          'role': '회장',
+          'status': '활성',
+        },
+      ],
+    });
+    final ids = merged.members.map((m) => m.id).toSet();
+    expect(ids, contains('m_creator_c_test'));
+    expect(ids, contains('m_c_test_kakao_guest'));
+    expect(ids, isNot(contains('kakao_host')));
+  });
 }

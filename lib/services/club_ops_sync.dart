@@ -84,6 +84,11 @@ class ClubOpsSync {
           remote: remoteMembers,
           remoteWins: false,
         );
+        slice['members'] = _remapCreatorAuthMemberIds(
+          slice['members'] as List? ?? const [],
+          clubId: clubId,
+          creatorUserId: _creatorUserIdFromEncoded(full, clubId),
+        );
         final collapsedPush = RosterDedupe.collapseMemberMaps(
           members: slice['members'] as List? ?? const [],
           clubId: clubId,
@@ -467,10 +472,28 @@ class ClubOpsSync {
       return item['clubId'] == clubId;
     }
 
+    String clubCreatorUserId = '';
+    for (final key in ['myClubs', 'allClubs']) {
+      final list = full[key];
+      if (list is! List) continue;
+      for (final e in list) {
+        if (e is Map && e['id'] == clubId) {
+          clubCreatorUserId = (e['creatorId'] as String?)?.trim() ?? '';
+          break;
+        }
+      }
+      if (clubCreatorUserId.isNotEmpty) break;
+    }
+
     bool memberOfClub(dynamic item) {
       if (item is! Map) return false;
       final id = item['id'] as String? ?? '';
-      return id == 'm_creator_$clubId' || id.startsWith('m_${clubId}_');
+      if (id == 'm_creator_$clubId' || id.startsWith('m_${clubId}_')) {
+        return true;
+      }
+      // 예전 명단이 카카오 uid 그대로면 슬라이스에서 빠져 초대 가입자가
+      // 생성자를 못 봤다.
+      return clubCreatorUserId.isNotEmpty && id == clubCreatorUserId;
     }
 
     final scheduleIds = <String>{};
@@ -694,6 +717,11 @@ class ClubOpsSync {
       remoteWins: true,
     );
     final creatorUserId = _creatorUserIdFromEncoded(encoded, clubId);
+    encoded['members'] = _remapCreatorAuthMemberIds(
+      encoded['members'] as List? ?? const [],
+      clubId: clubId,
+      creatorUserId: creatorUserId,
+    );
     final collapsed = RosterDedupe.collapseMemberMaps(
       members: encoded['members'] as List? ?? const [],
       clubId: clubId,
@@ -858,6 +886,23 @@ class ClubOpsSync {
       }
     }
     return '';
+  }
+
+  /// 운영 번들에 카카오 uid 로 남은 생성자 행을 명단 필터 id 로 맞춘다.
+  static List<dynamic> _remapCreatorAuthMemberIds(
+    List members, {
+    required String clubId,
+    required String creatorUserId,
+  }) {
+    final uid = creatorUserId.trim();
+    if (uid.isEmpty) return members;
+    final creatorRow = 'm_creator_$clubId';
+    return members.map((e) {
+      if (e is! Map) return e;
+      final m = Map<String, dynamic>.from(e);
+      if (m['id'] == uid) m['id'] = creatorRow;
+      return m;
+    }).toList();
   }
 
   /// 일정 단위 기록(시상·스코어). 원격이 비면 로컬을 지우지 않는다.

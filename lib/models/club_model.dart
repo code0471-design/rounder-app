@@ -343,15 +343,22 @@ class Member {
   static String rosterId(String clubId, String userId) =>
       'm_${clubId}_$userId';
 
+  /// 명단 필터가 알아보는 id인지. 카카오 uid 그대로면 회원 탭에 안 나온다.
+  static bool isClubRosterId(String clubId, String id) =>
+      id == 'm_creator_$clubId' || id.startsWith('m_${clubId}_');
+
+  /// 어느 모임이든 명단 행 형태인지. Firestore `id` 필드 복원에 쓴다.
+  static bool isStoredRosterId(String id) =>
+      id.startsWith('m_creator_') || id.startsWith('m_c_');
+
   /// Firestore 문서 id(카카오 id)를 명단 필터가 알아보는 id로 바꾼다.
   static String canonicalRosterId({
     required String clubId,
     required String rawId,
     String creatorUserId = '',
   }) {
-    if (rawId == 'm_creator_$clubId' || rawId.startsWith('m_${clubId}_')) {
-      return rawId;
-    }
+    if (isClubRosterId(clubId, rawId)) return rawId;
+    if (isStoredRosterId(rawId)) return rawId;
     if (creatorUserId.isNotEmpty && rawId == creatorUserId) {
       return 'm_creator_$clubId';
     }

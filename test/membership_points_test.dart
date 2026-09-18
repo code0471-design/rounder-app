@@ -511,6 +511,45 @@ void main() {
       expect(ranking.first.key, myId, reason: '유일한 적립자가 1위여야 한다');
     });
 
+    test('다른 모임에서 받은 정시납부 +5 가 이 모임 랭킹에 안 붙는다', () async {
+      clubs.addDuesSetting(DuesSetting(
+        id: 'd_a',
+        type: DuesType.monthly,
+        amount: 50000,
+        title: '월회비',
+        createdAt: DateTime(2026, 1, 1),
+        clubId: clubId,
+        dueDayOfMonth: 28,
+      ));
+      clubs.recordPayment(
+        memberId: myId,
+        memberName: clubs.currentMember!.name,
+        duesSettingId: 'd_a',
+        amount: 50000,
+        year: DateTime.now().year,
+        month: 5,
+      );
+      expect(clubs.getMembershipPoints(myId), 5);
+
+      final ok2 = await clubs.createClub(
+        name: '알라딘 정기월례회',
+        region: '서울',
+        industry: '골프',
+        teamCount: 4,
+        myRole: '정회원',
+      );
+      expect(ok2, isTrue);
+      final clubB = clubs.selectedClub.id;
+      expect(clubB, isNot(clubId));
+      clubs.selectClubById(clubB);
+      final meB = clubs.currentMember!.id;
+      expect(clubs.getMembershipPoints(meB), 0,
+          reason: '일정·회비 없는 모임에 다른 모임 정시납부가 보이면 안 된다');
+
+      clubs.selectClubById(clubId);
+      expect(clubs.getMembershipPoints(myId), 5);
+    });
+
   });
 
   // ══════════════════════════════════════════════════════

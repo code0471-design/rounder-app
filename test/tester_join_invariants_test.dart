@@ -96,6 +96,56 @@ void main() {
         ),
         'm_c_arena_kakao_2',
       );
+      expect(
+        Member.canonicalRosterId(
+          clubId: 'c_arena',
+          rawId: 'm_c_other_kakao_2',
+          creatorUserId: 'kakao_1',
+        ),
+        'm_c_other_kakao_2',
+        reason: '다른 모임 명단 id 를 이 모임 행으로 바꾸면 안 된다',
+      );
+    });
+  });
+
+  group('정회원 화면에 생성자가 빠져 본인만 남지 않는다', () {
+    test('회원 조회는 join_date 없는 문서를 빠뜨리지 않는다', () {
+      final src = _read(
+        'lib/data/datasources/firestore/firestore_member_datasource.dart',
+      );
+      expect(src.contains("orderBy('join_date'"), isFalse);
+    });
+
+    test('회원 문서에 명단 id 를 저장한다', () {
+      final src = _read('lib/data/mappers/member_mapper.dart');
+      expect(src.contains("'id': member.id"), isTrue);
+      expect(src.contains('Member.isStoredRosterId'), isTrue);
+    });
+
+    test('랭킹 합산에 로그인 id 를 넣으면 다른 모임 +5 가 샌다', () {
+      final src = _read('lib/providers/club_provider.dart');
+      final start = src.indexOf('Set<String> _membershipPointKeysFor');
+      expect(start, greaterThan(0));
+      final fn = src.substring(start, src.indexOf('Set<String> _memberAliasIds'));
+      expect(
+        fn.contains('keys.add(_persistAuthUserId!)'),
+        isTrue,
+        reason: '내가 만든 모임만 옛 로그인 id 이력을 본다',
+      );
+      expect(fn.contains('_iAmClubCreator(selectedClub)'), isTrue);
+      final selfBlock = fn.substring(
+        fn.indexOf('if (_isSelfTarget(memberId))'),
+        fn.indexOf('} else if (memberId == creatorId)'),
+      );
+      final beforeCreator = selfBlock.substring(
+        0,
+        selfBlock.indexOf('if (_iAmClubCreator(selectedClub))'),
+      );
+      expect(
+        beforeCreator.contains('keys.add(_persistAuthUserId!)'),
+        isFalse,
+        reason: '정회원 모임 랭킹에 로그인 id 점수를 합치면 안 된다',
+      );
     });
   });
 
