@@ -314,6 +314,51 @@ abstract final class PushNotificationService {
     }
   }
 
+  /// 솔라피 호출 전에 선점. 두 기기·Functions가 같은 큐를 두 번 예약하지 않게 한다.
+  static Future<bool> claimD1Alimtalk(String docId) async {
+    if (!HqRemoteSettings.available || docId.isEmpty) return false;
+    try {
+      final ref = FirebaseFirestore.instance
+          .collection(FirestorePaths.d1Queue)
+          .doc(docId);
+      return FirebaseFirestore.instance.runTransaction((tx) async {
+        final snap = await tx.get(ref);
+        final data = snap.data() ?? {};
+        if (data['alimtalkSent'] == true ||
+            data['alimtalkScheduled'] == true) {
+          return false;
+        }
+        tx.set(
+          ref,
+          {
+            'alimtalkScheduled': true,
+            'alimtalkClaimedAt': FieldValue.serverTimestamp(),
+          },
+          SetOptions(merge: true),
+        );
+        return true;
+      });
+    } catch (e) {
+      debugPrint('[Push] d1 alimtalk claim skip: $e');
+      return false;
+    }
+  }
+
+  static Future<void> releaseD1AlimtalkClaim(String docId) async {
+    if (!HqRemoteSettings.available || docId.isEmpty) return;
+    try {
+      await FirebaseFirestore.instance
+          .collection(FirestorePaths.d1Queue)
+          .doc(docId)
+          .set({
+        'alimtalkScheduled': false,
+        'alimtalkClaimedAt': FieldValue.delete(),
+      }, SetOptions(merge: true));
+    } catch (e) {
+      debugPrint('[Push] d1 alimtalk release skip: $e');
+    }
+  }
+
   /// 회비 납부요청 — 납부기준일 1일 전 10시 큐. [kind]=dues 로 라운딩 D-1과 구분.
   static Future<void> syncDuesD1Reminder({
     required String settingId,

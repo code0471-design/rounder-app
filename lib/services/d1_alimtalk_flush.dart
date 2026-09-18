@@ -5,8 +5,8 @@ import 'push_notification_service.dart';
 import 'solapi_service.dart';
 
 /// D-1 알림톡.
-/// 앱에 솔라피 키가 있으므로, 참석 확정·앱 오픈 때 솔라피에 10시 예약을 넣는다.
-/// Functions도 10시에 한 번 더 보내되, 이미 보낸 건 건너뛴다.
+/// 참석 확정·앱 오픈 때 솔라피에 10시 예약을 넣는다.
+/// Functions는 10시에는 푸시만 보내고, 예약이 안 된 건 10시 10분 이후 보조 발송.
 abstract final class D1AlimtalkFlush {
   static bool _running = false;
 
@@ -74,6 +74,9 @@ abstract final class D1AlimtalkFlush {
       if (sendOn == null) continue;
       final dueAt10 = DateTime(sendOn.year, sendOn.month, sendOn.day, 10);
       final sendNow = !dueAt10.isAfter(now);
+      if (!await PushNotificationService.claimD1Alimtalk(doc.id)) {
+        continue;
+      }
 
       final name = '${d['memberName'] ?? '회원'}';
       final result = await solapi.sendManyRaw(
@@ -106,6 +109,8 @@ abstract final class D1AlimtalkFlush {
           doc.id,
           scheduled: !sendNow,
         );
+      } else {
+        await PushNotificationService.releaseD1AlimtalkClaim(doc.id);
       }
     }
   }

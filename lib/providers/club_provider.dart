@@ -3685,7 +3685,7 @@ class ClubProvider extends ChangeNotifier with WidgetsBindingObserver {
     await flushDueD1Alimtalk();
   }
 
-  /// D-1 알림톡. 기본은 Functions 10시 발송. 앱은 보조·재시도.
+  /// D-1 알림톡. 앱이 솔라피 10시 예약. Functions는 10:10 이후 보조.
   Future<void> flushDueD1Alimtalk() async {
     await D1AlimtalkFlush.run(
       clubEnabled: isClubAlimtalkTypeEnabled,

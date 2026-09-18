@@ -136,6 +136,14 @@ function seoulHour() {
   return Number(parts.find((p) => p.type === "hour")?.value || "0");
 }
 
+function seoulMinute() {
+  const parts = new Intl.DateTimeFormat("en-GB", {
+    timeZone: "Asia/Seoul",
+    minute: "2-digit",
+  }).formatToParts(new Date());
+  return Number(parts.find((p) => p.type === "minute")?.value || "0");
+}
+
 function seoulYmd() {
   return new Date().toLocaleDateString("en-CA", { timeZone: "Asia/Seoul" });
 }
@@ -225,6 +233,8 @@ async function sendSolapiAlimtalk({ to, templateId, variables }) {
 
 async function flushDueD1Alimtalk() {
   if (seoulHour() < 10) return;
+  // 10:00 정각은 앱 솔라피 예약과 겹친다. 예약 안 된 건 10:10 이후만 보조.
+  if (seoulHour() === 10 && seoulMinute() < 10) return;
   const snap = await getFirestore()
     .collection("d1_queue")
     .where("sendOn", "==", seoulYmd())
@@ -305,7 +315,7 @@ exports.sendD1Reminders = onSchedule(
       // 문서를 지우면 알림톡 재시도가 끊긴다. 푸시만 표시한다.
       await doc.ref.set({ pushSent: true }, { merge: true });
     }
-    await flushDueD1Alimtalk();
+    // 알림톡은 여기 보내지 않는다. 10시 예약분과 같은 분에 두 통이 간다.
   }
 );
 

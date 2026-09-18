@@ -221,20 +221,30 @@ void main() {
       final fn = read('functions/index.js');
       final start = fn.indexOf('exports.sendD1Reminders');
       expect(start, greaterThan(0));
+      final flushExport = fn.indexOf('exports.flushD1Alimtalk');
+      expect(flushExport, greaterThan(start));
+      final cron = fn.substring(start, flushExport);
       final body = fn.substring(start, fn.length);
-      expect(body.contains("schedule: \"0 10 * * *\""), isTrue);
-      expect(body.contains('timeZone: "Asia/Seoul"'), isTrue);
-      expect(body.contains('doc.ref.delete()'), isFalse,
+      expect(cron.contains("schedule: \"0 10 * * *\""), isTrue);
+      expect(cron.contains('timeZone: "Asia/Seoul"'), isTrue);
+      expect(cron.contains('doc.ref.delete()'), isFalse,
           reason: '푸시 직후 큐를 지우면 10시 알림톡이 나가지 않는다');
-      expect(body.contains('pushSent: true'), isTrue);
+      expect(cron.contains('pushSent: true'), isTrue);
+      expect(cron.contains('flushDueD1Alimtalk()'), isFalse,
+          reason: '10시 크론에서 알림톡을 같이 내면 솔라피 예약과 두 통이 된다');
       expect(fn.contains('api.solapi.com'), isTrue,
           reason: '푸시만 보내고 알림톡을 앱 오픈에 맡기면 10시에 안 온다');
       expect(fn.contains('atk_d1_reminder'), isTrue);
       expect(fn.contains('exports.flushD1Alimtalk'), isTrue);
+      expect(fn.contains('seoulMinute() < 10'), isTrue,
+          reason: '15분 주기 플러시도 10:00에는 알림톡을 내면 안 된다');
       expect(fn.contains('defineSecret'), isFalse,
           reason: 'Secret Manager 없으면 운영 Functions 배포가 막힌다');
       expect(fn.contains('alimtalkScheduled'), isTrue,
           reason: '앱이 이미 예약한 건 Functions가 10시 15분에 또 보내면 안 된다');
+      expect(read('lib/services/push_notification_service.dart'),
+          contains('claimD1Alimtalk'),
+          reason: '두 기기가 같은 큐를 두 번 예약하면 10시에 두 통이 간다');
     });
   });
 }
