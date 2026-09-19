@@ -79,4 +79,8 @@ class FirestoreClubRepository implements ClubRepository {
         userId: userId,
         member: member,
       );
+
+  @override
+  Future<List<ClubMemberAccount>> fetchClubMemberAccounts(String clubId) =>
+      _dataSource.fetchClubMemberAccounts(clubId);
 }

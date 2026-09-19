@@ -169,4 +169,17 @@ class MockClubRepository implements ClubRepository {
       alsoAsIds: _userAliases(userId).toList(),
     );
   }
+
+  @override
+  Future<List<ClubMemberAccount>> fetchClubMemberAccounts(
+    String clubId,
+  ) async =>
+      [
+        for (final m in _store.membersOf(clubId))
+          ClubMemberAccount(
+            userId: m.id,
+            role: m.memberType,
+            phone: m.phone ?? '',
+          ),
+      ];
 }

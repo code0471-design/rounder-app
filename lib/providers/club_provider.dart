@@ -3,6 +3,7 @@ import 'dart:math' as math;
 import 'dart:convert';
 import 'package:flutter/material.dart';
 import 'package:shared_preferences/shared_preferences.dart';
+import '../data/repositories/club_repository.dart';
 import '../data/repositories/mock/mock_data_store.dart';
 import '../data/repositories/mock/mock_store_persistence.dart';
 import '../di/app_dependencies.dart';
@@ -1365,6 +1366,36 @@ class ClubProvider extends ChangeNotifier with WidgetsBindingObserver {
     } catch (e) {
       debugPrint('[ClubProvider] hydrate roster $clubId skip: $e');
     }
+    await hydrateClubAccounts(clubId);
+  }
+
+  /// 모임 소속 계정 목록을 받아 둔다. 푸시 대상 계산에 쓴다.
+  Future<void> hydrateClubAccounts(String clubId) async {
+    if (clubId.isEmpty || !AppDependencies.instance.isInitialized) return;
+    try {
+      final accounts = await AppDependencies.instance.clubRepository
+          .fetchClubMemberAccounts(clubId)
+          .timeout(const Duration(seconds: 8));
+      if (accounts.isNotEmpty) _clubAccounts[clubId] = accounts;
+    } catch (e) {
+      debugPrint('[ClubProvider] hydrate accounts $clubId skip: $e');
+    }
+  }
+
+  /// 모임 → 소속 계정. 푸시 대상은 명단 행이 아니라 이 계정들이다.
+  final Map<String, List<ClubMemberAccount>> _clubAccounts = {};
+
+  /// 명단 행을 전화번호로 계정에 잇는다. 예전 행(`m1`)은 이 길로만 찾는다.
+  String _accountIdByRosterPhone(String clubId, String memberId) {
+    final accounts = _clubAccounts[clubId];
+    if (accounts == null || accounts.isEmpty) return '';
+    final row = _members.where((m) => m.id == memberId).firstOrNull;
+    final digits = MemberPhoneIndex.digitsOf(row?.phone);
+    if (digits.isEmpty) return '';
+    for (final a in accounts) {
+      if (MemberPhoneIndex.digitsOf(a.phone) == digits) return a.userId;
+    }
+    return '';
   }
 
   /// 방장 자리(`m_creator_{모임}`)에 내 행이 들어가 있으면 내 자리로 옮긴다.
@@ -1728,6 +1759,18 @@ class ClubProvider extends ChangeNotifier with WidgetsBindingObserver {
   String _fcmInboxIdFor(String memberOrUserId) {
     final raw = memberOrUserId.trim();
     if (raw.isEmpty) return raw;
+    if (!_isDemoSession && _myClubs.isNotEmpty) {
+      final clubId = selectedClub.id;
+      final prefix = 'm_${clubId}_';
+      final suffix = raw.startsWith(prefix) ? raw.substring(prefix.length) : '';
+      final legacyRow =
+          _legacySeedMemberId.hasMatch(raw) || _legacySeedMemberId.hasMatch(suffix);
+      if (legacyRow) {
+        // 계정 id 를 모르는 옛 행. 전화번호로 소속 계정을 찾는다.
+        // 못 찾으면 발송하지 않는다 (방장에게 잘못 배달되면 더 나쁘다).
+        return _accountIdByRosterPhone(clubId, raw);
+      }
+    }
     if (!_isDemoSession && _legacySeedMemberId.hasMatch(raw)) return '';
     if (_isSelfTarget(raw)) {
       final auth = _persistAuthUserId?.trim();
@@ -3555,10 +3598,18 @@ class ClubProvider extends ChangeNotifier with WidgetsBindingObserver {
     };
     final me = currentMember?.id ?? currentUserId;
     if (me.trim().isNotEmpty) ids.add(me);
-    return {
+    final targets = <String>{
       for (final id in ids)
         if (_fcmInboxIdFor(id).isNotEmpty) _fcmInboxIdFor(id),
-    }.toList();
+    };
+    // 명단 행으로 못 찾은 회원을 빠뜨리지 않는다. 서버 소속이 최종 명부다.
+    if (_myClubs.isNotEmpty) {
+      for (final a in _clubAccounts[selectedClub.id] ?? const []) {
+        if (a.isGuest || a.userId.trim().isEmpty) continue;
+        targets.add(a.userId.trim());
+      }
+    }
+    return targets.toList();
   }
 
   /// 라운딩 후기/메모 저장
@@ -5165,6 +5216,7 @@ class ClubProvider extends ChangeNotifier with WidgetsBindingObserver {
       _syncNextRound(clubId);
       ensureCreatorMembers();
       unawaited(_hydrateRosterFromServer(clubId));
+      unawaited(hydrateClubAccounts(clubId));
       _watchSelectedClubOps();
       notifyListeners();
     }

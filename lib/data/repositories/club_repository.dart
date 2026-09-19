@@ -33,6 +33,24 @@ abstract class ClubRepository {
     required String userId,
     required Member member,
   });
+
+  /// 이 모임에 소속된 **계정** 목록. 푸시 대상은 명단 행이 아니라 계정이다.
+  Future<List<ClubMemberAccount>> fetchClubMemberAccounts(String clubId);
+}
+
+/// 모임 소속 계정 한 명. 명단 행 id 와 계정 id 를 잇는 데 쓴다.
+class ClubMemberAccount {
+  const ClubMemberAccount({
+    required this.userId,
+    this.role = '',
+    this.phone = '',
+  });
+
+  final String userId;
+  final String role;
+  final String phone;
+
+  bool get isGuest => role.contains('게스트');
 }
 
 abstract class MemberRepository {

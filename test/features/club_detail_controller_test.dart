@@ -52,6 +52,10 @@ class _FakeClubRepository implements ClubRepository {
   }) async {}
 
   @override
+  Future<List<ClubMemberAccount>> fetchClubMemberAccounts(String clubId) async =>
+      const [];
+
+  @override
   Future<List<Club>> fetchDiscoverableClubs() async => [_club];
 
   @override

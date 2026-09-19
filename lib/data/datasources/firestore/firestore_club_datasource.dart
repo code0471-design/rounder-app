@@ -7,6 +7,7 @@ import '../../../domain/data/sample_club_filter.dart';
 import '../../../models/club_model.dart';
 import '../../mappers/club_mapper.dart';
 import '../../mappers/member_mapper.dart';
+import '../../repositories/club_repository.dart';
 
 /// clubs 컬렉션 Raw I/O (Repository 하위 계층)
 class FirestoreClubDataSource {
@@ -231,6 +232,40 @@ class FirestoreClubDataSource {
   Future<bool> isUserMember(String clubId, String userId) async {
     final role = await fetchUserRoleInClub(clubId, userId);
     return role != null;
+  }
+
+  /// 이 모임 소속 계정 + 전화번호.
+  ///
+  /// 푸시는 명단 행 id 가 아니라 계정으로 간다. 예전 명단 행(`m1`)만 보고
+  /// 보내면 그 회원은 한 번도 못 받는다. 전화번호는 명단 행과 계정을
+  /// 잇는 데 쓴다.
+  Future<List<ClubMemberAccount>> fetchClubMemberAccounts(
+    String clubId,
+  ) async {
+    if (clubId.isEmpty) return const [];
+    try {
+      final snap = await _db
+          .collection(FirestorePaths.userMemberships)
+          .where('club_id', isEqualTo: clubId)
+          .get();
+      final out = <ClubMemberAccount>[];
+      for (final doc in snap.docs) {
+        final uid = '${doc.data()['user_id'] ?? ''}'.trim();
+        if (uid.isEmpty) continue;
+        final role = '${doc.data()['role'] ?? ''}'.trim();
+        var phone = '';
+        try {
+          final user =
+              await _db.collection(FirestorePaths.users).doc(uid).get();
+          phone = '${user.data()?['phone'] ?? ''}'.trim();
+        } catch (_) {}
+        out.add(ClubMemberAccount(userId: uid, role: role, phone: phone));
+      }
+      return out;
+    } on FirebaseException catch (e) {
+      debugPrint('[FirestoreClubDataSource] 소속 계정 조회 실패: $e');
+      return const [];
+    }
   }
 
   /// 초대 링크로 즉시 가입 (승인 없음)

@@ -48,6 +48,36 @@ void main() {
     expect(clubs.fcmInboxIdForTest('m_${clubId}_google_lee'), 'google_lee');
   });
 
+  test('옛 m1 행도 전화번호가 소속 계정과 맞으면 그 사람에게 간다', () async {
+    const phone = '010-9287-4073';
+    AppDependencies.instance.mockDataStore!.addMember(
+      clubId: clubId,
+      member: Member(
+        id: 'google_lee',
+        name: '이정원',
+        gender: '남',
+        memberType: '정회원',
+        role: '정회원',
+        phone: phone,
+        joinDate: DateTime(2026, 9, 1),
+      ),
+      persist: false,
+    );
+    clubs.addMember(Member(
+      id: 'm_${clubId}_m1',
+      name: '이정원',
+      gender: '남',
+      memberType: '정회원',
+      role: '정회원',
+      phone: phone,
+      joinDate: DateTime(2026, 9, 1),
+    ));
+    await clubs.hydrateClubAccounts(clubId);
+
+    expect(clubs.fcmInboxIdForTest('m_${clubId}_m1'), 'google_lee',
+        reason: '옛 행이라고 빼 버리면 그 회원은 알림을 한 번도 못 받는다');
+  });
+
   test('앱이 화면에 없으면 수신함 리스너가 알림을 또 띄우지 않는다', () {
     final src =
         File('lib/services/push_notification_service.dart').readAsStringSync();
