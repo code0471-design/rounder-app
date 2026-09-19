@@ -27,6 +27,23 @@ void main() {
     expect(src.contains('void _setYear(int y)'), isTrue);
   });
 
+  test('기존잔액은 등록 후 버튼 한 줄만 남고 총무만 본다', () {
+    expect(src.indexOf('class _OpeningBalanceSettingCard'), greaterThan(0));
+    expect(src.contains("'기존잔액 등록완료'"), isTrue);
+    expect(src.contains('if (isRegistered) return _doneButton(context, tx);'),
+        isTrue,
+        reason: '등록 후에도 큰 카드가 계속 뜨면 안 된다');
+    expect(src.contains('_openSheet(context, isEdit: true)'), isTrue,
+        reason: '버튼을 누르면 수정 모달이 떠야 한다');
+    // 노출은 총무(isAdmin)일 때만
+    expect(
+      RegExp(r'if \(isAdmin\) \.\.\.\[\s*_OpeningBalanceSettingCard')
+          .hasMatch(src),
+      isTrue,
+      reason: '총무가 아닌 회원에게 노출되면 안 된다',
+    );
+  });
+
   test('연 결산은 화살표 연도 선택기를 쓴다', () {
     final start = src.indexOf('class _YearlyReport extends StatelessWidget');
     expect(start, greaterThan(0));

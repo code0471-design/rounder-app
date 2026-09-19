@@ -8196,10 +8196,59 @@ class _OpeningBalanceSettingCard extends StatelessWidget {
     );
   }
 
+  /// 등록을 마친 뒤에는 큰 카드를 계속 띄우지 않는다.
+  /// 한 줄 버튼만 남기고, 누르면 수정 모달을 연다.
+  Widget _doneButton(BuildContext context, Transaction tx) {
+    final amountText =
+        tx.amount == 0 ? '0원으로 시작' : '${_fmt(tx.amount)}원';
+    return GestureDetector(
+      onTap: () => _openSheet(context, isEdit: true),
+      behavior: HitTestBehavior.opaque,
+      child: Container(
+        padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+        decoration: BoxDecoration(
+          color: Colors.white,
+          borderRadius: BorderRadius.circular(12),
+          border: Border.all(color: AppColors.success.withValues(alpha: 0.35)),
+        ),
+        child: Row(
+          children: [
+            const Icon(Icons.check_circle,
+                size: 18, color: AppColors.success),
+            const SizedBox(width: 8),
+            const Text(
+              '기존잔액 등록완료',
+              style: TextStyle(
+                fontSize: 13,
+                fontWeight: FontWeight.bold,
+                color: AppColors.textPrimary,
+              ),
+            ),
+            const Spacer(),
+            Text(
+              amountText,
+              style: const TextStyle(
+                fontSize: 12,
+                fontWeight: FontWeight.w600,
+                color: AppColors.textSecondary,
+              ),
+            ),
+            const SizedBox(width: 4),
+            const Icon(Icons.chevron_right,
+                size: 18, color: AppColors.textSecondary),
+          ],
+        ),
+      ),
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     final tx = _openingTx;
     final isRegistered = tx != null;
+
+    // 등록 후에는 버튼 한 줄. 수정은 모달에서 한다.
+    if (isRegistered) return _doneButton(context, tx);
 
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
