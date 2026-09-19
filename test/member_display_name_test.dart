@@ -19,7 +19,7 @@ void main() {
         expect(ClubProvider.isPlaceholderMemberName(name), isTrue,
             reason: '$name 은 데모 시드 이름이다');
       }
-      for (final name in ['', '  ', '회원', '카카오 회원', 'Google 회원', 'Apple 회원']) {
+      for (final name in ['', '  ', '회원', '카카오 회원', 'Google 회원', 'Apple 회원', 'R', '-']) {
         expect(ClubProvider.isPlaceholderMemberName(name), isTrue);
       }
     });

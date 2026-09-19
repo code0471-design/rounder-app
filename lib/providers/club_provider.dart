@@ -168,6 +168,8 @@ class ClubProvider extends ChangeNotifier with WidgetsBindingObserver {
   static bool isPlaceholderMemberName(String name) {
     final t = name.trim();
     return t.isEmpty ||
+        t == '-' ||
+        RegExp(r'^[A-Za-z]$').hasMatch(t) ||
         seedMemberNames.contains(t) ||
         _genericMemberNames.contains(t);
   }
