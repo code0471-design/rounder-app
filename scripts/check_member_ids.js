@@ -2,8 +2,8 @@
 
 // 회원 ID 점검 (읽기 전용). set/delete/patch 없음.
 //
-//   node scripts/check_member_ids.js                  라운더 운영
-//   node scripts/check_member_ids.js --app=oneclub    원클럽
+//   node scripts/check_member_ids.js                  그 폴더 기준(라운더/원클럽 자동)
+//   node scripts/check_member_ids.js --app=oneclub    원클럽 강제
 //   node scripts/check_member_ids.js --project=<id>   프로젝트 직접 지정
 //   node scripts/check_member_ids.js --club=c_123     한 모임만
 //   node scripts/check_member_ids.js --all            이상 없는 모임도 다 출력
@@ -22,8 +22,15 @@ const APPS = {
 const SEED_NAMES = ['홍길동', '이민준', '박민준'];
 const GENERIC_NAMES = ['회원', '카카오 회원', 'Google 회원', 'Apple 회원'];
 
+/// 라운더 폴더에서 돌리면 라운더, 원클럽 폴더에서 돌리면 원클럽.
+function defaultApp() {
+  const here = process.cwd().toLowerCase();
+  if (here.includes('oneclub') || here.includes('one-club')) return 'oneclub';
+  return 'rounder';
+}
+
 function args() {
-  const out = { app: 'rounder', project: '', club: '', all: false };
+  const out = { app: defaultApp(), project: '', club: '', all: false };
   for (const raw of process.argv.slice(2)) {
     const [k, v] = raw.replace(/^--/, '').split('=');
     if (k === 'all') out.all = true;
