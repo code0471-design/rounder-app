@@ -1367,6 +1367,52 @@ class ClubProvider extends ChangeNotifier with WidgetsBindingObserver {
     }
   }
 
+  /// 방장 자리(`m_creator_{모임}`)에 내 행이 들어가 있으면 내 자리로 옮긴다.
+  ///
+  /// 초대로 들어온 모임인데 예전 빌드가 내 행을 방장 자리에 만들어 두면, 서버의
+  /// 진짜 방장은 "이미 있는 행"으로 취급돼 명단에 영영 안 들어온다. 모임에
+  /// 회원이 여럿인데 내 폰에만 나 혼자 보이던 원인이다.
+  ///
+  /// 회비·시상·참석은 행 id 로 붙어 있으므로 옮길 때 같이 옮긴다.
+  bool _moveMyRowOffCreatorSeat(String clubId, String creatorUserId) {
+    final uid = (_persistAuthUserId ?? '').trim();
+    if (uid.isEmpty || creatorUserId.isEmpty) return false;
+    if (_userIdsMatch(creatorUserId, uid)) return false; // 내가 진짜 방장
+
+    const seat = 'm_creator_';
+    final seatId = '$seat$clubId';
+    final seatIdx = _members.indexWhere((m) => m.id == seatId);
+    if (seatIdx < 0) return false;
+
+    final seatRow = _members[seatIdx];
+    final myPhone = MemberPhoneIndex.digitsOf(_accountPhone);
+    final seatPhone = MemberPhoneIndex.digitsOf(seatRow.phone);
+    final looksLikeMe = (myPhone.isNotEmpty && seatPhone == myPhone) ||
+        seatRow.name.trim() == _currentUserName.trim();
+    if (!looksLikeMe) return false;
+
+    final myId = Member.rosterId(clubId, uid);
+    final mineIdx = _members.indexWhere((m) => m.id == myId);
+    if (mineIdx >= 0) {
+      // 내 행이 이미 있다 → 방장 자리에 있던 복사본은 내 행으로 합친다.
+      _members[mineIdx] = RosterDedupe.mergeMember(_members[mineIdx], seatRow);
+      _members.removeAt(seatIdx);
+    } else {
+      _members[seatIdx] = seatRow.withId(myId);
+    }
+    _applyRosterIdRemap(
+      clubId,
+      {seatId: myId},
+      {for (final m in _members) m.id: m.name},
+    );
+    debugPrint('[ClubProvider] $clubId 방장 자리에 있던 내 행을 $myId 로 옮김');
+    return true;
+  }
+
+  @visibleForTesting
+  Future<void> mergeRemoteRosterForTest(String clubId, List<Member> remote) =>
+      _mergeRemoteRoster(clubId, remote);
+
   Future<void> _mergeRemoteRoster(String clubId, List<Member> remote) async {
     if (clubId.isEmpty || remote.isEmpty) return;
     var creatorUserId = (_clubById(clubId)?.creatorId ?? '').trim();
@@ -1385,6 +1431,7 @@ class ClubProvider extends ChangeNotifier with WidgetsBindingObserver {
       }
     }
     var changed = false;
+    if (_moveMyRowOffCreatorSeat(clubId, creatorUserId)) changed = true;
     for (final raw in remote) {
       final id = Member.canonicalRosterId(
         clubId: clubId,
@@ -1392,7 +1439,10 @@ class ClubProvider extends ChangeNotifier with WidgetsBindingObserver {
         creatorUserId: creatorUserId,
       );
       final row = id == raw.id ? raw : raw.withId(id);
-      final idx = _members.indexWhere((m) => m.id == id || m.id == raw.id);
+      // 다른 모임 명단 행까지 잡으면 남의 모임 회원을 여기로 옮겨 버린다.
+      final idx = _members.indexWhere((m) =>
+          m.id == id ||
+          (m.id == raw.id && Member.isClubRosterId(clubId, m.id)));
       if (idx < 0) {
         if (ClubOpsSync.isMemberRemoved(id)) continue;
         _members.add(row);
@@ -5696,6 +5746,56 @@ class ClubProvider extends ChangeNotifier with WidgetsBindingObserver {
         scores: remapInts(r.scores),
         handicaps: remapInts(r.handicaps),
         recordedAt: r.recordedAt,
+      );
+    }
+
+    // 회비·포인트도 같은 사람이다. 여기서 안 옮기면 행 id 만 바뀌고
+    // 납부 내역·랭킹이 옛 id 에 남아 "낸 적 없는 사람"이 된다.
+    for (var i = 0; i < _duesPayments.length; i++) {
+      final p = _duesPayments[i];
+      final to = remap[p.memberId];
+      if (to == null || to == p.memberId) continue;
+      _duesPayments[i] = DuesPayment(
+        id: p.id,
+        memberId: to,
+        memberName: names[to] ?? p.memberName,
+        duesSettingId: p.duesSettingId,
+        amount: p.amount,
+        paidAt: p.paidAt,
+        memo: p.memo,
+        recordedBy: p.recordedBy,
+        skipsBalance: p.skipsBalance,
+      );
+    }
+    for (var i = 0; i < _paymentRequests.length; i++) {
+      final r = _paymentRequests[i];
+      final to = remap[r.memberId];
+      if (to == null || to == r.memberId) continue;
+      _paymentRequests[i] = PaymentRequest(
+        id: r.id,
+        memberId: to,
+        memberName: names[to] ?? r.memberName,
+        duesSettingId: r.duesSettingId,
+        duesTitle: r.duesTitle,
+        amount: r.amount,
+        requestedAt: r.requestedAt,
+        clubId: r.clubId,
+        status: r.status,
+        reviewedBy: r.reviewedBy,
+        reviewedAt: r.reviewedAt,
+        year: r.year,
+        month: r.month,
+        memo: r.memo,
+      );
+    }
+    for (final entry in remap.entries) {
+      if (entry.key == entry.value) continue;
+      final events = _pointEvents.remove(entry.key);
+      if (events == null || events.isEmpty) continue;
+      _pointEvents.update(
+        entry.value,
+        (cur) => [...cur, ...events],
+        ifAbsent: () => events,
       );
     }
   }
