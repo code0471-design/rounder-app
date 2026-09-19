@@ -5578,6 +5578,77 @@ class ClubProvider extends ChangeNotifier with WidgetsBindingObserver {
     }
   }
 
+  /// 이름만 바꾼다. 회비·시상·참석은 memberId 로 이미 붙어 있으므로 표시 이름만 맞춘다.
+  void _relabelMemberDisplayName(String memberId, String name) {
+    final target = name.trim();
+    if (memberId.isEmpty ||
+        target.isEmpty ||
+        isPlaceholderMemberName(target)) {
+      return;
+    }
+    for (var i = 0; i < _duesPayments.length; i++) {
+      final p = _duesPayments[i];
+      if (p.memberId != memberId || p.memberName == target) continue;
+      _duesPayments[i] = DuesPayment(
+        id: p.id,
+        memberId: p.memberId,
+        memberName: target,
+        duesSettingId: p.duesSettingId,
+        amount: p.amount,
+        paidAt: p.paidAt,
+        memo: p.memo,
+        recordedBy: p.recordedBy,
+        skipsBalance: p.skipsBalance,
+      );
+    }
+    for (var i = 0; i < _paymentRequests.length; i++) {
+      final r = _paymentRequests[i];
+      if (r.memberId != memberId || r.memberName == target) continue;
+      _paymentRequests[i] = r.copyWith(memberName: target);
+    }
+    for (var i = 0; i < _awardRecords.length; i++) {
+      final a = _awardRecords[i];
+      if (!a.winnerIds.contains(memberId)) continue;
+      final names = <String>[
+        for (var j = 0; j < a.winnerIds.length; j++)
+          a.winnerIds[j] == memberId
+              ? target
+              : (j < a.winnerNames.length ? a.winnerNames[j] : a.winnerIds[j]),
+      ];
+      if (names.join('|') == a.winnerNames.join('|')) continue;
+      _awardRecords[i] = AwardRecord(
+        id: a.id,
+        scheduleId: a.scheduleId,
+        scheduleName: a.scheduleName,
+        awardName: a.awardName,
+        awardIcon: a.awardIcon,
+        winnerIds: a.winnerIds,
+        winnerNames: names,
+        winnerNote: a.winnerNote,
+        recordedAt: a.recordedAt,
+      );
+    }
+    for (final club in _myClubs) {
+      if (_legacyMockClubIds.contains(club.id)) continue;
+      _syncScheduleMemberNames(club.id);
+    }
+  }
+
+  /// 내가 만든 모임의 방장 표시 이름. 방장 식별자는 host_user_id / creator_id 이다.
+  void _pushMyHostDisplayName(String hostName) {
+    final uid = (_persistAuthUserId ?? currentUserId).trim();
+    if (uid.isEmpty || isPlaceholderMemberName(hostName)) return;
+    for (final club in List<Club>.from(_myClubs)) {
+      if (_legacyMockClubIds.contains(club.id)) continue;
+      if (!_iAmClubCreator(club)) continue;
+      unawaited(_pushClubCatalogToServer(
+        club.id,
+        hostName: hostName,
+        hostUserId: uid,
+      ));
+    }
+  }
+
   bool _syncScheduleMemberNames(String clubId) {
     final byId = {for (final m in membersForClub(clubId)) m.id: m.name};
     var changed = false;
@@ -5630,6 +5701,8 @@ class ClubProvider extends ChangeNotifier with WidgetsBindingObserver {
     String? description,
     String? imageUrl,
     int? teamCount,
+    String? hostName,
+    String? hostUserId,
   }) {
     void apply(List<Club> list) {
       final idx = list.indexWhere((c) => c.id == clubId);
@@ -5647,7 +5720,12 @@ class ClubProvider extends ChangeNotifier with WidgetsBindingObserver {
     notifyListeners();
     _persistImmediately();
     unawaited(_pushClubCatalogToServer(clubId,
-        name: name, description: description, imageUrl: imageUrl, teamCount: teamCount));
+        name: name,
+        description: description,
+        imageUrl: imageUrl,
+        teamCount: teamCount,
+        hostName: hostName,
+        hostUserId: hostUserId));
   }
 
   Future<void> _pushClubCatalogToServer(
@@ -5656,6 +5734,8 @@ class ClubProvider extends ChangeNotifier with WidgetsBindingObserver {
     String? description,
     String? imageUrl,
     int? teamCount,
+    String? hostName,
+    String? hostUserId,
   }) async {
     if (_isDemoSession) return;
     if (!AppDependencies.instance.isInitialized ||
@@ -5669,6 +5749,8 @@ class ClubProvider extends ChangeNotifier with WidgetsBindingObserver {
         description: description,
         imageUrl: imageUrl,
         teamCount: teamCount,
+        hostName: hostName,
+        hostUserId: hostUserId,
       );
     } catch (e) {
       debugPrint('[ClubProvider] catalog push skip: $e');
@@ -5687,6 +5769,8 @@ class ClubProvider extends ChangeNotifier with WidgetsBindingObserver {
         description: club.description,
         imageUrl: club.imageUrl,
         teamCount: club.teamCount,
+        hostName: currentUserName,
+        hostUserId: (_persistAuthUserId ?? currentUserId).trim(),
       );
     }
   }
@@ -6527,6 +6611,7 @@ class ClubProvider extends ChangeNotifier with WidgetsBindingObserver {
   void updateMember(Member updated) {
     final idx = _members.indexWhere((m) => m.id == updated.id);
     if (idx != -1) {
+      final prev = _members[idx];
       final roleEncoded = ClubMemberRole.encodeRoles(
         ClubMemberRole.splitRoles(updated.role),
       );
@@ -6550,39 +6635,56 @@ class ClubProvider extends ChangeNotifier with WidgetsBindingObserver {
               _allClubs[allIdx].copyWith(myRole: roleEncoded);
         }
       }
+      // 이름은 라벨이다. ID가 같은 회비·시상·참석 표시만 맞춘다. 새 행을 만들지 않는다.
+      if (prev.name.trim() != normalized.name.trim()) {
+        _relabelMemberDisplayName(normalized.id, normalized.name);
+        if (isSelf && !isPlaceholderMemberName(normalized.name)) {
+          _currentUserName = normalized.name.trim();
+          _pushMyHostDisplayName(normalized.name.trim());
+        }
+      }
       notifyListeners();
       _persistImmediately();
     }
   }
 
   /// 소셜 로그인 후 등록한 이름·휴대폰을 로컬 명단에 반영
+  ///
+  /// 이름은 라벨이다. 내 명단 **ID 행**에만 쓴다. 새 회원을 만들지 않는다.
+  /// 전화 인증에서 방금 입력한 실명은 placeholder가 아니어도 덮는다.
   void syncAuthUserProfile({required String phone, String? name}) {
     final authId = _persistAuthUserId ?? currentUserId;
     if (authId.isEmpty || phone.trim().isEmpty) return;
     final trimmedName = name?.trim() ?? '';
+    final applyName = trimmedName.isNotEmpty &&
+        !isPlaceholderMemberName(trimmedName);
     var changed = false;
-    for (var i = 0; i < _members.length; i++) {
-      final m = _members[i];
-      final match = m.id == authId ||
-          m.id == currentUserId ||
-          (_persistAuthUserId != null &&
-              _userIdsMatch(m.id, _persistAuthUserId)) ||
-          m.id.endsWith('_$authId') ||
-          m.id == 'm_creator_${selectedClub.id}';
-      if (!match) continue;
-      final phoneDigits = (m.phone ?? '').replaceAll(RegExp(r'[^0-9]'), '');
-      final needPhone = phoneDigits.length < 10;
-      // 시드 이름('홍길동')도 placeholder 로 본다 — 예전 빌드가 심어 둔 값이다.
-      final needName =
-          trimmedName.isNotEmpty && isPlaceholderMemberName(m.name);
-      if (!needPhone && !needName) continue;
-      _members[i] = m.copyWith(
-        phone: needPhone ? phone : null,
-        name: needName ? trimmedName : null,
-      );
-      changed = true;
+    final touchedIds = <String>{};
+    for (final club in _myClubs) {
+      if (_legacyMockClubIds.contains(club.id)) continue;
+      for (var i = 0; i < _members.length; i++) {
+        final m = _members[i];
+        if (!_isMyRosterRowFor(club, m.id)) continue;
+        final phoneDigits = (m.phone ?? '').replaceAll(RegExp(r'[^0-9]'), '');
+        final needPhone = phoneDigits.length < 10;
+        final needName = applyName && m.name.trim() != trimmedName;
+        if (!needPhone && !needName) continue;
+        _members[i] = m.copyWith(
+          phone: needPhone ? phone : null,
+          name: needName ? trimmedName : null,
+        );
+        if (needName) touchedIds.add(m.id);
+        changed = true;
+      }
+    }
+    if (applyName) {
+      _currentUserName = trimmedName;
     }
     if (changed) {
+      for (final id in touchedIds) {
+        _relabelMemberDisplayName(id, trimmedName);
+      }
+      if (applyName) _pushMyHostDisplayName(trimmedName);
       notifyListeners();
       _persistImmediately();
     }

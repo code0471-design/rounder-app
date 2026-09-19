@@ -113,6 +113,8 @@ class MockClubRepository implements ClubRepository {
     String? description,
     String? imageUrl,
     int? teamCount,
+    String? hostName,
+    String? hostUserId,
   }) async {
     final i = _store.clubs.indexWhere((c) => c.id == clubId);
     if (i == -1) return;

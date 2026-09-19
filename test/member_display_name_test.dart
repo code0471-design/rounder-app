@@ -322,6 +322,18 @@ void main() {
           reason: '고쳐 놓고 저장을 안 하면 다음 실행에 또 홍길동이다');
     });
 
+    test('모임 생성은 방장 계정 ID를 같이 남긴다', () {
+      final ds =
+          File('lib/data/datasources/firestore/firestore_club_datasource.dart')
+              .readAsStringSync();
+      expect(ds.contains("data['host_user_id'] = userId"), isTrue,
+          reason: '방장을 이름으로만 쓰면 개명·R일 때 본사에서 빠진다');
+      expect(ds.contains("data['creator_id'] = userId"), isTrue);
+      expect(ds.contains('FirestorePaths.clubMemberDoc(club.id, userId)'),
+          isTrue,
+          reason: '회원 문서는 계정 ID다. 이름 칸이 아니다');
+    });
+
     test('내 행 판정은 membersForClub 과 같은 ID 규칙만 본다', () {
       final fn = provider.substring(
         provider.indexOf('bool _isMyRosterRowFor('),
@@ -339,7 +351,10 @@ void main() {
         provider.indexOf('void syncAuthUserProfile('),
         provider.indexOf('void syncAuthUserPhone('),
       );
-      expect(fn.contains('isPlaceholderMemberName(m.name)'), isTrue);
+      expect(fn.contains('_isMyRosterRowFor(club, m.id)'), isTrue,
+          reason: '내 명단 ID 행만 고쳐야 한다. 이름 일치로 찾으면 다른 사람이 빠지거나 붙는다');
+      expect(fn.contains('_relabelMemberDisplayName'), isTrue,
+          reason: '회비·시상 표시 이름도 같은 ID에 맞춰야 한다');
       // 하드코딩 목록이 두 벌로 갈라지면 한쪽만 고치게 된다.
       expect(fn.contains("m.name.trim() == '카카오 회원'"), isFalse);
     });

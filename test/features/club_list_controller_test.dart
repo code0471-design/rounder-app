@@ -45,6 +45,8 @@ class _FakeClubRepository implements ClubRepository {
     String? description,
     String? imageUrl,
     int? teamCount,
+    String? hostName,
+    String? hostUserId,
   }) async {}
 
   @override

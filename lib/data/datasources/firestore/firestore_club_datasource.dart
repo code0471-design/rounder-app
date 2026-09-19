@@ -103,6 +103,8 @@ class FirestoreClubDataSource {
       data['is_sample'] = false;
       data['moderation_status'] = moderationStatus;
       data['host_name'] = userName;
+      data['host_user_id'] = userId;
+      data['creator_id'] = userId;
 
       batch.set(_clubs.doc(club.id), data, SetOptions(merge: true));
 
@@ -298,6 +300,8 @@ class FirestoreClubDataSource {
     String? description,
     String? imageUrl,
     int? teamCount,
+    String? hostName,
+    String? hostUserId,
   }) async {
     try {
       final data = <String, dynamic>{
@@ -307,6 +311,11 @@ class FirestoreClubDataSource {
       if (description != null) data['description'] = description;
       if (imageUrl != null) data['image_url'] = imageUrl;
       if (teamCount != null) data['team_count'] = teamCount;
+      if (hostName != null) data['host_name'] = hostName;
+      if (hostUserId != null && hostUserId.isNotEmpty) {
+        data['host_user_id'] = hostUserId;
+        data['creator_id'] = hostUserId;
+      }
       await _clubs.doc(clubId).set(data, SetOptions(merge: true));
     } on FirebaseException catch (e) {
       throw NetworkDataException('모임 정보 업데이트 실패', cause: e);

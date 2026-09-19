@@ -1047,11 +1047,12 @@ class PaymentRequest {
     PaymentRequestStatus? status,
     String? reviewedBy,
     DateTime? reviewedAt,
+    String? memberName,
   }) {
     return PaymentRequest(
       id: id,
       memberId: memberId,
-      memberName: memberName,
+      memberName: memberName ?? this.memberName,
       duesSettingId: duesSettingId,
       duesTitle: duesTitle,
       amount: amount,

@@ -55,6 +55,7 @@ abstract final class ClubMapper {
         'next_round_date': club.nextRoundDate?.toIso8601String(),
         'next_round_course': club.nextRoundCourse,
         'creator_id': club.creatorId,
+        if (club.creatorId.isNotEmpty) 'host_user_id': club.creatorId,
         'region': club.region,
         'industry': club.industry,
         'team_count': club.teamCount,
