@@ -2995,6 +2995,36 @@ class ClubProvider extends ChangeNotifier with WidgetsBindingObserver {
   //  Actions — 재무
   // ════════════════════════════════════════════════════════
 
+  /// 납부일은 **그 회비의 기간**으로 잡는다.
+  ///
+  /// 납부 여부(`hasPaid`)도 결산도 `paidAt` 의 연·월로 판단한다. 예전에는
+  /// 연회비(월이 없음)를 오늘 날짜로 기록해서, 작년 연회비를 납부해도
+  /// 이번 달 수입으로 잡히고 작년은 계속 미납으로 남았다.
+  DateTime _paymentDateFor({
+    required String duesSettingId,
+    int? year,
+    int? month,
+  }) {
+    final now = DateTime.now();
+    if (year == null) return now;
+
+    int clampDay(int y, int m) {
+      final lastDay = DateTime(y, m + 1, 0).day; // 2월 30일 같은 날짜는 다음 달로 넘어간다
+      return now.day > lastDay ? lastDay : now.day;
+    }
+
+    if (month != null) return DateTime(year, month, clampDay(year, month));
+    if (year == now.year) return now;
+
+    // 지난 연도 연회비·특별회비 — 그 해 납부 기준일, 없으면 연말
+    final due = _duesSettings
+        .where((d) => d.id == duesSettingId)
+        .firstOrNull
+        ?.dueDate;
+    if (due != null && due.year == year) return due;
+    return DateTime(year, 12, 31);
+  }
+
   /// 납부 처리 (총무용) — 납부 기록 + 수입 거래 자동 등록
   void recordPayment({
     required String memberId,
@@ -3007,9 +3037,11 @@ class ClubProvider extends ChangeNotifier with WidgetsBindingObserver {
     bool skipsBalance = false,   // true = 상태만 변경, 잔고 미반영
   }) {
     final now = DateTime.now();
-    final paidAt = (year != null && month != null)
-        ? DateTime(year, month, now.day)
-        : now;
+    final paidAt = _paymentDateFor(
+      duesSettingId: duesSettingId,
+      year: year,
+      month: month,
+    );
 
     final paymentId = 'dp_${now.microsecondsSinceEpoch}_$memberId';
     _duesPayments.add(DuesPayment(
