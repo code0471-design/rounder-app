@@ -1944,13 +1944,19 @@ class ClubProvider extends ChangeNotifier with WidgetsBindingObserver {
     });
   }
 
-  /// 디바운스 없이 즉시 저장 (일정 등록 등)
+  /// 디바운스 없이 저장 (일정 등록·납부 처리 등)
+  ///
+  /// 저장은 번들 **전체**를 JSON 으로 만드는 작업이라 사진이 많으면 수백 ms 가
+  /// 걸린다. 이걸 화면 갱신보다 먼저 돌리면 "납부를 눌렀는데 금액이 안 바뀌고
+  /// 다른 탭 갔다 오면 바뀐다"가 된다. 프레임을 먼저 그리게 하고 바로 저장한다.
   void _persistImmediately() {
     _persistTimer?.cancel();
     _persistTimer = null;
-    if (!_suppressPersist && _persistAuthUserId != null) {
+    if (_suppressPersist || _persistAuthUserId == null) return;
+    _persistTimer = Timer(Duration.zero, () {
+      _persistTimer = null;
       _persistNow();
-    }
+    });
   }
 
   ClubDataBundle _exportBundle() => ClubDataBundle(
