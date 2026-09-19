@@ -2590,7 +2590,8 @@ class _DuesSettingTab extends StatelessWidget {
         title: Text('$to 모임으로 변경',
             style: const TextStyle(fontSize: 16, fontWeight: FontWeight.bold)),
         content: Text(
-          '현재 $from 설정을 종료하고 $to 모임을 시작합니다.\n기존 납부 기록은 유지됩니다.',
+          '$to로 변경하면 기존 $from는 자동 종료됩니다.\n'
+          '기존 $from 납부현황은 삭제되지 않고 그대로 유지됩니다.',
           style: const TextStyle(fontSize: 13, height: 1.5),
         ),
         actions: [

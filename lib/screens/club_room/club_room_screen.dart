@@ -27,6 +27,10 @@ import '../members/treasurer_transfer_screen.dart';
 import '../alimtalk/alimtalk_settings_screen.dart';
 import '../group_assignment/group_assignment_screen.dart';
 
+/// 모임홈 카드(참석 현황·회비 잔고·공지사항) 공통 테두리.
+/// 연회색이라 카드 경계가 안 보인다는 피드백으로 진하게 올렸다.
+const Color _kHomeCardBorder = Color(0xFFD1D5DB);
+
 void _goToPlatformHome(BuildContext context) {
   final nav = Navigator.of(context, rootNavigator: true);
   if (nav.canPop()) {
@@ -1273,7 +1277,7 @@ class _AttendanceCard extends StatelessWidget {
             decoration: BoxDecoration(
               color: Colors.white,
               borderRadius: BorderRadius.circular(16),
-              border: Border.all(color: const Color(0xFFE5E7EB), width: 1),
+              border: Border.all(color: _kHomeCardBorder, width: 1.5),
             ),
             child: Column(
               children: [
@@ -1384,6 +1388,7 @@ class _AnnouncementSection extends StatelessWidget {
       decoration: BoxDecoration(
         color: Colors.white,
         borderRadius: BorderRadius.circular(14),
+        border: Border.all(color: _kHomeCardBorder, width: 1.5),
         boxShadow: [
           BoxShadow(
             color: Colors.black.withValues(alpha: 0.05),
@@ -2521,7 +2526,7 @@ class _FinanceSummaryCard extends StatelessWidget {
         decoration: BoxDecoration(
           color: Colors.white,
           borderRadius: BorderRadius.circular(16),
-          border: Border.all(color: const Color(0xFFE5E7EB), width: 1),
+          border: Border.all(color: _kHomeCardBorder, width: 1.5),
         ),
         child: Row(
           crossAxisAlignment: CrossAxisAlignment.center,
