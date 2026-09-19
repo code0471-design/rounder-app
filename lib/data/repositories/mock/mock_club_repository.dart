@@ -115,6 +115,8 @@ class MockClubRepository implements ClubRepository {
     int? teamCount,
     String? hostName,
     String? hostUserId,
+    String? region,
+    String? industry,
   }) async {
     final i = _store.clubs.indexWhere((c) => c.id == clubId);
     if (i == -1) return;
@@ -123,6 +125,8 @@ class MockClubRepository implements ClubRepository {
       description: description,
       imageUrl: imageUrl,
       teamCount: teamCount,
+      region: region,
+      industry: industry,
     );
     _store.bump();
   }

@@ -400,7 +400,7 @@ class _FinanceScreenState extends State<FinanceScreen>
                       unselectedLabelStyle: const TextStyle(
                           fontSize: 13, fontWeight: FontWeight.w500),
                       tabs: const [
-                        Tab(text: '납부현황'),
+                        Tab(text: '회비납부'),
                         Tab(text: '수입/지출'),
                         Tab(text: '결산보고'),
                         Tab(text: '회비설정'),

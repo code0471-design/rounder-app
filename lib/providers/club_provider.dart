@@ -6026,7 +6026,7 @@ class ClubProvider extends ChangeNotifier with WidgetsBindingObserver {
     updateClubInfo(clubId: clubId, teamCount: teamCount);
   }
 
-  /// 모임 기본 정보 수정 (이름·소개·이미지·팀 수)
+  /// 모임 기본 정보 수정 (이름·소개·이미지·팀 수·지역·업종)
   void updateClubInfo({
     required String clubId,
     String? name,
@@ -6035,6 +6035,8 @@ class ClubProvider extends ChangeNotifier with WidgetsBindingObserver {
     int? teamCount,
     String? hostName,
     String? hostUserId,
+    String? region,
+    String? industry,
   }) {
     void apply(List<Club> list) {
       final idx = list.indexWhere((c) => c.id == clubId);
@@ -6044,6 +6046,8 @@ class ClubProvider extends ChangeNotifier with WidgetsBindingObserver {
         description: description,
         imageUrl: imageUrl,
         teamCount: teamCount,
+        region: region,
+        industry: industry,
       );
     }
 
@@ -6057,7 +6061,9 @@ class ClubProvider extends ChangeNotifier with WidgetsBindingObserver {
         imageUrl: imageUrl,
         teamCount: teamCount,
         hostName: hostName,
-        hostUserId: hostUserId));
+        hostUserId: hostUserId,
+        region: region,
+        industry: industry));
   }
 
   Future<void> _pushClubCatalogToServer(
@@ -6068,6 +6074,8 @@ class ClubProvider extends ChangeNotifier with WidgetsBindingObserver {
     int? teamCount,
     String? hostName,
     String? hostUserId,
+    String? region,
+    String? industry,
   }) async {
     if (_isDemoSession) return;
     if (!AppDependencies.instance.isInitialized ||
@@ -6083,6 +6091,8 @@ class ClubProvider extends ChangeNotifier with WidgetsBindingObserver {
         teamCount: teamCount,
         hostName: hostName,
         hostUserId: hostUserId,
+        region: region,
+        industry: industry,
       );
     } catch (e) {
       debugPrint('[ClubProvider] catalog push skip: $e');

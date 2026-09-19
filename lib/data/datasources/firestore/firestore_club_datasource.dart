@@ -337,6 +337,8 @@ class FirestoreClubDataSource {
     int? teamCount,
     String? hostName,
     String? hostUserId,
+    String? region,
+    String? industry,
   }) async {
     try {
       final data = <String, dynamic>{
@@ -346,6 +348,8 @@ class FirestoreClubDataSource {
       if (description != null) data['description'] = description;
       if (imageUrl != null) data['image_url'] = imageUrl;
       if (teamCount != null) data['team_count'] = teamCount;
+      if (region != null && region.isNotEmpty) data['region'] = region;
+      if (industry != null && industry.isNotEmpty) data['industry'] = industry;
       if (hostName != null) data['host_name'] = hostName;
       if (hostUserId != null && hostUserId.isNotEmpty) {
         data['host_user_id'] = hostUserId;

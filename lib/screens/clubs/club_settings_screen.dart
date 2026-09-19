@@ -6,6 +6,7 @@ import 'package:flutter/services.dart';
 import 'package:image_picker/image_picker.dart';
 import 'package:provider/provider.dart';
 
+import '../../models/club_model.dart';
 import '../../providers/club_provider.dart';
 import '../../theme/app_theme.dart';
 
@@ -25,6 +26,8 @@ class _ClubSettingsScreenState extends State<ClubSettingsScreen> {
   String? _imageUrl;
   Uint8List? _localImageBytes;
   bool _saving = false;
+  late String _region;
+  late String _industry;
 
   @override
   void initState() {
@@ -34,6 +37,128 @@ class _ClubSettingsScreenState extends State<ClubSettingsScreen> {
     _descCtrl = TextEditingController(text: club.description);
     _teamCountCtrl = TextEditingController(text: '${club.teamCount}');
     _imageUrl = club.imageUrl;
+    // 목록에 없는 값(직접 입력한 업종 등)도 그대로 보여 준다
+    _region = club.region.trim();
+    _industry = club.industry.trim();
+  }
+
+  List<String> get _regionOptions {
+    final list = kRegions.where((r) => r != '전체').toList();
+    if (_region.isNotEmpty && !list.contains(_region)) list.insert(0, _region);
+    return list;
+  }
+
+  List<String> get _industryOptions {
+    final list = List<String>.from(kIndustries);
+    if (_industry.isNotEmpty && !list.contains(_industry)) {
+      list.insert(0, _industry);
+    }
+    return list;
+  }
+
+  Future<void> _pickFromList({
+    required String title,
+    required List<String> options,
+    required String selected,
+    required ValueChanged<String> onPicked,
+  }) async {
+    final picked = await showModalBottomSheet<String>(
+      context: context,
+      isScrollControlled: true,
+      backgroundColor: Colors.white,
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
+      ),
+      builder: (sheetCtx) => SafeArea(
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Padding(
+              padding: const EdgeInsets.fromLTRB(20, 18, 20, 10),
+              child: Row(
+                children: [
+                  Text(title,
+                      style: const TextStyle(
+                          fontSize: 16,
+                          fontWeight: FontWeight.w800,
+                          color: AppColors.textPrimary)),
+                  const Spacer(),
+                  IconButton(
+                    icon: const Icon(Icons.close, size: 20),
+                    onPressed: () => Navigator.pop(sheetCtx),
+                  ),
+                ],
+              ),
+            ),
+            const Divider(height: 1),
+            Flexible(
+              child: ListView.builder(
+                shrinkWrap: true,
+                itemCount: options.length,
+                itemBuilder: (_, i) {
+                  final v = options[i];
+                  final sel = v == selected;
+                  return ListTile(
+                    title: Text(v,
+                        style: TextStyle(
+                          fontSize: 14,
+                          fontWeight: sel ? FontWeight.w800 : FontWeight.w500,
+                          color: sel
+                              ? AppColors.primary
+                              : AppColors.textPrimary,
+                        )),
+                    trailing: sel
+                        ? const Icon(Icons.check,
+                            size: 18, color: AppColors.primary)
+                        : null,
+                    onTap: () => Navigator.pop(sheetCtx, v),
+                  );
+                },
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+    if (picked != null && picked.isNotEmpty) onPicked(picked);
+  }
+
+  Widget _pickerField({
+    required String value,
+    required String hint,
+    required VoidCallback onTap,
+  }) {
+    final empty = value.trim().isEmpty;
+    return GestureDetector(
+      onTap: onTap,
+      behavior: HitTestBehavior.opaque,
+      child: Container(
+        padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 15),
+        decoration: BoxDecoration(
+          color: Colors.white,
+          borderRadius: BorderRadius.circular(12),
+          border: Border.all(color: AppColors.divider),
+        ),
+        child: Row(
+          children: [
+            Expanded(
+              child: Text(
+                empty ? hint : value,
+                style: TextStyle(
+                  fontSize: 14,
+                  color: empty
+                      ? AppColors.textTertiary
+                      : AppColors.textPrimary,
+                  fontWeight: empty ? FontWeight.w400 : FontWeight.w600,
+                ),
+              ),
+            ),
+            const Icon(Icons.expand_more,
+                size: 20, color: AppColors.textSecondary),
+          ],
+        ),
+      ),
+    );
   }
 
   @override
@@ -100,6 +225,8 @@ class _ClubSettingsScreenState extends State<ClubSettingsScreen> {
       description: description,
       imageUrl: _imageUrl,
       teamCount: teamCount,
+      region: _region,
+      industry: _industry,
     );
     if (!mounted) return;
     setState(() => _saving = false);
@@ -238,6 +365,45 @@ class _ClubSettingsScreenState extends State<ClubSettingsScreen> {
               maxLines: 4,
               minLines: 3,
               decoration: _inputDeco(hint: '모임의 특징·분위기를 알려주세요'),
+            ),
+            const SizedBox(height: 20),
+            const Text('지역',
+                style: TextStyle(
+                    fontSize: 13,
+                    fontWeight: FontWeight.w700,
+                    color: AppColors.textPrimary)),
+            const SizedBox(height: 8),
+            _pickerField(
+              value: _region,
+              hint: '지역 선택',
+              onTap: () => _pickFromList(
+                title: '지역 선택',
+                options: _regionOptions,
+                selected: _region,
+                onPicked: (v) => setState(() => _region = v),
+              ),
+            ),
+            const SizedBox(height: 20),
+            const Text('업종',
+                style: TextStyle(
+                    fontSize: 13,
+                    fontWeight: FontWeight.w700,
+                    color: AppColors.textPrimary)),
+            const SizedBox(height: 4),
+            const Text(
+              '모임 찾기에서 같은 업종끼리 모일 수 있게 도와줍니다.',
+              style: TextStyle(fontSize: 11, color: AppColors.textSecondary),
+            ),
+            const SizedBox(height: 8),
+            _pickerField(
+              value: _industry,
+              hint: '업종 선택',
+              onTap: () => _pickFromList(
+                title: '업종 선택',
+                options: _industryOptions,
+                selected: _industry,
+                onPicked: (v) => setState(() => _industry = v),
+              ),
             ),
             const SizedBox(height: 20),
             const Text('팀 수',

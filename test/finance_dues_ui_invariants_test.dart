@@ -43,7 +43,7 @@ void main() {
   });
 
   test('재무 4탭은 원클럽형 텍스트 탭이다', () {
-    expect(finance.contains("Tab(text: '납부현황')"), isTrue);
+    expect(finance.contains("Tab(text: '회비납부')"), isTrue);
     expect(finance.contains("Tab(text: '수입/지출')"), isTrue);
     expect(finance.contains("Tab(text: '결산보고')"), isTrue);
     expect(finance.contains("Tab(text: '회비설정')"), isTrue);

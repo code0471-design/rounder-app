@@ -15,7 +15,10 @@ void main() {
 
   test('스코어와 시상은 따로 저장하고 즉시 persist 한다', () {
     expect(screen.contains("'스코어 저장'"), isTrue);
-    expect(screen.contains("'시상 저장'"), isTrue);
+    // 시상은 저장 버튼 없이 '○명 확인' 에서 바로 저장한다 (헷갈린다는 피드백)
+    expect(screen.contains("'시상 저장'"), isFalse);
+    expect(screen.contains('_saveAwards(close: false);'), isTrue,
+        reason: '수상자 확인·삭제 시 즉시 저장');
     expect(screen.contains('_saveScores'), isTrue);
     expect(screen.contains('_saveAwards'), isTrue);
     expect(screen.contains('_saveAll'), isFalse);
@@ -51,11 +54,13 @@ void main() {
     expect(screen.contains('AppColors.charcoal'), isTrue);
     expect(screen.contains('AppColors.goldDeep'), isTrue);
     final scores = screen.indexOf('void _saveScores()');
-    final awards = screen.indexOf('void _saveAwards()');
+    final awards = screen.indexOf('void _saveAwards(');
     final scoresFn = screen.substring(scores, awards);
     final awardsFn = screen.substring(awards, screen.indexOf('  @override', awards));
     expect(scoresFn.contains('if (mounted) Navigator.pop(context);'), isTrue);
-    expect(awardsFn.contains('if (mounted) Navigator.pop(context);'), isTrue);
+    expect(awardsFn.contains('if (close && mounted) Navigator.pop(context);'),
+        isTrue,
+        reason: '저장 버튼으로 들어온 경우에만 닫는다');
   });
 
   test('스코어는 누구나 저장하고 시상 등록은 임원만', () {
@@ -63,7 +68,7 @@ void main() {
     expect(screen.contains('시상 등록은 임원만 할 수 있습니다'), isTrue);
     expect(screen.contains('canEdit: canEditAwards'), isTrue);
     final scores = screen.indexOf('void _saveScores()');
-    final awards = screen.indexOf('void _saveAwards()');
+    final awards = screen.indexOf('void _saveAwards(');
     final scoresFn = screen.substring(scores, awards);
     expect(scoresFn.contains('_canEditAwards'), isFalse);
     expect(scoresFn.contains('isClubExecutive'), isFalse);

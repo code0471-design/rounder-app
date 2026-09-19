@@ -41,6 +41,8 @@ class FirestoreClubRepository implements ClubRepository {
     int? teamCount,
     String? hostName,
     String? hostUserId,
+    String? region,
+    String? industry,
   }) =>
       _dataSource.updateClubInfo(
         clubId,
@@ -50,6 +52,8 @@ class FirestoreClubRepository implements ClubRepository {
         teamCount: teamCount,
         hostName: hostName,
         hostUserId: hostUserId,
+        region: region,
+        industry: industry,
       );
 
   @override

@@ -16,6 +16,8 @@ abstract class ClubRepository {
     int? teamCount,
     String? hostName,
     String? hostUserId,
+    String? region,
+    String? industry,
   });
 
   /// 사용자 모임 생성 (Firestore: clubs + membership + creator member)

@@ -33,6 +33,8 @@ class _FakeClubRepository implements ClubRepository {
     int? teamCount,
     String? hostName,
     String? hostUserId,
+    String? region,
+    String? industry,
   }) async {}
 
   @override

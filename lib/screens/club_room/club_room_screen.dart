@@ -443,7 +443,7 @@ class _ClubRoomScreenState extends State<ClubRoomScreen> {
                       color: AppColors.primary),
                   title: const Text('모임 정보 수정',
                       style: TextStyle(fontWeight: FontWeight.w600)),
-                  subtitle: const Text('이름 · 소개 · 이미지 · 팀 수',
+                  subtitle: const Text('이름 · 소개 · 이미지 · 지역 · 업종 · 팀 수',
                       style: TextStyle(
                           fontSize: 12, color: AppColors.textSecondary)),
                   trailing: const Icon(Icons.chevron_right,

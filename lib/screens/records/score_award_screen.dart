@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:provider/provider.dart';
@@ -49,7 +51,6 @@ class _ScoreAwardScreenState extends State<ScoreAwardScreen>
   List<_ScoreMember> _members = [];
 
   bool _scoresSaved = false;
-  bool _awardsSaved = false;
   // bool _ocrApplied = false; // OCR 자동입력 적용 여부 (비활성)
 
 
@@ -165,7 +166,6 @@ class _ScoreAwardScreenState extends State<ScoreAwardScreen>
     }
     final savedAwards = provider.awardRecordsFor(widget.schedule.id);
     if (savedAwards.isEmpty) return;
-    _awardsSaved = true;
     for (final rec in savedAwards) {
       final i = _awards.indexWhere((a) => a.name == rec.awardName);
       final item = _AwardItem(
@@ -187,6 +187,7 @@ class _ScoreAwardScreenState extends State<ScoreAwardScreen>
 
   @override
   void dispose() {
+    _awardNoteSaveTimer?.cancel();
     _tabCtrl.dispose();
     for (final c in _scoreCtrl.values) { c.dispose(); }
     for (final c in _handicapCtrl.values) { c.dispose(); }
@@ -537,6 +538,14 @@ class _ScoreAwardScreenState extends State<ScoreAwardScreen>
                       );
                     });
                     Navigator.pop(ctx);
+                    // 확인을 누르면 바로 저장한다 (별도 저장 버튼 없음)
+                    _saveAwards(close: false);
+                    ScaffoldMessenger.of(context).showSnackBar(
+                      const SnackBar(
+                        content: Text('시상 저장됨'),
+                        duration: Duration(seconds: 1),
+                      ),
+                    );
                   },
                   style: ElevatedButton.styleFrom(
                     backgroundColor: AppColors.charcoal,
@@ -583,7 +592,9 @@ class _ScoreAwardScreenState extends State<ScoreAwardScreen>
     if (mounted) Navigator.pop(context);
   }
 
-  void _saveAwards() {
+  /// 시상은 저장 버튼을 두지 않는다. 수상자 확인·삭제·메모 때 바로 저장한다.
+  /// [close] 는 저장 후 화면을 닫을지 여부.
+  void _saveAwards({bool close = true}) {
     if (!_canEditAwards) {
       _guardAwardEdit(() {});
       return;
@@ -605,8 +616,17 @@ class _ScoreAwardScreenState extends State<ScoreAwardScreen>
       ));
     }
     provider.saveAwardsForSchedule(widget.schedule.id, records);
-    setState(() => _awardsSaved = true);
-    if (mounted) Navigator.pop(context);
+    if (close && mounted) Navigator.pop(context);
+  }
+
+  Timer? _awardNoteSaveTimer;
+
+  /// 메모는 한 글자마다 저장하지 않는다.
+  void _saveAwardsSoon() {
+    _awardNoteSaveTimer?.cancel();
+    _awardNoteSaveTimer = Timer(const Duration(milliseconds: 600), () {
+      if (mounted) _saveAwards(close: false);
+    });
   }
 
   @override
@@ -675,26 +695,28 @@ class _ScoreAwardScreenState extends State<ScoreAwardScreen>
           _AwardTab(
             awards: _awards,
             members: _members,
-            saved: _awardsSaved,
             canEdit: canEditAwards,
-            onSave: _saveAwards,
             onAddAward: _addAward,
             onSelectWinner: _selectAwardWinner,
             onDeleteAward: (i) {
-              _guardAwardEdit(() => setState(() => _awards.removeAt(i)));
+              _guardAwardEdit(() {
+                setState(() => _awards.removeAt(i));
+                _saveAwards(close: false);
+              });
             },
             onUpdateNote: (i, note) {
               if (!_canEditAwards) return;
               setState(() {
-              final a = _awards[i];
-              _awards[i] = _AwardItem(
-                id: a.id, name: a.name, icon: a.icon,
-                allowCustom: a.allowCustom,
-                winnerIds: a.winnerIds,
-                winnerNames: a.winnerNames,
-                winnerNote: note,
-              );
-            });
+                final a = _awards[i];
+                _awards[i] = _AwardItem(
+                  id: a.id, name: a.name, icon: a.icon,
+                  allowCustom: a.allowCustom,
+                  winnerIds: a.winnerIds,
+                  winnerNames: a.winnerNames,
+                  winnerNote: note,
+                );
+              });
+              _saveAwardsSoon();
             },
           ),
         ],
@@ -1075,9 +1097,7 @@ class _ScoreCard extends StatelessWidget {
 class _AwardTab extends StatelessWidget {
   final List<_AwardItem> awards;
   final List<_ScoreMember> members;
-  final bool saved;
   final bool canEdit;
-  final VoidCallback onSave;
   final VoidCallback onAddAward;
   final ValueChanged<int> onSelectWinner;
   final ValueChanged<int> onDeleteAward;
@@ -1086,9 +1106,7 @@ class _AwardTab extends StatelessWidget {
   const _AwardTab({
     required this.awards,
     required this.members,
-    required this.saved,
     required this.canEdit,
-    required this.onSave,
     required this.onAddAward,
     required this.onSelectWinner,
     required this.onDeleteAward,
@@ -1198,32 +1216,6 @@ class _AwardTab extends StatelessWidget {
                   ),
                 ),
         ),
-        if (canEdit)
-          SafeArea(
-            top: false,
-            child: Padding(
-              padding: const EdgeInsets.fromLTRB(16, 8, 16, 12),
-              child: SizedBox(
-                width: double.infinity,
-                height: 48,
-                child: ElevatedButton(
-                  onPressed: onSave,
-                  style: ElevatedButton.styleFrom(
-                    backgroundColor:
-                        saved ? AppColors.primary : AppColors.charcoal,
-                    foregroundColor: Colors.white,
-                    shape: RoundedRectangleBorder(
-                        borderRadius: BorderRadius.circular(12)),
-                  ),
-                  child: Text(
-                    saved ? '시상 저장됨 ✓' : '시상 저장',
-                    style: const TextStyle(
-                        fontSize: 15, fontWeight: FontWeight.bold),
-                  ),
-                ),
-              ),
-            ),
-          ),
       ],
     );
   }
