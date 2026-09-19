@@ -488,6 +488,7 @@ class ClubProvider extends ChangeNotifier with WidgetsBindingObserver {
       _stripHardcodedDemoPayload();
       if (await _ingestServerMemberships(authUserId)) recovered = true;
       if (_purgeDemoIdentityClubs()) recovered = true;
+      if (await _pruneForeignClubs(authUserId)) recovered = true;
     }
     // 복구 후에도 탈퇴 목록은 제외
     _myClubs.removeWhere((c) => _isLeftClub(c.id));
@@ -795,7 +796,8 @@ class ClubProvider extends ChangeNotifier with WidgetsBindingObserver {
   Future<void> refreshOwnedClubs() async {
     final authId = _persistAuthUserId;
     if (authId == null) return;
-    final recovered = await _restoreOwnedClubsFromStores(authId);
+    var recovered = await _restoreOwnedClubsFromStores(authId);
+    if (await _pruneForeignClubs(authId)) recovered = true;
     // 복구 성공 여부와 관계없이 동기화·저장 (멤버십 별칭 보정 포함)
     _syncMyClubsToMockStore();
     if (recovered) _persistImmediately();
@@ -903,10 +905,16 @@ class ClubProvider extends ChangeNotifier with WidgetsBindingObserver {
       try {
         final bundle = await ClubPersistence.load(uid);
         if (bundle == null) continue;
-        for (final c in [...bundle.myClubs, ...bundle.allClubs]) {
+        // 실계정은 allClubs(탐색 카탈로그)를 후보로 쓰지 않는다.
+        // 카탈로그에 남의 모임이 다 들어 있어서 전 모임이 내 모임으로 붙었다.
+        final candidates = _isDemoSession
+            ? [...bundle.myClubs, ...bundle.allClubs]
+            : bundle.myClubs;
+        for (final c in candidates) {
           if (!c.id.startsWith('c_')) continue;
           final mine = aliases.contains(c.creatorId) ||
-              (uid == authUserId &&
+              (_isDemoSession &&
+                  uid == authUserId &&
                   ClubMemberRole.isOfficer(c.myRole)) ||
               (authUserId == 'user_guest' && uid == 'user_guest');
           if (!mine) continue;
@@ -1201,6 +1209,79 @@ class ClubProvider extends ChangeNotifier with WidgetsBindingObserver {
     });
     _schedules.removeWhere((s) => drop.contains(s.clubId));
     debugPrint('[ClubProvider] purged demo-identity clubs $drop');
+    return true;
+  }
+
+  /// 예전 초대 가입자는 명단 행 id 가 `m_{모임}_m1` 로 남아 계정 ID 로 못 찾는다.
+  /// 그 사람을 명단에서 빼면 안 되니 전화번호로 한 번 더 본다.
+  bool _clubRosterHasMyPhone(String clubId) {
+    final mine = (_accountPhone ?? '').replaceAll(RegExp(r'[^0-9]'), '');
+    if (mine.length < 10) return false;
+    for (final m in _members) {
+      if (!Member.isClubRosterId(clubId, m.id)) continue;
+      final digits = (m.phone ?? '').replaceAll(RegExp(r'[^0-9]'), '');
+      if (digits == mine) return true;
+    }
+    return false;
+  }
+
+  /// 폰에만 남은 '남의 모임'을 내 모임에서 뺀다.
+  ///
+  /// 테스터 폰에서 전 모임이 내 모임으로 보이던 원인. 예전 빌드가 탐색 카탈로그를
+  /// 내 모임으로 복구해 저장했고, 그 뒤로 아무도 지우지 않았다.
+  ///
+  /// 지우는 기준은 **서버 사실**뿐이다. 서버를 못 읽으면 아무것도 지우지 않는다
+  /// (비행기모드·권한 오류에 내 모임이 사라지면 훨씬 큰 사고다).
+  /// 다음 중 하나라도 걸리면 남긴다.
+  ///   · 서버 멤버십(`user_memberships`)이 있다
+  ///   · 내가 만든 모임이다 (`creator_id` / `host_user_id`)
+  ///   · 이 모임 명단에 내 계정 ID 행이 있다 (초대 가입)
+  ///   · 서버 카탈로그에 아직 없다 (방금 만들어 아직 안 올라간 모임)
+  Future<bool> _pruneForeignClubs(String authUserId) async {
+    if (_isDemoSession || _myClubs.isEmpty) return false;
+    if (!AppDependencies.instance.isInitialized) return false;
+
+    List<Club> serverMine;
+    List<Club> catalog;
+    try {
+      final repo = AppDependencies.instance.clubRepository;
+      serverMine = await repo.fetchMyClubs(authUserId);
+      catalog = await repo.fetchDiscoverableClubs();
+    } catch (e) {
+      debugPrint('[ClubProvider] prune skip (서버 조회 실패): $e');
+      return false;
+    }
+    if (catalog.isEmpty) return false; // 카탈로그를 못 읽으면 판단 불가
+
+    final mineIds = serverMine.map((c) => c.id).toSet();
+    final catalogIds = catalog.map((c) => c.id).toSet();
+    final aliases = _authAliases(authUserId);
+
+    final drop = <String>{};
+    for (final c in _myClubs) {
+      if (_legacyMockClubIds.contains(c.id)) continue;
+      if (!catalogIds.contains(c.id)) continue;
+      if (mineIds.contains(c.id)) continue;
+      if (aliases.contains(c.creatorId.trim())) continue;
+      if (_iAmClubCreator(c)) continue;
+      if (_members.any((m) => _isMyRosterRowFor(c, m.id))) continue;
+      if (_clubRosterHasMyPhone(c.id)) continue;
+      drop.add(c.id);
+    }
+    if (drop.isEmpty) return false;
+
+    _myClubs.removeWhere((c) => drop.contains(c.id));
+    _freshClubIds.removeAll(drop);
+    // 명단·일정은 그 모임 것만 지운다. 회비·거래는 모임 키가 없는 레거시가 섞여 있어 건드리지 않는다.
+    _members.removeWhere((m) {
+      for (final id in drop) {
+        if (Member.isClubRosterId(id, m.id)) return true;
+      }
+      return false;
+    });
+    _schedules.removeWhere((s) => drop.contains(s.clubId));
+    if (_selectedClubIndex >= _myClubs.length) _selectedClubIndex = 0;
+    debugPrint('[ClubProvider] pruned foreign clubs $drop');
     return true;
   }
 
