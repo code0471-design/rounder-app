@@ -45,8 +45,8 @@ class ClubOpsSync {
       final slice = _sliceForClub(full, clubId);
       final photos = (slice.remove('photos') as List<dynamic>? ?? []);
       slice['updatedAtClient'] = DateTime.now().toIso8601String();
-      slice['updatedAt'] = FieldValue.serverTimestamp();
       slice['schema'] = ClubDataCodec.currentVersion;
+      // serverTimestamp 는 JSON 으로 못 바꾼다. 크기 측정 뒤 write 직전에 넣는다.
 
       // 로컬 회비가 비어 원격만 있는 경우 merge:false 로 원격 납부를 지워버리지 않음
       final existing =
@@ -166,6 +166,7 @@ class ClubOpsSync {
 
       await _pushOverflowDocs(clubId, schYears, ledYears, previousYears);
 
+      slice['updatedAt'] = FieldValue.serverTimestamp();
       await _db
           .doc(FirestorePaths.clubOpsBundle(clubId))
           .set(slice, SetOptions(merge: false));
@@ -1078,9 +1079,20 @@ class ClubOpsSync {
   ) =>
       _mergeClubIntoBundle(local, clubId, remote);
 
-  /// 디버그/테스트용 JSON 크기
-  static int estimateJsonBytes(Map<String, dynamic> m) =>
-      utf8.encode(jsonEncode(m)).length;
+  /// 디버그/테스트용 JSON 크기.
+  ///
+  /// 크기를 재다가 예외가 나면 **푸시 자체가 죽는다.** 실제로 `updatedAt` 의
+  /// `FieldValue.serverTimestamp()` 가 jsonEncode 에서 터져서 모임 운영 데이터가
+  /// 한 건도 서버에 올라가지 않았다(일정이 올린 사람 폰에만 남던 원인).
+  /// 측정은 어디까지나 로그용이므로 절대 실패하지 않는다.
+  static int estimateJsonBytes(Map<String, dynamic> m) {
+    try {
+      return utf8.encode(jsonEncode(m, toEncodable: (o) => '$o')).length;
+    } catch (e) {
+      debugPrint('[ClubOpsSync] size estimate skip: $e');
+      return 0;
+    }
+  }
 
   static Future<void> _pushOverflowDocs(
     String clubId,
