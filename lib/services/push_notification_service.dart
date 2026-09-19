@@ -198,7 +198,8 @@ abstract final class PushNotificationService {
       '${d.month.toString().padLeft(2, '0')}-'
       '${d.day.toString().padLeft(2, '0')}';
 
-  /// 참석 확정 시 D-1 10시 리마인더 예약. 불참이면 삭제.
+  /// D-1 10시 참석여부 리마인더. 아직 응답 안 한 회원만 큐에 넣고,
+  /// 참석·불참을 이미 한 회원은 뺀다.
   static Future<void> syncD1Reminder({
     required String scheduleId,
     required String userId,
@@ -206,7 +207,7 @@ abstract final class PushNotificationService {
     required String clubId,
     required String clubName,
     required String scheduleTitle,
-    required bool attending,
+    required bool enqueue,
     String? phone,
     String? memberName,
     String? whenText,
@@ -217,7 +218,7 @@ abstract final class PushNotificationService {
         .collection(FirestorePaths.d1Queue)
         .doc(_d1DocId(scheduleId, userId));
     try {
-      if (!attending) {
+      if (!enqueue) {
         await doc.delete();
         return;
       }
@@ -240,7 +241,7 @@ abstract final class PushNotificationService {
         'title': HqPushCatalog.applyVars(
             t?.defaultTitle ?? '내일 라운딩 안내', {'모임명': clubName}),
         'body': HqPushCatalog.applyVars(
-            t?.defaultBody ?? '내일 $clubName 라운딩이 있습니다. 늦지 않게 준비해 주세요.',
+            t?.defaultBody ?? '내일 $clubName 라운딩이 있습니다. 참석 여부를 알려주세요.',
             {'모임명': clubName}),
         'scheduleTitle': scheduleTitle,
         'phone': phone ?? '',

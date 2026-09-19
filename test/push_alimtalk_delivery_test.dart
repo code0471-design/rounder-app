@@ -192,6 +192,30 @@ void main() {
           reason: '발송 화면을 또 열면 두 번 나간다');
     });
 
+    test('D-1은 참석 확정이 아니라 미응답 회원에게 참석여부를 묻는다', () {
+      final src = read('lib/providers/club_provider.dart');
+      expect(src.contains('_enqueueD1RsvpReminders'), isTrue);
+      expect(src.contains('attending: response == \'참석\''), isFalse,
+          reason: 'D-1을 참석한 사람에게만 넣으면 참석여부 요청이 안 간다');
+      expect(src.contains('_d1NeedsRsvp'), isTrue);
+      final addStart = src.indexOf('void addSchedule(RoundSchedule schedule)');
+      final addEnd = src.indexOf('void sendScheduleUploadAlimtalk(');
+      expect(
+        src.substring(addStart, addEnd).contains('_enqueueD1RsvpReminders'),
+        isTrue,
+        reason: '일정 등록 때 D-1 대기열을 넣어야 10시에 참석여부를 물을 수 있다',
+      );
+      final models = read('lib/screens/admin/admin_models.dart');
+      final d1 = models.indexOf("id: 'push_d1_reminder'");
+      final d1End = models.indexOf("id: 'push_dues_request'");
+      expect(d1, greaterThan(0));
+      expect(models.substring(d1, d1End).contains('PushAudienceKind.attendees'),
+          isFalse,
+          reason: 'D-1 푸시 대상이 참석회원으로 남아 있으면 안 된다');
+      expect(models.substring(d1, d1End).contains('PushAudienceKind.allMembers'),
+          isTrue);
+    });
+
     test('D-1 대기열에 전화번호가 들어간다', () {
       final src = read('lib/services/push_notification_service.dart');
       expect(src, contains("'phone': phone"));

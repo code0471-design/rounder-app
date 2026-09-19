@@ -464,7 +464,7 @@ abstract final class AdminCatalog {
       no: 4,
       event: 'D-1 리마인더',
       channel: '푸시·알림톡',
-      audience: '참석회원',
+      audience: '전체회원',
       timing: 'D-1 10시',
     ),
     NotificationPolicyRow(
@@ -526,10 +526,11 @@ abstract final class AdminCatalog {
       id: 'push_d1_reminder',
       name: 'D-1 리마인더',
       channel: '푸시·알림톡',
-      audience: PushAudienceKind.attendees,
+      audience: PushAudienceKind.allMembers,
       timing: PushTimingKind.d1At10,
+      audienceDetail: '정회원 전원 (아직 참석여부를 안 한 회원)',
       defaultTitle: '내일 라운딩 안내',
-      defaultBody: '내일 {{모임명}} 라운딩이 있습니다. 늦지 않게 준비해 주세요.',
+      defaultBody: '내일 {{모임명}} 라운딩이 있습니다. 참석 여부를 알려주세요.',
     ),
     HqPushType(
       id: 'push_dues_request',
@@ -592,10 +593,11 @@ abstract final class AdminCatalog {
     HqAlimtalkType(
       id: 'atk_d1_reminder',
       name: 'D-1 리마인더',
-      audience: PushAudienceKind.attendees,
+      audience: PushAudienceKind.allMembers,
       timing: PushTimingKind.d1At10,
+      audienceDetail: '정회원 전원 (아직 참석여부를 안 한 회원)',
       preview:
-          '내일 {{모임명}} {{일정명}}이 있습니다.\n일시: {{일시}}\n장소: {{장소}}\n늦지 않게 준비해 주세요.',
+          '내일 {{모임명}} {{일정명}}이 있습니다.\n일시: {{일시}}\n장소: {{장소}}\n참석 여부를 알려주세요.',
     ),
     HqAlimtalkType(
       id: 'atk_dues_request',
