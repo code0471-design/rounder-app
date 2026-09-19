@@ -1713,9 +1713,22 @@ class ClubProvider extends ChangeNotifier with WidgetsBindingObserver {
   }
 
   /// FCM·푸시함은 Firebase 로그인 ID를 쓴다. 명단 ID를 그 키로 바꾼다.
+  /// `m1`·`mg1` 처럼 예전 시드 id 로 남은 명단 행. 누구 계정인지 알 수 없다.
+  static final RegExp _legacySeedMemberId = RegExp(r'^m[g]?\d+$');
+
+  @visibleForTesting
+  String fcmInboxIdForTest(String memberOrUserId) =>
+      _fcmInboxIdFor(memberOrUserId);
+
+  /// 명단 행 → 푸시 수신함 계정 id. 모르면 빈 문자열(발송 안 함).
+  ///
+  /// 옛 시드 id 를 내 계정으로 넘기면 안 된다. 실제로 `m1` 로 남아 있던 회원의
+  /// 푸시가 방장 수신함으로 가서, 방장은 같은 알림을 두 번 받고 그 회원은
+  /// 한 번도 못 받았다.
   String _fcmInboxIdFor(String memberOrUserId) {
     final raw = memberOrUserId.trim();
     if (raw.isEmpty) return raw;
+    if (!_isDemoSession && _legacySeedMemberId.hasMatch(raw)) return '';
     if (_isSelfTarget(raw)) {
       final auth = _persistAuthUserId?.trim();
       if (auth != null && auth.isNotEmpty) return auth;
@@ -1726,6 +1739,7 @@ class ClubProvider extends ChangeNotifier with WidgetsBindingObserver {
       final prefix = 'm_${clubId}_';
       if (raw.startsWith(prefix)) {
         final suffix = raw.substring(prefix.length);
+        if (!_isDemoSession && _legacySeedMemberId.hasMatch(suffix)) return '';
         if (suffix.isNotEmpty) return suffix;
       }
       if (raw == 'm_creator_$clubId') {

@@ -21,10 +21,14 @@ void main() {
   });
 
   test('어드민 7종 푸시는 본인 포함 + FCM 로그인 ID로 보낸다', () {
+    // 회비 납부요청은 D-1 예약 큐로 나간다 (PushNotificationService).
+    final pushSrc =
+        File('lib/services/push_notification_service.dart').readAsStringSync();
     expect(src.contains('HqPushCatalog.joinRequest'), isTrue);
     expect(src.contains('HqPushCatalog.joinResult'), isTrue);
     expect(src.contains('HqPushCatalog.scheduleConfirm'), isTrue);
-    expect(src.contains('HqPushCatalog.duesRequest'), isTrue);
+    expect(pushSrc.contains("'pushType': HqPushCatalog.duesRequest"), isTrue,
+        reason: '회비 납부요청 푸시 예약이 빠지면 납부 안내가 안 나간다');
     expect(src.contains('HqPushCatalog.scheduleCancel'), isTrue);
     expect(src.contains('HqPushCatalog.duesNudge'), isTrue);
     expect(src.contains('userId: _fcmInboxIdFor(memberId)'), isTrue,

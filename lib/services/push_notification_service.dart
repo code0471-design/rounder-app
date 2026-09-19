@@ -4,6 +4,7 @@ import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_core/firebase_core.dart';
 import 'package:firebase_messaging/firebase_messaging.dart';
 import 'package:flutter/foundation.dart';
+import 'package:flutter/widgets.dart';
 import 'package:flutter_local_notifications/flutter_local_notifications.dart';
 
 import '../core/firebase/firestore_paths.dart';
@@ -465,6 +466,13 @@ abstract final class PushNotificationService {
     }
   }
 
+  static bool get _appInForeground =>
+      WidgetsBinding.instance.lifecycleState == AppLifecycleState.resumed;
+
+  /// FCM 으로 온 알림과 수신함 리스너가 같은 건을 각각 띄우던 문제.
+  /// 같은 문구는 이 시간 안에 한 번만 보여 준다.
+  static const _localDedupeWindow = Duration(seconds: 90);
+
   static Future<void> showLocal({
     required String title,
     required String body,
@@ -474,7 +482,7 @@ abstract final class PushNotificationService {
     final now = DateTime.now();
     if (_lastLocalKey == key &&
         _lastLocalAt != null &&
-        now.difference(_lastLocalAt!) < const Duration(seconds: 4)) {
+        now.difference(_lastLocalAt!) < _localDedupeWindow) {
       return;
     }
     _lastLocalKey = key;
@@ -538,6 +546,9 @@ abstract final class PushNotificationService {
                   final age = DateTime.now().difference(created.toDate());
                   if (age.inSeconds > 8) continue;
                 }
+                // 앱이 화면에 없으면 FCM 알림을 OS가 이미 띄웠다.
+                // 여기서 또 띄우면 같은 알림이 두 번 온다.
+                if (!_appInForeground) continue;
                 final title = change.doc.data()?['title']?.toString() ?? '라운더';
                 final body = change.doc.data()?['body']?.toString() ?? '';
                 unawaited(showLocal(title: title, body: body));
