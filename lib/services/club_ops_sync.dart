@@ -9,6 +9,7 @@ import '../di/app_dependencies.dart';
 import '../domain/services/roster_dedupe.dart';
 import 'club_data_codec.dart';
 import 'club_ops_overflow.dart';
+import 'member_phone_index.dart';
 
 /// 모임 운영 데이터를 rounder-staging Firestore에 공유한다.
 ///
@@ -152,6 +153,8 @@ class ClubOpsSync {
         ledgerYears: ledYears.keys,
       );
 
+      final rosterForIndex =
+          List<dynamic>.from(slice['members'] as List? ?? const []);
       final bundleBytes = estimateJsonBytes(slice);
       if (bundleBytes > opsBundleSoftLimitBytes) {
         debugPrint(
@@ -166,6 +169,11 @@ class ClubOpsSync {
       await _db
           .doc(FirestorePaths.clubOpsBundle(clubId))
           .set(slice, SetOptions(merge: false));
+
+      // 손으로 추가한 회원이 나중에 같은 번호로 가입하면 모임이 붙도록 색인
+      unawaited(
+        MemberPhoneIndex.syncClub(clubId: clubId, members: rosterForIndex),
+      );
 
       // 사진은 문서 1MB 한도 때문에 건별 저장
       await _pushPhotos(clubId, photos);

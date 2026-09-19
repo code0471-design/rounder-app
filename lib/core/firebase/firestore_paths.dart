@@ -8,6 +8,7 @@ abstract final class FirestorePaths {
   static const transactions = 'transactions';
   static const joinRequests = 'join_requests';
   static const userMemberships = 'user_memberships';
+  static const memberPhoneIndex = 'member_phone_index';
   static const fcmTokens = 'fcm_tokens';
   static const pushInboxCol = 'push_inbox';
   static const metaClubCatalog = '_meta/club_catalog';

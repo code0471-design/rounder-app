@@ -21,6 +21,7 @@ import '../services/club_persistence.dart';
 import '../services/firebase_auth_bridge.dart';
 import '../services/hq_alimtalk_catalog.dart';
 import '../services/hq_push_catalog.dart';
+import '../services/member_phone_index.dart';
 import '../services/push_notification_service.dart';
 import '../services/shared_join_request_store.dart';
 import '../services/solapi_service.dart';
@@ -486,6 +487,9 @@ class ClubProvider extends ChangeNotifier with WidgetsBindingObserver {
     if (!_isDemoSession) {
       if (_purgeDemoIdentityClubs()) recovered = true;
       _stripHardcodedDemoPayload();
+      // 소속을 먼저 만들고 정리한다. 순서가 바뀌면 방금 번호로 붙은 모임이
+      // '근거 없음'으로 지워진다.
+      await _claimClubsByPhone(authUserId);
       if (await _ingestServerMemberships(authUserId)) recovered = true;
       if (_purgeDemoIdentityClubs()) recovered = true;
       if (await _pruneForeignClubs(authUserId)) recovered = true;
@@ -796,6 +800,7 @@ class ClubProvider extends ChangeNotifier with WidgetsBindingObserver {
   Future<void> refreshOwnedClubs() async {
     final authId = _persistAuthUserId;
     if (authId == null) return;
+    await _claimClubsByPhone(authId);
     var recovered = await _restoreOwnedClubsFromStores(authId);
     if (await _pruneForeignClubs(authId)) recovered = true;
     // 복구 성공 여부와 관계없이 동기화·저장 (멤버십 별칭 보정 포함)
@@ -1212,17 +1217,32 @@ class ClubProvider extends ChangeNotifier with WidgetsBindingObserver {
     return true;
   }
 
+  /// 번호로 이어 붙은 모임 → 그 모임에서 내 명단 행 id.
+  final Map<String, String> _claimedRosterIds = {};
+
+  /// 방장이 손으로 추가해 둔 명단 행을 내 계정에 잇는다.
+  ///
+  /// 계정 없이 이름·번호만 적힌 회원은 서버에 소속이 없어서, 나중에 같은 번호로
+  /// 가입해도 그 모임이 안 보였다. 로그인할 때 번호 색인을 한 번 읽어 잇는다.
+  Future<bool> _claimClubsByPhone(String authUserId) async {
+    if (_isDemoSession || authUserId.trim().isEmpty) return false;
+    final claimed = await MemberPhoneIndex.claimForUser(
+      userId: authUserId,
+      phone: _accountPhone,
+    );
+    if (claimed.isEmpty) return false;
+    _claimedRosterIds.addAll(claimed);
+    return true;
+  }
+
   /// 예전 초대 가입자는 명단 행 id 가 `m_{모임}_m1` 로 남아 계정 ID 로 못 찾는다.
   /// 그 사람을 명단에서 빼면 안 되니 전화번호로 한 번 더 본다.
   bool _clubRosterHasMyPhone(String clubId) {
-    final mine = (_accountPhone ?? '').replaceAll(RegExp(r'[^0-9]'), '');
-    if (mine.length < 10) return false;
-    for (final m in _members) {
-      if (!Member.isClubRosterId(clubId, m.id)) continue;
-      final digits = (m.phone ?? '').replaceAll(RegExp(r'[^0-9]'), '');
-      if (digits == mine) return true;
-    }
-    return false;
+    final mine = MemberPhoneIndex.digitsOf(_accountPhone);
+    if (mine.isEmpty) return false;
+    return _members.any((m) =>
+        Member.isClubRosterId(clubId, m.id) &&
+        MemberPhoneIndex.digitsOf(m.phone) == mine);
   }
 
   /// 폰에만 남은 '남의 모임'을 내 모임에서 뺀다.
@@ -5455,6 +5475,14 @@ class ClubProvider extends ChangeNotifier with WidgetsBindingObserver {
   /// [club] 명단에서 [memberId] 가 내 행인지. `membersForClub` 과 같은 ID 규칙만 본다.
   /// (전역 시드 'm1' 같은 맨 ID는 제외 — 실계정도 currentUserId 가 m1 이다)
   bool _isMyRosterRowFor(Club club, String memberId) {
+    if (_isMyRosterRowById(club, memberId)) return true;
+    // 방장이 손으로 추가해 둔 행(계정 ID 가 안 붙은 행)은 번호로 잇는다.
+    if (_claimedRosterIds[club.id] == memberId) return true;
+    if (_rosterHasIdLinkedRowOfMine(club)) return false;
+    return _rosterRowMatchesMyPhone(club.id, memberId);
+  }
+
+  bool _isMyRosterRowById(Club club, String memberId) {
     if (memberId == 'm_creator_${club.id}') {
       return _iAmClubCreator(club);
     }
@@ -5469,6 +5497,19 @@ class ClubProvider extends ChangeNotifier with WidgetsBindingObserver {
       return true;
     }
     return false;
+  }
+
+  /// 계정 ID 로 붙은 내 행이 이미 있으면 번호 추정은 하지 않는다(둘째 줄 방지).
+  bool _rosterHasIdLinkedRowOfMine(Club club) =>
+      _members.any((m) => _isMyRosterRowById(club, m.id));
+
+  bool _rosterRowMatchesMyPhone(String clubId, String memberId) {
+    final mine = MemberPhoneIndex.digitsOf(_accountPhone);
+    if (mine.isEmpty) return false;
+    if (!Member.isClubRosterId(clubId, memberId)) return false;
+    final row = _members.where((m) => m.id == memberId).firstOrNull;
+    if (row == null) return false;
+    return MemberPhoneIndex.digitsOf(row.phone) == mine;
   }
 
   /// 초대 가입이 userId 그대로 들어가 명단에 안 보이던 행을 `m_{clubId}_{userId}`로 보정한다.
