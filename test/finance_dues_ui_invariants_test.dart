@@ -80,8 +80,8 @@ void main() {
     expect(finance.contains('연간 결산보고'), isTrue);
     // 3분할 _StatCard 대신 _SplitMoneyRow 재사용
     expect(finance.contains('class _StatCard'), isFalse);
-    // 월 결산은 기간 선택 + 헤더 + 잔고 흐름
-    expect(finance.contains('class _ReportPeriodSelector'), isTrue);
+    // 월 결산은 기간 선택(화살표) + 헤더 + 잔고 흐름
+    expect(finance.contains('_MonthSelector('), isTrue);
     expect(finance.contains('class _BalanceFlowCard'), isTrue);
     expect(finance.contains('class _MonthlyTable'), isTrue);
   });

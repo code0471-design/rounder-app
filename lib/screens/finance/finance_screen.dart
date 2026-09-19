@@ -5767,13 +5767,19 @@ class _SettlementReportTabState extends State<_SettlementReportTab>
     super.dispose();
   }
 
+  /// 거래가 있는 연도만 허용하면 화살표를 눌러도 곧바로 되돌아온다.
+  /// 기록이 없는 해는 0원으로 보여 주는 게 맞다. 범위만 막는다.
+  void _setYear(int y) {
+    final maxYear = DateTime.now().year + 1;
+    final next = y < 2000 ? 2000 : (y > maxYear ? maxYear : y);
+    if (next == _year) return;
+    setState(() => _year = next);
+  }
+
   @override
   Widget build(BuildContext context) {
     return Consumer<ClubProvider>(
       builder: (context, provider, _) {
-        final years = provider.availableYears;
-        if (!years.contains(_year)) _year = years.first;
-
         return Column(
           children: [
             // ── 내부 탭 (월결산 / 연결산) ──
@@ -5801,17 +5807,15 @@ class _SettlementReportTabState extends State<_SettlementReportTab>
                   _MonthlyReport(
                     year: _year,
                     month: _month,
-                    availableYears: years,
                     provider: provider,
-                    onYearChanged: (y) => setState(() => _year = y),
+                    onYearChanged: _setYear,
                     onMonthChanged: (m) => setState(() => _month = m),
                   ),
                   // ── 연 결산 ──
                   _YearlyReport(
                     year: _year,
-                    availableYears: years,
                     provider: provider,
-                    onYearChanged: (y) => setState(() => _year = y),
+                    onYearChanged: _setYear,
                   ),
                 ],
               ),
@@ -5828,7 +5832,6 @@ class _SettlementReportTabState extends State<_SettlementReportTab>
 // ────────────────────────────────────────────────────────────
 class _MonthlyReport extends StatelessWidget {
   final int year, month;
-  final List<int> availableYears;
   final ClubProvider provider;
   final ValueChanged<int> onYearChanged;
   final ValueChanged<int> onMonthChanged;
@@ -5836,7 +5839,6 @@ class _MonthlyReport extends StatelessWidget {
   const _MonthlyReport({
     required this.year,
     required this.month,
-    required this.availableYears,
     required this.provider,
     required this.onYearChanged,
     required this.onMonthChanged,
@@ -5857,13 +5859,14 @@ class _MonthlyReport extends StatelessWidget {
     return ListView(
       padding: const EdgeInsets.fromLTRB(16, 16, 16, 80),
       children: [
-        // ── 기간 선택 ──
-        _ReportPeriodSelector(
+        // ── 기간 선택 (수입/지출 탭과 같은 화살표 이동) ──
+        _MonthSelector(
           year: year,
           month: month,
-          availableYears: availableYears,
-          onYearChanged: onYearChanged,
-          onMonthChanged: onMonthChanged,
+          onChanged: (y, m) {
+            if (y != year) onYearChanged(y);
+            onMonthChanged(m);
+          },
         ),
         const SizedBox(height: 16),
 
@@ -5930,13 +5933,11 @@ class _MonthlyReport extends StatelessWidget {
 // ────────────────────────────────────────────────────────────
 class _YearlyReport extends StatelessWidget {
   final int year;
-  final List<int> availableYears;
   final ClubProvider provider;
   final ValueChanged<int> onYearChanged;
 
   const _YearlyReport({
     required this.year,
-    required this.availableYears,
     required this.provider,
     required this.onYearChanged,
   });
@@ -6033,96 +6034,6 @@ class _YearlyReport extends StatelessWidget {
 // ════════════════════════════════════════════════════════════
 //  공용 서브 위젯들
 // ════════════════════════════════════════════════════════════
-
-// ── 기간 선택기 (월 결산용) ──
-class _ReportPeriodSelector extends StatelessWidget {
-  final int year, month;
-  final List<int> availableYears;
-  final ValueChanged<int> onYearChanged;
-  final ValueChanged<int> onMonthChanged;
-
-  const _ReportPeriodSelector({
-    required this.year,
-    required this.month,
-    required this.availableYears,
-    required this.onYearChanged,
-    required this.onMonthChanged,
-  });
-
-  @override
-  Widget build(BuildContext context) {
-    return Row(
-      children: [
-        // 연도 드롭다운
-        _DropdownSelector<int>(
-          value: year,
-          items: availableYears,
-          label: (y) => '$y년',
-          onChanged: onYearChanged,
-          color: AppColors.primary,
-        ),
-        const SizedBox(width: 8),
-        // 월 드롭다운
-        _DropdownSelector<int>(
-          value: month,
-          items: List.generate(12, (i) => i + 1),
-          label: (m) => '$m월',
-          onChanged: onMonthChanged,
-          color: AppColors.primary,
-        ),
-      ],
-    );
-  }
-}
-
-// ── 드롭다운 공용 ──
-class _DropdownSelector<T> extends StatelessWidget {
-  final T value;
-  final List<T> items;
-  final String Function(T) label;
-  final ValueChanged<T> onChanged;
-  final Color color;
-
-  const _DropdownSelector({
-    required this.value,
-    required this.items,
-    required this.label,
-    required this.onChanged,
-    required this.color,
-  });
-
-  @override
-  Widget build(BuildContext context) {
-    return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 4),
-      decoration: BoxDecoration(
-        color: color.withValues(alpha: 0.08),
-        borderRadius: BorderRadius.circular(10),
-        border: Border.all(color: color.withValues(alpha: 0.3)),
-      ),
-      child: DropdownButtonHideUnderline(
-        child: DropdownButton<T>(
-          value: value,
-          isDense: true,
-          style: TextStyle(
-              fontSize: 13,
-              fontWeight: FontWeight.w600,
-              color: color),
-          icon: Icon(Icons.expand_more_rounded, color: color, size: 18),
-          items: items
-              .map((e) => DropdownMenuItem(
-                    value: e,
-                    child: Text(label(e)),
-                  ))
-              .toList(),
-          onChanged: (v) {
-            if (v != null) onChanged(v);
-          },
-        ),
-      ),
-    );
-  }
-}
 
 // ── 보고서 헤더 ──
 class _ReportHeader extends StatelessWidget {
