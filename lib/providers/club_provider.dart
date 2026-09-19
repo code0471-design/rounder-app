@@ -3269,7 +3269,7 @@ class ClubProvider extends ChangeNotifier with WidgetsBindingObserver {
       notifySelf: true,
     );
     // 알림톡은 총무가 보내기를 고른 뒤에만 [sendScheduleUploadAlimtalk].
-    // D-1은 참석 응답과 무관하게, 아직 참석여부를 안 한 정회원에게 10시 예약.
+    // D-1은 참석한 회원만 10시 예약 (동반자 참석 반영 후).
     final latest = scheduleById(schedule.id) ?? schedule;
     unawaited(_enqueueD1RsvpReminders(latest));
   }
@@ -3713,9 +3713,6 @@ class ClubProvider extends ChangeNotifier with WidgetsBindingObserver {
     notifyListeners();
   }
 
-  static bool _d1NeedsRsvp(String response) =>
-      response != '참석' && response != '불참';
-
   List<Member> _d1RsvpMembers(String clubId) {
     final list = membersForClub(clubId)
         .where((m) => m.status == '활성' && m.memberType == '정회원')
@@ -3747,18 +3744,12 @@ class ClubProvider extends ChangeNotifier with WidgetsBindingObserver {
     await flushDueD1Alimtalk();
   }
 
-  /// 아직 참석여부를 안 한 정회원만 D-1 큐에 넣는다.
+  /// 참석 회원만 D-1 큐. 불참·미응답은 빼서 정회원 전원으로 새지 않게 한다.
   Future<void> _enqueueD1RsvpReminders(
     RoundSchedule schedule, {
     bool flush = true,
   }) async {
     if (schedule.isDateOver) return;
-    final answered = <String>{};
-    for (final r in schedule.responses) {
-      if (r.response != '참석' && r.response != '불참') continue;
-      answered.add(r.memberId);
-      answered.addAll(_memberAliasIds(r.memberId));
-    }
     final dateStr =
         '${schedule.roundDate.month}월 ${schedule.roundDate.day}일 ${schedule.teeTime}'
             .trim();
@@ -3766,10 +3757,13 @@ class ClubProvider extends ChangeNotifier with WidgetsBindingObserver {
         ? '장소 미정'
         : schedule.courseName.trim();
     final clubName = _clubNameOf(schedule.clubId);
+    final attendingIds = {
+      for (final r in schedule.responses)
+        if (r.response == '참석') r.memberId,
+    };
+    final seen = <String>{};
     for (final m in _d1RsvpMembers(schedule.clubId)) {
-      final aliases = _memberAliasIds(m.id);
-      final already =
-          answered.contains(m.id) || aliases.any(answered.contains);
+      seen.add(m.id);
       await PushNotificationService.syncD1Reminder(
         scheduleId: schedule.id,
         userId: _fcmInboxIdFor(m.id),
@@ -3777,9 +3771,26 @@ class ClubProvider extends ChangeNotifier with WidgetsBindingObserver {
         clubId: schedule.clubId,
         clubName: clubName,
         scheduleTitle: schedule.displayTitle,
-        enqueue: !already,
+        enqueue: attendingIds.contains(m.id),
         phone: m.phone,
         memberName: m.name,
+        whenText: dateStr,
+        place: place,
+      );
+    }
+    for (final r in schedule.responses) {
+      if (!seen.add(r.memberId)) continue;
+      final member = memberById(r.memberId);
+      await PushNotificationService.syncD1Reminder(
+        scheduleId: schedule.id,
+        userId: _fcmInboxIdFor(r.memberId),
+        roundDate: schedule.roundDate,
+        clubId: schedule.clubId,
+        clubName: clubName,
+        scheduleTitle: schedule.displayTitle,
+        enqueue: r.response == '참석',
+        phone: member?.phone,
+        memberName: member?.name ?? r.memberName,
         whenText: dateStr,
         place: place,
       );
@@ -3806,7 +3817,7 @@ class ClubProvider extends ChangeNotifier with WidgetsBindingObserver {
       clubId: schedule.clubId,
       clubName: _clubNameOf(schedule.clubId),
       scheduleTitle: schedule.displayTitle,
-      enqueue: _d1NeedsRsvp(response),
+      enqueue: response == '참석',
       phone: member?.phone,
       memberName: member?.name,
       whenText: dateStr,

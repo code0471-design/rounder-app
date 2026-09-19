@@ -198,8 +198,7 @@ abstract final class PushNotificationService {
       '${d.month.toString().padLeft(2, '0')}-'
       '${d.day.toString().padLeft(2, '0')}';
 
-  /// D-1 10시 참석여부 리마인더. 아직 응답 안 한 회원만 큐에 넣고,
-  /// 참석·불참을 이미 한 회원은 뺀다.
+  /// D-1 10시 리마인더. 참석 회원만 큐. enqueue=false면 대기열에서 뺀다.
   static Future<void> syncD1Reminder({
     required String scheduleId,
     required String userId,
