@@ -397,6 +397,30 @@ class ClubOpsSync {
   static bool isPhotoDeleted(String photoId) =>
       photoId.isNotEmpty && _deletedPhotoIds.contains(photoId);
 
+  static final Set<String> _deletedAnnouncementIds = {};
+  static final Set<String> _deletedCommentIds = {};
+
+  /// 지운 공지·댓글. 사진·회원 tombstone 과 같은 이유다.
+  ///
+  /// 공지 병합은 원격을 그대로 쓰기 때문에, push 가 늦으면 방금 지운 댓글이
+  /// 원격 스냅샷으로 되살아나고 방금 고친 글이 옛 문구로 돌아간다.
+  static void markAnnouncementDeleted(String id) {
+    if (id.isNotEmpty) _deletedAnnouncementIds.add(id);
+  }
+
+  static void markCommentDeleted(String id) {
+    if (id.isNotEmpty) _deletedCommentIds.add(id);
+  }
+
+  static bool isCommentDeleted(String id) =>
+      id.isNotEmpty && _deletedCommentIds.contains(id);
+
+  @visibleForTesting
+  static void resetAnnouncementTombstones() {
+    _deletedAnnouncementIds.clear();
+    _deletedCommentIds.clear();
+  }
+
   static final Set<String> _removedMemberIds = {};
 
   /// 명단에서 뺀 회원. 사진 tombstone 과 같은 이유로 필요하다.
@@ -582,8 +606,12 @@ class ClubOpsSync {
     return {
       'clubId': clubId,
       'schedules': schedules,
-      'announcements':
-          (full['announcements'] as List? ?? []).where(clubField).toList(),
+      // 지운 댓글은 올리지 않는다. 올리면 다음 pull 에서 되살아난다.
+      'announcements': [
+        for (final a in (full['announcements'] as List? ?? []).where(clubField))
+          if (a is Map && !_deletedAnnouncementIds.contains(a['id']))
+            _withoutDeletedComments(Map<String, dynamic>.from(a)),
+      ],
       'members': members,
       'activities': full['activities'] ?? [],
       'duesSettings': duesSettings,
@@ -646,9 +674,10 @@ class ClubOpsSync {
         remote['schedules'] as List?,
       );
     }
-    encoded['announcements'] = replaceClubList(
+    encoded['announcements'] = mergeAnnouncements(
       encoded['announcements'] as List?,
       remote['announcements'] as List?,
+      clubId,
     );
     encoded['duesSettings'] = _mergeClubScopedById(
       encoded['duesSettings'] as List?,
@@ -936,6 +965,81 @@ class ClubOpsSync {
   }
 
   /// clubId 스코프 목록을 id 기준으로 합친다. 원격이 비어 있으면 로컬 유지.
+  /// 공지·댓글 병합. 원격으로 통째 교체하면 방금 고친 댓글이 옛 문구로 돌아간다.
+  ///
+  /// 규칙은 하나다. **내 기기에서 한 편집이 이긴다.**
+  ///   · 같은 공지·같은 댓글이면 로컬 내용을 쓴다 (수정 보존)
+  ///   · 지운 공지·댓글은 원격에 남아 있어도 다시 넣지 않는다 (삭제 보존)
+  ///   · 로컬에 없고 원격에만 있으면 넣는다 (다른 사람이 쓴 새 댓글)
+  @visibleForTesting
+  static List<dynamic> mergeAnnouncements(
+    List? localList,
+    List? remoteList,
+    String clubId,
+  ) {
+    final kept = <dynamic>[
+      ...(localList ?? []).where((e) => e is Map && e['clubId'] != clubId),
+    ];
+    Map<String, Map<String, dynamic>> byId(List? list) {
+      final out = <String, Map<String, dynamic>>{};
+      for (final e in list ?? const []) {
+        if (e is! Map) continue;
+        if (e['clubId'] != clubId) continue;
+        final id = e['id'] as String?;
+        if (id == null || id.isEmpty) continue;
+        out[id] = Map<String, dynamic>.from(e);
+      }
+      return out;
+    }
+
+    final local = byId(localList);
+    final remote = byId(remoteList);
+    final order = <String>[...local.keys, ...remote.keys.where((k) => !local.containsKey(k))];
+
+    final merged = <dynamic>[];
+    for (final id in order) {
+      if (_deletedAnnouncementIds.contains(id)) continue;
+      final l = local[id];
+      final r = remote[id];
+      if (l == null) {
+        merged.add(_withoutDeletedComments(r!));
+        continue;
+      }
+      if (r == null) {
+        merged.add(_withoutDeletedComments(l));
+        continue;
+      }
+      final out = Map<String, dynamic>.from(l);
+      out['comments'] = _mergeComments(l['comments'], r['comments']);
+      merged.add(out);
+    }
+    return [...kept, ...merged];
+  }
+
+  static Map<String, dynamic> _withoutDeletedComments(Map<String, dynamic> a) {
+    final out = Map<String, dynamic>.from(a);
+    out['comments'] = _mergeComments(a['comments'], null);
+    return out;
+  }
+
+  static List<dynamic> _mergeComments(dynamic localRaw, dynamic remoteRaw) {
+    final out = <dynamic>[];
+    final seen = <String>{};
+    void take(dynamic list) {
+      for (final e in list is List ? list : const []) {
+        if (e is! Map) continue;
+        final id = e['id'] as String? ?? '';
+        if (id.isEmpty || _deletedCommentIds.contains(id)) continue;
+        if (!seen.add(id)) continue; // 로컬이 먼저 → 로컬 수정본이 이긴다
+        out.add(Map<String, dynamic>.from(e));
+      }
+    }
+
+    take(localRaw);
+    take(remoteRaw);
+    return out;
+  }
+
   static List<dynamic> _mergeClubScopedById(
     List? localList,
     List? remoteList,

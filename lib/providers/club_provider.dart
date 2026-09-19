@@ -5031,6 +5031,10 @@ class ClubProvider extends ChangeNotifier with WidgetsBindingObserver {
       debugPrint('[ClubProvider] deleteAnnouncement blocked — not owner/executive');
       return;
     }
+    ClubOpsSync.markAnnouncementDeleted(id);
+    for (final c in a.comments) {
+      ClubOpsSync.markCommentDeleted(c.id);
+    }
     _announcements.removeWhere((e) => e.id == id);
     notifyListeners();
     _persistImmediately();
@@ -5178,6 +5182,8 @@ class ClubProvider extends ChangeNotifier with WidgetsBindingObserver {
     final c = a.comments.where((e) => e.id == commentId).firstOrNull;
     if (c == null) return false;
     if (!isOwnAnnouncementComment(c) && !isClubExecutive) return false;
+    // 원격 스냅샷이 늦게 오면 지운 댓글이 되살아난다.
+    ClubOpsSync.markCommentDeleted(commentId);
     _announcements[idx] = Announcement(
       id: a.id,
       title: a.title,
