@@ -59,7 +59,10 @@ void main() {
     expect(finance.contains('미납 \$unpaidCount'), isTrue);
     expect(finance.contains('미납 \${totalCount - paidCount}'), isFalse,
         reason: '미납이 음수가 되면 안 됨');
-    expect(finance.contains("label: const Text('회비추가'"), isTrue);
+    expect(finance.contains("Text('새 회비 만들기'"), isTrue,
+        reason: '회비추가 → 새 회비 만들기 (설명 한 줄 포함)');
+    expect(finance.contains('새로 걷을 연회비, 월회비, 특별회비를 만들 수 있습니다'), isTrue);
+    expect(finance.contains("_SettingSectionLabel('우리모임 회비 방식')"), isTrue);
     expect(finance.contains('panelColor: Colors.white'), isTrue);
   });
 

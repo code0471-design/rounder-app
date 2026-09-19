@@ -2357,18 +2357,43 @@ class _DuesSettingTab extends StatelessWidget {
 
         return Scaffold(
           backgroundColor: AppColors.background,
-          floatingActionButton: FloatingActionButton.extended(
-                  onPressed: () => _guardTreasurerSetup(
-                    context,
-                    () => _showAddDuesSheet(context, provider),
+          floatingActionButton: Theme(
+                  // 두 줄이라 기본 높이(48)로는 글자가 잘린다
+                  data: Theme.of(context).copyWith(
+                    floatingActionButtonTheme:
+                        const FloatingActionButtonThemeData(
+                      extendedSizeConstraints:
+                          BoxConstraints.tightFor(height: 62),
+                    ),
                   ),
-                  backgroundColor: isTreasurer
-                      ? AppColors.mintBright
-                      : AppColors.textTertiary,
-                  foregroundColor: Colors.white,
-                  icon: const Icon(Icons.add),
-                  label: const Text('회비추가',
-                      style: TextStyle(fontWeight: FontWeight.w600)),
+                  child: FloatingActionButton.extended(
+                    onPressed: () => _guardTreasurerSetup(
+                      context,
+                      () => _showAddDuesSheet(context, provider),
+                    ),
+                    backgroundColor: isTreasurer
+                        ? AppColors.mintBright
+                        : AppColors.textTertiary,
+                    foregroundColor: Colors.white,
+                    icon: const Icon(Icons.add, size: 26),
+                    label: const Column(
+                      mainAxisSize: MainAxisSize.min,
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text('새 회비 만들기',
+                            style: TextStyle(
+                                fontSize: 15, fontWeight: FontWeight.w800)),
+                        SizedBox(height: 2),
+                        Text(
+                          '새로 걷을 연회비, 월회비, 특별회비를 만들 수 있습니다',
+                          style: TextStyle(
+                              fontSize: 10,
+                              fontWeight: FontWeight.w500,
+                              color: Colors.white),
+                        ),
+                      ],
+                    ),
+                  ),
                 ),
           body: Stack(
             children: [
@@ -2463,6 +2488,8 @@ class _DuesSettingTab extends StatelessWidget {
               ],
 
               if (isAdmin && primaryKind != null) ...[
+                const _SettingSectionLabel('우리모임 회비 방식'),
+                const SizedBox(height: 8),
                 _PrimaryDuesKindBanner(
                   kind: primaryKind,
                   onSwitch: () => _confirmSwitchKind(
