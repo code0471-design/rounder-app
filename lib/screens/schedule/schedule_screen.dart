@@ -569,7 +569,7 @@ class _ScheduleDdayBadge extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
       decoration: BoxDecoration(
         color: isPast
             ? const Color(0xFFF3F4F6)
@@ -579,7 +579,7 @@ class _ScheduleDdayBadge extends StatelessWidget {
       child: Text(
         label,
         style: TextStyle(
-          fontSize: 12,
+          fontSize: 16,
           fontWeight: FontWeight.w800,
           color: isPast ? AppColors.inkSoft : const Color(0xFFE53935),
         ),

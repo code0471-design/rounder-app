@@ -282,6 +282,13 @@ void main() {
   test('일정 카드는 날짜 타일과 일시·참석 푸터를 유지한다', () {
     expect(source.contains('class _ScheduleDateTile'), isTrue);
     expect(source.contains('class _ScheduleDdayBadge'), isTrue);
+    final badgeStart = source.indexOf('class _ScheduleDdayBadge');
+    final badgeEnd = source.indexOf('class _AttChip2');
+    expect(badgeEnd, greaterThan(badgeStart));
+    final badge = source.substring(badgeStart, badgeEnd);
+    expect(badge.contains('fontSize: 16'), isTrue);
+    expect(badge.contains('fontSize: 12'), isFalse);
+    expect(badge.contains('horizontal: 10, vertical: 6'), isTrue);
     expect(source.contains('calendar_today_outlined'), isFalse);
     expect(source.contains('class _AttendButton'), isTrue);
     expect(source.contains("responded ? currentResponse! : '미답변'"), isTrue);

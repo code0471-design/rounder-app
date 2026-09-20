@@ -56,9 +56,10 @@ void main() {
     final dday = room.indexOf("days == 0 ? 'D-day'");
     expect(dday, greaterThan(0));
     final circle = room.substring(dday - 500, dday);
-    expect(circle.contains('width: 82'), isTrue);
-    expect(circle.contains('height: 82'), isTrue);
-    expect(room.contains('fontSize: days == 0 ? 16 : 13'), isTrue);
+    expect(circle.contains('width: 96'), isTrue);
+    expect(circle.contains('height: 96'), isTrue);
+    expect(room.contains('fontSize: days == 0 ? 16 : 13'), isFalse);
+    expect(room.contains('fontSize: 18'), isTrue);
     expect(room.contains('fontSize: 27'), isTrue);
     expect(room.contains("'팀수 \${nextSchedule.teamCount}'"), isTrue);
   });

@@ -1124,8 +1124,8 @@ class ClubHomeTab extends StatelessWidget {
               ),
               const SizedBox(width: 10),
               Container(
-                width: 82,
-                height: 82,
+                width: 96,
+                height: 96,
                 decoration: BoxDecoration(
                   shape: BoxShape.circle,
                   color: Colors.white,
@@ -1137,9 +1137,9 @@ class ClubHomeTab extends StatelessWidget {
                   children: [
                     Text(
                       days == 0 ? 'D-day' : (days < 0 ? 'D+' : 'D-day'),
-                      style: TextStyle(
-                        color: const Color(0xFFE53935),
-                        fontSize: days == 0 ? 16 : 13,
+                      style: const TextStyle(
+                        color: Color(0xFFE53935),
+                        fontSize: 18,
                         fontWeight: FontWeight.w800,
                         height: 1,
                       ),
