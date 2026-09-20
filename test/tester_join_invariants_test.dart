@@ -72,9 +72,10 @@ void main() {
     test('빈 creatorId 를 아무 실계정 생성자로 보지 않는다', () {
       final src = _read('lib/providers/club_provider.dart');
       expect(src.contains('bool _iAmClubCreator'), isTrue);
-      // m1/빈 creatorId 는 임원+생성자 행이 있을 때만 나다.
-      expect(src.contains("cid == 'm1'"), isTrue);
-      expect(src.contains('ClubMemberRole.isOfficer(club.myRole)'), isTrue);
+      final start = src.indexOf('bool _iAmClubCreator(Club club)');
+      final fn = src.substring(start, start + 700);
+      expect(fn.contains("cid == 'm1'"), isFalse,
+          reason: '임원이라고 남의 방장 자리를 내 것으로 보면 전 모임이 내 모임이 된다');
       expect(src.contains('_purgeDemoIdentityClubs'), isTrue);
       expect(src.contains('_hydrateRosterFromServer'), isTrue);
     });

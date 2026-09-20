@@ -33,6 +33,26 @@ void main() {
     );
   });
 
+  test('실모임 장부의 홍길동 월회비는 시드 유령이다', () {
+    expect(DemoFinanceStrip.isHongGilDongGhost('9월 월회비 - 홍길동'), isTrue);
+    expect(DemoFinanceStrip.isHongGilDongGhost('9월 월회비 - 안경헌'), isFalse);
+    expect(
+      DemoFinanceStrip.rewriteLedgerTitle('9월 월회비 - Jeongwon Lee'),
+      '9월 월회비 - 이정원',
+    );
+  });
+
+  test('실모임의 m1 납부는 지운다', () {
+    expect(
+      DemoFinanceStrip.isSeedDuesPayment(
+        id: 'dp_1710000000000',
+        memberId: 'm_c_arena_m1',
+        inRealClub: true,
+      ),
+      isTrue,
+    );
+  });
+
   test('실모임 납부는 지우지 않는다', () {
     expect(
       DemoFinanceStrip.isSeedDuesPayment(

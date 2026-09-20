@@ -830,14 +830,6 @@ class ClubProvider extends ChangeNotifier with WidgetsBindingObserver {
         (cid.isEmpty || _userIdsMatch(cid, currentUserId))) {
       return true;
     }
-    // 예전 실계정이 creatorId 를 m1 으로 저장했다. 이 모임 임원이고
-    // 생성자 행이 있으면 그 행이 나다.
-    if (!_isDemoSession &&
-        (cid.isEmpty || cid == 'm1' || cid == 'user_me') &&
-        ClubMemberRole.isOfficer(club.myRole) &&
-        _members.any((m) => m.id == 'm_creator_${club.id}')) {
-      return true;
-    }
     return false;
   }
 
@@ -1285,8 +1277,6 @@ class ClubProvider extends ChangeNotifier with WidgetsBindingObserver {
       if (mineIds.contains(c.id)) continue;
       if (aliases.contains(c.creatorId.trim())) continue;
       if (_iAmClubCreator(c)) continue;
-      if (_members.any((m) => _isMyRosterRowFor(c, m.id))) continue;
-      if (_clubRosterHasMyPhone(c.id)) continue;
       drop.add(c.id);
     }
     if (drop.isEmpty) return false;
@@ -1317,10 +1307,27 @@ class ClubProvider extends ChangeNotifier with WidgetsBindingObserver {
     _photos.removeWhere((p) =>
         p.clubId == 'c1' ||
         const {'p1', 'p2', 'p3', 'p4', 'p5', 'p6'}.contains(p.id));
-    _transactions.removeWhere((t) => DemoFinanceStrip.isSeedTransaction(
-          id: t.id,
-          clubId: t.clubId,
-        ));
+    _transactions.removeWhere((t) =>
+        DemoFinanceStrip.isSeedTransaction(id: t.id, clubId: t.clubId) ||
+        DemoFinanceStrip.isHongGilDongGhost(t.title));
+    for (var i = 0; i < _transactions.length; i++) {
+      final t = _transactions[i];
+      final nextTitle = DemoFinanceStrip.rewriteLedgerTitle(t.title);
+      if (nextTitle == t.title) continue;
+      _transactions[i] = Transaction(
+        id: t.id,
+        type: t.type,
+        amount: t.amount,
+        category: t.category,
+        title: nextTitle,
+        memo: t.memo,
+        date: t.date,
+        recordedBy: t.recordedBy,
+        source: t.source,
+        duesPaymentId: t.duesPaymentId,
+        clubId: t.clubId,
+      );
+    }
     final realClubIds = {
       for (final c in _myClubs)
         if (!SampleClubFilter.isSample(id: c.id, name: c.name) &&
@@ -5714,7 +5721,8 @@ class ClubProvider extends ChangeNotifier with WidgetsBindingObserver {
   /// (전역 시드 'm1' 같은 맨 ID는 제외 — 실계정도 currentUserId 가 m1 이다)
   bool _isMyRosterRowFor(Club club, String memberId) {
     if (_isMyRosterRowById(club, memberId)) return true;
-    // 방장이 손으로 추가해 둔 행(계정 ID 가 안 붙은 행)은 번호로 잇는다.
+    // 남의 방장 자리를 번호로 내 행이라고 보면 이름이 바뀌고 전 모임이 내 모임이 된다.
+    if (memberId == 'm_creator_${club.id}') return false;
     if (_claimedRosterIds[club.id] == memberId) return true;
     if (_rosterHasIdLinkedRowOfMine(club)) return false;
     return _rosterRowMatchesMyPhone(club.id, memberId);
@@ -7330,12 +7338,17 @@ class ClubProvider extends ChangeNotifier with WidgetsBindingObserver {
 
     selectClubById(clubId);
 
+    final wantsOfficer = ClubMemberRole.isOfficer(roleEncoded);
+    final alreadyOfficer = ClubMemberRole.isOfficer(_myClubs[myIdx].myRole);
+    if (wantsOfficer &&
+        !alreadyOfficer &&
+        !_iAmClubCreator(_myClubs[myIdx])) {
+      return false;
+    }
+
     final creatorId = 'm_creator_$clubId';
     var me = membersForClub(clubId).where((m) {
-      return m.id == creatorId ||
-          (_persistAuthUserId != null &&
-              (m.id == _persistAuthUserId ||
-                  m.id == 'm_${clubId}_$_persistAuthUserId'));
+      return _isMyRosterRowFor(_myClubs[myIdx], m.id);
     }).firstOrNull;
     if (_isDemoSession) {
       me ??= membersForClub(clubId).where((m) {

@@ -180,10 +180,11 @@ class _MyRoleChangeScreenState extends State<MyRoleChangeScreen> {
 
   Widget _buildRoleEditor(ClubProvider provider) {
     final club = _selectedClub!;
+    final canPickOfficer = ClubMemberRole.isOfficer(club.myRole);
     final options = [
-      (ClubMemberRole.president, '회장'),
-      (ClubMemberRole.vicePresident, '부회장'),
-      (ClubMemberRole.treasurer, '총무'),
+      if (canPickOfficer) (ClubMemberRole.president, '회장'),
+      if (canPickOfficer) (ClubMemberRole.vicePresident, '부회장'),
+      if (canPickOfficer) (ClubMemberRole.treasurer, '총무'),
       (ClubMemberRole.regular, '일반 회원'),
     ];
 
@@ -224,7 +225,7 @@ class _MyRoleChangeScreenState extends State<MyRoleChangeScreen> {
         ),
         const SizedBox(height: 8),
         Text(
-          '회장·부회장·총무는 한 사람이 하나·둘·셋 모두 겸할 수 있습니다. 정회원은 임원과 함께 선택할 수 없습니다.',
+          '회장·부회장·총무는 이미 임원인 사람만 바꿀 수 있습니다. 정회원이 혼자 총무·회장이 될 수는 없습니다.',
           style: TextStyle(
             fontSize: 12,
             color: AppColors.textSecondary.withValues(alpha: 0.9),

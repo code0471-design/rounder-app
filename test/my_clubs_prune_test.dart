@@ -127,7 +127,8 @@ void main() {
         reason: '카탈로그를 못 읽었는데 지우면 비행기모드에서 내 모임이 사라진다');
     expect(body.contains('if (!catalogIds.contains(c.id)) continue;'), isTrue,
         reason: '방금 만들어 아직 안 올라간 모임은 건드리지 않는다');
-    expect(body.contains('_clubRosterHasMyPhone(c.id)'), isTrue,
-        reason: '옛 명단 행(m_모임_m1)인 초대 가입자를 전화번호로 한 번 더 지킨다');
+    expect(body.contains('_clubRosterHasMyPhone(c.id)'), isFalse,
+        reason: '로컬 명단·번호만으로 남기면 잘못 붙은 모임이 다시 내 모임이 된다');
+    expect(body.contains('if (mineIds.contains(c.id)) continue;'), isTrue);
   });
 }

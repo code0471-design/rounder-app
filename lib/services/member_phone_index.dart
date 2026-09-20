@@ -108,6 +108,16 @@ abstract final class MemberPhoneIndex {
           continue;
         }
         if (!await _clubExists(clubId)) continue;
+        final creatorId = await _clubCreatorId(clubId);
+        if (!canClaimRow(
+          userId: userId,
+          clubId: clubId,
+          memberId: memberId,
+          creatorUserId: creatorId,
+        )) {
+          debugPrint('[MemberPhoneIndex] $clubId $memberId 는 내 행이 아님');
+          continue;
+        }
         if (await _rowBelongsToAnotherAccount(clubId, memberId, userId)) {
           debugPrint('[MemberPhoneIndex] $clubId $memberId 은 다른 계정 행');
           continue;
@@ -131,9 +141,41 @@ abstract final class MemberPhoneIndex {
     }
   }
 
+  /// 번호가 맞아도 남의 방장 자리·다른 소셜 계정 행은 소속으로 만들지 않는다.
+  static bool canClaimRow({
+    required String userId,
+    required String clubId,
+    required String memberId,
+    required String creatorUserId,
+  }) {
+    if (userId.isEmpty || clubId.isEmpty || memberId.isEmpty) return false;
+    if (memberId == 'm_creator_$clubId') {
+      return creatorUserId.isNotEmpty && creatorUserId == userId;
+    }
+    final prefix = 'm_${clubId}_';
+    if (!memberId.startsWith(prefix)) return false;
+    final suffix = memberId.substring(prefix.length);
+    if (suffix == userId) return true;
+    if (RegExp(r'^(kakao_|google_|apple_)').hasMatch(suffix)) return false;
+    if (RegExp(r'^m\d+$').hasMatch(suffix) || suffix == 'user_me') return false;
+    return true;
+  }
+
   static Future<bool> _clubExists(String clubId) async {
     final snap = await _db.doc(FirestorePaths.clubDoc(clubId)).get();
     return snap.exists;
+  }
+
+  static Future<String> _clubCreatorId(String clubId) async {
+    try {
+      final snap = await _db.doc(FirestorePaths.clubDoc(clubId)).get();
+      final data = snap.data() ?? const <String, dynamic>{};
+      for (final key in ['host_user_id', 'hostUserId', 'creator_id', 'creatorId']) {
+        final v = '${data[key] ?? ''}'.trim();
+        if (v.isNotEmpty) return v;
+      }
+    } catch (_) {}
+    return '';
   }
 
   static Future<bool> _rowBelongsToAnotherAccount(

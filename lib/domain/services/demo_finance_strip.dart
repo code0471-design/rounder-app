@@ -27,11 +27,26 @@ abstract final class DemoFinanceStrip {
     required String memberId,
     required bool inRealClub,
   }) {
+    if (RegExp(r'(^|_)m\d+$').hasMatch(memberId) ||
+        memberId == 'user_me' ||
+        memberId == 'mg1') {
+      return true;
+    }
     if (inRealClub) return false;
     if (id.startsWith('dp_')) return false;
     if (id == 'pr1' || id == 'pr2') return true;
     if (RegExp(r'^dp\d{1,2}$').hasMatch(id)) return true;
-    if (RegExp(r'^m\d+$').hasMatch(memberId)) return true;
     return false;
+  }
+
+  /// 실모임 장부에 남은 시드 이름. 지운 홍길동이 pull 마다 다시 보이는 원인.
+  static bool isHongGilDongGhost(String title) => title.contains('홍길동');
+
+  /// 카카오/구글 닉이 장부 제목에 박힌 경우 한글 이름으로.
+  static String rewriteLedgerTitle(String title) {
+    return title
+        .replaceAll('Jeongwonleeee', '이정원')
+        .replaceAll('Jeongwon Lee', '이정원')
+        .replaceAll('JeongwonLee', '이정원');
   }
 }
