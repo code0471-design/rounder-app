@@ -3,6 +3,7 @@ import 'package:provider/provider.dart';
 import '../../models/club_model.dart';
 import '../../providers/club_provider.dart';
 import '../../theme/app_theme.dart';
+import '../../utils/avatar_image.dart';
 import '../../utils/dues_d1_schedule.dart';
 import '../../utils/finance_onboarding.dart';
 import 'dues_payment_screen.dart';
@@ -1661,18 +1662,27 @@ class _MemberPaymentTile extends StatelessWidget {
 
     // 대기 중 상태(본인)는 트레일링이 2줄이라 dense 높이로는 부족해 오버플로 발생
     final needsExtraHeight = _isSelf && !paid && pendingRequest != null;
-    final avatar = CircleAvatar(
-      radius: 18,
-      backgroundColor: avatarBg,
-      child: Text(
-        member.name[0],
-        style: TextStyle(
-          fontSize: 14,
-          fontWeight: FontWeight.bold,
-          color: avatarFg,
-        ),
-      ),
-    );
+    // 회원 탭과 같은 프로필 사진. data URI 사진은 NetworkImage 로 안 그려진다.
+    final photo = avatarImage(member.photoUrl);
+    final avatar = photo != null
+        ? CircleAvatar(
+            radius: 18,
+            backgroundColor: avatarBg,
+            backgroundImage: photo,
+            onBackgroundImageError: (_, __) {},
+          )
+        : CircleAvatar(
+            radius: 18,
+            backgroundColor: avatarBg,
+            child: Text(
+              member.name.isNotEmpty ? member.name[0] : '?',
+              style: TextStyle(
+                fontSize: 14,
+                fontWeight: FontWeight.bold,
+                color: avatarFg,
+              ),
+            ),
+          );
 
     if (showBulkCheckbox) {
       return Material(

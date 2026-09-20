@@ -2073,6 +2073,9 @@ class ClubProvider extends ChangeNotifier with WidgetsBindingObserver {
     // 원격 명단이 로컬을 덮은 직후다. 여기서 다시 걸지 않으면
     // switchUser 에서 고친 내 이름이 '홍길동'으로 되돌아간다.
     _repairMyRosterNames(_currentUserName);
+    // 이름과 같은 이유로 사진·전화번호도 다시 채운다. 안 하면 켤 때마다
+    // 원격 행(사진 없음)이 덮어써서 내 프로필 사진이 영영 안 보인다.
+    _fillMyRosterProfile();
     _scrubSeedNamesFromFreshClubs();
     // 강퇴·탈퇴 행은 tombstone 으로 등록해, 원격이 '활성'으로 되살리지 못하게 한다.
     ClubOpsSync.seedRemovedMembers(
@@ -7184,6 +7187,48 @@ class ClubProvider extends ChangeNotifier with WidgetsBindingObserver {
   ///
   /// 본인이 직접 입력한 값이므로 비어 있지 않으면 덮어쓴다.
   /// 반영 후 Firestore ops bundle 까지 밀어서 다른 기기·총무 화면에도 보이게 한다.
+  /// 계정에 저장된 사진·전화번호·생일·핸디를 내 명단 행의 **빈 칸에만** 채운다.
+  ///
+  /// 원격 명단을 받아오면 내 행이 원격 값으로 통째 교체된다. 서버 명단 문서에는
+  /// 사진·번호가 없을 수 있어서, 매번 다시 채워 주지 않으면 내 프로필 사진이
+  /// 계속 안 보인다. 사람이 직접 고친 값은 덮지 않는다(빈 칸만 채움).
+  bool _fillMyRosterProfile() {
+    final authId = (_persistAuthUserId ?? '').trim();
+    if (authId.isEmpty) return false;
+    if (!_isDemoSession && (authId == 'm1' || authId == 'user_me')) return false;
+
+    final photo = (_accountPhotoUrl ?? '').trim();
+    final phone = (_accountPhone ?? '').trim();
+    if (photo.isEmpty &&
+        phone.isEmpty &&
+        _accountBirthDate == null &&
+        _accountHandicap == null) {
+      return false;
+    }
+
+    var changed = false;
+    for (final club in _myClubs) {
+      if (_legacyMockClubIds.contains(club.id)) continue;
+      for (var i = 0; i < _members.length; i++) {
+        final m = _members[i];
+        if (!_isMyRosterRowFor(club, m.id)) continue;
+        final needPhoto = photo.isNotEmpty && (m.photoUrl ?? '').trim().isEmpty;
+        final needPhone = phone.isNotEmpty && (m.phone ?? '').trim().isEmpty;
+        final needBirth = _accountBirthDate != null && m.birthDate == null;
+        final needHandicap = _accountHandicap != null && m.handicap == null;
+        if (!needPhoto && !needPhone && !needBirth && !needHandicap) continue;
+        _members[i] = m.copyWith(
+          photoUrl: needPhoto ? photo : null,
+          phone: needPhone ? phone : null,
+          birthDate: needBirth ? _accountBirthDate : null,
+          handicap: needHandicap ? _accountHandicap : null,
+        );
+        changed = true;
+      }
+    }
+    return changed;
+  }
+
   void syncAuthGolfProfile({
     DateTime? birthDate,
     double? handicap,
