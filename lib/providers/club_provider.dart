@@ -76,6 +76,10 @@ class ClubProvider extends ChangeNotifier with WidgetsBindingObserver {
   /// 신규 생성 모임 — mock 데이터 미적용
   final Set<String> _freshClubIds = {};
 
+  /// 이 세션에서 방금 만든 모임. 저장하지 않는다.
+  /// 카탈로그에 아직 없어도 내 모임에서 빼면 안 된다.
+  final Set<String> _sessionCreatedClubIds = {};
+
   /// 총무가 인수인계 없이 탈퇴한 모임 (회장/부회장 선임 안내)
   final Set<String> _treasurerVacantClubIds = {};
 
@@ -1274,8 +1278,14 @@ class ClubProvider extends ChangeNotifier with WidgetsBindingObserver {
     final drop = <String>{};
     for (final c in _myClubs) {
       if (_legacyMockClubIds.contains(c.id)) continue;
-      if (!catalogIds.contains(c.id)) continue;
       if (mineIds.contains(c.id)) continue;
+      if (!catalogIds.contains(c.id)) {
+        // 카탈로그에 없는 모임은 두 가지다. 방금 만든 모임, 또는 서버에서 지운 모임.
+        // 예전에는 둘 다 남겼기 때문에 볼케이노처럼 지운 모임이 폰에 남았다.
+        if (_sessionCreatedClubIds.contains(c.id)) continue;
+        drop.add(c.id);
+        continue;
+      }
       if (aliases.contains(c.creatorId.trim())) continue;
       if (_iAmClubCreator(c)) continue;
       drop.add(c.id);
@@ -5412,6 +5422,7 @@ class ClubProvider extends ChangeNotifier with WidgetsBindingObserver {
     _myClubs.add(newClub);
     _allClubs.add(newClub);
     _freshClubIds.add(id);
+    _sessionCreatedClubIds.add(id);
 
     // 생성자를 해당 모임 회원으로 등록 (mock 시드 회원과 분리: m_creator_*)
     final creatorMember = _selfMember(

@@ -125,10 +125,41 @@ void main() {
     expect(body.contains('} catch (e) {'), isTrue);
     expect(body.contains('if (catalog.isEmpty) return false;'), isTrue,
         reason: '카탈로그를 못 읽었는데 지우면 비행기모드에서 내 모임이 사라진다');
-    expect(body.contains('if (!catalogIds.contains(c.id)) continue;'), isTrue,
-        reason: '방금 만들어 아직 안 올라간 모임은 건드리지 않는다');
+    expect(body.contains('if (_sessionCreatedClubIds.contains(c.id)) continue;'),
+        isTrue,
+        reason: '방금 만든 모임만 카탈로그 없어도 남긴다. 지운 모임은 뺀다');
     expect(body.contains('_clubRosterHasMyPhone(c.id)'), isFalse,
         reason: '로컬 명단·번호만으로 남기면 잘못 붙은 모임이 다시 내 모임이 된다');
     expect(body.contains('if (mineIds.contains(c.id)) continue;'), isTrue);
+  });
+
+  test('서버에서 지운 모임은 카탈로그에 없어도 내 모임에서 빠진다', () async {
+    final gone = Club(
+      id: 'c_1787397091896',
+      name: '볼케이노',
+      myRole: '회장',
+      memberCount: 1,
+      creatorId: 'kakao_tester',
+      region: '서울',
+      industry: '골프',
+      teamCount: 7,
+      description: '화산',
+      createdAt: DateTime(2026, 8, 22),
+    );
+    clubs.hydrateFromBootstrap(AppBootstrapSnapshot(
+      userId: 'kakao_tester',
+      myClubs: [gone],
+      discoverableClubs: const [],
+      membersByClubId: const {},
+      financeByClubId: const {},
+      loadedAt: DateTime(2026, 9, 20),
+    ));
+    expect(clubs.myClubs.any((c) => c.id == gone.id), isTrue);
+
+    await clubs.refreshOwnedClubs();
+
+    expect(clubs.myClubs.any((c) => c.id == gone.id), isFalse,
+        reason: '서버 문서가 없는 모임은 폰 내 모임에서 빠져야 한다');
+    expect(clubs.myClubs.any((c) => c.id == myClubId), isTrue);
   });
 }

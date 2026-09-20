@@ -1,3 +1,5 @@
+import 'dart:io';
+
 import 'package:flutter_test/flutter_test.dart';
 import 'package:golf_rounder/services/member_phone_index.dart';
 
@@ -36,6 +38,12 @@ void main() {
       ),
       isFalse,
     );
+  });
+
+  test('없는 모임은 번호 색인에서 빼는 경로가 있다', () {
+    final src = File('lib/services/member_phone_index.dart').readAsStringSync();
+    expect(src.contains('_dropClubFromIndex(digits, clubId)'), isTrue);
+    expect(src.contains("if (!await _clubExists(clubId))"), isTrue);
   });
 
   test('내 계정 명단 행은 잇는다', () {

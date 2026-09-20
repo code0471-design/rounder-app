@@ -107,7 +107,10 @@ abstract final class MemberPhoneIndex {
           claimed[clubId] = memberId;
           continue;
         }
-        if (!await _clubExists(clubId)) continue;
+        if (!await _clubExists(clubId)) {
+          await _dropClubFromIndex(digits, clubId);
+          continue;
+        }
         final creatorId = await _clubCreatorId(clubId);
         if (!canClaimRow(
           userId: userId,
@@ -159,6 +162,20 @@ abstract final class MemberPhoneIndex {
     if (RegExp(r'^(kakao_|google_|apple_)').hasMatch(suffix)) return false;
     if (RegExp(r'^m\d+$').hasMatch(suffix) || suffix == 'user_me') return false;
     return true;
+  }
+
+  static Future<void> _dropClubFromIndex(String digits, String clubId) async {
+    try {
+      await _db.collection(FirestorePaths.memberPhoneIndex).doc(digits).set(
+        {
+          'clubs': {clubId: FieldValue.delete()},
+          'updated_at': FieldValue.serverTimestamp(),
+        },
+        SetOptions(merge: true),
+      );
+    } catch (e) {
+      debugPrint('[MemberPhoneIndex] drop $clubId skip: $e');
+    }
   }
 
   static Future<bool> _clubExists(String clubId) async {
