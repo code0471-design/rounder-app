@@ -327,6 +327,16 @@ void main() {
           reason: '고쳐 놓고 저장을 안 하면 다음 실행에 또 홍길동이다');
     });
 
+    test('내 표시 이름에 장창현 찌꺼기를 흡수하지 않는다', () {
+      final fn = provider.substring(
+        provider.indexOf('void _syncSelfDisplayName()'),
+        provider.indexOf('void _syncSelfDisplayName()') + 800,
+      );
+      expect(fn.contains('leftoverStolenNames.contains(me.name.trim())'),
+          isTrue,
+          reason: '강남 명단이 장창현으로 남으면 계정 이름까지 바뀐다');
+    });
+
     test('모임 생성은 방장 계정 ID를 같이 남긴다', () {
       final ds =
           File('lib/data/datasources/firestore/firestore_club_datasource.dart')

@@ -5926,6 +5926,11 @@ class ClubProvider extends ChangeNotifier with WidgetsBindingObserver {
     final me = currentMember;
     if (me == null || isPlaceholderMemberName(me.name)) return;
     if (!_isMyRosterRowById(selectedClub, me.id)) return;
+    // 내 행에 남은 장창현 이름을 계정 이름으로 흡수하면 강남이 또 장창현이 된다.
+    if (leftoverStolenNames.contains(me.name.trim()) &&
+        me.name.trim() != _currentUserName.trim()) {
+      return;
+    }
     if (_currentUserName == me.name) return;
     _currentUserName = me.name;
   }
@@ -7381,7 +7386,10 @@ class ClubProvider extends ChangeNotifier with WidgetsBindingObserver {
       // 이름은 라벨이다. ID가 같은 회비·시상·참석 표시만 맞춘다. 새 행을 만들지 않는다.
       if (prev.name.trim() != normalized.name.trim()) {
         _relabelMemberDisplayName(normalized.id, normalized.name);
-        if (isSelf && !isPlaceholderMemberName(normalized.name)) {
+        if (isSelf &&
+            !isPlaceholderMemberName(normalized.name) &&
+            !(leftoverStolenNames.contains(normalized.name.trim()) &&
+                normalized.name.trim() != _currentUserName.trim())) {
           _currentUserName = normalized.name.trim();
           _pushMyHostDisplayName(normalized.name.trim());
         }
