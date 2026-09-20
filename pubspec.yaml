@@ -1,7 +1,7 @@
-name: golf_rounder
-description: ROUNDER - 골프 모임 관리 앱
+﻿name: golf_rounder
+description: ROUNDER - 怨⑦봽 紐⑥엫 愿由???
 publish_to: 'none'
-version: 1.0.0+114
+version: 1.0.0+115
 
 environment:
   sdk: '>=3.0.0 <4.0.0'
@@ -21,11 +21,11 @@ dependencies:
   cached_network_image: 3.4.1
   cupertino_icons: ^1.0.2
   image_picker: 1.1.2
-  # Google 포토 앱은 pickMultiImage 의 limit 을 무시한다. 안드로이드 시스템
-  # 포토 피커를 강제해야 20장 제한이 실제로 걸린다 (main.dart 에서 설정).
+  # Google ?ы넗 ?깆? pickMultiImage ??limit ??臾댁떆?쒕떎. ?덈뱶濡쒖씠???쒖뒪??
+  # ?ы넗 ?쇱빱瑜?媛뺤젣?댁빞 20???쒗븳???ㅼ젣濡?嫄몃┛??(main.dart ?먯꽌 ?ㅼ젙).
   image_picker_android: 0.8.13+1
   image_picker_platform_interface: 2.11.1
-  # data URI 사진이 Firestore 문서 한도를 넘어 조용히 버려지지 않게 압축한다.
+  # data URI ?ъ쭊??Firestore 臾몄꽌 ?쒕룄瑜??섏뼱 議곗슜??踰꾨젮吏吏 ?딄쾶 ?뺤텞?쒕떎.
   flutter_image_compress: 2.3.0
   url_launcher: ^6.3.1
   firebase_core: ^4.12.1
@@ -33,7 +33,7 @@ dependencies:
   cloud_firestore: ^6.7.1
   firebase_messaging: ^16.1.1
   flutter_local_notifications: ^19.5.0
-  # SDK 3.7 호환 (V1 본인인증). Flutter/SDK 업그레이드 후 ^1.0.4(V2)로 교체 가능
+  # SDK 3.7 ?명솚 (V1 蹂몄씤?몄쬆). Flutter/SDK ?낃렇?덉씠????^1.0.4(V2)濡?援먯껜 媛??
   portone_flutter: 0.12.0
   google_sign_in: ^7.2.0
   sign_in_with_apple: ^8.1.0
@@ -41,7 +41,7 @@ dependencies:
   share_plus: ^12.0.2
   path_provider: ^2.1.5
   archive: 4.0.9
-  # 알림톡 앱링크 (portone이 transitive로 쓰지만 직접 import용으로 명시)
+  # ?뚮┝???깅쭅??(portone??transitive濡??곗?留?吏곸젒 import?⑹쑝濡?紐낆떆)
   app_links: 6.3.3
   play_install_referrer: ^0.5.0
 

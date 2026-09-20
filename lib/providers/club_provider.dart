@@ -1398,6 +1398,69 @@ class ClubProvider extends ChangeNotifier with WidgetsBindingObserver {
     return '';
   }
 
+  /// 같은 사람이 명단에 두 줄로 남는 것을 막는다.
+  ///
+  /// 방장이 이름·번호만 적어 둔 행이 있는 상태에서 그 사람이 초대 링크로 가입하면,
+  /// 계정 id 로 새 행이 하나 더 생겨 같은 사람이 둘이 된다. (아레나 이정원 사례)
+  /// 번호가 같고 **다른 계정에 연결되지 않은** 옛 행은 내 행으로 흡수한다.
+  /// 포인트·회비·참석은 행 id 에 붙어 있으므로 같이 옮긴다.
+  bool _absorbUnlinkedRowsByPhone(String clubId) {
+    final uid = (_persistAuthUserId ?? '').trim();
+    if (uid.isEmpty || _isDemoSession) return false;
+
+    final myId = Member.rosterId(clubId, uid);
+    final mineIdx = _members.indexWhere((m) => m.id == myId);
+    if (mineIdx < 0) return false;
+
+    final myPhone = MemberPhoneIndex.digitsOf(
+      (_members[mineIdx].phone ?? '').trim().isNotEmpty
+          ? _members[mineIdx].phone
+          : _accountPhone,
+    );
+    if (myPhone.isEmpty) return false;
+
+    final otherAccountIds = <String>{
+      for (final a in _clubAccounts[clubId] ?? const <ClubMemberAccount>[])
+        if (a.userId.trim() != uid) a.userId.trim(),
+    };
+
+    final absorbed = <String, String>{};
+    for (final m in List<Member>.from(_members)) {
+      if (m.id == myId) continue;
+      if (!Member.isClubRosterId(clubId, m.id)) continue;
+      if (m.id == 'm_creator_$clubId') continue; // 방장 자리는 따로 처리
+      if (MemberPhoneIndex.digitsOf(m.phone) != myPhone) continue;
+      final suffix = m.id.substring('m_${clubId}_'.length);
+      // 다른 사람의 계정 행이면 건드리지 않는다
+      if (otherAccountIds.contains(suffix)) continue;
+      if (RegExp(r'^(kakao|google|apple)_').hasMatch(suffix)) continue;
+      absorbed[m.id] = myId;
+    }
+    if (absorbed.isEmpty) return false;
+
+    for (final oldId in absorbed.keys) {
+      final old = _members.where((m) => m.id == oldId).firstOrNull;
+      if (old == null) continue;
+      final keepIdx = _members.indexWhere((m) => m.id == myId);
+      _members[keepIdx] = RosterDedupe.mergeMember(_members[keepIdx], old);
+      _members.removeWhere((m) => m.id == oldId);
+      ClubOpsSync.markMemberRemoved(oldId);
+      // 서버 명단에도 남아 있으면 다음 실행에서 다시 내려온다
+      unawaited(ClubOpsSync.deleteClubMemberDoc(
+        clubId,
+        oldId.substring('m_${clubId}_'.length),
+      ));
+      debugPrint('[ClubProvider] $clubId 중복 명단 $oldId → $myId 합침');
+    }
+    _applyRosterIdRemap(
+      clubId,
+      absorbed,
+      {for (final m in _members) m.id: m.name},
+    );
+    _setMemberCount(clubId, membersForClub(clubId).length);
+    return true;
+  }
+
   /// 방장 자리(`m_creator_{모임}`)에 내 행이 들어가 있으면 내 자리로 옮긴다.
   ///
   /// 초대로 들어온 모임인데 예전 빌드가 내 행을 방장 자리에 만들어 두면, 서버의
@@ -1488,6 +1551,7 @@ class ClubProvider extends ChangeNotifier with WidgetsBindingObserver {
         changed = true;
       }
     }
+    if (_absorbUnlinkedRowsByPhone(clubId)) changed = true;
     if (pruneDuplicateRosterRows()) changed = true;
     if (!changed) return;
     _syncSelfDisplayName();
@@ -6364,7 +6428,10 @@ class ClubProvider extends ChangeNotifier with WidgetsBindingObserver {
     } catch (e) {
       debugPrint('[ClubProvider] joinViaInvite ops pull skip: $e');
     }
+    await hydrateClubAccounts(clubId);
     await _hydrateRosterFromServer(clubId);
+    // 방장이 이름·번호만 적어 둔 내 행이 있으면 새 행과 합친다 (두 줄 방지)
+    _absorbUnlinkedRowsByPhone(clubId);
 
     selectClubById(clubId);
     notifyListeners();

@@ -445,6 +445,22 @@ class ClubOpsSync {
     }
   }
 
+  /// 명단 문서 삭제. 같은 사람이 두 줄일 때 옛 행을 서버에서도 지운다.
+  /// 안 지우면 다음에 앱을 켤 때 서버 명단에서 다시 내려와 또 두 줄이 된다.
+  static Future<void> deleteClubMemberDoc(
+    String clubId,
+    String memberDocId,
+  ) async {
+    if (!_enabled || clubId.isEmpty || memberDocId.isEmpty) return;
+    markMemberRemoved(memberDocId);
+    try {
+      await _db.doc(FirestorePaths.clubMemberDoc(clubId, memberDocId)).delete();
+      debugPrint('[ClubOpsSync] deleted member doc $memberDocId club=$clubId');
+    } catch (e) {
+      debugPrint('[ClubOpsSync] member doc delete fail $memberDocId: $e');
+    }
+  }
+
   /// 로컬 삭제 직후 Firestore에서도 바로 지워 원격 watch가 사진을 되살리지 않게 한다.
   static Future<void> deletePhotoDoc(String clubId, String photoId) async {
     if (!_enabled || clubId.isEmpty || photoId.isEmpty) return;
