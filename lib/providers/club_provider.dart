@@ -5611,7 +5611,6 @@ class ClubProvider extends ChangeNotifier with WidgetsBindingObserver {
     if (_repairCopiedIdentityOnLegacyM1Rows()) changed = true;
     for (final club in _myClubs) {
       if (_legacyMockClubIds.contains(club.id)) continue;
-      _freshClubIds.add(club.id);
       final existing = membersForClub(club.id);
       final iAmCreator = _iAmClubCreator(club);
 
@@ -5639,6 +5638,7 @@ class ClubProvider extends ChangeNotifier with WidgetsBindingObserver {
         role: role,
         joinDate: club.createdAt,
       ));
+      _freshClubIds.add(club.id);
       _setMemberCount(club.id, 1);
       try {
         AppDependencies.instance.mockDataStore?.addMember(
@@ -9311,21 +9311,28 @@ class ClubProvider extends ChangeNotifier with WidgetsBindingObserver {
       ClubMemberRole.splitRoles(source.role),
     );
 
-    // 클럽이 이미 임원인데 소스만 정회원인 경우:
-    // · 신규(생성) 모임 + 생성자 → 명단(선택 직책)을 신뢰하고 클럽 myRole을 맞춤
-    // · 레거시 데모 모임 → 시드(일반)가 회장 myRole을 덮지 않도록 명단을 클럽에 맞춤
+    // 클럽이 이미 임원인데 명단만 정회원이면 명단을 클럽에 맞춘다.
+    // 신규 모임을 fresh 로 표시한다고 생성자 총무를 깎으면 안 된다.
     if (ClubMemberRole.isOfficer(clubRole) &&
         !ClubMemberRole.isOfficer(role)) {
-      if (isFreshClub(clubId) && isCreator) {
-        // fall through — apply `role`(정회원 등) to Club.myRole
-      } else if (creator != null) {
-        final mIdx = _members.indexWhere((m) => m.id == creator.id);
-        if (mIdx != -1 && _members[mIdx].role != clubRole) {
-          _members[mIdx] = _members[mIdx].copyWith(role: clubRole);
-          notifyListeners();
-          _persistImmediately();
-        }
-        return;
+      final mIdx = _members.indexWhere((m) => m.id == source.id);
+      if (mIdx != -1 && _members[mIdx].role != clubRole) {
+        _members[mIdx] = _members[mIdx].copyWith(role: clubRole);
+        notifyListeners();
+        _persistImmediately();
+      }
+      return;
+    }
+
+    // 생성자인데 양쪽 다 임원이 아니면 회장·총무로 되돌린다.
+    if (isCreator && !ClubMemberRole.isOfficer(role)) {
+      role = ClubMemberRole.encodeRoles(const [
+        ClubMemberRole.president,
+        ClubMemberRole.treasurer,
+      ]);
+      final mIdx = _members.indexWhere((m) => m.id == source.id);
+      if (mIdx != -1) {
+        _members[mIdx] = _members[mIdx].copyWith(role: role);
       }
     }
 

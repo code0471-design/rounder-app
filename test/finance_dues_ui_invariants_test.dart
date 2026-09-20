@@ -132,6 +132,30 @@ void main() {
     );
   });
 
+  test('생성자 총무 직책을 명단 정회원이 깎지 않는다', () {
+    final start = provider.indexOf('void syncMyRoleFromMemberRoster()');
+    final end = provider.indexOf('//  라운딩 대기 등록 시스템', start);
+    expect(start, greaterThan(0));
+    expect(end, greaterThan(start));
+    final fn = provider.substring(start, end);
+    expect(fn.contains('isFreshClub(clubId) && isCreator'), isFalse,
+        reason: 'fresh 표시만으로 생성자 총무를 정회원으로 내리면 안 된다');
+    expect(fn.contains('회장·총무'), isTrue);
+  });
+
+  test('재무 권한 안내는 탭 Navigator를 닫지 않는다', () {
+    final start = finance.indexOf('void _guardTreasurerSetup(');
+    final end = finance.indexOf('Widget build(BuildContext context)', start);
+    expect(start, greaterThan(0));
+    expect(end, greaterThan(start));
+    final fn = finance.substring(start, end);
+    expect(fn.contains('useRootNavigator: true'), isTrue);
+    expect(fn.contains('Navigator.of(dialogCtx, rootNavigator: true).pop()'),
+        isTrue);
+    expect(fn.contains('Navigator.pop(context)'), isFalse,
+        reason: '탭 안 context 로 pop 하면 재무 화면이 사라진다');
+  });
+
   test('기존 잔액 등록 카드는 총무만 본다', () {
     // 비총무는 잠금 안내만 보고 금액·수정 버튼을 못 본다.
     expect(finance.contains('final isAdmin = isTreasurer;'), isTrue);

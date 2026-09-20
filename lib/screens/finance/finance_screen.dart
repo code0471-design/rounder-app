@@ -2520,7 +2520,8 @@ class _DuesSettingTab extends StatelessWidget {
     }
     showDialog(
       context: context,
-      builder: (_) => AlertDialog(
+      useRootNavigator: true,
+      builder: (dialogCtx) => AlertDialog(
         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
         title: const Row(
           children: [
@@ -2535,7 +2536,8 @@ class _DuesSettingTab extends StatelessWidget {
             style: TextStyle(fontSize: 14, height: 1.6)),
         actions: [
           TextButton(
-            onPressed: () => Navigator.pop(context),
+            onPressed: () =>
+                Navigator.of(dialogCtx, rootNavigator: true).pop(),
             child: const Text('확인',
                 style: TextStyle(color: AppColors.primary)),
           ),
