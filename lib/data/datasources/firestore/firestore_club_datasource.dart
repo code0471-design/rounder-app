@@ -44,20 +44,9 @@ class FirestoreClubDataSource {
     return status == 'active' || status == 'pending';
   }
 
-  /// orderBy 실패·created_at 누락 문서 대비 — unordered 조회 fallback
-  Future<QuerySnapshot<Map<String, dynamic>>> _fetchAllClubDocs() async {
-    try {
-      final ordered = await _clubs.orderBy('created_at', descending: true).get();
-      if (ordered.docs.isNotEmpty) return ordered;
-    } on FirebaseException catch (e) {
-      debugPrint(
-        '[FirestoreClubDataSource] orderBy(created_at) 실패 — '
-        'unordered fallback (${e.code})',
-      );
-    }
-
-    return _clubs.get();
-  }
+  /// `orderBy(created_at)` 는 필드 없는 문서를 빼서 어드민과 개수가 어긋난다.
+  Future<QuerySnapshot<Map<String, dynamic>>> _fetchAllClubDocs() =>
+      _clubs.get();
 
   Future<bool> isCatalogEmpty() async {
     final snap = await _clubs.limit(1).get();
@@ -189,12 +178,14 @@ class FirestoreClubDataSource {
   }
 
   Stream<List<Club>> watchAllClubs({String defaultMyRole = '일반'}) {
-    return _clubs.orderBy('created_at', descending: true).snapshots().map(
-          (snap) => snap.docs
-              .where(_isDiscoverable)
-              .map((d) => ClubMapper.fromFirestore(d, myRole: defaultMyRole))
-              .toList(),
-        );
+    return _clubs.snapshots().map((snap) {
+      final clubs = snap.docs
+          .where(_isDiscoverable)
+          .map((d) => ClubMapper.fromFirestore(d, myRole: defaultMyRole))
+          .toList();
+      clubs.sort((a, b) => b.createdAt.compareTo(a.createdAt));
+      return clubs;
+    });
   }
 
   Future<Club?> fetchClubById(
@@ -355,7 +346,13 @@ class FirestoreClubDataSource {
         data['host_user_id'] = hostUserId;
         data['creator_id'] = hostUserId;
       }
-      await _clubs.doc(clubId).set(data, SetOptions(merge: true));
+      // set(merge) 는 문서가 없으면 방장·회원 없는 껍데기를 새로 만든다.
+      final existing = await _clubs.doc(clubId).get();
+      if (!existing.exists) {
+        debugPrint('[FirestoreClubDataSource] catalog skip, no club $clubId');
+        return;
+      }
+      await _clubs.doc(clubId).update(data);
     } on FirebaseException catch (e) {
       throw NetworkDataException('모임 정보 업데이트 실패', cause: e);
     }

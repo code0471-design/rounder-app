@@ -59,6 +59,18 @@ void main() {
     );
   });
 
+  test('모임 정보 수정이 없는 모임을 새로 만들지 않고 created_at 없는 모임도 목록에 남긴다', () {
+    final src =
+        _read('lib/data/datasources/firestore/firestore_club_datasource.dart');
+    expect(src.contains('orderBy(\'created_at\''), isFalse);
+    expect(src.contains('if (!existing.exists)'), isTrue);
+    expect(src.contains('.update(data)'), isTrue);
+    expect(
+      src.contains('await _clubs.doc(clubId).set(data, SetOptions(merge: true));'),
+      isFalse,
+    );
+  });
+
   test('내 모임 카드는 원클럽형 커버와 구분선이 있다', () {
     final card = _read('lib/screens/my_clubs/widgets/home_club_card.dart');
     final home = _read('lib/screens/my_clubs/my_clubs_screen.dart');
