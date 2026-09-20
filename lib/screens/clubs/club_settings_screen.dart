@@ -37,13 +37,25 @@ class _ClubSettingsScreenState extends State<ClubSettingsScreen> {
     _descCtrl = TextEditingController(text: club.description);
     _teamCountCtrl = TextEditingController(text: '${club.teamCount}');
     _imageUrl = club.imageUrl;
-    // 목록에 없는 값(직접 입력한 업종 등)도 그대로 보여 준다
-    _region = club.region.trim();
+    // 예전 구 단위 값은 시·도로 맞춰 칩이 골라지게 한다
+    _region = _sidoOf(club.region.trim());
     _industry = club.industry.trim();
   }
 
-  List<String> get _regionOptions {
-    final list = kRegions.where((r) => r != '전체').toList();
+  /// 모임 만들기와 같은 시·도만. 구·시는 고르지 않는다.
+  static String _sidoOf(String raw) {
+    final t = raw.trim();
+    if (t.isEmpty) return '';
+    if (kSidoList.contains(t)) return t;
+    for (final s in kSidoList) {
+      if (s == '지역다양함') continue;
+      if (t.startsWith('$s ') || t.startsWith(s)) return s;
+    }
+    return t;
+  }
+
+  List<String> get _regionChipOptions {
+    final list = List<String>.from(kSidoList);
     if (_region.isNotEmpty && !list.contains(_region)) list.insert(0, _region);
     return list;
   }
@@ -121,6 +133,20 @@ class _ClubSettingsScreenState extends State<ClubSettingsScreen> {
       ),
     );
     if (picked != null && picked.isNotEmpty) onPicked(picked);
+  }
+
+  Widget _regionChips() {
+    return Wrap(
+      spacing: 8,
+      runSpacing: 8,
+      children: [
+        for (final r in _regionChipOptions)
+          GestureDetector(
+            onTap: () => setState(() => _region = r),
+            child: _ChoiceChip(label: r, selected: _region == r),
+          ),
+      ],
+    );
   }
 
   Widget _pickerField({
@@ -373,16 +399,7 @@ class _ClubSettingsScreenState extends State<ClubSettingsScreen> {
                     fontWeight: FontWeight.w700,
                     color: AppColors.textPrimary)),
             const SizedBox(height: 8),
-            _pickerField(
-              value: _region,
-              hint: '지역 선택',
-              onTap: () => _pickFromList(
-                title: '지역 선택',
-                options: _regionOptions,
-                selected: _region,
-                onPicked: (v) => setState(() => _region = v),
-              ),
-            ),
+            _regionChips(),
             const SizedBox(height: 20),
             const Text('업종',
                 style: TextStyle(
@@ -526,6 +543,35 @@ class _ClubSettingsScreenState extends State<ClubSettingsScreen> {
       focusedBorder: OutlineInputBorder(
         borderRadius: BorderRadius.circular(12),
         borderSide: const BorderSide(color: AppColors.primary, width: 1.4),
+      ),
+    );
+  }
+}
+
+class _ChoiceChip extends StatelessWidget {
+  final String label;
+  final bool selected;
+  const _ChoiceChip({required this.label, required this.selected});
+
+  @override
+  Widget build(BuildContext context) {
+    return AnimatedContainer(
+      duration: const Duration(milliseconds: 120),
+      padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
+      decoration: BoxDecoration(
+        color: selected ? AppColors.primary : Colors.white,
+        borderRadius: BorderRadius.circular(20),
+        border: Border.all(
+          color: selected ? AppColors.primary : AppColors.divider,
+        ),
+      ),
+      child: Text(
+        label,
+        style: TextStyle(
+          fontSize: 13,
+          fontWeight: FontWeight.w600,
+          color: selected ? Colors.white : AppColors.textPrimary,
+        ),
       ),
     );
   }

@@ -628,6 +628,17 @@ void main() {
     });
   });
 
+  group('모임 설정 지역', () {
+    test('시·도 칩만 펼치고 구 목록·드롭다운은 쓰지 않는다', () {
+      final src = _read('lib/screens/clubs/club_settings_screen.dart');
+      expect(src.contains('kSidoList'), isTrue);
+      expect(src.contains('kRegions'), isFalse);
+      expect(src.contains('_regionChips'), isTrue);
+      expect(src.contains('DropdownButton'), isFalse);
+      expect(src.contains('강남구'), isFalse);
+    });
+  });
+
   group('모임 소개', () {
     test('생성·설정에 10자 최소 제한이 없다', () {
       const paths = [
