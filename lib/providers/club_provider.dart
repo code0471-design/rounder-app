@@ -5849,7 +5849,10 @@ class ClubProvider extends ChangeNotifier with WidgetsBindingObserver {
           memberName: names[newId] ?? r.memberName,
           response: r.response,
           memo: r.memo,
-          companionMemberIds: r.companionMemberIds,
+          // 동반자도 명단 id 다. 안 바꾸면 조편성에서 빈 자리가 된다.
+          companionMemberIds: [
+            for (final id in r.companionMemberIds) remap[id] ?? id,
+          ],
           respondedAt: r.respondedAt,
         );
         final prev = byId[newId];
@@ -5971,6 +5974,79 @@ class ClubProvider extends ChangeNotifier with WidgetsBindingObserver {
         (cur) => [...cur, ...events],
         ifAbsent: () => events,
       );
+    }
+
+    // 대기 명단
+    for (var i = 0; i < _waitingList.length; i++) {
+      final w = _waitingList[i];
+      final to = remap[w.memberId];
+      if (to == null || to == w.memberId) continue;
+      _waitingList[i] = WaitingEntry(
+        id: w.id,
+        scheduleId: w.scheduleId,
+        memberId: to,
+        memberName: names[to] ?? w.memberName,
+        registeredAt: w.registeredAt,
+        status: w.status,
+        notifiedAt: w.notifiedAt,
+      );
+    }
+
+    // 공지·댓글 작성자, 활동 피드, 소개자 — 이름 옆 표시가 '알 수 없음'이 되지 않게
+    for (var i = 0; i < _announcements.length; i++) {
+      final a = _announcements[i];
+      if (a.clubId != null && a.clubId != clubId) continue;
+      final toAuthor = remap[a.authorId ?? ''];
+      final comments = [
+        for (final c in a.comments)
+          remap[c.authorId] == null
+              ? c
+              : AnnouncementComment(
+                  id: c.id,
+                  authorId: remap[c.authorId]!,
+                  authorName: names[remap[c.authorId]!] ?? c.authorName,
+                  text: c.text,
+                  createdAt: c.createdAt,
+                ),
+      ];
+      if (toAuthor == null &&
+          comments.map((c) => c.authorId).join('|') ==
+              a.comments.map((c) => c.authorId).join('|')) {
+        continue;
+      }
+      _announcements[i] = Announcement(
+        id: a.id,
+        title: a.title,
+        content: a.content,
+        isPinned: a.isPinned,
+        createdAt: a.createdAt,
+        comments: comments,
+        clubId: a.clubId,
+        authorId: toAuthor ?? a.authorId,
+        authorName: toAuthor == null
+            ? a.authorName
+            : (names[toAuthor] ?? a.authorName),
+      );
+    }
+    for (var i = 0; i < _activities.length; i++) {
+      final act = _activities[i];
+      final to = remap[act.memberId];
+      if (to == null || to == act.memberId) continue;
+      _activities[i] = ActivityItem(
+        id: act.id,
+        memberId: to,
+        memberName: names[to] ?? act.memberName,
+        memberPhotoUrl: act.memberPhotoUrl,
+        activityType: act.activityType,
+        description: act.description,
+        timestamp: act.timestamp,
+      );
+    }
+    for (var i = 0; i < _members.length; i++) {
+      final m = _members[i];
+      final to = remap[m.referrerId ?? ''];
+      if (to == null) continue;
+      _members[i] = m.copyWith(referrerId: to);
     }
   }
 
