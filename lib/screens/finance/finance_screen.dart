@@ -687,11 +687,15 @@ class _PaymentStatusTabState extends State<_PaymentStatusTab> {
         final selected = settings.firstWhere((s) => s.id == _selectedDuesId,
             orElse: () => settings.first);
 
-        // 월회비: 월 단위 / 연회비·특별회비: 연 단위
+        // 월회비: 월 단위 / 특별회비: 연 단위 / 연회비: 설정에 적힌 연도 고정
         final isMonthly = selected.type == DuesType.monthly;
+        final isAnnual = selected.type == DuesType.annual;
+        final viewYear = isAnnual
+            ? (selected.year ?? selected.createdAt.year)
+            : _year;
         final payments = isMonthly
-            ? provider.paymentsOf(selected.id, year: _year, month: _month)
-            : provider.paymentsOf(selected.id, year: _year);
+            ? provider.paymentsOf(selected.id, year: viewYear, month: _month)
+            : provider.paymentsOf(selected.id, year: viewYear);
 
         // 회비 납부 대상은 정회원만. 게스트는 월·연·특별 모두 제외.
         final members = provider.regularMembers;
@@ -872,7 +876,7 @@ class _PaymentStatusTabState extends State<_PaymentStatusTab> {
                   _bulkSelectedIds.clear();
                 }),
               ),
-            if (!isMonthly)
+            if (selected.type == DuesType.special)
               _YearSelector(
                 year: _year,
                 onChanged: (y) => setState(() {
@@ -880,7 +884,8 @@ class _PaymentStatusTabState extends State<_PaymentStatusTab> {
                   _bulkSelectedIds.clear();
                 }),
               ),
-            const SizedBox(height: 14),
+            if (isMonthly || selected.type == DuesType.special)
+              const SizedBox(height: 14),
 
             // ── 납부율 요약 ──
             if (!isOutOfRange)
@@ -900,7 +905,9 @@ class _PaymentStatusTabState extends State<_PaymentStatusTab> {
                         Text(
                           isMonthly
                               ? '$_year년 $_month월 납부현황'
-                              : '$_year년 납부현황',
+                              : isAnnual
+                                  ? '납부현황'
+                                  : '$_year년 납부현황',
                           style: const TextStyle(
                               fontSize: 13,
                               fontWeight: FontWeight.bold,
@@ -1093,10 +1100,10 @@ class _PaymentStatusTabState extends State<_PaymentStatusTab> {
                                         memberName: m.name,
                                         duesSettingId: selected.id,
                                         amount: selected.amountForPeriod(
-                                          year: _year,
+                                          year: viewYear,
                                           month: isMonthly ? _month : 1,
                                         ),
-                                        year: _year,
+                                        year: viewYear,
                                         month: isMonthly ? _month : null,
                                         skipsBalance: false,
                                       );
@@ -1129,7 +1136,7 @@ class _PaymentStatusTabState extends State<_PaymentStatusTab> {
                     final myRequest = provider.myPendingRequest(
                       memberId: m.id,
                       duesSettingId: selected.id,
-                      year: _year,
+                      year: viewYear,
                       month: isMonthly ? _month : null,
                     );
                     return _MemberPaymentTile(
@@ -1159,7 +1166,7 @@ class _PaymentStatusTabState extends State<_PaymentStatusTab> {
                                 member: m,
                                 paid: paid,
                                 setting: selected,
-                                year: _year,
+                                year: viewYear,
                                 month: isMonthly ? _month : null,
                               ),
                       onRequestPayment: isOutOfRange
@@ -1170,7 +1177,7 @@ class _PaymentStatusTabState extends State<_PaymentStatusTab> {
                                 m,
                                 selected,
                                 isMonthly ? _month : null,
-                                _year,
+                                viewYear,
                               ),
                     );
                   }),

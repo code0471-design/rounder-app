@@ -66,6 +66,19 @@ void main() {
     expect(finance.contains('panelColor: Colors.white'), isTrue);
   });
 
+  test('연회비 회비납부에는 연도 화살표가 없다', () {
+    final tab = finance.substring(
+      finance.indexOf('class _PaymentStatusTab '),
+      finance.indexOf('class _MonthSelector'),
+    );
+    expect(tab.contains('if (!isMonthly)'), isFalse,
+        reason: '연회비에도 < 2026 > 이 있으면 회비 칩과 연도가 겹친다');
+    expect(tab.contains('selected.type == DuesType.special'), isTrue);
+    expect(tab.contains('isAnnual'), isTrue);
+    expect(tab.contains('viewYear'), isTrue);
+    expect(tab.contains("? '납부현황'"), isTrue);
+  });
+
   test('잔고 카드는 좌우 1:1이다 (왼쪽이 넓지 않다)', () {
     // 왼쪽 잔고가 넓어서 오른쪽 수입/지출 금액이 줄어들던 문제
     expect(finance.contains('flex: 11'), isFalse);
