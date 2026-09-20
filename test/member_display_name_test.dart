@@ -30,9 +30,10 @@ void main() {
       }
     });
 
-    test('실모임 명단에서 홍길동은 회원으로 바꿔 보여 준다', () {
+    test('실모임 명단에서 홍길동은 삭제하고, 남은 행만 회원으로 가린다', () {
       expect(provider.contains('withoutSeedDisplayName'), isTrue);
       expect(provider.contains('_scrubSeedNamesFromFreshClubs'), isTrue);
+      expect(provider.contains('_purgeHongGilDongFromRealClubs'), isTrue);
       expect(provider.contains('.map(withoutSeedDisplayName)'), isTrue);
       final m = Member(
         id: 'm_c_x_u1',
@@ -162,6 +163,8 @@ void main() {
       );
       expect(import.contains('_repairMyRosterNames(_currentUserName)'), isTrue,
           reason: 'members 를 addAll 한 뒤 복구를 걸어야 한다');
+      expect(import.contains('_purgeHongGilDongFromRealClubs()'), isTrue,
+          reason: '이름을 회원으로 바꾸면 같은 id 로 홍길동이 다시 붙는다');
       expect(import.contains('..addAll(b.members)'), isTrue);
       expect(
         import.indexOf('_repairMyRosterNames'),

@@ -42,6 +42,40 @@ void main() {
     );
   });
 
+  test('홍길동 회원·납부·거래 맵은 유령이다', () {
+    expect(
+      DemoFinanceStrip.isGhostMemberMap({
+        'id': 'm_c_arena_seed',
+        'name': '홍길동',
+        'role': '회원',
+      }),
+      isTrue,
+    );
+    expect(
+      DemoFinanceStrip.isGhostPaymentMap({
+        'id': 'pay_1',
+        'memberId': 'm1',
+        'memberName': '홍길동',
+      }),
+      isTrue,
+    );
+    expect(
+      DemoFinanceStrip.isGhostTransactionMap({
+        'id': 'tx_1',
+        'title': '9월 월회비 - 홍길동',
+        'clubId': 'c_arena',
+      }),
+      isTrue,
+    );
+    expect(
+      DemoFinanceStrip.dropGhostMembers([
+        {'id': 'm1', 'name': '홍길동'},
+        {'id': 'm_ok', 'name': '안경헌'},
+      ], clubId: 'c_arena').single['id'],
+      'm_ok',
+    );
+  });
+
   test('실모임의 m1 납부는 지운다', () {
     expect(
       DemoFinanceStrip.isSeedDuesPayment(

@@ -504,7 +504,7 @@ class ClubProvider extends ChangeNotifier with WidgetsBindingObserver {
     // 예전 빌드가 '홍길동'으로 저장해 둔 내 명단 행을 실제 이름으로 되돌린다.
     // ensureCreatorMembers 보다 먼저 — 아래에서 새로 만드는 행도 같은 이름을 쓴다.
     repairMyDisplayName(_currentUserName);
-    if (_scrubSeedNamesFromFreshClubs()) _persistImmediately();
+    if (_purgeHongGilDongFromRealClubs()) _persistImmediately();
     if (_scrubSeedAuthorNames()) _persistImmediately();
 
     // 항상 실제 일정 기준으로 D-day 재동기화
@@ -577,6 +577,7 @@ class ClubProvider extends ChangeNotifier with WidgetsBindingObserver {
       for (final club in List<Club>.from(_myClubs)) {
         await _hydrateRosterFromServer(club.id);
       }
+      _purgeHongGilDongFromRealClubs();
       _scrubUndersizedScheduleCapacities();
       _syncAllNextRounds();
     } catch (e) {
@@ -1300,10 +1301,9 @@ class ClubProvider extends ChangeNotifier with WidgetsBindingObserver {
   void _stripHardcodedDemoPayload() {
     if (_isDemoSession) return;
     _members.removeWhere((m) =>
-        m.id == 'm1' ||
-        m.id == 'mg1' ||
-        m.id == 'm4' ||
-        RegExp(r'^m\d+$').hasMatch(m.id));
+        DemoFinanceStrip.isGhostName(m.name) ||
+        DemoFinanceStrip.isGhostMemberId(m.id) ||
+        m.id == 'm4');
     _photos.removeWhere((p) =>
         p.clubId == 'c1' ||
         const {'p1', 'p2', 'p3', 'p4', 'p5', 'p6'}.contains(p.id));
@@ -1531,6 +1531,20 @@ class ClubProvider extends ChangeNotifier with WidgetsBindingObserver {
         creatorUserId: creatorUserId,
       );
       final row = id == raw.id ? raw : raw.withId(id);
+      if (DemoFinanceStrip.isGhostName(row.name) ||
+          DemoFinanceStrip.isGhostMemberId(id) ||
+          DemoFinanceStrip.isGhostMemberId(raw.id)) {
+        ClubOpsSync.markMemberRemoved(id);
+        if (raw.id != id) ClubOpsSync.markMemberRemoved(raw.id);
+        final ghostIdx = _members.indexWhere((m) =>
+            m.id == id ||
+            (m.id == raw.id && Member.isClubRosterId(clubId, m.id)));
+        if (ghostIdx >= 0) {
+          _members.removeAt(ghostIdx);
+          changed = true;
+        }
+        continue;
+      }
       // 다른 모임 명단 행까지 잡으면 남의 모임 회원을 여기로 옮겨 버린다.
       final idx = _members.indexWhere((m) =>
           m.id == id ||
@@ -1551,6 +1565,18 @@ class ClubProvider extends ChangeNotifier with WidgetsBindingObserver {
     }
     if (_absorbUnlinkedRowsByPhone(clubId)) changed = true;
     if (pruneDuplicateRosterRows()) changed = true;
+    final leftoverGhosts = _members
+        .where((m) =>
+            Member.isClubRosterId(clubId, m.id) &&
+            (DemoFinanceStrip.isGhostName(m.name) ||
+                DemoFinanceStrip.isGhostMemberId(m.id)))
+        .map((m) => m.id)
+        .toList();
+    if (leftoverGhosts.isNotEmpty) {
+      ClubOpsSync.seedRemovedMembers(leftoverGhosts);
+      _members.removeWhere((m) => leftoverGhosts.contains(m.id));
+      changed = true;
+    }
     if (!changed) return;
     _syncSelfDisplayName();
     _setMemberCount(clubId, membersForClub(clubId).length);
@@ -2075,6 +2101,7 @@ class ClubProvider extends ChangeNotifier with WidgetsBindingObserver {
     // 원격 행(사진 없음)이 덮어써서 내 프로필 사진이 영영 안 보인다.
     _fillMyRosterProfile();
     _scrubSeedNamesFromFreshClubs();
+    _purgeHongGilDongFromRealClubs();
     // 강퇴·탈퇴 행은 tombstone 으로 등록해, 원격이 '활성'으로 되살리지 못하게 한다.
     ClubOpsSync.seedRemovedMembers(
       _members.where((m) => m.status != '활성').map((m) => m.id),
@@ -5562,21 +5589,44 @@ class ClubProvider extends ChangeNotifier with WidgetsBindingObserver {
     return changed;
   }
 
-  /// 실모임 명단에 남은 시드 이름(홍길동·이민준·박민준)을 '회원'으로 바꾼다.
-  /// 내 행은 `_repairMyRosterNames` 가 실제 이름으로 먼저 고친다.
+  /// 실모임에서 홍길동 시드 행은 이름을 바꾸지 않고 삭제한다.
+  /// 이름만 바꾸면 같은 id 로 원격 홍길동이 다음 pull 에 다시 붙는다.
   bool _scrubSeedNamesFromFreshClubs() {
-    var changed = false;
-    for (var i = 0; i < _members.length; i++) {
-      final m = _members[i];
-      if (!seedMemberNames.contains(m.name.trim())) continue;
-      final ofFreshClub = _myClubs.any((c) =>
-          !_legacyMockClubIds.contains(c.id) &&
-          (m.id == 'm_creator_${c.id}' || m.id.startsWith('m_${c.id}_')));
-      if (!ofFreshClub) continue;
-      _members[i] = m.copyWith(name: '회원');
-      changed = true;
-    }
-    return changed;
+    if (_isDemoSession) return false;
+    final drop = <String>{};
+    _members.removeWhere((m) {
+      if (!DemoFinanceStrip.isGhostName(m.name) &&
+          !DemoFinanceStrip.isGhostMemberId(m.id)) {
+        return false;
+      }
+      final onDemo = _legacyMockClubIds.any((id) =>
+          m.id == 'm_creator_$id' ||
+          m.id.startsWith('m_${id}_') ||
+          m.id == 'm1');
+      if (onDemo) return false;
+      drop.add(m.id);
+      return true;
+    });
+    if (drop.isEmpty) return false;
+    ClubOpsSync.seedRemovedMembers(drop);
+    return true;
+  }
+
+  bool _purgeHongGilDongFromRealClubs() {
+    if (_isDemoSession) return false;
+    final beforeMembers = _members.length;
+    final beforeTx = _transactions.length;
+    final beforePay = _duesPayments.length;
+    _scrubSeedNamesFromFreshClubs();
+    _transactions.removeWhere((t) =>
+        DemoFinanceStrip.isHongGilDongGhost(t.title) ||
+        DemoFinanceStrip.isSeedTransaction(id: t.id, clubId: t.clubId));
+    _duesPayments.removeWhere((p) =>
+        DemoFinanceStrip.isGhostName(p.memberName) ||
+        DemoFinanceStrip.isGhostMemberId(p.memberId));
+    return _members.length != beforeMembers ||
+        _transactions.length != beforeTx ||
+        _duesPayments.length != beforePay;
   }
 
   /// 공지·댓글에 남은 시드 이름(홍길동)을 명단 이름으로 되돌린다.

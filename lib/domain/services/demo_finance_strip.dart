@@ -1,4 +1,4 @@
-/// 데모 시드 재무만 지운다. 실모임 잔고·납부는 이름이 홍길동이어도 건드리지 않는다.
+/// 시드 홍길동은 실모임에서 삭제다. 이름만 바꾸거나 merge 로 되살리지 않는다.
 abstract final class DemoFinanceStrip {
   static const _legacyMockClubIds = {
     'c1',
@@ -9,6 +9,9 @@ abstract final class DemoFinanceStrip {
     'c6',
   };
   static final _seedMonthlyTx = RegExp(r'^t_m\d+_\d+$');
+
+  static bool isLegacyMockClub(String? clubId) =>
+      clubId != null && _legacyMockClubIds.contains(clubId);
 
   static bool isSeedTransaction({
     required String id,
@@ -27,11 +30,7 @@ abstract final class DemoFinanceStrip {
     required String memberId,
     required bool inRealClub,
   }) {
-    if (RegExp(r'(^|_)m\d+$').hasMatch(memberId) ||
-        memberId == 'user_me' ||
-        memberId == 'mg1') {
-      return true;
-    }
+    if (isGhostMemberId(memberId) || isGhostName(memberId)) return true;
     if (inRealClub) return false;
     if (id.startsWith('dp_')) return false;
     if (id == 'pr1' || id == 'pr2') return true;
@@ -39,10 +38,58 @@ abstract final class DemoFinanceStrip {
     return false;
   }
 
-  /// 실모임 장부에 남은 시드 이름. 지운 홍길동이 pull 마다 다시 보이는 원인.
-  static bool isHongGilDongGhost(String title) => title.contains('홍길동');
+  static bool isGhostName(String? raw) => '${raw ?? ''}'.contains('홍길동');
 
-  /// 카카오/구글 닉이 장부 제목에 박힌 경우 한글 이름으로.
+  static bool isGhostMemberId(String? raw) {
+    final id = (raw ?? '').trim();
+    if (id.isEmpty) return false;
+    if (id == 'm1' || id == 'user_me' || id == 'mg1') return true;
+    if (RegExp(r'(^|_)m1$').hasMatch(id)) return true;
+    if (RegExp(r'^m\d+$').hasMatch(id)) return true;
+    return false;
+  }
+
+  /// 실모임 장부에 남은 시드 이름.
+  static bool isHongGilDongGhost(String title) => isGhostName(title);
+
+  static bool isGhostMemberMap(Map<String, dynamic> m) =>
+      isGhostName('${m['name'] ?? ''}') || isGhostMemberId('${m['id'] ?? ''}');
+
+  static bool isGhostPaymentMap(Map<String, dynamic> m) =>
+      isGhostName('${m['memberName'] ?? ''}') ||
+      isGhostName('${m['recordedBy'] ?? ''}') ||
+      isGhostMemberId('${m['memberId'] ?? ''}');
+
+  static bool isGhostTransactionMap(Map<String, dynamic> m) {
+    final clubId = m['clubId'] as String?;
+    if (isLegacyMockClub(clubId)) return false;
+    return isHongGilDongGhost('${m['title'] ?? ''}') ||
+        isGhostMemberId('${m['memberId'] ?? ''}') ||
+        isSeedTransaction(id: '${m['id'] ?? ''}', clubId: clubId);
+  }
+
+  static List<dynamic> dropGhostMembers(List? raw, {required String clubId}) {
+    if (isLegacyMockClub(clubId)) {
+      return List<dynamic>.from(raw ?? const []);
+    }
+    return [
+      for (final e in raw ?? const [])
+        if (e is! Map || !isGhostMemberMap(Map<String, dynamic>.from(e))) e,
+    ];
+  }
+
+  static List<dynamic> dropGhostPayments(List? raw) => [
+        for (final e in raw ?? const [])
+          if (e is! Map || !isGhostPaymentMap(Map<String, dynamic>.from(e))) e,
+      ];
+
+  static List<dynamic> dropGhostTransactions(List? raw) => [
+        for (final e in raw ?? const [])
+          if (e is! Map ||
+              !isGhostTransactionMap(Map<String, dynamic>.from(e)))
+            e,
+      ];
+
   static String rewriteLedgerTitle(String title) {
     return title
         .replaceAll('Jeongwonleeee', '이정원')

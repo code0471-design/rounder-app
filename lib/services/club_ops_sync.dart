@@ -6,6 +6,7 @@ import 'package:flutter/foundation.dart';
 
 import '../core/firebase/firestore_paths.dart';
 import '../di/app_dependencies.dart';
+import '../domain/services/demo_finance_strip.dart';
 import '../domain/services/roster_dedupe.dart';
 import 'club_data_codec.dart';
 import 'club_ops_overflow.dart';
@@ -421,6 +422,11 @@ class ClubOpsSync {
     _deletedCommentIds.clear();
   }
 
+  @visibleForTesting
+  static void resetMemberTombstones() {
+    _removedMemberIds.clear();
+  }
+
   static final Set<String> _removedMemberIds = {};
 
   /// 명단에서 뺀 회원. 사진 tombstone 과 같은 이유로 필요하다.
@@ -628,14 +634,15 @@ class ClubOpsSync {
           if (a is Map && !_deletedAnnouncementIds.contains(a['id']))
             _withoutDeletedComments(Map<String, dynamic>.from(a)),
       ],
-      'members': members,
+      'members': DemoFinanceStrip.dropGhostMembers(members, clubId: clubId),
       'activities': full['activities'] ?? [],
       'duesSettings': duesSettings,
-      'duesPayments': duesPayments,
+      'duesPayments': DemoFinanceStrip.dropGhostPayments(duesPayments),
       'paymentRequests':
           (full['paymentRequests'] as List? ?? []).where(clubField).toList(),
-      'transactions':
-          (full['transactions'] as List? ?? []).where(clubField).toList(),
+      'transactions': DemoFinanceStrip.dropGhostTransactions(
+        (full['transactions'] as List? ?? []).where(clubField).toList(),
+      ),
       'photos': (full['photos'] as List? ?? []).where(clubField).toList(),
       'groupAssignments': groupAssignments,
       'waitingList': waiting,
@@ -783,10 +790,23 @@ class ClubOpsSync {
         if (creatorUserId.trim().isNotEmpty) creatorUserId.trim(),
       },
     );
-    encoded['members'] = collapsed.members;
+    for (final e in collapsed.members) {
+      if (e is Map &&
+          DemoFinanceStrip.isGhostMemberMap(Map<String, dynamic>.from(e))) {
+        markMemberRemoved('${e['id'] ?? ''}');
+      }
+    }
+    encoded['members'] = DemoFinanceStrip.dropGhostMembers(
+      collapsed.members,
+      clubId: clubId,
+    );
     for (final id in collapsed.droppedIds) {
       markMemberRemoved(id);
     }
+    encoded['duesPayments'] =
+        DemoFinanceStrip.dropGhostPayments(encoded['duesPayments'] as List?);
+    encoded['transactions'] =
+        DemoFinanceStrip.dropGhostTransactions(encoded['transactions'] as List?);
 
     // groupAssignments: replace keys for this club's schedules
     final ga = Map<String, dynamic>.from(

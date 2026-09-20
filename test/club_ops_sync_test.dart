@@ -24,7 +24,7 @@ void main() {
       members: [
         Member(
           id: 'm_creator_c_test',
-          name: '홍길동',
+          name: '안경헌',
           gender: '남',
           memberType: '정회원',
           role: '총무',
@@ -49,7 +49,7 @@ void main() {
           courseName: 'A',
           teamCount: 4,
           status: ScheduleStatus.upcoming,
-          createdBy: '홍길동',
+          createdBy: '안경헌',
         ),
       ],
       photos: const [],
@@ -86,7 +86,7 @@ void main() {
       'members': [
         {
           'id': 'm_creator_c_test',
-          'name': '홍길동',
+          'name': '안경헌',
           'gender': '남',
           'memberType': '정회원',
           'role': '총무',
@@ -235,8 +235,8 @@ void main() {
       duesPayments: [
         DuesPayment(
           id: 'pay_keep',
-          memberId: 'm1',
-          memberName: '홍',
+          memberId: 'm_c_test_user',
+          memberName: '안경헌',
           duesSettingId: 'ds_club_1',
           amount: 10000,
           paidAt: DateTime(2026, 1, 5),
@@ -407,8 +407,8 @@ void main() {
       duesPayments: [
         DuesPayment(
           id: 'pay_local_1',
-          memberId: 'm1',
-          memberName: '홍길동',
+          memberId: 'm_c_test_user',
+          memberName: '안경헌',
           duesSettingId: 'ds_club_1',
           amount: 50000,
           paidAt: DateTime(2026, 3, 1),
@@ -503,8 +503,8 @@ void main() {
       duesPayments: [
         DuesPayment(
           id: 'pay_local_1',
-          memberId: 'm1',
-          memberName: '홍길동',
+          memberId: 'm_c_test_user',
+          memberName: '안경헌',
           duesSettingId: 'ds_club_1',
           amount: 50000,
           paidAt: paidAt,
@@ -518,7 +518,7 @@ void main() {
           type: TxType.income,
           category: '회비',
           amount: 50000,
-          title: '홍길동 월회비',
+          title: '안경헌 월회비',
           date: paidAt,
           recordedBy: '총무',
           source: TxSource.dues,
@@ -586,6 +586,126 @@ void main() {
     );
   });
 
+  test('원격 홍길동 회원·납부·거래는 merge에서 삭제한다', () {
+    ClubOpsSync.resetMemberTombstones();
+    final local = ClubDataBundle(
+      selectedClubIndex: 0,
+      freshClubIds: {'c_arena'},
+      myClubs: [
+        Club(
+          id: 'c_arena',
+          name: '아레나',
+          myRole: '총무',
+          memberCount: 2,
+          region: '서울',
+          industry: 'IT',
+          teamCount: 4,
+        ),
+      ],
+      allClubs: const [],
+      joinRequests: const [],
+      members: [
+        Member(
+          id: 'm_creator_c_arena',
+          name: '안경헌',
+          gender: '남',
+          memberType: '정회원',
+          role: '회장',
+          joinDate: DateTime(2024, 1, 1),
+          status: '활성',
+        ),
+      ],
+      activities: const [],
+      announcements: const [],
+      appNotifications: const [],
+      duesSettings: const [],
+      duesPayments: const [],
+      paymentRequests: const [],
+      transactions: const [],
+      schedules: const [],
+      photos: const [],
+      groupAssignments: const {},
+      adApplications: const [],
+      adNotifications: const [],
+      sponsorApplications: const [],
+      pointEvents: const {},
+      awardRecords: const [],
+      thankYouMessages: const [],
+      waitingList: const [],
+      alimtalkSettings: const {},
+    );
+
+    final remote = <String, dynamic>{
+      'clubId': 'c_arena',
+      'schedules': <dynamic>[],
+      'announcements': <dynamic>[],
+      'members': [
+        {
+          'id': 'm_creator_c_arena',
+          'name': '안경헌',
+          'gender': '남',
+          'memberType': '정회원',
+          'role': '회장',
+          'joinDate': DateTime(2024, 1, 1).toIso8601String(),
+          'status': '활성',
+        },
+        {
+          'id': 'm1',
+          'name': '홍길동',
+          'gender': '남',
+          'memberType': '정회원',
+          'role': '일반',
+          'joinDate': DateTime(2024, 1, 1).toIso8601String(),
+          'status': '활성',
+        },
+      ],
+      'activities': <dynamic>[],
+      'duesSettings': <dynamic>[],
+      'duesPayments': [
+        {
+          'id': 'pay_ghost',
+          'memberId': 'm1',
+          'memberName': '홍길동',
+          'duesSettingId': 'ds_1',
+          'amount': 50000,
+          'paidAt': DateTime(2026, 3, 1).toIso8601String(),
+          'recordedBy': '총무',
+        },
+      ],
+      'paymentRequests': <dynamic>[],
+      'transactions': [
+        {
+          'id': 'tx_ghost',
+          'type': 'income',
+          'category': '회비',
+          'amount': 50000,
+          'title': '9월 월회비 - 홍길동',
+          'date': DateTime(2026, 3, 1).toIso8601String(),
+          'recordedBy': '총무',
+          'clubId': 'c_arena',
+        },
+      ],
+      'photos': <dynamic>[],
+      'groupAssignments': <String, dynamic>{},
+      'waitingList': <dynamic>[],
+      'alimtalkSettings': <String, dynamic>{},
+      'adApplications': <dynamic>[],
+      'adNotifications': <dynamic>[],
+      'sponsorApplications': <dynamic>[],
+      'awardRecords': <dynamic>[],
+      'thankYouMessages': <dynamic>[],
+      'pointEvents': <String, dynamic>{},
+    };
+
+    final merged = ClubOpsSync.applyRemoteSlice(local, 'c_arena', remote);
+    expect(merged.members.any((m) => m.name.contains('홍길동')), isFalse);
+    expect(merged.members.any((m) => m.id == 'm1'), isFalse);
+    expect(merged.duesPayments.any((p) => p.id == 'pay_ghost'), isFalse);
+    expect(merged.transactions.any((t) => t.id == 'tx_ghost'), isFalse);
+    expect(merged.members.any((m) => m.id == 'm_creator_c_arena'), isTrue);
+    expect(ClubOpsSync.isMemberRemoved('m1'), isTrue);
+  });
+
   group('capacity / scale guards', () {
     test('huge dues and transaction amounts round-trip in codec', () {
       const huge = 2100000000; // ~21억 원 — JS 안전정수 안쪽
@@ -622,8 +742,8 @@ void main() {
         duesPayments: [
           DuesPayment(
             id: 'pay_huge',
-            memberId: 'm1',
-            memberName: '홍길동',
+            memberId: 'm_c_test_user',
+            memberName: '안경헌',
             duesSettingId: 'ds1',
             amount: huge,
             paidAt: DateTime(2026, 1, 5),
@@ -798,6 +918,8 @@ void main() {
     // 회원은 hard delete 가 없고 status 만 바뀐다. 그런데 members merge 는
     // 같은 id 면 원격 레코드로 통째 교체하므로, push 가 늦으면 원격의 옛
     // '활성' 행이 로컬 강퇴를 덮었다. (테스트 회원 '홍길동' 부활 경로)
+    setUp(ClubOpsSync.resetMemberTombstones);
+
     ClubDataBundle bundleWith(List<Member> members) => ClubDataBundle(
           selectedClubIndex: 0,
           freshClubIds: {'c_test'},
@@ -882,7 +1004,7 @@ void main() {
       final merged = ClubOpsSync.applyRemoteSlice(
         local,
         'c_test',
-        remoteWith([remoteMember('m_c_test_ghost', '홍길동', '활성')]),
+        remoteWith([remoteMember('m_c_test_ghost', '김유령', '활성')]),
       );
       // 표식이 없으면 합집합이므로 들어온다 — 그래서 표식이 필요하다.
       expect(merged.members.any((m) => m.id == 'm_c_test_ghost'), isTrue);
@@ -917,7 +1039,7 @@ void main() {
       final local = bundleWith([
         Member(
           id: 'm_c_test_kicked',
-          name: '홍길동',
+          name: '김철수',
           gender: '남',
           memberType: '정회원',
           role: '일반',
@@ -928,7 +1050,7 @@ void main() {
       final merged = ClubOpsSync.applyRemoteSlice(
         local,
         'c_test',
-        remoteWith([remoteMember('m_c_test_kicked', '홍길동', '활성')]),
+        remoteWith([remoteMember('m_c_test_kicked', '김철수', '활성')]),
       );
       final row =
           merged.members.firstWhere((m) => m.id == 'm_c_test_kicked');
