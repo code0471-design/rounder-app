@@ -53,7 +53,7 @@ void main() {
     final flow = File('lib/screens/schedule/past_schedule_import_screen.dart')
         .readAsStringSync();
     expect(tab.contains('PastScheduleImportBanner'), isTrue);
-    expect(tab.contains('if (isAdmin)'), isTrue);
+    expect(tab.contains('if (isAdmin && provider.needsFirstScheduleGuide)'), isTrue);
     expect(tab.contains('needsFirstScheduleGuide'), isTrue);
     expect(tab.contains('onAddUpcoming: _openAddSchedule'), isTrue);
     expect(tab.contains("'다음 일정 등록하기'"), isTrue);

@@ -321,6 +321,8 @@ void main() {
       expect(fn.contains('_isMyRosterRowFor(club, m.id)'), isTrue);
       expect(fn.contains('isPlaceholderMemberName(m.name)'), isTrue,
           reason: '사람이 고친 이름을 덮어쓰면 안 된다');
+      expect(fn.contains('leftoverStolenNames'), isTrue,
+          reason: '내 행에 남은 장창현 이름은 찌꺼기다');
       expect(fn.contains('_persistImmediately()'), isTrue,
           reason: '고쳐 놓고 저장을 안 하면 다음 실행에 또 홍길동이다');
     });

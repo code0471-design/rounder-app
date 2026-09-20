@@ -156,6 +156,9 @@ class ClubProvider extends ChangeNotifier with WidgetsBindingObserver {
   /// 데모 시드 계정 이름. 실계정 명단에 이게 남아 있으면 잘못 저장된 것이다.
   static const seedMemberNames = {'홍길동', '이민준', '박민준'};
 
+  /// 찌꺼기 정리 때 남의 이름이 내 행에 남은 경우. 본인 계정이 아니면 덮어쓴다.
+  static const leftoverStolenNames = {'장창현'};
+
   /// 소셜 로그인이 이름을 못 받아왔을 때 임시로 넣는 이름들.
   static const _genericMemberNames = {
     '회원',
@@ -5689,8 +5692,11 @@ class ClubProvider extends ChangeNotifier with WidgetsBindingObserver {
         final m = _members[i];
         if (!_isMyRosterRowFor(club, m.id)) continue;
         if (m.name.trim() == target) continue;
-        if (!isPlaceholderMemberName(m.name)) continue;
+        final leftover = leftoverStolenNames.contains(m.name.trim()) &&
+            m.name.trim() != target;
+        if (!isPlaceholderMemberName(m.name) && !leftover) continue;
         _members[i] = m.copyWith(name: target);
+        _relabelMemberDisplayName(m.id, target);
         changed = true;
       }
     }

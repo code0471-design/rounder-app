@@ -80,13 +80,13 @@ class _ScheduleScreenState extends State<ScheduleScreen>
           backgroundColor: AppColors.cream,
           body: Column(
             children: [
-              if (isAdmin)
+              if (isAdmin && provider.needsFirstScheduleGuide)
                 PastScheduleImportBanner(
                   key: ValueKey(_pastHintEpoch),
                   clubId: provider.selectedClub.id,
                   onStart: _openPastImport,
                   onAddUpcoming: _openAddSchedule,
-                  clubHasSchedules: !provider.needsFirstScheduleGuide,
+                  clubHasSchedules: false,
                   isTreasurer: provider.isTreasurer,
                 ),
               // ── 탭바 (디자인: border-bottom 1px) ──
