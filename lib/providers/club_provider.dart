@@ -4284,8 +4284,8 @@ class ClubProvider extends ChangeNotifier with WidgetsBindingObserver {
           .toList();
 
   /// 일정 수정
-  /// 날짜·시간·코스·정원이 바뀌면 참석/대기/조편성을 초기화한다 (재참석 안내).
-  /// 반환: 실질 변경(재참석·알림톡 대상) 여부. 제목·공지만 바뀌면 false.
+  /// 날짜·시간·장소가 바뀌어도 참석·대기·조편성은 유지한다.
+  /// 반환: 실질 변경(알림·알림톡 대상) 여부. 제목·공지만 바뀌면 false.
   bool updateSchedule(RoundSchedule updated) {
     if (!canCreateSchedule) {
       debugPrint('[ClubProvider] updateSchedule blocked — not executive');
@@ -4297,30 +4297,40 @@ class ClubProvider extends ChangeNotifier with WidgetsBindingObserver {
     final prev = _schedules[idx];
     final materialChanged = isMaterialScheduleChange(prev, updated);
 
-    var next = updated;
-    if (materialChanged) {
-      next = updated.copyWith(responses: const []);
-      _groupAssignments.remove(updated.id);
-      _waitingList.removeWhere((w) => w.scheduleId == updated.id);
-      debugPrint(
-        '[ClubProvider] updateSchedule reset attendance '
-        'id=${updated.id} (date/time/course/capacity changed)',
-      );
-    }
-
-    _schedules[idx] = next;
-    _syncNextRound(next.clubId);
+    _schedules[idx] = updated;
+    _syncNextRound(updated.clubId);
     notifyListeners();
     _persistImmediately();
-    if (!next.isDateOver) {
+    if (!updated.isDateOver) {
       unawaited((() async {
-        if (materialChanged) {
-          await PushNotificationService.clearD1ForSchedule(updated.id);
-        }
-        await _enqueueD1RsvpReminders(next);
+        await _enqueueD1RsvpReminders(updated);
       })());
     }
     return materialChanged;
+  }
+
+  /// 일정 변경 푸시 — 보내기를 고른 뒤에만 호출한다.
+  void notifyScheduleChanged(String scheduleId) {
+    final schedule = scheduleById(scheduleId);
+    if (schedule == null) return;
+    final club = _myClubs.where((c) => c.id == schedule.clubId).firstOrNull ??
+        _allClubs.where((c) => c.id == schedule.clubId).firstOrNull;
+    final clubName = club?.name ?? selectedClub.name;
+    _notifyHqPush(
+      typeId: HqPushCatalog.scheduleChange,
+      userIds: [
+        for (final m in scheduleChangeAlimtalkRecipients(scheduleId)) m.id,
+      ],
+      appType: AppNotificationType.scheduleChanged,
+      clubId: schedule.clubId,
+      clubName: clubName,
+      vars: {
+        '모임명': clubName,
+        '일정명': schedule.displayTitle,
+      },
+      targetId: schedule.id,
+      notifySelf: true,
+    );
   }
 
   /// 일정 변경 알림톡 — 변경 직후 보내기를 고른 경우에만 호출한다.
@@ -4389,6 +4399,16 @@ class ClubProvider extends ChangeNotifier with WidgetsBindingObserver {
       final schedule = _schedules[idx];
       notifyScheduleCancelled(schedule);
       unawaited(PushNotificationService.clearD1ForSchedule(scheduleId));
+      for (final r in schedule.responses) {
+        if (r.response != '참석') continue;
+        _syncAttendancePoints(
+          memberId: r.memberId,
+          scheduleId: scheduleId,
+          scheduleTitle: schedule.displayTitle,
+          prev: '참석',
+          response: '불참',
+        );
+      }
       _schedules[idx] = schedule.copyWith(status: ScheduleStatus.cancelled);
       // 사진 정리는 persist 전에 — 한 번의 push 로 일정·사진이 같이 반영된다.
       purged = _purgeSchedulePhotos(scheduleId);

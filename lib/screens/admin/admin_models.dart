@@ -523,6 +523,16 @@ abstract final class AdminCatalog {
       defaultBody: '{{모임명}} {{일정명}}이 등록되었습니다. 참석 여부를 알려주세요.',
     ),
     HqPushType(
+      id: 'push_schedule_change',
+      name: '일정 변경 안내',
+      channel: '푸시·알림톡',
+      audience: PushAudienceKind.allMembers,
+      timing: PushTimingKind.immediate,
+      audienceDetail: '전체 정회원 + 참석 게스트',
+      defaultTitle: '라운딩 일정이 변경되었습니다',
+      defaultBody: '{{모임명}} {{일정명}}이 변경되었습니다. 참석 여부를 확인해 주세요.',
+    ),
+    HqPushType(
       id: 'push_d1_reminder',
       name: 'D-1 리마인더',
       channel: '푸시·알림톡',

@@ -3437,12 +3437,10 @@ class _ScheduleFormSheetState extends State<_ScheduleFormSheet> {
       final provider = widget.provider;
       final materialChanged = provider.updateSchedule(updated);
       setState(() => _saving = false);
-      if (materialChanged &&
-          provider
-              .alimtalkSettingsOf(provider.selectedClub.id)
-              .promptOnScheduleChange) {
+      if (materialChanged) {
         final send = await AlimtalkUtils.promptScheduleChange(context);
         if (send == true) {
+          provider.notifyScheduleChanged(updated.id);
           provider.sendScheduleChangeAlimtalk(updated.id);
         }
       }

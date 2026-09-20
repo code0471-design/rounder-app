@@ -68,10 +68,10 @@ class AlimtalkUtils {
       barrierDismissible: false,
       builder: (dialogCtx) => AlertDialog(
         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
-        title: const Text('알림톡 발송',
+        title: const Text('알림·알림톡 발송',
             style: TextStyle(fontWeight: FontWeight.w700, fontSize: 17)),
         content: const Text(
-          '라운딩 일정이 변경되었습니다.\n기존 신청자에게 재참석 신청 안내 알림톡을 발송할까요?',
+          '라운딩 일정이 변경되었습니다.\n회원에게 앱 알림과 알림톡을 보낼까요?\n참석 여부는 그대로 유지됩니다.',
           style: TextStyle(fontSize: 14, height: 1.5),
         ),
         actions: [
@@ -192,6 +192,7 @@ class AlimtalkUtils {
     if (!ok) return false;
     final send = await promptScheduleChange(context);
     if (send == true) {
+      provider.notifyScheduleChanged(schedule.id);
       provider.sendScheduleChangeAlimtalk(schedule.id);
     }
     return send;

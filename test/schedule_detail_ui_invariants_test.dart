@@ -342,7 +342,10 @@ void main() {
     expect(source.contains('AlimtalkUtils.promptScheduleUpload'), isTrue);
     expect(source.contains('AlimtalkUtils.promptScheduleChange'), isTrue);
     expect(source.contains('sendScheduleUploadAlimtalk'), isTrue);
+    expect(source.contains('notifyScheduleChanged'), isTrue);
     expect(source.contains('sendScheduleChangeAlimtalk'), isTrue);
+    expect(source.contains('promptOnScheduleChange)'), isFalse,
+        reason: '일정 변경 얼럿을 모임 알림톡 ON에만 묶으면 주소·시간 바꿔도 안내가 안 나간다');
     expect(source.contains('onCreated:'), isTrue);
   });
 }

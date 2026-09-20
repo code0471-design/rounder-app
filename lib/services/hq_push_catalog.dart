@@ -15,6 +15,7 @@ class HqPushCatalog {
   static const joinRequest = 'push_join_request';
   static const joinResult = 'push_join_result';
   static const scheduleConfirm = 'push_schedule_confirm';
+  static const scheduleChange = 'push_schedule_change';
   static const d1Reminder = 'push_d1_reminder';
   static const duesRequest = 'push_dues_request';
   static const scheduleCancel = 'push_schedule_cancel';

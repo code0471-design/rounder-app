@@ -164,6 +164,7 @@ void main() {
       expect(src, contains('void sendGroupFinalizeAlimtalk'));
       expect(src, contains('void sendScheduleUploadAlimtalk'));
       expect(src, contains('void sendScheduleChangeAlimtalk'));
+      expect(src, contains('void notifyScheduleChanged'));
       expect(read('lib/services/d1_alimtalk_flush.dart'),
           contains('HqAlimtalkCatalog.d1ReminderId'),
           reason: 'D-1 알림톡도 대기열에서 보내야 한다');
@@ -177,6 +178,9 @@ void main() {
       expect(src.substring(updStart, updEnd).contains('_dispatchClubAlimtalk'),
           isFalse,
           reason: '변경만으로 알림톡이 나가면 얼럿을 건너뛴다');
+      expect(src.substring(updStart, updEnd).contains('responses: const []'),
+          isFalse,
+          reason: '일정 변경이 참석을 지우면 재응답 전에는 포인트·조편성이 끊긴다');
       final start = src.indexOf('void finalizeAssignment(');
       final end = src.indexOf('void sendGroupFinalizeAlimtalk(');
       expect(src.substring(start, end).contains('_dispatchClubAlimtalk'), isFalse);
@@ -186,8 +190,10 @@ void main() {
       final src = read('lib/utils/alimtalk_utils.dart');
       expect(src, contains('promptScheduleUpload'));
       expect(src, contains('promptScheduleChange'));
+      expect(src, contains('notifyScheduleChanged'));
       expect(src, contains('sendScheduleUploadAlimtalk'));
       expect(src, contains('sendScheduleChangeAlimtalk'));
+      expect(src, contains('앱 알림과 알림톡을 보낼까요'));
       expect(src, isNot(contains('recipientNames: provider.attendanceAlimtalkRecipientNames()')),
           reason: '발송 화면을 또 열면 두 번 나간다');
     });
