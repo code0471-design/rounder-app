@@ -74,6 +74,10 @@ void main() {
 
   test('수입/지출 월 요약은 변동액이고 테두리가 있다', () {
     expect(finance.contains("leftLabel: '변동액'"), isTrue);
+    expect(finance.contains('String _fmtChange(int n)'), isTrue,
+        reason: '변동액은 +400,000 / -120,000 처럼 부호가 보여야 한다');
+    expect(finance.contains('_fmtChange(totalIncome - totalExpense)'), isTrue);
+    expect(finance.contains('_fmtChange(net)'), isTrue);
     expect(finance.contains("leftLabel: '잔액'"), isFalse);
     expect(finance.contains('borderColor: AppColors.cardLine'), isTrue);
     expect(finance.contains('Border.all(color: AppColors.cardLine, width: 1.5)'),

@@ -28,6 +28,13 @@ String _fmtSigned(int n) {
   return _fmt(n);
 }
 
+/// 변동액 전용. 예: +400,000 / -120,000
+String _fmtChange(int n) {
+  if (n > 0) return '+${_fmt(n)}';
+  if (n < 0) return '-${_fmt(n)}';
+  return _fmt(n);
+}
+
 class _DueDateAlimtalkNotice extends StatelessWidget {
   const _DueDateAlimtalkNotice();
 
@@ -2039,7 +2046,7 @@ class _TransactionTabState extends State<_TransactionTab> {
               // 월 요약 — 좌측은 그 달의 순변동(변동액)
               _SplitMoneyRow(
                 leftLabel: '변동액',
-                leftValue: '${_fmtSigned(totalIncome - totalExpense)}원',
+                leftValue: '${_fmtChange(totalIncome - totalExpense)}원',
                 leftColor: AppColors.ink,
                 labelColor: const Color(0xFF9CA3AF),
                 topLabel: '수입',
@@ -6200,7 +6207,7 @@ class _YearlyHeroCard extends StatelessWidget {
             const SizedBox(height: 14),
             _SplitMoneyRow(
               leftLabel: '변동액',
-              leftValue: '${net > 0 ? '+' : ''}${_fmtSigned(net)}원',
+              leftValue: '${_fmtChange(net)}원',
               leftColor: net >= 0
                   ? const Color(0xFF2563EB)
                   : const Color(0xFFE53935),
@@ -6854,7 +6861,7 @@ class _MonthlyTable extends StatelessWidget {
                   Expanded(
                       flex: 2,
                       child: Text(
-                        '${net >= 0 ? '+' : ''}${_fmt(net)}',
+                        _fmtChange(net),
                         textAlign: TextAlign.right,
                         style: TextStyle(
                             fontSize: 12,
@@ -6910,7 +6917,7 @@ class _MonthlyTable extends StatelessWidget {
                       final totNet = rows.fold<int>(
                           0, (s, r) => s + (r['net'] as int));
                       return Text(
-                        '${totNet >= 0 ? '+' : ''}${_fmt(totNet)}',
+                        _fmtChange(totNet),
                         textAlign: TextAlign.right,
                         style: TextStyle(
                             fontSize: 12,
