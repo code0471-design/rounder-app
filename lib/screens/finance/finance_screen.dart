@@ -156,7 +156,9 @@ class _SplitMoneyRow extends StatelessWidget {
       decoration: BoxDecoration(
         color: panelColor,
         borderRadius: BorderRadius.circular(14),
-        border: borderColor == null ? null : Border.all(color: borderColor!),
+        border: borderColor == null
+            ? null
+            : Border.all(color: borderColor!, width: 1.5),
       ),
       child: body,
     );
@@ -880,7 +882,7 @@ class _PaymentStatusTabState extends State<_PaymentStatusTab> {
                 decoration: BoxDecoration(
                   color: const Color(0xFFFFFEFC),
                   borderRadius: BorderRadius.circular(16),
-                  border: Border.all(color: const Color(0xFFE5E7EB)),
+                  border: Border.all(color: AppColors.cardLine, width: 1.5),
                 ),
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
@@ -973,7 +975,7 @@ class _PaymentStatusTabState extends State<_PaymentStatusTab> {
               decoration: BoxDecoration(
                 color: const Color(0xFFFFFEFC),
                 borderRadius: BorderRadius.circular(16),
-                border: Border.all(color: const Color(0xFFE5E7EB)),
+                border: Border.all(color: AppColors.cardLine, width: 1.5),
               ),
               child: Column(
                 children: [
@@ -2048,7 +2050,7 @@ class _TransactionTabState extends State<_TransactionTab> {
                 bottomColor: AppColors.danger,
                 dividerColor: const Color(0xFFE5E7EB),
                 panelColor: Colors.white,
-                borderColor: const Color(0xFFE5E7EB),
+                borderColor: AppColors.cardLine,
               ),
               const SizedBox(height: 14),
 
@@ -2058,6 +2060,7 @@ class _TransactionTabState extends State<_TransactionTab> {
                   decoration: BoxDecoration(
                     color: Colors.white,
                     borderRadius: BorderRadius.circular(14),
+                    border: Border.all(color: AppColors.cardLine, width: 1.5),
                   ),
                   child: const Center(
                     child: Text('이달 내역이 없습니다',
@@ -2245,7 +2248,7 @@ class _TxTile extends StatelessWidget {
       decoration: BoxDecoration(
         color: Colors.white,
         borderRadius: BorderRadius.circular(12),
-        border: Border.all(color: const Color(0xFFE5E7EB)),
+        border: Border.all(color: AppColors.cardLine, width: 1.5),
       ),
       child: Row(
         children: [
@@ -2444,7 +2447,7 @@ class _DuesSettingTab extends StatelessWidget {
                     decoration: BoxDecoration(
                       color: AppColors.surface,
                       borderRadius: BorderRadius.circular(12),
-                      border: Border.all(color: AppColors.divider),
+                      border: Border.all(color: AppColors.cardLine, width: 1.5),
                     ),
                     child: const Row(
                       children: [
@@ -2737,7 +2740,7 @@ class _PrimaryDuesKindBanner extends StatelessWidget {
       decoration: BoxDecoration(
         color: Colors.white,
         borderRadius: BorderRadius.circular(14),
-        border: Border.all(color: const Color(0xFFE5E7EB)),
+        border: Border.all(color: AppColors.cardLine, width: 1.5),
       ),
       child: Row(
         children: [
@@ -2791,7 +2794,7 @@ class _DuesKindChoiceCard extends StatelessWidget {
             padding: const EdgeInsets.all(16),
             decoration: BoxDecoration(
               borderRadius: BorderRadius.circular(14),
-              border: Border.all(color: const Color(0xFFE5E7EB)),
+              border: Border.all(color: AppColors.cardLine, width: 1.5),
             ),
             child: Row(
               children: [
@@ -3031,10 +3034,7 @@ class _DuesSettingCard extends StatelessWidget {
       decoration: BoxDecoration(
         color: active ? Colors.white : const Color(0xFFF5F5F5),
         borderRadius: BorderRadius.circular(14),
-        border: active
-            ? Border.all(
-                color: AppColors.primary.withValues(alpha: 0.2))
-            : null,
+        border: Border.all(color: AppColors.cardLine, width: 1.5),
         boxShadow: active
             ? [
                 BoxShadow(
@@ -5627,7 +5627,7 @@ class _PaymentRequestCard extends StatelessWidget {
       decoration: BoxDecoration(
         color: Colors.white,
         borderRadius: BorderRadius.circular(14),
-        border: Border.all(color: AppColors.divider),
+        border: Border.all(color: AppColors.cardLine, width: 1.5),
         boxShadow: [
           BoxShadow(
             color: Colors.black.withValues(alpha: 0.04),
@@ -6154,7 +6154,7 @@ class _YearlyHeroCard extends StatelessWidget {
       decoration: BoxDecoration(
         color: Colors.white,
         borderRadius: BorderRadius.circular(16),
-        border: Border.all(color: const Color(0xFFE5E7EB)),
+        border: Border.all(color: AppColors.cardLine, width: 1.5),
       ),
       child: Container(
         padding: const EdgeInsets.fromLTRB(14, 14, 14, 12),
@@ -6243,6 +6243,7 @@ class _BalanceFlowCard extends StatelessWidget {
       decoration: BoxDecoration(
         color: Colors.white,
         borderRadius: BorderRadius.circular(14),
+        border: Border.all(color: AppColors.cardLine, width: 1.5),
         boxShadow: [
           BoxShadow(
             color: Colors.black.withValues(alpha: 0.06),
@@ -6758,6 +6759,7 @@ class _MonthlyTable extends StatelessWidget {
       decoration: BoxDecoration(
         color: Colors.white,
         borderRadius: BorderRadius.circular(14),
+        border: Border.all(color: AppColors.cardLine, width: 1.5),
         boxShadow: [
           BoxShadow(
             color: Colors.black.withValues(alpha: 0.05),
@@ -8033,7 +8035,7 @@ class _OnboardingOptionCard extends StatelessWidget {
         decoration: BoxDecoration(
           color: Colors.white,
           borderRadius: BorderRadius.circular(16),
-          border: Border.all(color: AppColors.divider),
+          border: Border.all(color: AppColors.cardLine, width: 1.5),
           boxShadow: [
             BoxShadow(
               color: Colors.black.withValues(alpha: 0.04),

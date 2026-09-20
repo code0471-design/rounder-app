@@ -321,7 +321,7 @@ class _ScheduleCard extends StatelessWidget {
         decoration: BoxDecoration(
           color: Colors.white,
           borderRadius: BorderRadius.circular(16),
-          border: Border.all(color: const Color(0xFFE5E7EB), width: 1),
+          border: Border.all(color: AppColors.cardLine, width: 1.5),
           boxShadow: [
             BoxShadow(
               color: Colors.black.withValues(alpha: 0.04),
@@ -1378,7 +1378,7 @@ class ScheduleDetailScreen extends StatelessWidget {
       decoration: BoxDecoration(
         color: Colors.white,
         borderRadius: BorderRadius.circular(16),
-        border: Border.all(color: AppColors.divider),
+        border: Border.all(color: AppColors.cardLine, width: 1.5),
         boxShadow: [
           BoxShadow(
             color: AppColors.primary.withValues(alpha: 0.06),
@@ -2077,7 +2077,7 @@ class _InfoCard extends StatelessWidget {
       decoration: BoxDecoration(
         color: Colors.white,
         borderRadius: BorderRadius.circular(16),
-        border: Border.all(color: AppColors.divider),
+        border: Border.all(color: AppColors.cardLine, width: 1.5),
         boxShadow: [
           BoxShadow(
             color: AppColors.primary.withValues(alpha: 0.06),
@@ -2241,7 +2241,7 @@ class _ReviewMemoCardState extends State<_ReviewMemoCard> {
           decoration: BoxDecoration(
             color: Colors.white,
             borderRadius: BorderRadius.circular(16),
-            border: Border.all(color: AppColors.divider),
+            border: Border.all(color: AppColors.cardLine, width: 1.5),
             boxShadow: [
               BoxShadow(
                 color: AppColors.primary.withValues(alpha: 0.06),
@@ -2447,7 +2447,7 @@ class _RsvpWaitingCardState extends State<_RsvpWaitingCard> {
                 decoration: BoxDecoration(
                   color: Colors.white,
                   borderRadius: BorderRadius.circular(16),
-                  border: Border.all(color: AppColors.divider),
+                  border: Border.all(color: AppColors.cardLine, width: 1.5),
                   boxShadow: [
                     BoxShadow(
                       color: AppColors.primary.withValues(alpha: 0.06),
@@ -2540,7 +2540,7 @@ class _RsvpWaitingCardState extends State<_RsvpWaitingCard> {
                 decoration: BoxDecoration(
                   color: Colors.white,
                   borderRadius: BorderRadius.circular(16),
-                  border: Border.all(color: AppColors.divider),
+                  border: Border.all(color: AppColors.cardLine, width: 1.5),
                   boxShadow: [
                     BoxShadow(
                       color: AppColors.primary.withValues(alpha: 0.06),
@@ -2713,7 +2713,7 @@ class _AttendanceCard extends StatelessWidget {
           decoration: BoxDecoration(
             color: Colors.white,
             borderRadius: BorderRadius.circular(16),
-            border: Border.all(color: AppColors.divider),
+            border: Border.all(color: AppColors.cardLine, width: 1.5),
             boxShadow: [
               BoxShadow(
                 color: AppColors.primary.withValues(alpha: 0.06),
@@ -3283,7 +3283,7 @@ class _ScheduleFormSheetState extends State<_ScheduleFormSheet> {
                             padding: const EdgeInsets.symmetric(
                                 horizontal: 20, vertical: 8),
                             decoration: BoxDecoration(
-                              border: Border.all(color: AppColors.divider),
+                              border: Border.all(color: AppColors.cardLine, width: 1.5),
                               borderRadius: BorderRadius.circular(8),
                             ),
                             child: Text(
@@ -4207,7 +4207,7 @@ class _PhotoSection extends StatelessWidget {
           decoration: BoxDecoration(
             color: Colors.white,
             borderRadius: BorderRadius.circular(16),
-            border: Border.all(color: AppColors.divider),
+            border: Border.all(color: AppColors.cardLine, width: 1.5),
             boxShadow: [
               BoxShadow(
                 color: AppColors.primary.withValues(alpha: 0.06),
@@ -5401,7 +5401,7 @@ class _ScoreAwardBannerCard extends StatelessWidget {
       decoration: BoxDecoration(
         color: Colors.white,
         borderRadius: BorderRadius.circular(16),
-        border: Border.all(color: AppColors.divider),
+        border: Border.all(color: AppColors.cardLine, width: 1.5),
         boxShadow: [
           BoxShadow(
             color: AppColors.primary.withValues(alpha: 0.06),

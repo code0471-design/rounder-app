@@ -75,7 +75,14 @@ void main() {
   test('수입/지출 월 요약은 변동액이고 테두리가 있다', () {
     expect(finance.contains("leftLabel: '변동액'"), isTrue);
     expect(finance.contains("leftLabel: '잔액'"), isFalse);
-    expect(finance.contains('borderColor: const Color(0xFFE5E7EB)'), isTrue);
+    expect(finance.contains('borderColor: AppColors.cardLine'), isTrue);
+    expect(finance.contains('Border.all(color: AppColors.cardLine, width: 1.5)'),
+        isTrue);
+    expect(
+      finance.split('Border.all(color: AppColors.cardLine, width: 1.5)').length - 1,
+      greaterThanOrEqualTo(10),
+      reason: '재무 4탭 카드 테두리가 홈보다 연하게 돌아갔다',
+    );
   });
 
   test('결산보고는 원클럽형 — 연 결산 히어로 카드', () {

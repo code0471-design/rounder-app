@@ -217,12 +217,15 @@ void main() {
     expect(body.contains('_PhotoSection(schedule: schedule)'), isTrue);
   });
 
-  test('일정 상세 카드는 리뉴얼 톤(흰 카드+divider 테두리+딥그린 그림자)으로 통일돼 있다', () {
+  test('일정 상세 카드는 리뉴얼 톤(흰 카드+홈형 테두리+딥그린 그림자)으로 통일돼 있다', () {
     int countOf(String needle) => source.split(needle).length - 1;
     // 내 응답 / 조편성 / 참석 현황 / RSVP·대기 / 스코어 / 일정 정보 / 사진 / 후기
-    expect(countOf('border: Border.all(color: AppColors.divider),'),
-        greaterThanOrEqualTo(6),
-        reason: '카드 테두리가 다시 빠졌다 (radius 14 + 검정 그림자 옛 스타일 회귀)');
+    expect(countOf('border: Border.all(color: AppColors.cardLine, width: 1.5)'),
+        greaterThanOrEqualTo(8),
+        reason: '카드 테두리가 홈보다 연한 divider로 돌아갔다');
+    expect(source.contains('border: Border.all(color: const Color(0xFFE5E7EB), width: 1)'),
+        isFalse,
+        reason: '일정 목록 카드 테두리가 다시 연해졌다');
     expect(countOf('color: AppColors.primary.withValues(alpha: 0.06),'),
         greaterThanOrEqualTo(6),
         reason: '카드 그림자가 딥그린 톤에서 검정으로 회귀');
