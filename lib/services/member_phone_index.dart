@@ -10,10 +10,17 @@ import '../di/app_dependencies.dart';
 /// 가입해도 서버에는 소속(`user_memberships`)이 없어서 "가입했는데 모임이 안 보여요"
 /// 가 된다. 명단에 번호를 남긴 사람은 로그인할 때 자동으로 이어 붙인다.
 ///
+/// 소셜 계정 명단 행(`m_{모임}_kakao_…`)은 초대·승인·생성으로만 소속이 생긴다.
+/// 번호 색인으로 그 행을 잇으면, 남은 행만으로 남의 모임 총무가 된다.
+///
 /// 문서 id 가 번호(숫자만)라서 로그인 조회는 **읽기 1회**다. 명단이 바뀔 때만
 /// 바뀐 번호를 쓴다(전체 재작성 금지).
 abstract final class MemberPhoneIndex {
   MemberPhoneIndex._();
+
+  static final _socialAccount = RegExp(r'^(kakao_|google_|apple_)');
+  static final _legacySeedSuffix = RegExp(r'^m\d+$');
+  static final _handAddedTimestampId = RegExp(r'^m_\d{10,}$');
 
   static FirebaseFirestore get _db => FirebaseFirestore.instance;
 
@@ -33,6 +40,27 @@ abstract final class MemberPhoneIndex {
     return digits.length >= 10 ? digits : '';
   }
 
+  /// 카카오/구글/애플 계정으로 붙은 명단 행인지.
+  static bool isSocialAccountRosterId(String clubId, String memberId) {
+    final prefix = 'm_${clubId}_';
+    if (!memberId.startsWith(prefix)) return false;
+    return _socialAccount.hasMatch(memberId.substring(prefix.length));
+  }
+
+  /// 방장이 이름·번호만 적어 둔 행. 나중에 같은 번호로 가입하면 이 행만 잇는다.
+  static bool isPhoneClaimableMemberId(String clubId, String memberId) {
+    if (clubId.isEmpty || memberId.isEmpty) return false;
+    if (memberId == 'm_creator_$clubId') return false;
+    if (_handAddedTimestampId.hasMatch(memberId)) return true;
+    final prefix = 'm_${clubId}_';
+    if (!memberId.startsWith(prefix)) return false;
+    final suffix = memberId.substring(prefix.length);
+    if (suffix.isEmpty) return false;
+    if (_socialAccount.hasMatch(suffix)) return false;
+    if (_legacySeedSuffix.hasMatch(suffix) || suffix == 'user_me') return false;
+    return true;
+  }
+
   /// 한 모임 명단의 번호 색인을 맞춘다. [members] 는 ops 슬라이스의 회원 맵.
   static Future<void> syncClub({
     required String clubId,
@@ -45,6 +73,7 @@ abstract final class MemberPhoneIndex {
       final digits = digitsOf(m['phone']);
       final memberId = '${m['id'] ?? ''}'.trim();
       if (digits.isEmpty || memberId.isEmpty) continue;
+      if (!isPhoneClaimableMemberId(clubId, memberId)) continue;
       next[digits] = memberId;
     }
     final prev = _pushed[clubId] ?? const <String, String>{};
@@ -76,6 +105,84 @@ abstract final class MemberPhoneIndex {
     }
   }
 
+  /// 번호로 잘못 만든 소속·소셜 행 색인을 먼저 지운다.
+  ///
+  /// `claimForUser` 보다 먼저 호출해야 한다. 순서가 바뀌면 남은 소셜 행이
+  /// 소속을 만들고, 그 소속 때문에 명단 삭제가 무시된다.
+  static Future<void> revokeSpuriousPhoneMemberships({
+    required String userId,
+    required Object? phone,
+  }) async {
+    final digits = digitsOf(phone);
+    if (!_enabled || userId.trim().isEmpty) return;
+    try {
+      final indexed = <String, String>{};
+      if (digits.isNotEmpty) {
+        final doc = await _db
+            .collection(FirestorePaths.memberPhoneIndex)
+            .doc(digits)
+            .get();
+        final clubs = doc.data()?['clubs'];
+        if (clubs is Map) {
+          for (final e in clubs.entries) {
+            final clubId = '${e.key}'.trim();
+            final memberId = '${e.value ?? ''}'.trim();
+            if (clubId.isEmpty || memberId.isEmpty) continue;
+            indexed[clubId] = memberId;
+          }
+        }
+      }
+
+      final snap = await _db
+          .collection(FirestorePaths.userMemberships)
+          .where('user_id', isEqualTo: userId)
+          .get();
+
+      for (final doc in snap.docs) {
+        final data = doc.data();
+        final clubId = '${data['club_id'] ?? ''}'.trim();
+        if (clubId.isEmpty) continue;
+        if (data['via_invite'] == true) continue;
+        final creatorId = await _clubCreatorId(clubId);
+        if (creatorId.isNotEmpty && creatorId == userId) continue;
+
+        final indexMemberId = indexed[clubId] ?? '';
+        final claimable = indexMemberId.isNotEmpty &&
+            canClaimRow(
+              userId: userId,
+              clubId: clubId,
+              memberId: indexMemberId,
+              creatorUserId: creatorId,
+            );
+        if (claimable) continue;
+        if (data['claimed_by_phone'] != true) {
+          if (indexMemberId.isNotEmpty &&
+              !isPhoneClaimableMemberId(clubId, indexMemberId) &&
+              digits.isNotEmpty) {
+            await _dropClubFromIndex(digits, clubId);
+            indexed.remove(clubId);
+          }
+          continue;
+        }
+
+        await doc.reference.delete();
+        if (digits.isNotEmpty) {
+          await _dropClubFromIndex(digits, clubId);
+        }
+        indexed.remove(clubId);
+        debugPrint('[MemberPhoneIndex] 잘못된 번호 소속 삭제: $clubId');
+      }
+
+      for (final e in indexed.entries) {
+        if (isPhoneClaimableMemberId(e.key, e.value)) continue;
+        if (digits.isEmpty) continue;
+        await _dropClubFromIndex(digits, e.key);
+      }
+    } catch (e) {
+      debugPrint('[MemberPhoneIndex] revoke skip: $e');
+    }
+  }
+
   /// 내 번호로 명단에 올라 있는 모임을 찾아 소속을 만든다.
   ///
   /// 반환은 `모임 → 내 명단 행 id`. 이미 소속이 있으면 만들지 않는다.
@@ -103,14 +210,6 @@ abstract final class MemberPhoneIndex {
         final membershipRef =
             _db.doc(FirestorePaths.userMembershipDoc(userId, clubId));
         final existing = await membershipRef.get();
-        if (existing.exists) {
-          claimed[clubId] = memberId;
-          continue;
-        }
-        if (!await _clubExists(clubId)) {
-          await _dropClubFromIndex(digits, clubId);
-          continue;
-        }
         final creatorId = await _clubCreatorId(clubId);
         if (!canClaimRow(
           userId: userId,
@@ -118,7 +217,22 @@ abstract final class MemberPhoneIndex {
           memberId: memberId,
           creatorUserId: creatorId,
         )) {
-          debugPrint('[MemberPhoneIndex] $clubId $memberId 는 내 행이 아님');
+          if (existing.exists &&
+              existing.data()?['claimed_by_phone'] == true &&
+              existing.data()?['via_invite'] != true &&
+              creatorId != userId) {
+            await membershipRef.delete();
+          }
+          await _dropClubFromIndex(digits, clubId);
+          debugPrint('[MemberPhoneIndex] $clubId $memberId 는 번호로 잇지 않음');
+          continue;
+        }
+        if (existing.exists) {
+          claimed[clubId] = memberId;
+          continue;
+        }
+        if (!await _clubExists(clubId)) {
+          await _dropClubFromIndex(digits, clubId);
           continue;
         }
         if (await _rowBelongsToAnotherAccount(clubId, memberId, userId)) {
@@ -144,7 +258,7 @@ abstract final class MemberPhoneIndex {
     }
   }
 
-  /// 번호가 맞아도 남의 방장 자리·다른 소셜 계정 행은 소속으로 만들지 않는다.
+  /// 번호가 맞아도 남의 방장 자리·소셜 계정 행은 소속으로 만들지 않는다.
   static bool canClaimRow({
     required String userId,
     required String clubId,
@@ -155,13 +269,7 @@ abstract final class MemberPhoneIndex {
     if (memberId == 'm_creator_$clubId') {
       return creatorUserId.isNotEmpty && creatorUserId == userId;
     }
-    final prefix = 'm_${clubId}_';
-    if (!memberId.startsWith(prefix)) return false;
-    final suffix = memberId.substring(prefix.length);
-    if (suffix == userId) return true;
-    if (RegExp(r'^(kakao_|google_|apple_)').hasMatch(suffix)) return false;
-    if (RegExp(r'^m\d+$').hasMatch(suffix) || suffix == 'user_me') return false;
-    return true;
+    return isPhoneClaimableMemberId(clubId, memberId);
   }
 
   static Future<void> removeClub(String digits, String clubId) =>

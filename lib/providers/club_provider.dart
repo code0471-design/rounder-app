@@ -1224,6 +1224,10 @@ class ClubProvider extends ChangeNotifier with WidgetsBindingObserver {
   /// 가입해도 그 모임이 안 보였다. 로그인할 때 번호 색인을 한 번 읽어 잇는다.
   Future<bool> _claimClubsByPhone(String authUserId) async {
     if (_isDemoSession || authUserId.trim().isEmpty) return false;
+    await MemberPhoneIndex.revokeSpuriousPhoneMemberships(
+      userId: authUserId,
+      phone: _accountPhone,
+    );
     final claimed = await MemberPhoneIndex.claimForUser(
       userId: authUserId,
       phone: _accountPhone,
@@ -1427,8 +1431,8 @@ class ClubProvider extends ChangeNotifier with WidgetsBindingObserver {
       if (m.id == 'm_creator_$clubId') continue;
       final prefix = 'm_${clubId}_';
       if (!m.id.startsWith(prefix)) continue;
+      if (!MemberPhoneIndex.isSocialAccountRosterId(clubId, m.id)) continue;
       final suffix = m.id.substring(prefix.length);
-      if (!RegExp(r'^(kakao_|google_|apple_)').hasMatch(suffix)) continue;
       if (allowed.contains(suffix)) continue;
       drop.add(m);
     }
@@ -5870,7 +5874,14 @@ class ClubProvider extends ChangeNotifier with WidgetsBindingObserver {
   bool _rosterRowMatchesMyPhone(String clubId, String memberId) {
     final mine = MemberPhoneIndex.digitsOf(_accountPhone);
     if (mine.isEmpty) return false;
-    if (!Member.isClubRosterId(clubId, memberId)) return false;
+    if (memberId == 'm_creator_$clubId') return false;
+    if (MemberPhoneIndex.isSocialAccountRosterId(clubId, memberId)) {
+      return false;
+    }
+    if (!Member.isClubRosterId(clubId, memberId) &&
+        !MemberPhoneIndex.isPhoneClaimableMemberId(clubId, memberId)) {
+      return false;
+    }
     final row = _members.where((m) => m.id == memberId).firstOrNull;
     if (row == null) return false;
     return MemberPhoneIndex.digitsOf(row.phone) == mine;
