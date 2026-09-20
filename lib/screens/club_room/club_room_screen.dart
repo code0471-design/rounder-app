@@ -571,6 +571,7 @@ class _ClubRoomScreenState extends State<ClubRoomScreen> {
     }
 
     return AppHeader(
+      title: club.name,
       leading: GestureDetector(
         onTap: handleBack,
         behavior: HitTestBehavior.opaque,
@@ -734,7 +735,7 @@ class ClubHomeTab extends StatelessWidget {
                                 ),
                                 const SizedBox(width: 8),
                                 _InviteChipButton(
-                                  label: '모임찾기',
+                                  label: '다른 모임 찾기',
                                   bgColor: const Color(0xFF111827),
                                   borderColor: const Color(0xFF111827),
                                   textColor: Colors.white,

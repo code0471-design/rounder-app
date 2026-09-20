@@ -158,14 +158,17 @@ void main() {
   });
 
   test('홈 모임찾기는 모임명과 같은 줄이고 플랫폼 홈으로 간다', () {
-    expect(room.contains("label: '모임찾기'"), isTrue);
+    expect(room.contains("label: '다른 모임 찾기'"), isTrue);
+    expect(room.contains("label: '모임찾기'"), isFalse);
     expect(room.contains('_goToPlatformHome'), isTrue);
     expect(room.contains("pushNamedAndRemoveUntil('/main'"), isTrue);
     expect(
       room.indexOf('club.name'),
-      lessThan(room.indexOf("label: '모임찾기'")),
+      lessThan(room.indexOf("label: '다른 모임 찾기'")),
     );
     expect(room.contains('if (_tabIndex == 0)'), isFalse,
         reason: '모임찾기가 헤더 아래 별도 줄로 내려가면 홈이 밀린다');
+    expect(room.contains('title: club.name'), isTrue,
+        reason: '일정·회원·재무에서도 어느 모임인지 헤더에 보여야 한다');
   });
 }

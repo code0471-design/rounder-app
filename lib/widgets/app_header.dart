@@ -15,6 +15,8 @@ class AppHeader extends StatelessWidget {
   final Widget? leading;
   final List<Widget>? trailingActions;
   final int? notificationCount;
+  /// 모임 방이면 로고 옆에 현재 모임명. 없으면 로고만.
+  final String? title;
 
   const AppHeader({
     super.key,
@@ -24,6 +26,7 @@ class AppHeader extends StatelessWidget {
     this.leading,
     this.trailingActions,
     this.notificationCount,
+    this.title,
   });
 
   static void openMyPage(BuildContext context) {
@@ -71,16 +74,29 @@ class AppHeader extends StatelessWidget {
                 leading!,
                 const SizedBox(width: 2),
               ],
-              Expanded(
-                child: Align(
-                  alignment: Alignment.centerLeft,
-                  child: RounderLogo(
-                    height: logoHeight,
-                    forWhiteHeader: true,
-                    onTap: onLogoTap,
+              RounderLogo(
+                height: logoHeight,
+                forWhiteHeader: true,
+                onTap: onLogoTap,
+              ),
+              if ((title ?? '').trim().isNotEmpty) ...[
+                const SizedBox(width: 8),
+                Expanded(
+                  child: Text(
+                    title!.trim(),
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    style: const TextStyle(
+                      fontSize: 15,
+                      fontWeight: FontWeight.w600,
+                      color: Color(0xFF111827),
+                      letterSpacing: -0.4,
+                      height: 1.2,
+                    ),
                   ),
                 ),
-              ),
+              ] else
+                const Spacer(),
               if (trailingActions != null) ...[
                 ...trailingActions!,
                 const SizedBox(width: 4),
