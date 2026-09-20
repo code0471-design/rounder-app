@@ -1239,7 +1239,11 @@ class _PhotoViewerScreenState extends State<_PhotoViewerScreen> {
                                 color: Colors.white60, size: 13),
                             const SizedBox(width: 4),
                             Text(
-                              photo.uploaderName,
+                              provider.displayAuthorName(
+                                authorId: photo.uploaderId,
+                                authorName: photo.uploaderName,
+                                clubId: photo.clubId,
+                              ),
                               style: const TextStyle(
                                   color: Colors.white60, fontSize: 12),
                             ),

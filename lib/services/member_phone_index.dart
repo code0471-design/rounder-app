@@ -164,7 +164,11 @@ abstract final class MemberPhoneIndex {
     return true;
   }
 
+  static Future<void> removeClub(String digits, String clubId) =>
+      _dropClubFromIndex(digits, clubId);
+
   static Future<void> _dropClubFromIndex(String digits, String clubId) async {
+    if (digits.isEmpty || clubId.isEmpty) return;
     try {
       await _db.collection(FirestorePaths.memberPhoneIndex).doc(digits).set(
         {

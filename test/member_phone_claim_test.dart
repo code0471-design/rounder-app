@@ -40,6 +40,16 @@ void main() {
     );
   });
 
+  test('소속 없는 계정 행은 명단에서 뺀다', () {
+    final src = File('lib/providers/club_provider.dart').readAsStringSync();
+    expect(src.contains('bool _dropUnmemberedAccountRows(String clubId)'), isTrue);
+    expect(src.contains('MemberPhoneIndex.removeClub(digits, clubId)'), isTrue);
+    expect(src.contains('if (_isSelfTarget(authorId))'), isTrue,
+        reason: '내가 올린 사진은 저장된 장창현 이름보다 내 이름을 먼저 쓴다');
+    expect(src.contains('if (!_isMyRosterRowById(selectedClub, me.id)) return;'),
+        isTrue);
+  });
+
   test('없는 모임은 번호 색인에서 빼는 경로가 있다', () {
     final src = File('lib/services/member_phone_index.dart').readAsStringSync();
     expect(src.contains('_dropClubFromIndex(digits, clubId)'), isTrue);

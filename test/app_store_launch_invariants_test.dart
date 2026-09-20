@@ -51,11 +51,13 @@ void main() {
   test('인트로는 가운데 로고를 띄운 뒤 자동로그인한다', () {
     final splash =
         File('lib/screens/splash/splash_screen.dart').readAsStringSync();
-    expect(splash.contains('RounderLogo'), isTrue);
-    expect(splash.contains('vertical: true'), isTrue);
-    expect(splash.contains('milliseconds: 1800'), isTrue);
+    expect(splash.contains('RounderLogo'), isFalse,
+        reason: '시작 로딩에서 이미 로고를 보여 줬다. 스플래시에서 다시 그리면 인트로가 두 번이다');
+    expect(splash.contains('milliseconds: 1800'), isFalse);
     expect(splash.contains('tryAutoLogin'), isTrue);
-    expect(splash.contains('body: SizedBox.expand()'), isFalse);
     expect(splash.contains('시작 중'), isFalse);
+    final startup =
+        File('lib/screens/startup/startup_loading_screen.dart').readAsStringSync();
+    expect(startup.contains('RounderLogo'), isTrue);
   });
 }

@@ -358,4 +358,18 @@ void main() {
         reason: '일정 변경 얼럿을 모임 알림톡 ON에만 묶으면 주소·시간 바꿔도 안내가 안 나간다');
     expect(source.contains('onCreated:'), isTrue);
   });
+
+  test('일정 사진 작성자는 저장된 이름보다 명단 ID를 본다', () {
+    expect(
+      source.contains(
+        'provider.displayAuthorName(authorId: photo.uploaderId, authorName: photo.uploaderName, clubId: photo.clubId)',
+      ),
+      isTrue,
+      reason: 'photo.uploaderName 만 쓰면 사진은 본인인데 이름이 장창현으로 남는다',
+    );
+    expect(
+      source.contains("'\${photo.uploaderName} · \${photo.takenAt.month}"),
+      isFalse,
+    );
+  });
 }

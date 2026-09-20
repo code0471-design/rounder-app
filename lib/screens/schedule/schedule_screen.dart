@@ -4908,7 +4908,7 @@ class _SchedulePhotoViewerState extends State<_SchedulePhotoViewer> {
                   ),
                 ),
               ),
-              if (photo.caption != null || photo.uploaderName.isNotEmpty)
+              if (photo.caption != null || provider.displayAuthorName(authorId: photo.uploaderId, authorName: photo.uploaderName, clubId: photo.clubId).isNotEmpty)
                 Positioned(
                   left: 0,
                   right: 0,
@@ -4940,7 +4940,7 @@ class _SchedulePhotoViewerState extends State<_SchedulePhotoViewer> {
                           ),
                         const SizedBox(height: 4),
                         Text(
-                          '${photo.uploaderName} · ${photo.takenAt.month}/${photo.takenAt.day}',
+                          '${provider.displayAuthorName(authorId: photo.uploaderId, authorName: photo.uploaderName, clubId: photo.clubId)} · ${photo.takenAt.month}/${photo.takenAt.day}',
                           style: const TextStyle(
                               color: Colors.white60, fontSize: 12),
                         ),

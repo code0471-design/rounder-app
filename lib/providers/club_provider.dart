@@ -1393,7 +1393,12 @@ class ClubProvider extends ChangeNotifier with WidgetsBindingObserver {
       final accounts = await AppDependencies.instance.clubRepository
           .fetchClubMemberAccounts(clubId)
           .timeout(const Duration(seconds: 8));
-      if (accounts.isNotEmpty) _clubAccounts[clubId] = accounts;
+      if (accounts.isNotEmpty) {
+        _clubAccounts[clubId] = accounts;
+        if (_dropUnmemberedAccountRows(clubId) && !_suppressPersist) {
+          _persistImmediately();
+        }
+      }
     } catch (e) {
       debugPrint('[ClubProvider] hydrate accounts $clubId skip: $e');
     }
@@ -1401,6 +1406,43 @@ class ClubProvider extends ChangeNotifier with WidgetsBindingObserver {
 
   /// 모임 → 소속 계정. 푸시 대상은 명단 행이 아니라 이 계정들이다.
   final Map<String, List<ClubMemberAccount>> _clubAccounts = {};
+
+  /// 서버 소속이 없는 소셜 계정 명단 행은 지운다.
+  /// 장창현이 아레나 총무로 다시 붙던 경로.
+  bool _dropUnmemberedAccountRows(String clubId) {
+    if (_isDemoSession || clubId.isEmpty) return false;
+    if (AppDependencies.instance.isOfflineMockMode) return false;
+    final accounts = _clubAccounts[clubId];
+    if (accounts == null || accounts.isEmpty) return false;
+    final allowed = <String>{
+      for (final a in accounts)
+        if (a.userId.trim().isNotEmpty) a.userId.trim(),
+    };
+    final creator = (_clubById(clubId)?.creatorId ?? '').trim();
+    if (creator.isNotEmpty) allowed.add(creator);
+
+    final drop = <Member>[];
+    for (final m in _members) {
+      if (!Member.isClubRosterId(clubId, m.id)) continue;
+      if (m.id == 'm_creator_$clubId') continue;
+      final prefix = 'm_${clubId}_';
+      if (!m.id.startsWith(prefix)) continue;
+      final suffix = m.id.substring(prefix.length);
+      if (!RegExp(r'^(kakao_|google_|apple_)').hasMatch(suffix)) continue;
+      if (allowed.contains(suffix)) continue;
+      drop.add(m);
+    }
+    if (drop.isEmpty) return false;
+    ClubOpsSync.seedRemovedMembers(drop.map((m) => m.id));
+    _members.removeWhere((m) => drop.any((d) => d.id == m.id));
+    for (final m in drop) {
+      final digits = MemberPhoneIndex.digitsOf(m.phone);
+      if (digits.isNotEmpty) {
+        unawaited(MemberPhoneIndex.removeClub(digits, clubId));
+      }
+    }
+    return true;
+  }
 
   /// 명단 행을 전화번호로 계정에 잇는다. 예전 행(`m1`)은 이 길로만 찾는다.
   String _accountIdByRosterPhone(String clubId, String memberId) {
@@ -5700,15 +5742,24 @@ class ClubProvider extends ChangeNotifier with WidgetsBindingObserver {
     required String authorName,
     String? clubId,
   }) {
-    final raw = authorName.trim();
-    if (raw.isNotEmpty && !seedMemberNames.contains(raw)) return raw;
     final club = (clubId == null || clubId.isEmpty)
         ? (_myClubs.isEmpty ? null : selectedClub.id)
         : clubId;
-    final member = _memberForAuthorId(authorId, club);
-    if (member != null && !seedMemberNames.contains(member.name.trim())) {
-      return member.name;
+    if (_isSelfTarget(authorId)) {
+      final mine = currentUserName.trim();
+      if (mine.isNotEmpty &&
+          !isPlaceholderMemberName(mine) &&
+          !seedMemberNames.contains(mine)) {
+        return mine;
+      }
     }
+    final member = _memberForAuthorId(authorId, club);
+    if (member != null) {
+      final n = member.name.trim();
+      if (n.isNotEmpty && !isPlaceholderMemberName(n)) return n;
+    }
+    final raw = authorName.trim();
+    if (raw.isNotEmpty && !seedMemberNames.contains(raw)) return raw;
     if (!_isDemoSession &&
         authorId == 'm1' &&
         club != null &&
@@ -5728,9 +5779,13 @@ class ClubProvider extends ChangeNotifier with WidgetsBindingObserver {
     final direct = _members.where((m) => m.id == authorId).firstOrNull;
     if (direct != null) return withoutSeedDisplayName(direct);
     if (clubId == null || clubId.isEmpty) return null;
-    return membersForClub(clubId)
-        .where((m) => m.id == authorId)
-        .firstOrNull;
+    final roster = membersForClub(clubId);
+    final byId = roster.where((m) => m.id == authorId).firstOrNull;
+    if (byId != null) return withoutSeedDisplayName(byId);
+    final prefixed =
+        roster.where((m) => m.id == 'm_${clubId}_$authorId').firstOrNull;
+    if (prefixed != null) return withoutSeedDisplayName(prefixed);
+    return null;
   }
 
   /// 실계정 m1 시절에 생성자 사진·생일·전화가 초대 회원 행에 복사된 것을 되돌린다.
@@ -5770,10 +5825,12 @@ class ClubProvider extends ChangeNotifier with WidgetsBindingObserver {
   }
 
   /// 모임 명단에 내가 쓴 이름(안경헌)이 있으면 카카오 영문 이름보다 그걸 쓴다.
+  /// 번호로 붙은 남의 행(장창현 총무) 이름은 가져오지 않는다.
   void _syncSelfDisplayName() {
-    if (_isDemoSession) return;
+    if (_isDemoSession || _myClubs.isEmpty) return;
     final me = currentMember;
     if (me == null || isPlaceholderMemberName(me.name)) return;
+    if (!_isMyRosterRowById(selectedClub, me.id)) return;
     if (_currentUserName == me.name) return;
     _currentUserName = me.name;
   }
