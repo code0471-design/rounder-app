@@ -155,7 +155,16 @@ class AuthProvider extends ChangeNotifier {
     }
 
     _currentUser = user;
-    // 서버에 번호가 없으면 로컬에 남은 번호로 인증을 건너뛰지 않는다.
+    notifyListeners();
+    // 홈을 먼저 연다. 서버 번호·Auth 세션은 뒤에서 맞춘다.
+    unawaited(_hydrateRemoteSession(prefs, user));
+    return true;
+  }
+
+  Future<void> _hydrateRemoteSession(
+    SharedPreferences prefs,
+    AppUser user,
+  ) async {
     try {
       final deps = AppDependencies.instance;
       if (deps.isInitialized && !deps.isOfflineMockMode) {
@@ -167,7 +176,7 @@ class AuthProvider extends ChangeNotifier {
             formatPhone((doc.data()?['phone'] as String?) ?? '');
         if (isPhoneMissing(remotePhone)) {
           await logoutAsync();
-          return false;
+          return;
         }
         final data = doc.data();
         final remoteHandicap = (data?['handicap'] as num?)?.toDouble();
@@ -206,9 +215,10 @@ class AuthProvider extends ChangeNotifier {
     } catch (e) {
       debugPrint('[AuthProvider] hydrate phone skip: $e');
     }
-    await FirebaseAuthBridge.ensureSignedIn(_currentUser!);
+    final sessionUser = _currentUser;
+    if (sessionUser == null) return;
+    await FirebaseAuthBridge.ensureSignedIn(sessionUser);
     notifyListeners();
-    return true;
   }
 
   Future<void> loadLastLoginMethod() async {

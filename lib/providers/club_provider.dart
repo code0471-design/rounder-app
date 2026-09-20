@@ -15,6 +15,7 @@ import '../domain/data/sample_club_filter.dart';
 import '../domain/services/roster_dedupe.dart';
 import '../models/club_model.dart';
 import '../models/member_role.dart';
+import '../models/user_model.dart';
 import '../services/club_data_codec.dart';
 import '../services/club_ops_sync.dart';
 import '../services/d1_alimtalk_flush.dart';
@@ -490,23 +491,8 @@ class ClubProvider extends ChangeNotifier with WidgetsBindingObserver {
       // already filled from templates above
     }
 
-    // 저장소/리포에 남은 '내가 만든 모임' 복구 (시드 정리·포트 전환으로 myClubs에서 빠진 경우)
-    var recovered = await _restoreOwnedClubsFromStores(authUserId);
-    if (!_isDemoSession) {
-      if (_purgeDemoIdentityClubs()) recovered = true;
-      _stripHardcodedDemoPayload();
-      // 소속을 먼저 만들고 정리한다. 순서가 바뀌면 방금 번호로 붙은 모임이
-      // '근거 없음'으로 지워진다.
-      await _claimClubsByPhone(authUserId);
-      if (await _ingestServerMemberships(authUserId)) recovered = true;
-      if (_purgeDemoIdentityClubs()) recovered = true;
-      if (await _pruneForeignClubs(authUserId)) recovered = true;
-    }
-    // 복구 후에도 탈퇴 목록은 제외
+    // 복구 후에도 탈퇴 목록은 제외. 서버 소속 조회는 홈 연 뒤에.
     _myClubs.removeWhere((c) => _isLeftClub(c.id));
-    if (recovered) {
-      await _persistNow();
-    }
 
     // 예전 빌드가 '홍길동'으로 저장해 둔 내 명단 행을 실제 이름으로 되돌린다.
     // ensureCreatorMembers 보다 먼저 — 아래에서 새로 만드는 행도 같은 이름을 쓴다.
@@ -536,14 +522,62 @@ class ClubProvider extends ChangeNotifier with WidgetsBindingObserver {
     // 내 모임 → Mock 저장소(어드민·모임찾기) 강제 동기화
     _syncMyClubsToMockStore();
 
-    // 다른 계정에서 신청한 가입 요청·알림을 공유 스토어에서 병합
+    // 홈은 로컬 명단으로 먼저 연다. 서버 소속·ops 는 뒤에서 이어 간다.
+    notifyListeners();
+    if (AppDependencies.instance.isInitialized &&
+        AppDependencies.instance.isOfflineMockMode) {
+      await _afterSwitchUserCloud();
+    } else {
+      unawaited(_afterSwitchUserCloud());
+    }
+  }
+
+  Future<void> _afterSwitchUserCloud() async {
+    final authUserId = _persistAuthUserId;
+    if (authUserId == null) return;
+
+    final deps = AppDependencies.instance;
+    if (deps.isInitialized && !deps.isOfflineMockMode) {
+      try {
+        await FirebaseAuthBridge.ensureSignedIn(
+          AppUser(
+            id: authUserId,
+            name: _currentUserName,
+            phone: (_accountPhone ?? '').trim(),
+          ),
+        );
+      } catch (e) {
+        debugPrint('[ClubProvider] auth bridge skip: $e');
+      }
+    }
+
+    var recovered = await _restoreOwnedClubsFromStores(authUserId);
+    if (!_isDemoSession) {
+      if (_purgeDemoIdentityClubs()) recovered = true;
+      _stripHardcodedDemoPayload();
+      await _claimClubsByPhone(authUserId);
+      if (await _ingestServerMemberships(authUserId)) recovered = true;
+      if (_purgeDemoIdentityClubs()) recovered = true;
+      if (await _pruneForeignClubs(authUserId)) recovered = true;
+    }
+    _myClubs.removeWhere((c) => _isLeftClub(c.id));
+    if (recovered) {
+      await _persistNow();
+    }
+    ensureCreatorMembers();
+    syncAuthGolfProfile(
+      birthDate: _accountBirthDate,
+      handicap: _accountHandicap,
+      gender: _accountGender,
+      phone: _accountPhone,
+      photoUrl: _accountPhotoUrl,
+    );
+
     await mergeSharedJoinRequests();
     await refreshJoinRequestInbox();
     _purgeDemoSeedNotifications();
     await HqPushCatalog.load();
     _rebindPushIdsIfChanged();
-
-    // rounder-staging 운영 데이터 pull (테스터끼리 공유)
     await _pullCloudOpsForMyClubs();
     _watchSelectedClubOps();
     unawaited(_enqueueAllUpcomingD1());
@@ -9305,6 +9339,7 @@ class ClubProvider extends ChangeNotifier with WidgetsBindingObserver {
       }
     }
     if (source == null) return;
+    final sourceId = source.id;
 
     final clubRole = _myClubs[myIdx].myRole;
     var role = ClubMemberRole.encodeRoles(
@@ -9315,7 +9350,7 @@ class ClubProvider extends ChangeNotifier with WidgetsBindingObserver {
     // 신규 모임을 fresh 로 표시한다고 생성자 총무를 깎으면 안 된다.
     if (ClubMemberRole.isOfficer(clubRole) &&
         !ClubMemberRole.isOfficer(role)) {
-      final mIdx = _members.indexWhere((m) => m.id == source.id);
+      final mIdx = _members.indexWhere((m) => m.id == sourceId);
       if (mIdx != -1 && _members[mIdx].role != clubRole) {
         _members[mIdx] = _members[mIdx].copyWith(role: clubRole);
         notifyListeners();
@@ -9330,7 +9365,7 @@ class ClubProvider extends ChangeNotifier with WidgetsBindingObserver {
         ClubMemberRole.president,
         ClubMemberRole.treasurer,
       ]);
-      final mIdx = _members.indexWhere((m) => m.id == source.id);
+      final mIdx = _members.indexWhere((m) => m.id == sourceId);
       if (mIdx != -1) {
         _members[mIdx] = _members[mIdx].copyWith(role: role);
       }

@@ -1,7 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:provider/provider.dart';
-import '../../di/app_dependencies.dart';
 import '../../providers/auth_provider.dart';
 import '../../providers/club_provider.dart';
 
@@ -47,40 +46,6 @@ class _SplashScreenState extends State<SplashScreen> {
               phone: auth.currentUser!.phone,
               photoUrl: auth.currentUser!.profileImageUrl,
             );
-        if (!AppDependencies.instance.isOfflineMockMode) {
-          try {
-            final snap = await AppDependencies.instance
-                .bootstrapForUser(userId)
-                .timeout(const Duration(seconds: 10));
-            final pending = AppDependencies.instance.mockDataStore
-                    ?.pendingJoinRequests
-                    .where((r) => r.userId == userId)
-                    .toList() ??
-                const [];
-            if (mounted) {
-              context.read<ClubProvider>().hydrateFromBootstrap(
-                    snap,
-                    pendingRequests: pending,
-                  );
-            }
-          } catch (e, st) {
-            debugPrint('[SplashScreen] Firestore bootstrap 실패: $e\n$st');
-          }
-        } else {
-          final snap =
-              await AppDependencies.instance.bootstrapForUser(userId);
-          final pending = AppDependencies.instance.mockDataStore
-                  ?.pendingJoinRequests
-                  .where((r) => r.userId == userId)
-                  .toList() ??
-              const [];
-          if (mounted) {
-            context.read<ClubProvider>().hydrateFromBootstrap(
-                  snap,
-                  pendingRequests: pending,
-                );
-          }
-        }
       }
     } catch (e, st) {
       debugPrint('[SplashScreen] splash flow error: $e\n$st');

@@ -55,9 +55,24 @@ void main() {
         reason: '시작 로딩에서 이미 로고를 보여 줬다. 스플래시에서 다시 그리면 인트로가 두 번이다');
     expect(splash.contains('milliseconds: 1800'), isFalse);
     expect(splash.contains('tryAutoLogin'), isTrue);
+    expect(splash.contains('bootstrapForUser'), isFalse,
+        reason: '인트로 뒤에 서버 부트스트랩을 또 기다리면 홈이 늦게 뜬다');
     expect(splash.contains('시작 중'), isFalse);
     final startup =
         File('lib/screens/startup/startup_loading_screen.dart').readAsStringSync();
     expect(startup.contains('RounderLogo'), isTrue);
+    final provider =
+        File('lib/providers/club_provider.dart').readAsStringSync();
+    expect(provider.contains('unawaited(_afterSwitchUserCloud())'), isTrue,
+        reason: '로그인 직후 서버 소속·ops 를 기다리면 홈이 늦게 뜬다');
+    expect(provider.contains('_claimClubsByPhone(authUserId)'), isTrue);
+    final afterCloudStart = provider.indexOf('Future<void> _afterSwitchUserCloud()');
+    final claimAt = provider.indexOf('await _claimClubsByPhone(authUserId);');
+    expect(afterCloudStart, greaterThan(0));
+    expect(claimAt, greaterThan(afterCloudStart),
+        reason: '번호 소속 조회는 홈을 연 뒤에 해야 한다');
+    final auth = File('lib/providers/auth_provider.dart').readAsStringSync();
+    expect(auth.contains('unawaited(_hydrateRemoteSession(prefs, user))'), isTrue,
+        reason: '자동로그인이 서버 번호 조회를 기다리면 인트로 뒤가 길다');
   });
 }

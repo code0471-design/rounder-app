@@ -170,5 +170,9 @@ void main() {
         reason: '모임찾기가 헤더 아래 별도 줄로 내려가면 홈이 밀린다');
     expect(room.contains('title: club.name'), isTrue,
         reason: '일정·회원·재무에서도 어느 모임인지 헤더에 보여야 한다');
+    final header =
+        File('lib/widgets/app_header.dart').readAsStringSync();
+    expect(header.contains('로고 아래 줄에 현재 모임명'), isTrue);
+    expect(header.contains('textAlign: TextAlign.center'), isTrue);
   });
 }
