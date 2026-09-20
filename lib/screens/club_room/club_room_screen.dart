@@ -28,8 +28,8 @@ import '../alimtalk/alimtalk_settings_screen.dart';
 import '../group_assignment/group_assignment_screen.dart';
 
 /// 모임홈 카드(참석 현황·회비 잔고·공지사항) 공통 테두리.
-/// 연회색이라 카드 경계가 안 보인다는 피드백으로 진하게 올렸다.
-const Color _kHomeCardBorder = Color(0xFFD1D5DB);
+/// 연회색이면 흰 배경에서 카드가 안 나뉜다.
+const Color _kHomeCardBorder = Color(0xFF9CA3AF);
 
 void _goToPlatformHome(BuildContext context) {
   final nav = Navigator.of(context, rootNavigator: true);
@@ -771,7 +771,7 @@ class ClubHomeTab extends StatelessWidget {
                                 _InviteChipButton(
                                   label: '게스트 초대하기',
                                   bgColor: Colors.white,
-                                  borderColor: const Color(0xFFD1D5DB),
+                                  borderColor: const Color(0xFF9CA3AF),
                                   textColor: const Color(0xFF111827),
                                   onTap: () => Navigator.push(
                                     context,

@@ -3145,9 +3145,8 @@ class ClubProvider extends ChangeNotifier with WidgetsBindingObserver {
 
   /// 납부일은 **그 회비의 기간**으로 잡는다.
   ///
-  /// 납부 여부(`hasPaid`)도 결산도 `paidAt` 의 연·월로 판단한다. 예전에는
-  /// 연회비(월이 없음)를 오늘 날짜로 기록해서, 작년 연회비를 납부해도
-  /// 이번 달 수입으로 잡히고 작년은 계속 미납으로 남았다.
+  /// 회비납부 탭용 일자. `hasPaid` 는 이 연·월로 그달 회비가 들어왔는지 본다.
+  /// 수입/지출 장부 일자는 `recordPayment` 에서 오늘(입금일)을 쓴다.
   DateTime _paymentDateFor({
     required String duesSettingId,
     int? year,
@@ -3218,7 +3217,7 @@ class ClubProvider extends ChangeNotifier with WidgetsBindingObserver {
         amount: amount,
         category: setting.type.label,
         title: '$periodPart${setting.type.label} - $memberName',
-        date: paidAt,
+        date: now,
         recordedBy: currentUserName,
         source: TxSource.dues,
         duesPaymentId: paymentId,
@@ -3231,7 +3230,7 @@ class ClubProvider extends ChangeNotifier with WidgetsBindingObserver {
     _awardDuesOnTimePoint(
       memberId: memberId,
       duesSettingId: duesSettingId,
-      paidAt: paidAt,
+      paidAt: now,
       year: year,
       month: month,
     );

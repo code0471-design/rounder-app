@@ -73,8 +73,8 @@ class AppColors {
 
   // ── UI ───────────────────────────────────────────────────
   static const cardWhite      = surface;
-  /// 홈 카드와 같은 테두리 (일정·재무 등 흰 카드)
-  static const cardLine       = Color(0xFFD1D5DB);
+  /// 홈 카드와 같은 테두리 (일정·재무 등 흰 카드). 연회색이면 흰 배경에서 카드가 안 나뉜다.
+  static const cardLine       = Color(0xFF9CA3AF);
   static const divider        = Color(0xFFE8E6DC);
   static const dividerOnCard  = Color(0xFFE8E6DC);
   static const paidBg         = Color(0xFFE8F0EC);

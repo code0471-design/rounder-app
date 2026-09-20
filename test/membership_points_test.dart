@@ -327,7 +327,7 @@ void main() {
         duesSettingId: 'd1',
         amount: 50000,
         year: DateTime.now().year,
-        month: 5,
+        month: DateTime.now().month,
       );
 
       expect(myPoints() - before, 5,
@@ -379,10 +379,10 @@ void main() {
           memberName: clubs.currentMember!.name,
           duesSettingId: 'd1',
           amount: 50000,
-          year: DateTime.now().year,
-          month: 5,
-        );
-      }
+        year: DateTime.now().year,
+        month: DateTime.now().month,
+      );
+    }
 
       expect(myPoints() - before, 5);
     });
@@ -527,7 +527,7 @@ void main() {
         duesSettingId: 'd_a',
         amount: 50000,
         year: DateTime.now().year,
-        month: 5,
+        month: DateTime.now().month,
       );
       expect(clubs.getMembershipPoints(myId), 5);
 

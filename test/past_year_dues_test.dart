@@ -55,7 +55,7 @@ void main() {
         reason: '작년 납부가 올해 납부로 둔갑하면 안 된다');
   });
 
-  test('작년 연회비는 이번 달 수입에 들어가지 않는다', () {
+  test('작년 연회비를 오늘 납부하면 장부는 입금일, 회비납부는 작년이다', () {
     clubs.recordPayment(
       memberId: memberId,
       memberName: '안경헌',
@@ -64,10 +64,13 @@ void main() {
       year: lastYear,
     );
 
-    expect(clubs.monthlyIncome(now.year, now.month), 0,
-        reason: '작년 회비가 이번 달 수입으로 잡히던 문제');
+    expect(clubs.hasPaid(memberId, 'ds_annual', year: lastYear), isTrue);
+    expect(clubs.monthlyIncome(now.year, now.month), 400000,
+        reason: '장부 일자는 돈이 들어온 날');
     final tx = clubs.transactions.where((t) => t.amount == 400000).single;
-    expect(tx.date.year, lastYear);
+    expect(tx.date.year, now.year);
+    expect(tx.date.month, now.month);
+    expect(tx.title, '연회비 - 안경헌');
     expect(clubs.totalBalance, 400000, reason: '잔고에는 그대로 들어간다');
   });
 
@@ -105,6 +108,8 @@ void main() {
     expect(clubs.hasPaid(memberId, 'ds_monthly', year: lastYear, month: 2),
         isTrue);
     final tx = clubs.transactions.where((t) => t.amount == 50000).single;
-    expect(tx.date.month, 2);
+    expect(tx.date.year, now.year);
+    expect(tx.date.month, now.month);
+    expect(tx.title, '2월 월회비 - 안경헌');
   });
 }

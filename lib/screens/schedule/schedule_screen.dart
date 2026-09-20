@@ -649,7 +649,7 @@ class _AttendButton extends StatelessWidget {
     final responded = currentResponse != null;
     final isAttend = currentResponse == '참석';
     final isDecline = currentResponse == '불참';
-    final label = responded ? currentResponse! : '미답변';
+    final label = responded ? currentResponse! : '참석여부를 선택해주세요';
 
     return GestureDetector(
       onTap: () => _showResponseSheet(context),
@@ -670,7 +670,7 @@ class _AttendButton extends StatelessWidget {
         child: Text(
           label,
           style: TextStyle(
-            fontSize: 13,
+            fontSize: responded ? 13 : 11,
             fontWeight: FontWeight.w800,
             color: isAttend
                 ? Colors.white
@@ -1409,7 +1409,8 @@ class ScheduleDetailScreen extends StatelessWidget {
             ),
           ),
           const SizedBox(width: 12),
-          Column(
+          Expanded(
+            child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             mainAxisSize: MainAxisSize.min,
             children: [
@@ -1424,17 +1425,17 @@ class ScheduleDetailScreen extends StatelessWidget {
               const SizedBox(height: 2),
               Text(
                 (!responded || currentResponse == '미정')
-                    ? '미응답'
+                    ? '참석여부를 선택해주세요'
                     : currentResponse!,
                 style: TextStyle(
-                  fontSize: 18,
+                  fontSize: 15,
                   fontWeight: FontWeight.w800,
                   color: statusColor,
                 ),
               ),
             ],
           ),
-          const Spacer(),
+          ),
           Row(
             mainAxisSize: MainAxisSize.min,
             children: ['참석', '불참'].map((label) {

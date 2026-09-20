@@ -294,7 +294,11 @@ void main() {
     expect(badge.contains('horizontal: 10, vertical: 6'), isTrue);
     expect(source.contains('calendar_today_outlined'), isFalse);
     expect(source.contains('class _AttendButton'), isTrue);
-    expect(source.contains("responded ? currentResponse! : '미답변'"), isTrue);
+    expect(source.contains("responded ? currentResponse! : '참석여부를 선택해주세요'"),
+        isTrue);
+    expect(source.contains("? '참석여부를 선택해주세요'"), isTrue,
+        reason: '상세 내 응답도 미응답이 아니라 참석 선택을 안내해야 한다');
+    expect(source.contains("responded ? currentResponse! : '미답변'"), isFalse);
     expect(source.contains("responded ? currentResponse! : '참석'"), isFalse);
     expect(source.contains("responded ? currentResponse! : '응답하기'"), isFalse);
     expect(source.contains('_ScheduleDateTile(date: d, isPast: false)'), isTrue,

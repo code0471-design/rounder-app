@@ -342,5 +342,12 @@ void main() {
     expect(rec.contains('_duesPayments.add'), isTrue);
     expect(rec.contains('TxSource.dues'), isTrue,
         reason: '납부 처리 시 잔고 거래도 같이 남아야 한다');
+    expect(rec.contains('date: now'), isTrue,
+        reason: '수입 일자는 입금일(오늘)이어야 한다');
+    expect(rec.contains('date: paidAt'), isFalse,
+        reason: '지난달 회비를 오늘 내면 장부가 그달로 돌아가면 안 된다');
+    expect(rec.contains("title: '\$periodPart\${setting.type.label} - \$memberName'"),
+        isTrue,
+        reason: '수입 제목에 몇 월 회비인지 남아야 한다');
   });
 }
