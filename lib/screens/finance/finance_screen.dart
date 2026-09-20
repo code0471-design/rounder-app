@@ -1094,29 +1094,14 @@ class _PaymentStatusTabState extends State<_PaymentStatusTab> {
                                             _bulkSelectedIds.contains(m.id) &&
                                             !paidIds.contains(m.id))
                                         .toList();
-                                    for (final m in selectedMembers) {
-                                      provider.recordPayment(
-                                        memberId: m.id,
-                                        memberName: m.name,
-                                        duesSettingId: selected.id,
-                                        amount: selected.amountForPeriod(
-                                          year: viewYear,
-                                          month: isMonthly ? _month : 1,
-                                        ),
-                                        year: viewYear,
-                                        month: isMonthly ? _month : null,
-                                        skipsBalance: false,
-                                      );
-                                    }
-                                    final count = selectedMembers.length;
-                                    setState(() => _bulkSelectedIds.clear());
-                                    ScaffoldMessenger.of(context).showSnackBar(
-                                      SnackBar(
-                                        content: Text(
-                                            '$count명 납부 완료 처리했습니다'),
-                                        backgroundColor: AppColors.success,
-                                        behavior: SnackBarBehavior.floating,
-                                      ),
+                                    if (selectedMembers.isEmpty) return;
+                                    _showBulkPaymentDialog(
+                                      context,
+                                      provider,
+                                      members: selectedMembers,
+                                      setting: selected,
+                                      year: viewYear,
+                                      month: isMonthly ? _month : null,
                                     );
                                   },
                             style: ElevatedButton.styleFrom(
@@ -1188,6 +1173,192 @@ class _PaymentStatusTabState extends State<_PaymentStatusTab> {
           ],
         );
       },
+    );
+  }
+
+  // ── 일괄 납부 — 개별과 같은 잔고 반영 확인 ──
+  void _showBulkPaymentDialog(
+    BuildContext context,
+    ClubProvider provider, {
+    required List<Member> members,
+    required DuesSetting setting,
+    required int year,
+    int? month,
+  }) {
+    if (members.isEmpty) return;
+    final amount = setting.amountForPeriod(year: year, month: month ?? 1);
+    bool skipsBalance = false;
+    showDialog(
+      context: context,
+      builder: (ctx) => StatefulBuilder(
+        builder: (ctx, setDialogState) => AlertDialog(
+          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+          title: Row(
+            children: [
+              Container(
+                padding: const EdgeInsets.all(6),
+                decoration: BoxDecoration(
+                  color: AppColors.mintPale,
+                  borderRadius: BorderRadius.circular(8),
+                ),
+                child: const Icon(Icons.payments_outlined,
+                    color: AppColors.primary, size: 18),
+              ),
+              const SizedBox(width: 10),
+              Expanded(
+                child: Text(
+                  '${members.length}명 납부 처리',
+                  style: const TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
+                ),
+              ),
+            ],
+          ),
+          content: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Container(
+                width: double.infinity,
+                padding: const EdgeInsets.symmetric(vertical: 10, horizontal: 14),
+                decoration: BoxDecoration(
+                  color: AppColors.background,
+                  borderRadius: BorderRadius.circular(10),
+                ),
+                child: Row(
+                  children: [
+                    const Icon(Icons.account_balance_wallet_outlined,
+                        size: 15, color: AppColors.textSecondary),
+                    const SizedBox(width: 6),
+                    Text(
+                      '${setting.type.label}  ',
+                      style: const TextStyle(
+                          fontSize: 12, color: AppColors.textSecondary),
+                    ),
+                    Text(
+                      '${_fmt(amount)}원 × ${members.length}명',
+                      style: const TextStyle(
+                          fontSize: 14,
+                          fontWeight: FontWeight.bold,
+                          color: AppColors.primary),
+                    ),
+                  ],
+                ),
+              ),
+              const SizedBox(height: 16),
+              InkWell(
+                onTap: () => setDialogState(() => skipsBalance = !skipsBalance),
+                borderRadius: BorderRadius.circular(8),
+                child: Padding(
+                  padding: const EdgeInsets.symmetric(vertical: 4),
+                  child: Row(
+                    children: [
+                      SizedBox(
+                        width: 22,
+                        height: 22,
+                        child: Checkbox(
+                          value: skipsBalance,
+                          onChanged: (v) =>
+                              setDialogState(() => skipsBalance = v ?? false),
+                          activeColor: AppColors.primary,
+                          shape: RoundedRectangleBorder(
+                              borderRadius: BorderRadius.circular(4)),
+                          materialTapTargetSize:
+                              MaterialTapTargetSize.shrinkWrap,
+                        ),
+                      ),
+                      const SizedBox(width: 10),
+                      const Expanded(
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Text(
+                              '잔고에 반영하지 않기',
+                              style: TextStyle(
+                                  fontSize: 13, fontWeight: FontWeight.w500),
+                            ),
+                            Text(
+                              '체크하면 납부 ✓만 되고 현 회비 잔고는 그대로입니다',
+                              style: TextStyle(
+                                  fontSize: 11,
+                                  color: AppColors.textSecondary),
+                            ),
+                          ],
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              ),
+            ],
+          ),
+          actionsPadding: const EdgeInsets.fromLTRB(16, 0, 16, 16),
+          actions: [
+            Row(
+              children: [
+                Expanded(
+                  child: OutlinedButton(
+                    onPressed: () => Navigator.pop(ctx),
+                    style: OutlinedButton.styleFrom(
+                      foregroundColor: AppColors.textSecondary,
+                      side: const BorderSide(color: AppColors.divider),
+                      shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(10)),
+                      padding: const EdgeInsets.symmetric(vertical: 12),
+                    ),
+                    child: const Text('취소'),
+                  ),
+                ),
+                const SizedBox(width: 10),
+                Expanded(
+                  child: ElevatedButton(
+                    onPressed: () {
+                      Navigator.pop(ctx);
+                      for (final m in members) {
+                        provider.recordPayment(
+                          memberId: m.id,
+                          memberName: m.name,
+                          duesSettingId: setting.id,
+                          amount: amount,
+                          year: year,
+                          month: month,
+                          skipsBalance: skipsBalance,
+                        );
+                      }
+                      setState(() => _bulkSelectedIds.clear());
+                      final count = members.length;
+                      final msg = skipsBalance
+                          ? '$count명 납부 처리 (잔고 미반영)'
+                          : '$count명 납부 완료 처리했습니다';
+                      ScaffoldMessenger.of(context).showSnackBar(
+                        SnackBar(
+                          content: Text(msg),
+                          backgroundColor: skipsBalance
+                              ? AppColors.primary
+                              : AppColors.success,
+                          behavior: SnackBarBehavior.floating,
+                          shape: RoundedRectangleBorder(
+                              borderRadius: BorderRadius.circular(10)),
+                          duration: const Duration(seconds: 2),
+                        ),
+                      );
+                    },
+                    style: ElevatedButton.styleFrom(
+                      backgroundColor: AppColors.primary,
+                      foregroundColor: Colors.white,
+                      shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(10)),
+                      padding: const EdgeInsets.symmetric(vertical: 12),
+                      elevation: 0,
+                    ),
+                    child: const Text('납부 처리',
+                        style: TextStyle(fontWeight: FontWeight.bold)),
+                  ),
+                ),
+              ],
+            ),
+          ],
+        ),
+      ),
     );
   }
 

@@ -306,7 +306,9 @@ void main() {
     );
     expect(finance.contains('NeverScrollableScrollPhysics'), isTrue,
         reason: '가로 스와이프 탭뷰가 전체선택·체크 탭을 가로채면 안 된다');
-    expect(finance.contains('skipsBalance: false'), isTrue);
+    expect(finance.contains('_showBulkPaymentDialog'), isTrue,
+        reason: '일괄 납부도 개별처럼 잔고 반영 여부를 물어야 한다');
+    expect(finance.contains('잔고에 반영하지 않기'), isTrue);
     expect(finance.contains('bulkEnabled: !paid'), isTrue);
     expect(finance.contains('opacity: bulkEnabled ? 1 : 0.32'), isTrue,
         reason: '이미 납부한 회원 체크박스는 흐려서 선택 불가로 보여야 한다');
@@ -319,7 +321,8 @@ void main() {
     final end = finance.indexOf('선택 납부 처리', start);
     expect(start, greaterThan(0));
     expect(end, greaterThan(start));
-    expect(finance.substring(start, end).contains('recordPayment'), isTrue);
+    expect(finance.substring(start, end).contains('_showBulkPaymentDialog'),
+        isTrue);
     expect(finance.contains('final members = provider.regularMembers;'),
         isTrue,
         reason: '일괄 납부 대상에 게스트가 들어가면 안 됨');
