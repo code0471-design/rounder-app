@@ -1320,4 +1320,16 @@ void main() {
     expect(ids, contains('m_c_test_kakao_guest'));
     expect(ids, isNot(contains('kakao_host')));
   });
+
+  test('지운 인앱 알림은 원격 목록에서 되살아나지 않는다', () {
+    ClubOpsSync.resetNotificationTombstones();
+    addTearDown(ClubOpsSync.resetNotificationTombstones);
+
+    ClubOpsSync.markNotificationRemoved('noti_old');
+    final kept = ClubOpsSync.applyNotificationTombstones([
+      {'id': 'noti_old', 'title': '댓글'},
+      {'id': 'noti_new', 'title': '공지'},
+    ]);
+    expect(kept.map((e) => e['id']), ['noti_new']);
+  });
 }

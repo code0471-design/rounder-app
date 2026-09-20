@@ -14,6 +14,7 @@ abstract class ClubRepository {
     String? description,
     String? imageUrl,
     int? teamCount,
+    int? memberCount,
     String? hostName,
     String? hostUserId,
     String? region,

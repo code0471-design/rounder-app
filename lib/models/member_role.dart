@@ -105,6 +105,16 @@ abstract final class ClubMemberRole {
 
   static bool isTreasurer(String role) => hasRole(role, treasurer);
 
+  /// 재무 권한. 총무이거나, 총무가 비어 있을 때 회장·부회장.
+  static bool canActAsTreasurer(
+    String role, {
+    required bool treasurerVacant,
+  }) {
+    if (isTreasurer(role)) return true;
+    if (!treasurerVacant) return false;
+    return hasRole(role, president) || hasRole(role, vicePresident);
+  }
+
   /// 일정 등록 (회장·부회장·총무)
   static bool canCreateSchedule(String role) => isOfficer(role);
 

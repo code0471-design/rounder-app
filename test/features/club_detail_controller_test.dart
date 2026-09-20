@@ -31,6 +31,7 @@ class _FakeClubRepository implements ClubRepository {
     String? description,
     String? imageUrl,
     int? teamCount,
+    int? memberCount,
     String? hostName,
     String? hostUserId,
     String? region,

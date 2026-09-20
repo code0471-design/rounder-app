@@ -32,4 +32,39 @@ void main() {
       );
     });
   });
+
+  group('총무 공석 재무 권한', () {
+    test('총무는 항상 재무 권한이 있다', () {
+      expect(
+        ClubMemberRole.canActAsTreasurer('총무', treasurerVacant: false),
+        isTrue,
+      );
+      expect(
+        ClubMemberRole.canActAsTreasurer('회장·총무', treasurerVacant: false),
+        isTrue,
+      );
+    });
+
+    test('총무가 있으면 회장만으로는 재무 권한이 없다', () {
+      expect(
+        ClubMemberRole.canActAsTreasurer('회장', treasurerVacant: false),
+        isFalse,
+      );
+    });
+
+    test('총무가 없으면 회장·부회장이 재무를 맡는다', () {
+      expect(
+        ClubMemberRole.canActAsTreasurer('회장', treasurerVacant: true),
+        isTrue,
+      );
+      expect(
+        ClubMemberRole.canActAsTreasurer('부회장', treasurerVacant: true),
+        isTrue,
+      );
+      expect(
+        ClubMemberRole.canActAsTreasurer('정회원', treasurerVacant: true),
+        isFalse,
+      );
+    });
+  });
 }

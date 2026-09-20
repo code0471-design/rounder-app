@@ -326,6 +326,7 @@ class FirestoreClubDataSource {
     String? description,
     String? imageUrl,
     int? teamCount,
+    int? memberCount,
     String? hostName,
     String? hostUserId,
     String? region,
@@ -339,6 +340,7 @@ class FirestoreClubDataSource {
       if (description != null) data['description'] = description;
       if (imageUrl != null) data['image_url'] = imageUrl;
       if (teamCount != null) data['team_count'] = teamCount;
+      if (memberCount != null) data['member_count'] = memberCount;
       if (region != null && region.isNotEmpty) data['region'] = region;
       if (industry != null && industry.isNotEmpty) data['industry'] = industry;
       if (hostName != null) data['host_name'] = hostName;

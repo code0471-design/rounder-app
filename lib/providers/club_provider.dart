@@ -529,6 +529,7 @@ class ClubProvider extends ChangeNotifier with WidgetsBindingObserver {
     _syncSelfDisplayName();
     // 데모 모임(c1~c5) 회원수 — 과거에 저장된 임의값이 남아있어도 실제 명단 기준으로 교정
     _reconcileLegacyMemberCounts();
+    _reconcileLiveMemberCounts();
     // 내 모임 → Mock 저장소(어드민·모임찾기) 강제 동기화
     _syncMyClubsToMockStore();
 
@@ -584,6 +585,7 @@ class ClubProvider extends ChangeNotifier with WidgetsBindingObserver {
       _purgeHongGilDongFromRealClubs();
       _scrubUndersizedScheduleCapacities();
       _syncAllNextRounds();
+      _reconcileLiveMemberCounts();
     } catch (e) {
       debugPrint('[ClubProvider] cloud pull fail: $e');
     } finally {
@@ -1965,6 +1967,24 @@ class ClubProvider extends ChangeNotifier with WidgetsBindingObserver {
     }
   }
 
+  /// 모임찾기 카탈로그 회원수를 실제 활성 명단에 맞춘다.
+  /// leftover 삭제 후에도 clubs.member_count 가 4로 남는 일을 막는다.
+  void _reconcileLiveMemberCounts() {
+    final ids = <String>{
+      ..._myClubs.map((c) => c.id),
+      ..._allClubs.map((c) => c.id),
+    };
+    for (final id in ids) {
+      if (_legacyMockClubIds.contains(id)) continue;
+      final n = membersForClub(id).where((m) => m.status == '활성').length;
+      if (n <= 0) continue;
+      final mine = _myClubs.where((c) => c.id == id).firstOrNull;
+      final catalog = _allClubs.where((c) => c.id == id).firstOrNull;
+      if (mine?.memberCount == n && catalog?.memberCount == n) continue;
+      _setMemberCount(id, n);
+    }
+  }
+
   /// ClubProvider → MockDataStore (템플릿 c1~c10 + 사용자 c_*)
   void _syncMyClubsToMockStore() {
     final store = AppDependencies.instance.mockDataStore;
@@ -2173,7 +2193,7 @@ class ClubProvider extends ChangeNotifier with WidgetsBindingObserver {
       ..addAll(b.announcements);
     _appNotifications
       ..clear()
-      ..addAll(b.appNotifications);
+      ..addAll(b.appNotifications.where((n) => !ClubOpsSync.isNotificationRemoved(n.id)));
     _duesSettings
       ..clear()
       ..addAll(b.duesSettings);
@@ -2375,7 +2395,13 @@ class ClubProvider extends ChangeNotifier with WidgetsBindingObserver {
     for (final c in _myClubs) {
       byId.putIfAbsent(c.id, () => c);
     }
-    return byId.values.where((c) {
+    return byId.values.map((c) {
+      final live = membersForClub(c.id).where((m) => m.status == '활성').length;
+      if (live > 0 && c.memberCount != live) {
+        return c.copyWith(memberCount: live);
+      }
+      return c;
+    }).where((c) {
       // 지역전체/전체: 전부, '지역다양함': 해당 모임만, 그 외: 시·도 접두사 or 완전일치
       final matchRegion = isAllRegionFilter(region) ||
           c.region == region ||
@@ -3920,10 +3946,19 @@ class ClubProvider extends ChangeNotifier with WidgetsBindingObserver {
   }
 
   /// 선택 모임에서의 총무 여부 — 재무(회비) 전용 권한
-  /// Club.myRole과 회원 명단 role이 어긋난 경우(직책 수정·인수인계)도 허용
-  bool get isTreasurer =>
-      ClubMemberRole.isTreasurer(selectedClub.myRole) ||
-      ClubMemberRole.isTreasurer(currentMember?.role ?? '');
+  /// Club.myRole과 회원 명단 role이 어긋난 경우(직책 수정·인수인계)도 허용.
+  /// 총무가 비어 있으면 회장·부회장이 재무를 막히지 않게 한다.
+  bool get isTreasurer {
+    final vacant = !hasActiveTreasurer();
+    return ClubMemberRole.canActAsTreasurer(
+          selectedClub.myRole,
+          treasurerVacant: vacant,
+        ) ||
+        ClubMemberRole.canActAsTreasurer(
+          currentMember?.role ?? '',
+          treasurerVacant: vacant,
+        );
+  }
 
   /// 모임 정보 수정 가능 (회장·부회장·총무)
   bool get canEditClubInfo => isClubExecutive;
@@ -4856,8 +4891,7 @@ class ClubProvider extends ChangeNotifier with WidgetsBindingObserver {
   /// 활성 총무가 있는지 (가입 알림 라우팅용)
   bool hasActiveTreasurer([String? clubId]) {
     final cid = clubId ?? selectedClub.id;
-    // mock 멤버 풀은 선택 모임 기준 — 해당 모임의 myRole에도 총무가 있으면 true
-    final inMembers = _members
+    final inMembers = membersForClub(cid)
         .any((m) => m.status == '활성' && ClubMemberRole.isTreasurer(m.role));
     final clubRole = _myClubs
         .where((c) => c.id == cid)
@@ -5132,33 +5166,51 @@ class ClubProvider extends ChangeNotifier with WidgetsBindingObserver {
 
   /// 알림 1개 삭제
   void removeNotification(String notifId) {
+    _tombstoneNotifications(_appNotifications.where((n) => n.id == notifId));
     _appNotifications.removeWhere((n) => n.id == notifId);
     notifyListeners();
+    _persistImmediately();
   }
 
   /// 읽은 알림 전체 삭제
   void deleteReadNotifications() {
+    _tombstoneNotifications(_appNotifications.where((n) => n.isRead));
     _appNotifications.removeWhere((n) => n.isRead);
     notifyListeners();
+    _persistImmediately();
   }
 
   /// 모든 알림 삭제
   void clearAllNotifications() {
+    _tombstoneNotifications(_appNotifications);
     _appNotifications.clear();
     notifyListeners();
+    _persistImmediately();
   }
 
   /// 특정 모임 알림 전체 삭제 (볼 수 있는 알림만)
   void removeAllNotificationsForClub(String clubId) {
+    _tombstoneNotifications(
+      _appNotifications.where((n) => n.clubId == clubId && canSeeNotification(n)),
+    );
     _appNotifications
         .removeWhere((n) => n.clubId == clubId && canSeeNotification(n));
     notifyListeners();
+    _persistImmediately();
   }
 
   /// 내 모임 화면에서 볼 수 있는 알림 전체 삭제
   void removeAllVisibleNotifications() {
+    _tombstoneNotifications(_appNotifications.where(canSeeNotification));
     _appNotifications.removeWhere(canSeeNotification);
     notifyListeners();
+    _persistImmediately();
+  }
+
+  void _tombstoneNotifications(Iterable<AppNotification> items) {
+    for (final n in List<AppNotification>.from(items)) {
+      ClubOpsSync.markNotificationRemoved(n.id);
+    }
   }
 
   // ════════════════════════════════════════════════════════
@@ -6315,6 +6367,9 @@ class ClubProvider extends ChangeNotifier with WidgetsBindingObserver {
     if (i2 != -1) {
       _allClubs[i2] = _allClubs[i2].copyWith(memberCount: count);
     }
+    if (!_suppressPersist && !_applyingCloudOps) {
+      unawaited(_pushClubCatalogToServer(clubId, memberCount: count));
+    }
   }
 
   // ════════════════════════════════════════════════════════
@@ -6370,6 +6425,7 @@ class ClubProvider extends ChangeNotifier with WidgetsBindingObserver {
     String? description,
     String? imageUrl,
     int? teamCount,
+    int? memberCount,
     String? hostName,
     String? hostUserId,
     String? region,
@@ -6387,6 +6443,7 @@ class ClubProvider extends ChangeNotifier with WidgetsBindingObserver {
         description: description,
         imageUrl: imageUrl,
         teamCount: teamCount,
+        memberCount: memberCount,
         hostName: hostName,
         hostUserId: hostUserId,
         region: region,
@@ -6409,6 +6466,9 @@ class ClubProvider extends ChangeNotifier with WidgetsBindingObserver {
         description: club.description,
         imageUrl: club.imageUrl,
         teamCount: club.teamCount,
+        memberCount: membersForClub(club.id)
+            .where((m) => m.status == '활성')
+            .length,
         hostName: currentUserName,
         hostUserId: (_persistAuthUserId ?? currentUserId).trim(),
       );

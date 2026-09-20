@@ -113,6 +113,7 @@ class MockClubRepository implements ClubRepository {
     String? description,
     String? imageUrl,
     int? teamCount,
+    int? memberCount,
     String? hostName,
     String? hostUserId,
     String? region,
@@ -125,6 +126,7 @@ class MockClubRepository implements ClubRepository {
       description: description,
       imageUrl: imageUrl,
       teamCount: teamCount,
+      memberCount: memberCount,
       region: region,
       industry: industry,
     );

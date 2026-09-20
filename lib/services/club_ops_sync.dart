@@ -262,7 +262,10 @@ class ClubOpsSync {
     try {
       final full = ClubDataCodec.encode(bundle);
       final payload = <String, dynamic>{
-        'appNotifications': full['appNotifications'],
+        'appNotifications': applyNotificationTombstones(
+          full['appNotifications'] as List? ?? const [],
+        ),
+        'removedNotificationIds': _removedNotificationIds.toList(),
         'joinRequests': full['joinRequests'],
         'updatedAtClient': DateTime.now().toIso8601String(),
         'updatedAt': FieldValue.serverTimestamp(),
@@ -327,8 +330,18 @@ class ClubOpsSync {
       }
       final remote = Map<String, dynamic>.from(snap.data()!);
       final encoded = ClubDataCodec.encode(local);
+      final remoteRemoved = remote['removedNotificationIds'];
+      if (remoteRemoved is List) {
+        seedRemovedNotifications(remoteRemoved.map((e) => '$e'));
+      }
       if (remote['appNotifications'] is List) {
-        encoded['appNotifications'] = remote['appNotifications'];
+        encoded['appNotifications'] = applyNotificationTombstones(
+          remote['appNotifications'] as List,
+        );
+      } else {
+        encoded['appNotifications'] = applyNotificationTombstones(
+          encoded['appNotifications'] as List? ?? const [],
+        );
       }
       if (remote['joinRequests'] is List) {
         encoded['joinRequests'] = _mergeJoinRequests(
@@ -428,6 +441,41 @@ class ClubOpsSync {
   }
 
   static final Set<String> _removedMemberIds = {};
+
+  static final Set<String> _removedNotificationIds = {};
+
+  /// 지운 인앱 알림. pull/watch 가 user_ops 옛 목록으로 되살리지 못하게 한다.
+  static void markNotificationRemoved(String notificationId) {
+    if (notificationId.isEmpty) return;
+    _removedNotificationIds.add(notificationId);
+  }
+
+  static bool isNotificationRemoved(String notificationId) =>
+      notificationId.isNotEmpty &&
+      _removedNotificationIds.contains(notificationId);
+
+  static void seedRemovedNotifications(Iterable<String> notificationIds) {
+    for (final id in notificationIds) {
+      markNotificationRemoved(id);
+    }
+  }
+
+  @visibleForTesting
+  static void resetNotificationTombstones() {
+    _removedNotificationIds.clear();
+  }
+
+  /// 원격·로컬 알림에서 삭제한 id 를 뺀다.
+  @visibleForTesting
+  static List<Map<String, dynamic>> applyNotificationTombstones(List? list) {
+    return [
+      for (final e in list ?? const [])
+        if (e is Map &&
+            (e['id'] as String? ?? '').isNotEmpty &&
+            !_removedNotificationIds.contains(e['id']))
+          Map<String, dynamic>.from(e),
+    ];
+  }
 
   /// 명단에서 뺀 회원. 사진 tombstone 과 같은 이유로 필요하다.
   ///
