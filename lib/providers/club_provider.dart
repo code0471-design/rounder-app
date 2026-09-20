@@ -1419,21 +1419,12 @@ class ClubProvider extends ChangeNotifier with WidgetsBindingObserver {
     );
     if (myPhone.isEmpty) return false;
 
-    final otherAccountIds = <String>{
-      for (final a in _clubAccounts[clubId] ?? const <ClubMemberAccount>[])
-        if (a.userId.trim() != uid) a.userId.trim(),
-    };
-
     final absorbed = <String, String>{};
     for (final m in List<Member>.from(_members)) {
       if (m.id == myId) continue;
       if (!Member.isClubRosterId(clubId, m.id)) continue;
       if (m.id == 'm_creator_$clubId') continue; // 방장 자리는 따로 처리
       if (MemberPhoneIndex.digitsOf(m.phone) != myPhone) continue;
-      final suffix = m.id.substring('m_${clubId}_'.length);
-      // 다른 사람의 계정 행이면 건드리지 않는다
-      if (otherAccountIds.contains(suffix)) continue;
-      if (RegExp(r'^(kakao|google|apple)_').hasMatch(suffix)) continue;
       absorbed[m.id] = myId;
     }
     if (absorbed.isEmpty) return false;
@@ -5823,7 +5814,7 @@ class ClubProvider extends ChangeNotifier with WidgetsBindingObserver {
           _persistAuthUserId ?? (_isDemoSession ? currentUserId : ''),
         ));
       }
-      final result = RosterDedupe.collapseMembers(
+      final result = RosterDedupe.collapseClub(
         members: _members,
         clubId: club.id,
         creatorAuthIds: authIds,
@@ -5836,6 +5827,14 @@ class ClubProvider extends ChangeNotifier with WidgetsBindingObserver {
         ..clear()
         ..addAll(result.members);
       ClubOpsSync.seedRemovedMembers(result.droppedIds);
+      final prefix = 'm_${club.id}_';
+      for (final oldId in result.droppedIds) {
+        if (!oldId.startsWith(prefix)) continue;
+        unawaited(ClubOpsSync.deleteClubMemberDoc(
+          club.id,
+          oldId.substring(prefix.length),
+        ));
+      }
       _applyRosterIdRemap(
         club.id,
         result.idRemap,

@@ -6,6 +6,7 @@ Member _m({
   required String id,
   required String name,
   required String role,
+  String? phone,
 }) =>
     Member(
       id: id,
@@ -13,6 +14,7 @@ Member _m({
       gender: '남',
       memberType: '정회원',
       role: role,
+      phone: phone,
       status: '활성',
     );
 
@@ -75,5 +77,37 @@ void main() {
       '안경헌',
       'Jeongwon Lee',
     });
+  });
+
+  test('같은 번호면 Jeongwon Leeee와 이정원을 한 줄로 합친다', () {
+    const phone = '01092874073';
+    final result = RosterDedupe.collapseSamePhone(
+      members: [
+        _m(
+            id: 'm_c1_kakao_1',
+            name: 'Jeongwon Leeee',
+            role: '정회원',
+            phone: phone),
+        _m(id: 'm_c1_m1', name: '이정원', role: '정회원', phone: phone),
+        _m(id: 'm_creator_c1', name: '안경헌', role: '회장', phone: '01011112222'),
+      ],
+      clubId: 'c1',
+    );
+    expect(result.droppedIds.length, 1);
+    expect(result.members.where((m) => Member.isClubRosterId('c1', m.id)).length, 2);
+    expect(result.members.any((m) => m.name == '이정원'), isTrue);
+    expect(result.members.any((m) => m.name == 'Jeongwon Leeee'), isFalse);
+  });
+
+  test('번호가 다른 회원은 합치지 않는다', () {
+    final result = RosterDedupe.collapseSamePhone(
+      members: [
+        _m(id: 'm_c1_a', name: '이정원', role: '정회원', phone: '01011112222'),
+        _m(id: 'm_c1_b', name: '안경헌', role: '정회원', phone: '01033334444'),
+      ],
+      clubId: 'c1',
+    );
+    expect(result.droppedIds, isEmpty);
+    expect(result.members.length, 2);
   });
 }

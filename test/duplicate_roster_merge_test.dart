@@ -110,14 +110,14 @@ void main() {
     expect(ranking.any((e) => e.key == 'm_${clubId}_m1'), isFalse);
   });
 
-  test('다른 사람의 계정 행은 흡수하지 않는다', () async {
+  test('다른 번호의 계정 행은 흡수하지 않는다', () async {
     clubs.addMember(Member(
       id: 'm_${clubId}_kakao_other',
       name: '다른사람',
       gender: '남',
       memberType: '정회원',
       role: '정회원',
-      phone: phone, // 번호를 잘못 적어 둬도 남의 계정 행은 건드리면 안 된다
+      phone: '010-1111-2222',
       joinDate: DateTime(2026, 9, 15),
     ));
     await clubs.mergeRemoteRosterForTest(clubId, [
@@ -134,6 +134,66 @@ void main() {
 
     final roster = clubs.membersForClub(clubId);
     expect(roster.any((m) => m.id == 'm_${clubId}_kakao_other'), isTrue,
-        reason: '남의 계정 행을 삼키면 그 사람이 명단에서 사라진다');
+        reason: '다른 번호 계정 행을 삼키면 그 사람이 명단에서 사라진다');
+  });
+
+  test('방장이 봐도 같은 번호 이정원 두 줄은 한 줄이다', () async {
+    final host = ClubProvider();
+    await host.switchUser(hostUid, displayName: '안경헌', phone: '010-1111-2222');
+    final club = Club(
+      id: clubId,
+      name: '아레나 골프회',
+      myRole: '회장',
+      memberCount: 3,
+      creatorId: hostUid,
+      region: '서울',
+      industry: '골프',
+      teamCount: 4,
+      description: '',
+      createdAt: DateTime(2026, 9, 1),
+    );
+    host.hydrateFromBootstrap(AppBootstrapSnapshot(
+      userId: hostUid,
+      myClubs: [club],
+      discoverableClubs: [club],
+      membersByClubId: const {},
+      financeByClubId: const {},
+      loadedAt: DateTime(2026, 9, 20),
+    ));
+    host.selectClubById(clubId);
+    await host.mergeRemoteRosterForTest(clubId, [
+      Member(
+        id: hostUid,
+        name: '안경헌',
+        gender: '남',
+        memberType: '정회원',
+        role: '회장',
+        phone: '010-1111-2222',
+        joinDate: DateTime(2026, 9, 1),
+      ),
+      Member(
+        id: 'kakao_lee',
+        name: 'Jeongwon Leeee',
+        gender: '남',
+        memberType: '정회원',
+        role: '정회원',
+        phone: phone,
+        joinDate: DateTime(2026, 9, 12),
+      ),
+      Member(
+        id: 'google_lee',
+        name: '이정원',
+        gender: '남',
+        memberType: '정회원',
+        role: '정회원',
+        phone: phone,
+        joinDate: DateTime(2026, 9, 12),
+      ),
+    ]);
+
+    final roster = host.membersForClub(clubId);
+    expect(roster.length, 2, reason: '안경헌 + 이정원만 보여야 한다');
+    expect(roster.where((m) => m.name.contains('Jeongwon')), isEmpty);
+    expect(roster.where((m) => m.name == '이정원').length, 1);
   });
 }

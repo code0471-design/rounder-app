@@ -90,41 +90,78 @@ class RosterDedupe {
         .toList();
     final others = members.where((e) => e is! Map).toList();
     final creatorIdx = maps.indexWhere((m) => m['id'] == creatorRowId);
-    if (creatorIdx < 0) {
-      return RosterDedupeMapsResult(members: [...maps, ...others], droppedIds: const {});
-    }
+    var dropped = <String>{};
+    if (creatorIdx >= 0) {
 
-    final aliases = creatorAuthIds.map((e) => e.trim()).where((e) => e.isNotEmpty).toSet();
-    final creatorName = (maps[creatorIdx]['name'] as String? ?? '').trim();
-    final dropped = <String>{};
-    for (final m in maps) {
-      final id = m['id'] as String? ?? '';
-      if (!id.startsWith(prefix)) continue;
-      final suffix = id.substring(prefix.length);
-      final role = m['role'] as String? ?? '';
-      final sameName = creatorName.isNotEmpty &&
-          (m['name'] as String? ?? '').trim() == creatorName &&
-          !ClubMemberRole.isOfficer(role);
-      if (aliases.contains(suffix) || sameName) {
-        dropped.add(id);
-        _mergeMemberMap(maps[creatorIdx], m);
+      final aliases = creatorAuthIds.map((e) => e.trim()).where((e) => e.isNotEmpty).toSet();
+      final creatorName = (maps[creatorIdx]['name'] as String? ?? '').trim();
+      for (final m in maps) {
+        final id = m['id'] as String? ?? '';
+        if (!id.startsWith(prefix)) continue;
+        final suffix = id.substring(prefix.length);
+        final role = m['role'] as String? ?? '';
+        final sameName = creatorName.isNotEmpty &&
+            (m['name'] as String? ?? '').trim() == creatorName &&
+            !ClubMemberRole.isOfficer(role);
+        if (aliases.contains(suffix) || sameName) {
+          dropped.add(id);
+          _mergeMemberMap(maps[creatorIdx], m);
+        }
       }
+      maps.removeWhere((m) => dropped.contains(m['id']));
     }
-    if (dropped.isEmpty) {
-      return RosterDedupeMapsResult(members: [...maps, ...others], droppedIds: const {});
-    }
+    dropped.addAll(_collapseSamePhoneMaps(maps, clubId));
     return RosterDedupeMapsResult(
-      members: [
-        ...maps.where((m) => !dropped.contains(m['id'])),
-        ...others,
-      ],
+      members: [...maps, ...others],
       droppedIds: dropped,
     );
   }
 
+  static Set<String> _collapseSamePhoneMaps(
+    List<Map<String, dynamic>> maps,
+    String clubId,
+  ) {
+    final prefix = 'm_${clubId}_';
+    final creatorRow = 'm_creator_$clubId';
+    final groups = <String, List<Map<String, dynamic>>>{};
+    for (final m in maps) {
+      final id = '${m['id'] ?? ''}';
+      if (id != creatorRow && !id.startsWith(prefix)) continue;
+      final phone = _digits(m['phone'] as String?);
+      if (phone.length < 10) continue;
+      groups.putIfAbsent(phone, () => []).add(m);
+    }
+    final dropped = <String>{};
+    for (final group in groups.values) {
+      if (group.length < 2) continue;
+      final ranked = [...group]..sort((a, b) {
+          return _keepScore(_memberFromMap(b))
+              .compareTo(_keepScore(_memberFromMap(a)));
+        });
+      final keep = ranked.first;
+      for (final extra in ranked.skip(1)) {
+        _mergeMemberMap(keep, extra);
+        dropped.add('${extra['id']}');
+      }
+    }
+    if (dropped.isNotEmpty) {
+      maps.removeWhere((m) => dropped.contains('${m['id']}'));
+    }
+    return dropped;
+  }
+
+  static Member _memberFromMap(Map<String, dynamic> m) => Member(
+        id: '${m['id'] ?? ''}',
+        name: '${m['name'] ?? ''}',
+        gender: '${m['gender'] ?? '남'}',
+        memberType: '${m['memberType'] ?? '정회원'}',
+        role: '${m['role'] ?? '정회원'}',
+        phone: m['phone'] as String?,
+      );
+
   static void _mergeMemberMap(Map<String, dynamic> keep, Map<String, dynamic> extra) {
     String str(dynamic v) => (v as String? ?? '').trim();
-    if (_isWeakName(str(keep['name'])) && !_isWeakName(str(extra['name']))) {
+    if (_preferName(str(extra['name']), str(keep['name']))) {
       keep['name'] = extra['name'];
     }
     if (str(keep['gender']).isEmpty && str(extra['gender']).isNotEmpty) {
@@ -146,9 +183,7 @@ class RosterDedupe {
   }
 
   static Member mergeMember(Member keep, Member extra) {
-    final keepPlaceholder = _isWeakName(keep.name);
-    final extraPlaceholder = _isWeakName(extra.name);
-    final name = (keepPlaceholder && !extraPlaceholder) ? extra.name : keep.name;
+    final name = _preferName(extra.name, keep.name) ? extra.name : keep.name;
     final role = ClubMemberRole.isOfficer(keep.role)
         ? keep.role
         : (ClubMemberRole.isOfficer(extra.role) ? extra.role : keep.role);
@@ -177,5 +212,104 @@ class RosterDedupe {
   static bool _isWeakName(String name) {
     final t = name.trim();
     return t.isEmpty || t == '회원' || t == '홍길동';
+  }
+
+  static bool _looksKorean(String name) =>
+      RegExp(r'[가-힣]').hasMatch(name.trim());
+
+  /// [candidate] 를 [current] 대신 쓸지. 한글 실명 > 영문 닉네임 > 약한 이름.
+  static bool _preferName(String candidate, String current) {
+    if (_isWeakName(current) && !_isWeakName(candidate)) return true;
+    if (_looksKorean(candidate) && !_looksKorean(current)) return true;
+    return false;
+  }
+
+  static String _digits(String? phone) =>
+      (phone ?? '').replaceAll(RegExp(r'[^0-9]'), '');
+
+  static int _keepScore(Member m) {
+    var s = 0;
+    if (ClubMemberRole.isOfficer(m.role)) s += 100;
+    if (RegExp(r'(kakao|google|apple)_').hasMatch(m.id)) s += 20;
+    if (_looksKorean(m.name)) s += 10;
+    if (m.id.endsWith('_m1') || m.id.contains('_m1')) s -= 5;
+    return s;
+  }
+
+  /// 같은 전화번호면 누가 보든 한 줄. (아레나: Jeongwon Leeee + 이정원)
+  /// 번호 없는 행은 합치지 않는다.
+  static RosterDedupeResult collapseSamePhone({
+    required List<Member> members,
+    required String clubId,
+  }) {
+    final inClub = <Member>[];
+    final others = <Member>[];
+    for (final m in members) {
+      if (Member.isClubRosterId(clubId, m.id)) {
+        inClub.add(m);
+      } else {
+        others.add(m);
+      }
+    }
+
+    final groups = <String, List<Member>>{};
+    for (final m in inClub) {
+      final phone = _digits(m.phone);
+      if (phone.length < 10) continue;
+      groups.putIfAbsent(phone, () => []).add(m);
+    }
+
+    final remap = <String, String>{};
+    final dropped = <String>{};
+    final next = List<Member>.from(inClub);
+
+    for (final group in groups.values) {
+      if (group.length < 2) continue;
+      final ranked = [...group]..sort((a, b) => _keepScore(b).compareTo(_keepScore(a)));
+      var keep = ranked.first;
+      for (final extra in ranked.skip(1)) {
+        final keepIdx = next.indexWhere((m) => m.id == keep.id);
+        if (keepIdx < 0) continue;
+        keep = mergeMember(next[keepIdx], extra);
+        next[keepIdx] = keep;
+        next.removeWhere((m) => m.id == extra.id);
+        remap[extra.id] = keep.id;
+        dropped.add(extra.id);
+      }
+    }
+
+    if (dropped.isEmpty) {
+      return RosterDedupeResult(
+        members: List<Member>.from(members),
+        idRemap: const {},
+        droppedIds: const {},
+      );
+    }
+    return RosterDedupeResult(
+      members: [...next, ...others],
+      idRemap: remap,
+      droppedIds: dropped,
+    );
+  }
+
+  static RosterDedupeResult collapseClub({
+    required List<Member> members,
+    required String clubId,
+    Set<String> creatorAuthIds = const {},
+  }) {
+    final creator = collapseMembers(
+      members: members,
+      clubId: clubId,
+      creatorAuthIds: creatorAuthIds,
+    );
+    final phone = collapseSamePhone(
+      members: creator.members,
+      clubId: clubId,
+    );
+    return RosterDedupeResult(
+      members: phone.members,
+      idRemap: {...creator.idRemap, ...phone.idRemap},
+      droppedIds: {...creator.droppedIds, ...phone.droppedIds},
+    );
   }
 }
