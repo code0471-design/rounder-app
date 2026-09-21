@@ -24,7 +24,6 @@ import '../sponsor/sponsor_screen.dart';
 import '../sponsor/thank_you_feed_screen.dart';
 import '../clubs/club_settings_screen.dart';
 import '../members/treasurer_transfer_screen.dart';
-import '../alimtalk/alimtalk_settings_screen.dart';
 import '../group_assignment/group_assignment_screen.dart';
 
 /// 모임홈 카드(참석 현황·회비 잔고·공지사항) 공통 테두리.
@@ -461,25 +460,6 @@ class _ClubRoomScreenState extends State<ClubRoomScreen> {
                     );
                   },
                 ),
-              if (isAdmin)
-                ListTile(
-                  leading: const Icon(Icons.chat_bubble_outline,
-                      color: AppColors.sageDeep),
-                  title: const Text('알림톡 설정',
-                      style: TextStyle(fontWeight: FontWeight.w600)),
-                  subtitle: const Text('일정 · 조편성 · 일정 변경 발송 ON/OFF',
-                      style: TextStyle(
-                          fontSize: 12, color: AppColors.textSecondary)),
-                  trailing: const Icon(Icons.chevron_right,
-                      color: AppColors.textTertiary),
-                  onTap: () {
-                    Navigator.pop(sheetCtx);
-                    Navigator.of(context).push(
-                      MaterialPageRoute(
-                          builder: (_) => const AlimtalkSettingsScreen()),
-                    );
-                  },
-                ),
             ],
           ),
         ),
@@ -571,7 +551,6 @@ class _ClubRoomScreenState extends State<ClubRoomScreen> {
     }
 
     return AppHeader(
-      title: club.name,
       leading: GestureDetector(
         onTap: handleBack,
         behavior: HitTestBehavior.opaque,

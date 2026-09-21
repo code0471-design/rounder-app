@@ -168,17 +168,17 @@ void main() {
     );
     expect(room.contains('if (_tabIndex == 0)'), isFalse,
         reason: '모임찾기가 헤더 아래 별도 줄로 내려가면 홈이 밀린다');
-    expect(room.contains('title: club.name'), isTrue,
-        reason: '일정·회원·재무에서도 어느 모임인지 헤더에 보여야 한다');
+    expect(room.contains('title: club.name'), isFalse,
+        reason: '원클럽처럼 모임명은 헤더가 아니라 썸네일 옆이다');
+    expect(room.contains("'알림톡 설정'"), isFalse,
+        reason: '모임 설정 시트에서 알림톡 설정은 뺀다');
+    expect(room.contains('_ClubThumb(club: club, size: 80)'), isTrue);
+    expect(
+      room.indexOf('_ClubThumb(club: club, size: 80)'),
+      lessThan(room.indexOf('club.name')),
+    );
     final header =
         File('lib/widgets/app_header.dart').readAsStringSync();
-    expect(header.contains('로고 바로 아래'), isTrue);
-    final titleStart = header.indexOf("if ((title ?? '').trim().isNotEmpty)");
-    final titleEnd = header.indexOf('class _HeaderNotificationButton');
-    expect(titleStart, greaterThan(0));
-    expect(titleEnd, greaterThan(titleStart));
-    final titleBlock = header.substring(titleStart, titleEnd);
-    expect(titleBlock.contains('textAlign: TextAlign.start'), isTrue);
-    expect(titleBlock.contains('textAlign: TextAlign.center'), isFalse);
+    expect(header.contains('final String? title'), isFalse);
   });
 }

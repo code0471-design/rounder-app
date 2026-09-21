@@ -15,8 +15,6 @@ class AppHeader extends StatelessWidget {
   final Widget? leading;
   final List<Widget>? trailingActions;
   final int? notificationCount;
-  /// 모임 방이면 로고 바로 아래(왼쪽 정렬)에 현재 모임명. 없으면 로고만.
-  final String? title;
 
   const AppHeader({
     super.key,
@@ -26,7 +24,6 @@ class AppHeader extends StatelessWidget {
     this.leading,
     this.trailingActions,
     this.notificationCount,
-    this.title,
   });
 
   static void openMyPage(BuildContext context) {
@@ -66,58 +63,30 @@ class AppHeader extends StatelessWidget {
       child: SafeArea(
         bottom: false,
         child: Padding(
-          padding: const EdgeInsets.fromLTRB(12, 6, 8, 10),
+          padding: const EdgeInsets.fromLTRB(12, 6, 8, 6),
           child: Row(
-            crossAxisAlignment: CrossAxisAlignment.start,
+            crossAxisAlignment: CrossAxisAlignment.center,
             children: [
               if (leading != null) ...[
                 leading!,
                 const SizedBox(width: 2),
               ],
-              Expanded(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Row(
-                      children: [
-                        RounderLogo(
-                          height: logoHeight,
-                          forWhiteHeader: true,
-                          onTap: onLogoTap,
-                        ),
-                        const Spacer(),
-                        if (trailingActions != null) ...[
-                          ...trailingActions!,
-                          const SizedBox(width: 4),
-                        ],
-                        _HeaderNotificationButton(
-                          onTap: onNotificationTap,
-                          count: notificationCount,
-                        ),
-                        const SizedBox(width: 4),
-                        _HeaderProfileAvatar(onTap: profileTap),
-                      ],
-                    ),
-                    if ((title ?? '').trim().isNotEmpty)
-                      Padding(
-                        padding: const EdgeInsets.only(top: 2),
-                        child: Text(
-                          title!.trim(),
-                          maxLines: 1,
-                          overflow: TextOverflow.ellipsis,
-                          textAlign: TextAlign.start,
-                          style: const TextStyle(
-                            fontSize: 16,
-                            fontWeight: FontWeight.w700,
-                            color: Color(0xFF111827),
-                            letterSpacing: -0.4,
-                            height: 1.2,
-                          ),
-                        ),
-                      ),
-                  ],
-                ),
+              RounderLogo(
+                height: logoHeight,
+                forWhiteHeader: true,
+                onTap: onLogoTap,
               ),
+              const Spacer(),
+              if (trailingActions != null) ...[
+                ...trailingActions!,
+                const SizedBox(width: 4),
+              ],
+              _HeaderNotificationButton(
+                onTap: onNotificationTap,
+                count: notificationCount,
+              ),
+              const SizedBox(width: 4),
+              _HeaderProfileAvatar(onTap: profileTap),
             ],
           ),
         ),
