@@ -38,6 +38,7 @@ class _MyClubsScreenState extends State<MyClubsScreen> {
         return;
       }
       DeepLinkService.instance.onAppReady();
+      context.read<ClubProvider>().syncMyRoleFromMemberRoster();
     });
   }
 
@@ -108,6 +109,7 @@ class _MyClubsScreenState extends State<MyClubsScreen> {
                             (context, i) {
                               final card = HomeClubCard(
                                 club: clubs[i],
+                                roleLabel: provider.myDisplayRoleFor(clubs[i]),
                                 onTap: () =>
                                     _enterClub(context, provider, clubs[i]),
                               );

@@ -8,15 +8,19 @@ import '../../../widgets/club_cover_mark.dart';
 class HomeClubCard extends StatelessWidget {
   final Club club;
   final VoidCallback onTap;
+  /// 명단 기준 내 직책. 없으면 Club.myRole(카탈로그 찌꺼기)을 쓴다.
+  final String? roleLabel;
 
   const HomeClubCard({
     super.key,
     required this.club,
     required this.onTap,
+    this.roleLabel,
   });
 
   @override
   Widget build(BuildContext context) {
+    final badgeRole = (roleLabel ?? club.myRole).trim();
     final dDayText = DDayUtils.format(club.nextRoundDate);
     final dDayClose = DDayUtils.isUrgent(club.nextRoundDate);
     final hasSchedule = club.nextRoundDate != null;
@@ -97,7 +101,8 @@ class HomeClubCard extends StatelessWidget {
                   mainAxisSize: MainAxisSize.min,
                   crossAxisAlignment: CrossAxisAlignment.end,
                   children: [
-                    _RoleBadge(role: club.myRole),
+                    _RoleBadge(
+                        role: badgeRole.isEmpty ? club.myRole : badgeRole),
                     if (hasSchedule) ...[
                       const SizedBox(height: 8),
                       Container(

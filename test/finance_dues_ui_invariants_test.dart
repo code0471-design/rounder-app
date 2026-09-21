@@ -141,6 +141,8 @@ void main() {
     expect(fn.contains('isFreshClub(clubId) && isCreator'), isFalse,
         reason: 'fresh 표시만으로 생성자 총무를 정회원으로 내리면 안 된다');
     expect(fn.contains('회장·총무'), isTrue);
+    expect(fn.contains('if (!isCreator)'), isTrue,
+        reason: '남의 모임 myRole 회장을 명단에 덮으면 목록·권한이 틀린다');
   });
 
   test('재무 권한 안내는 탭 Navigator를 닫지 않는다', () {

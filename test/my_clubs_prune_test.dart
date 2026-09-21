@@ -162,4 +162,16 @@ void main() {
         reason: '서버 문서가 없는 모임은 폰 내 모임에서 빠져야 한다');
     expect(clubs.myClubs.any((c) => c.id == myClubId), isTrue);
   });
+
+  test('내 모임 카드 직책은 Club.myRole이 아니라 그 모임 명단을 본다', () {
+    final screen =
+        File('lib/screens/my_clubs/my_clubs_screen.dart').readAsStringSync();
+    final card =
+        File('lib/screens/my_clubs/widgets/home_club_card.dart').readAsStringSync();
+    final providerSrc =
+        File('lib/providers/club_provider.dart').readAsStringSync();
+    expect(screen.contains('myDisplayRoleFor'), isTrue);
+    expect(card.contains('roleLabel'), isTrue);
+    expect(providerSrc.contains('String myDisplayRoleFor(Club club)'), isTrue);
+  });
 }

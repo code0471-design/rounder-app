@@ -516,6 +516,7 @@ class ClubProvider extends ChangeNotifier with WidgetsBindingObserver {
     if (pruneDuplicateRosterRows()) _persistImmediately();
     if (_repairCopiedIdentityOnLegacyM1Rows()) _persistImmediately();
     _syncSelfDisplayName();
+    _applyRosterRolesToMyClubs();
     // 데모 모임(c1~c5) 회원수 — 과거에 저장된 임의값이 남아있어도 실제 명단 기준으로 교정
     _reconcileLegacyMemberCounts();
     _reconcileLiveMemberCounts();
@@ -2210,6 +2211,7 @@ class ClubProvider extends ChangeNotifier with WidgetsBindingObserver {
     // 원격 명단이 로컬을 덮은 직후다. 여기서 다시 걸지 않으면
     // switchUser 에서 고친 내 이름이 '홍길동'으로 되돌아간다.
     _repairMyRosterNames(_currentUserName);
+    _applyRosterRolesToMyClubs();
     // 이름과 같은 이유로 사진·전화번호도 다시 채운다. 안 하면 켤 때마다
     // 원격 행(사진 없음)이 덮어써서 내 프로필 사진이 영영 안 보인다.
     _fillMyRosterProfile();
@@ -2545,6 +2547,19 @@ class ClubProvider extends ChangeNotifier with WidgetsBindingObserver {
     }
 
     return _members.where((m) => m.id == currentUserId).firstOrNull;
+  }
+
+  /// 내 모임 카드용 직책. 목록은 Club.myRole(카탈로그 찌꺼기)이 아니라
+  /// 그 모임 명단 행을 본다. 알라딘 정회원이 목록에서만 회장으로 보이던 원인.
+  String myDisplayRoleFor(Club club) {
+    for (final m in membersForClub(club.id)) {
+      if (!_isMyRosterRowFor(club, m.id)) continue;
+      final role = ClubMemberRole.encodeRoles(
+        ClubMemberRole.splitRoles(m.role),
+      );
+      if (role.trim().isNotEmpty) return role;
+    }
+    return club.myRole;
   }
 
   List<Member> get birthdayThisMonth {
@@ -9330,21 +9345,41 @@ class ClubProvider extends ChangeNotifier with WidgetsBindingObserver {
   ///
   /// 전역 시드(m1 role=일반)로 회장 myRole을 덮어쓰지 않는다.
   void syncMyRoleFromMemberRoster() {
-    final clubId = selectedClub.id;
+    if (_applyRosterRolesToMyClubs()) {
+      notifyListeners();
+      _persistImmediately();
+    }
+  }
+
+  bool _applyRosterRolesToMyClubs() {
+    var changed = false;
+    for (final club in List<Club>.from(_myClubs)) {
+      if (_syncMyRoleFromRosterFor(club.id)) changed = true;
+    }
+    return changed;
+  }
+
+  bool _syncMyRoleFromRosterFor(String clubId) {
     final myIdx = _myClubs.indexWhere((c) => c.id == clubId);
-    if (myIdx == -1) return;
+    if (myIdx == -1) return false;
+    final club = _myClubs[myIdx];
 
     final clubMembers = membersForClub(clubId);
     final creatorId = 'm_creator_$clubId';
     final creator =
         clubMembers.where((m) => m.id == creatorId).firstOrNull;
-    final me = currentMember;
-    final isCreator = isSelectedClubCreator ||
-        (me != null && me.id == creatorId) ||
-        (creator != null && _iAmClubCreator(selectedClub));
+    Member? source;
+    for (final m in clubMembers) {
+      if (_isMyRosterRowFor(club, m.id)) {
+        source = m;
+        break;
+      }
+    }
+    final isCreator = _iAmClubCreator(club) ||
+        (source != null && source.id == creatorId) ||
+        (creator != null && _iAmClubCreator(club));
 
     // 모임 스코프 명단을 소스로 사용 (전역 시드 m1 제외)
-    Member? source = me;
     if (creator != null && isCreator) {
       if (source == null ||
           source.id != creator.id ||
@@ -9352,7 +9387,7 @@ class ClubProvider extends ChangeNotifier with WidgetsBindingObserver {
         source = creator;
       }
     }
-    if (source == null) return;
+    if (source == null) return false;
     final sourceId = source.id;
 
     final clubRole = _myClubs[myIdx].myRole;
@@ -9360,17 +9395,25 @@ class ClubProvider extends ChangeNotifier with WidgetsBindingObserver {
       ClubMemberRole.splitRoles(source.role),
     );
 
-    // 클럽이 이미 임원인데 명단만 정회원이면 명단을 클럽에 맞춘다.
-    // 신규 모임을 fresh 로 표시한다고 생성자 총무를 깎으면 안 된다.
+    // 내가 만든 모임만 명단을 클럽 임원에 맞춘다.
+    // 남의 모임 Club.myRole 이 회장으로 남아 있으면 목록 배지만 틀린 게 아니라
+    // 정회원 명단까지 회장으로 덮인다.
     if (ClubMemberRole.isOfficer(clubRole) &&
         !ClubMemberRole.isOfficer(role)) {
+      if (!isCreator) {
+        _myClubs[myIdx] = _myClubs[myIdx].copyWith(myRole: role);
+        final allIdx = _allClubs.indexWhere((c) => c.id == clubId);
+        if (allIdx != -1) {
+          _allClubs[allIdx] = _allClubs[allIdx].copyWith(myRole: role);
+        }
+        return true;
+      }
       final mIdx = _members.indexWhere((m) => m.id == sourceId);
       if (mIdx != -1 && _members[mIdx].role != clubRole) {
         _members[mIdx] = _members[mIdx].copyWith(role: clubRole);
-        notifyListeners();
-        _persistImmediately();
+        return true;
       }
-      return;
+      return false;
     }
 
     // 생성자인데 양쪽 다 임원이 아니면 회장·총무로 되돌린다.
@@ -9385,14 +9428,13 @@ class ClubProvider extends ChangeNotifier with WidgetsBindingObserver {
       }
     }
 
-    if (_myClubs[myIdx].myRole == role) return;
+    if (_myClubs[myIdx].myRole == role) return false;
     _myClubs[myIdx] = _myClubs[myIdx].copyWith(myRole: role);
     final allIdx = _allClubs.indexWhere((c) => c.id == clubId);
     if (allIdx != -1) {
       _allClubs[allIdx] = _allClubs[allIdx].copyWith(myRole: role);
     }
-    notifyListeners();
-    _persistImmediately();
+    return true;
   }
 
   // ════════════════════════════════════════════════════════
