@@ -19,8 +19,8 @@ void main() {
     final dash =
         _read('lib/features/clubs/presentation/club_list_dashboard_screen.dart');
     final provider = _read('lib/providers/club_provider.dart');
-    expect(dash.contains('legacyProvider.myClubs'), isTrue);
-    expect(dash.contains('byId.putIfAbsent'), isTrue);
+    expect(dash.contains('for (final c in legacyProvider.myClubs)'), isTrue);
+    expect(dash.contains('existing.coalesceDisplayFields(c)'), isTrue);
     expect(provider.contains('byId.putIfAbsent(c.id, () => c)'), isTrue);
     expect(
       provider.contains('name: bootClub.name.trim().isNotEmpty'),
@@ -69,6 +69,17 @@ void main() {
       src.contains('await _clubs.doc(clubId).set(data, SetOptions(merge: true));'),
       isFalse,
     );
+  });
+
+  test('모임 상세 헤더 위 빈 그린을 키우지 않는다', () {
+    final dash = _read(
+        'lib/features/clubs/presentation/club_detail_dashboard_screen.dart');
+    final legacy = _read('lib/screens/clubs/club_detail_screen.dart');
+    expect(dash.contains('expandedHeight: 220'), isFalse);
+    expect(dash.contains('fromLTRB(20, 52'), isFalse);
+    expect(dash.contains('expandedHeight: 152'), isTrue);
+    expect(legacy.contains('expandedHeight: 220'), isFalse);
+    expect(legacy.contains('fromLTRB(20, 52'), isFalse);
   });
 
   test('내 모임 카드는 원클럽형 커버와 구분선이 있다', () {

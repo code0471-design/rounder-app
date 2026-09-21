@@ -31,17 +31,23 @@ class MemberDetailScreen extends StatelessWidget {
 
     return Scaffold(
       backgroundColor: AppColors.background,
-      appBar: AppBar(
-        backgroundColor: AppColors.background,
-        elevation: 0,
-        scrolledUnderElevation: 0,
-        leading: IconButton(
-          icon: const Icon(Icons.arrow_back_ios_new,
-              color: AppColors.textSecondary, size: 18),
-          onPressed: () => Navigator.pop(context),
-        ),
-      ),
-      body: SingleChildScrollView(
+      body: SafeArea(
+        bottom: false,
+        child: Column(
+          children: [
+            Align(
+              alignment: Alignment.centerLeft,
+              child: IconButton(
+                visualDensity: VisualDensity.compact,
+                padding: const EdgeInsets.only(left: 8),
+                constraints: const BoxConstraints(minWidth: 40, minHeight: 36),
+                icon: const Icon(Icons.arrow_back_ios_new,
+                    color: AppColors.textSecondary, size: 18),
+                onPressed: () => Navigator.pop(context),
+              ),
+            ),
+            Expanded(
+              child: SingleChildScrollView(
           child: Column(
             children: [
               _buildProfileHeaderCard(context),
@@ -70,6 +76,10 @@ class MemberDetailScreen extends StatelessWidget {
               const SizedBox(height: 32),
             ],
           ),
+              ),
+            ),
+          ],
+        ),
       ),
     );
   }
@@ -100,7 +110,7 @@ class MemberDetailScreen extends StatelessWidget {
     // 예전엔 96px 그라데이션 배너 + 그 위에 겹친 아바타 + 52px 여백이라
     // 이름이 화면 한참 아래에서 시작했다. 가로 한 줄로 접는다.
     return Container(
-          margin: const EdgeInsets.fromLTRB(16, 4, 16, 0),
+          margin: const EdgeInsets.fromLTRB(16, 0, 16, 0),
           padding: const EdgeInsets.all(16),
           decoration: BoxDecoration(
             color: Colors.white,

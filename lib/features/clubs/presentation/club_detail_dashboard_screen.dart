@@ -185,7 +185,7 @@ class _DetailAppBar extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return SliverAppBar(
-      expandedHeight: 220,
+      expandedHeight: 152,
       pinned: true,
       backgroundColor: AppColors.primaryDark,
       iconTheme: const IconThemeData(color: Colors.white),
@@ -200,7 +200,7 @@ class _DetailAppBar extends StatelessWidget {
           ),
           child: SafeArea(
             child: Padding(
-              padding: const EdgeInsets.fromLTRB(20, 52, 20, 16),
+              padding: const EdgeInsets.fromLTRB(16, 4, 16, 12),
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 mainAxisAlignment: MainAxisAlignment.end,
@@ -234,7 +234,7 @@ class _DetailAppBar extends StatelessWidget {
                       ),
                     ],
                   ),
-                  const SizedBox(height: 14),
+                  const SizedBox(height: 8),
                   Wrap(
                     spacing: 8,
                     children: [

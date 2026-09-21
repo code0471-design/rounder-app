@@ -79,6 +79,11 @@ class _TreasurerTransferScreenState extends State<TreasurerTransferScreen> {
           backgroundColor: AppColors.background,
           appBar: AppBar(
             backgroundColor: AppColors.primaryDark,
+            toolbarHeight: 48,
+            scrolledUnderElevation: 0,
+            centerTitle: true,
+            titleSpacing: 0,
+            leadingWidth: 48,
             leading: IconButton(
               icon: const Icon(Icons.arrow_back_ios_new,
                   color: Colors.white, size: 18),
@@ -95,7 +100,7 @@ class _TreasurerTransferScreenState extends State<TreasurerTransferScreen> {
           body: _confirmed
               ? _buildSuccess(currentTreasurer, provider)
               : ListView(
-                  padding: const EdgeInsets.all(16),
+                  padding: const EdgeInsets.fromLTRB(16, 8, 16, 16),
                   children: [
                     // ── 안내 배너 ──
                     Container(

@@ -627,13 +627,20 @@ void main() {
       expect(room.contains('TreasurerTransferScreen()'), isTrue);
     });
 
-    test('본문 뒤로가기가 카드 위에 따로 떠 있지 않다', () {
-      expect(detail.contains('appBar: AppBar('), isTrue);
-      expect(
-        detail.contains('onPressed: () => Navigator.pop(context),\n          ),\n        ),\n        Container('),
-        isFalse,
-        reason: '헤더 카드 위 플로팅 뒤로가기는 여백을 키운다',
-      );
+    test('뒤로가기는 짧은 한 줄이고 빈 앱바를 쓰지 않는다', () {
+      expect(detail.contains('appBar: AppBar('), isFalse);
+      expect(detail.contains('visualDensity: VisualDensity.compact'), isTrue);
+      expect(detail.contains('minHeight: 36'), isTrue);
+    });
+  });
+
+  group('회원·총무 앱바 높이', () {
+    test('회원 수정·총무 인수인계 앱바가 48로 접혀 있다', () {
+      final form = _read('lib/screens/members/member_form_screen.dart');
+      final transfer =
+          _read('lib/screens/members/treasurer_transfer_screen.dart');
+      expect(form.contains('toolbarHeight: 48'), isTrue);
+      expect(transfer.contains('toolbarHeight: 48'), isTrue);
     });
   });
 

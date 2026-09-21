@@ -60,7 +60,7 @@ class ClubDetailScreen extends StatelessWidget {
   Widget _buildAppBar(BuildContext context, ClubProvider prov,
       bool isMine, bool isPending) {
     return SliverAppBar(
-      expandedHeight: 220,
+      expandedHeight: 152,
       pinned: true,
       backgroundColor: AppColors.primaryDark,
       iconTheme: const IconThemeData(color: Colors.white),
@@ -76,7 +76,7 @@ class ClubDetailScreen extends StatelessWidget {
           child: SafeArea(
             child: Padding(
               padding:
-                  const EdgeInsets.fromLTRB(20, 52, 20, 16),
+                  const EdgeInsets.fromLTRB(16, 4, 16, 12),
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 mainAxisAlignment: MainAxisAlignment.end,
@@ -121,7 +121,7 @@ class ClubDetailScreen extends StatelessWidget {
                       ),
                     ],
                   ),
-                  const SizedBox(height: 14),
+                  const SizedBox(height: 8),
                   // 통계 칩들
                   Wrap(
                     spacing: 8,

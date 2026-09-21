@@ -136,6 +136,11 @@ class _MemberFormScreenState extends State<MemberFormScreen> {
       backgroundColor: AppColors.background,
       appBar: AppBar(
         backgroundColor: AppColors.primaryDark,
+        toolbarHeight: 48,
+        scrolledUnderElevation: 0,
+        centerTitle: true,
+        titleSpacing: 0,
+        leadingWidth: 48,
         title: Text(
           _isEdit ? '회원 수정' : '회원 등록',
           style: const TextStyle(
@@ -159,11 +164,11 @@ class _MemberFormScreenState extends State<MemberFormScreen> {
       body: Form(
         key: _formKey,
         child: ListView(
-          padding: const EdgeInsets.all(16),
+          padding: const EdgeInsets.fromLTRB(16, 8, 16, 16),
           children: [
             // ── 사진 영역 ──
             _buildPhotoSection(),
-            const SizedBox(height: 20),
+            const SizedBox(height: 12),
 
             // ── 기본 정보 ──
             _SectionTitle(title: '기본 정보'),
