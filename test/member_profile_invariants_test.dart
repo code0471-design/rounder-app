@@ -674,7 +674,10 @@ void main() {
       expect(src.contains('kSidoList'), isTrue);
       expect(src.contains('kRegions'), isFalse);
       expect(src.contains('_regionChips'), isTrue);
+      expect(src.contains('_industryChips'), isTrue);
+      expect(src.contains('ChoiceChipGrid'), isTrue);
       expect(src.contains('DropdownButton'), isFalse);
+      expect(src.contains('_pickerField'), isFalse);
       expect(src.contains('강남구'), isFalse);
     });
   });

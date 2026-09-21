@@ -79,5 +79,16 @@ void main() {
       expect(src.contains("String _industry = '지역모임';"), isFalse);
       expect(src.contains('업종을 선택해주세요'), isTrue);
     });
+
+    test('지역·업종은 시·도 칩을 한 줄에 4개로 펼친다', () {
+      expect(src.contains('ChoiceChipGrid'), isTrue);
+      expect(src.contains('kSidoList'), isTrue);
+      expect(src.contains('DropdownButton'), isFalse);
+      expect(src.contains('_kSigunguMap'), isFalse);
+      expect(src.contains('강남구'), isFalse);
+      expect(src.contains('구/시 선택'), isFalse);
+      final grid = _read('lib/widgets/choice_chip_grid.dart');
+      expect(grid.contains('static const columns = 4'), isTrue);
+    });
   });
 }

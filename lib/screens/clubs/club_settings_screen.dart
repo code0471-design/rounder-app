@@ -9,6 +9,7 @@ import 'package:provider/provider.dart';
 import '../../models/club_model.dart';
 import '../../providers/club_provider.dart';
 import '../../theme/app_theme.dart';
+import '../../widgets/choice_chip_grid.dart';
 
 /// 모임 정보 수정 (관리자 전용)
 class ClubSettingsScreen extends StatefulWidget {
@@ -68,122 +69,27 @@ class _ClubSettingsScreenState extends State<ClubSettingsScreen> {
     return list;
   }
 
-  Future<void> _pickFromList({
-    required String title,
-    required List<String> options,
-    required String selected,
-    required ValueChanged<String> onPicked,
-  }) async {
-    final picked = await showModalBottomSheet<String>(
-      context: context,
-      isScrollControlled: true,
-      backgroundColor: Colors.white,
-      shape: const RoundedRectangleBorder(
-        borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
-      ),
-      builder: (sheetCtx) => SafeArea(
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            Padding(
-              padding: const EdgeInsets.fromLTRB(20, 18, 20, 10),
-              child: Row(
-                children: [
-                  Text(title,
-                      style: const TextStyle(
-                          fontSize: 16,
-                          fontWeight: FontWeight.w800,
-                          color: AppColors.textPrimary)),
-                  const Spacer(),
-                  IconButton(
-                    icon: const Icon(Icons.close, size: 20),
-                    onPressed: () => Navigator.pop(sheetCtx),
-                  ),
-                ],
-              ),
-            ),
-            const Divider(height: 1),
-            Flexible(
-              child: ListView.builder(
-                shrinkWrap: true,
-                itemCount: options.length,
-                itemBuilder: (_, i) {
-                  final v = options[i];
-                  final sel = v == selected;
-                  return ListTile(
-                    title: Text(v,
-                        style: TextStyle(
-                          fontSize: 14,
-                          fontWeight: sel ? FontWeight.w800 : FontWeight.w500,
-                          color: sel
-                              ? AppColors.primary
-                              : AppColors.textPrimary,
-                        )),
-                    trailing: sel
-                        ? const Icon(Icons.check,
-                            size: 18, color: AppColors.primary)
-                        : null,
-                    onTap: () => Navigator.pop(sheetCtx, v),
-                  );
-                },
-              ),
-            ),
-          ],
-        ),
-      ),
-    );
-    if (picked != null && picked.isNotEmpty) onPicked(picked);
-  }
-
   Widget _regionChips() {
-    return Wrap(
-      spacing: 8,
-      runSpacing: 8,
-      children: [
-        for (final r in _regionChipOptions)
-          GestureDetector(
-            onTap: () => setState(() => _region = r),
-            child: _ChoiceChip(label: r, selected: _region == r),
-          ),
-      ],
+    return ChoiceChipGrid(
+      options: _regionChipOptions,
+      selected: _region,
+      onSelected: (v) => setState(() => _region = v),
+      selectedColor: AppColors.primary,
+      selectedTextColor: Colors.white,
+      borderColor: AppColors.divider,
+      textColor: AppColors.textPrimary,
     );
   }
 
-  Widget _pickerField({
-    required String value,
-    required String hint,
-    required VoidCallback onTap,
-  }) {
-    final empty = value.trim().isEmpty;
-    return GestureDetector(
-      onTap: onTap,
-      behavior: HitTestBehavior.opaque,
-      child: Container(
-        padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 15),
-        decoration: BoxDecoration(
-          color: Colors.white,
-          borderRadius: BorderRadius.circular(12),
-          border: Border.all(color: AppColors.divider),
-        ),
-        child: Row(
-          children: [
-            Expanded(
-              child: Text(
-                empty ? hint : value,
-                style: TextStyle(
-                  fontSize: 14,
-                  color: empty
-                      ? AppColors.textTertiary
-                      : AppColors.textPrimary,
-                  fontWeight: empty ? FontWeight.w400 : FontWeight.w600,
-                ),
-              ),
-            ),
-            const Icon(Icons.expand_more,
-                size: 20, color: AppColors.textSecondary),
-          ],
-        ),
-      ),
+  Widget _industryChips() {
+    return ChoiceChipGrid(
+      options: _industryOptions,
+      selected: _industry,
+      onSelected: (v) => setState(() => _industry = v),
+      selectedColor: AppColors.primary,
+      selectedTextColor: Colors.white,
+      borderColor: AppColors.divider,
+      textColor: AppColors.textPrimary,
     );
   }
 
@@ -412,16 +318,7 @@ class _ClubSettingsScreenState extends State<ClubSettingsScreen> {
               style: TextStyle(fontSize: 11, color: AppColors.textSecondary),
             ),
             const SizedBox(height: 8),
-            _pickerField(
-              value: _industry,
-              hint: '업종 선택',
-              onTap: () => _pickFromList(
-                title: '업종 선택',
-                options: _industryOptions,
-                selected: _industry,
-                onPicked: (v) => setState(() => _industry = v),
-              ),
-            ),
+            _industryChips(),
             const SizedBox(height: 20),
             const Text('팀 수',
                 style: TextStyle(
@@ -543,35 +440,6 @@ class _ClubSettingsScreenState extends State<ClubSettingsScreen> {
       focusedBorder: OutlineInputBorder(
         borderRadius: BorderRadius.circular(12),
         borderSide: const BorderSide(color: AppColors.primary, width: 1.4),
-      ),
-    );
-  }
-}
-
-class _ChoiceChip extends StatelessWidget {
-  final String label;
-  final bool selected;
-  const _ChoiceChip({required this.label, required this.selected});
-
-  @override
-  Widget build(BuildContext context) {
-    return AnimatedContainer(
-      duration: const Duration(milliseconds: 120),
-      padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
-      decoration: BoxDecoration(
-        color: selected ? AppColors.primary : Colors.white,
-        borderRadius: BorderRadius.circular(20),
-        border: Border.all(
-          color: selected ? AppColors.primary : AppColors.divider,
-        ),
-      ),
-      child: Text(
-        label,
-        style: TextStyle(
-          fontSize: 13,
-          fontWeight: FontWeight.w600,
-          color: selected ? Colors.white : AppColors.textPrimary,
-        ),
       ),
     );
   }
