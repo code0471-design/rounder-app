@@ -5149,6 +5149,7 @@ class _GroupViewBannerCard extends StatelessWidget {
                                   ? '탭해서 조편성 시작하기'
                                   : '총무가 확정하면 여기서 확인할 수 있어요',
                           maxLines: 2,
+                          overflow: TextOverflow.ellipsis,
                           style: TextStyle(
                             fontSize: 12,
                             height: 1.35,
@@ -5257,31 +5258,25 @@ class _GroupViewBannerCard extends StatelessWidget {
             // ── 미확정: 안내 ──
             if (!isFinalized) ...[
               Padding(
-                padding: const EdgeInsets.fromLTRB(14, 0, 14, 12),
-                child: Container(
-                  width: double.infinity,
-                  padding: const EdgeInsets.symmetric(
-                      horizontal: 12, vertical: 10),
-                  decoration: BoxDecoration(
-                    color: AppColors.surfaceVariant,
-                    borderRadius: BorderRadius.circular(10),
-                  ),
-                  child: const Row(
-                    children: [
-                      Icon(Icons.lock_clock_rounded,
-                          size: 15, color: AppColors.textTertiary),
-                      SizedBox(width: 8),
-                      Expanded(
-                        child: Text(
-                          '조편성이 확정되면 이름, 배정 조를 확인할 수 있습니다',
-                          style: TextStyle(
-                              fontSize: 12,
-                              color: AppColors.textTertiary,
-                              height: 1.4),
-                        ),
+                padding: const EdgeInsets.fromLTRB(16, 2, 16, 12),
+                child: Row(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    const Icon(Icons.lock_clock_rounded,
+                        size: 15, color: AppColors.textTertiary),
+                    const SizedBox(width: 8),
+                    Expanded(
+                      child: Text(
+                        '조편성이 확정되면 이름, 배정 조를 확인할 수 있습니다',
+                        maxLines: 2,
+                        overflow: TextOverflow.ellipsis,
+                        style: TextStyle(
+                            fontSize: 12,
+                            color: AppColors.textTertiary,
+                            height: 1.35),
                       ),
-                    ],
-                  ),
+                    ),
+                  ],
                 ),
               ),
             ],

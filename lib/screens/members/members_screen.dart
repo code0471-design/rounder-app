@@ -1047,8 +1047,7 @@ class _MemberCard extends StatelessWidget {
           color: Colors.white,
           child: InkWell(
             onTap: () {
-              Navigator.push(
-                context,
+              Navigator.of(context, rootNavigator: true).push(
                 MaterialPageRoute(
                   builder: (_) => MemberDetailScreen(
                     member: member,
@@ -1773,8 +1772,7 @@ class _TreasurerTransferEntry extends StatelessWidget {
               );
               return;
             }
-            Navigator.push(
-              context,
+            Navigator.of(context, rootNavigator: true).push(
               MaterialPageRoute(
                 builder: (_) => const TreasurerTransferScreen(),
               ),

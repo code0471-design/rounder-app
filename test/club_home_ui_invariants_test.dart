@@ -140,6 +140,8 @@ void main() {
     expect(room.contains('InviteSendScreen'), isTrue);
     expect(members.contains('_TreasurerTransferEntry'), isTrue);
     expect(members.contains('useRootNavigator: true'), isTrue);
+    expect(members.contains('rootNavigator: true).push('), isTrue,
+        reason: '총무 인수인계가 탭 내비에 깔리면 모임명과 겹친다');
     expect(members.contains('Navigator.of(dialogCtx'), isTrue);
     expect(
       members.contains("onPressed: () => Navigator.pop(context),\n                      child: const Text('확인')"),

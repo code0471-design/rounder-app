@@ -101,12 +101,9 @@ class _TreasurerTransferScreenState extends State<TreasurerTransferScreen> {
                     Container(
                       padding: const EdgeInsets.all(16),
                       decoration: BoxDecoration(
-                        gradient: const LinearGradient(
-                          colors: [AppColors.primaryDark, AppColors.primary],
-                          begin: Alignment.topLeft,
-                          end: Alignment.bottomRight,
-                        ),
+                        color: Colors.white,
                         borderRadius: BorderRadius.circular(14),
+                        border: Border.all(color: AppColors.divider),
                       ),
                       child: Column(
                         crossAxisAlignment: CrossAxisAlignment.start,
@@ -118,7 +115,7 @@ class _TreasurerTransferScreenState extends State<TreasurerTransferScreen> {
                               Text(
                                 '총무 인수인계 절차',
                                 style: TextStyle(
-                                  color: Colors.white,
+                                  color: AppColors.ink,
                                   fontSize: 16,
                                   fontWeight: FontWeight.bold,
                                 ),
@@ -126,10 +123,10 @@ class _TreasurerTransferScreenState extends State<TreasurerTransferScreen> {
                             ],
                           ),
                           const SizedBox(height: 6),
-                          Text(
+                          const Text(
                             '새 총무를 선택하고 체크리스트를 완료하면\n권한이 자동으로 이전됩니다.',
                             style: TextStyle(
-                              color: Colors.white.withValues(alpha: 0.75),
+                              color: AppColors.textSecondary,
                               fontSize: 12,
                               height: 1.5,
                             ),
@@ -140,13 +137,13 @@ class _TreasurerTransferScreenState extends State<TreasurerTransferScreen> {
                               padding: const EdgeInsets.symmetric(
                                   horizontal: 10, vertical: 6),
                               decoration: BoxDecoration(
-                                color: Colors.white.withValues(alpha: 0.15),
+                                color: AppColors.surfaceVariant,
                                 borderRadius: BorderRadius.circular(8),
                               ),
                               child: Text(
                                 '현 총무: ${currentTreasurer.name}',
                                 style: const TextStyle(
-                                  color: Colors.white,
+                                  color: AppColors.ink,
                                   fontSize: 12,
                                   fontWeight: FontWeight.w600,
                                 ),

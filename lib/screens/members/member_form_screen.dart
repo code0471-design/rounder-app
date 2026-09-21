@@ -3,7 +3,9 @@ import 'package:flutter/services.dart';
 import '../../models/club_model.dart';
 import '../../models/member_role.dart';
 import '../../models/user_model.dart';
+import '../../services/photo_compress_service.dart';
 import '../../theme/app_theme.dart';
+import '../../utils/avatar_image.dart';
 
 class MemberFormScreen extends StatefulWidget {
   /// null이면 신규 등록, 값이 있으면 수정
@@ -29,6 +31,7 @@ class _MemberFormScreenState extends State<MemberFormScreen> {
   final Set<String> _roles = {ClubMemberRole.regular};
   DateTime? _birthDate;
   DateTime? _joinDate;
+  String? _photoUrl;
 
   bool get _isEdit => widget.member != null;
 
@@ -58,6 +61,7 @@ class _MemberFormScreenState extends State<MemberFormScreen> {
       }
       _birthDate = m.birthDate;
       _joinDate = m.joinDate;
+      _photoUrl = m.photoUrl;
     } else {
       _joinDate = DateTime.now();
     }
@@ -86,26 +90,41 @@ class _MemberFormScreenState extends State<MemberFormScreen> {
     final role = _memberType == ClubMemberRole.guest
         ? ClubMemberRole.guest
         : _roleEncoded;
-    final member = Member(
-      id: id,
+    final memberType = _memberType == ClubMemberRole.guest
+        ? ClubMemberRole.guest
+        : ClubMemberRole.memberTypeForRole(role);
+    final handicap = _handicapCtrl.text.isNotEmpty
+        ? double.tryParse(_handicapCtrl.text)
+        : null;
+    final address = _addressCtrl.text.trim().isEmpty
+        ? null
+        : _addressCtrl.text.trim();
+    final memo =
+        _memoCtrl.text.trim().isEmpty ? null : _memoCtrl.text.trim();
+    final source = widget.member;
+    final member = (source ??
+            Member(
+              id: id,
+              name: _nameCtrl.text.trim(),
+              gender: _gender,
+              memberType: memberType,
+              role: role,
+            ))
+        .copyWith(
       name: _nameCtrl.text.trim(),
       gender: _gender,
       birthDate: _birthDate,
-      memberType: _memberType == ClubMemberRole.guest
-          ? ClubMemberRole.guest
-          : ClubMemberRole.memberTypeForRole(role),
+      clearBirthDate: _birthDate == null,
+      photoUrl: _photoUrl,
+      clearPhoto: _photoUrl == null || _photoUrl!.isEmpty,
+      memberType: memberType,
       role: role,
-      handicap: _handicapCtrl.text.isNotEmpty
-          ? double.tryParse(_handicapCtrl.text)
-          : null,
+      handicap: handicap,
+      clearHandicap: handicap == null,
       joinDate: _joinDate,
-      address: _addressCtrl.text.trim().isEmpty
-          ? null
-          : _addressCtrl.text.trim(),
-      memo: _memoCtrl.text.trim().isEmpty
-          ? null
-          : _memoCtrl.text.trim(),
-      status: _isEdit ? widget.member!.status : '활성',
+      address: address,
+      memo: memo,
+      status: source?.status ?? '활성',
     );
 
     Navigator.pop(context, member);
@@ -218,34 +237,33 @@ class _MemberFormScreenState extends State<MemberFormScreen> {
   // 사진 섹션
   // ────────────────────────────────
   Widget _buildPhotoSection() {
+    final img = avatarImage(_photoUrl);
+    final initial =
+        _nameCtrl.text.isNotEmpty ? _nameCtrl.text[0] : '?';
     return Center(
       child: Stack(
         children: [
           CircleAvatar(
             radius: 50,
             backgroundColor: AppColors.primary.withValues(alpha: 0.15),
-            child: Text(
-              _nameCtrl.text.isNotEmpty ? _nameCtrl.text[0] : '?',
-              style: const TextStyle(
-                fontSize: 36,
-                fontWeight: FontWeight.bold,
-                color: AppColors.primary,
-              ),
-            ),
+            backgroundImage: img,
+            onBackgroundImageError: img == null ? null : (_, __) {},
+            child: img == null
+                ? Text(
+                    initial,
+                    style: const TextStyle(
+                      fontSize: 36,
+                      fontWeight: FontWeight.bold,
+                      color: AppColors.primary,
+                    ),
+                  )
+                : null,
           ),
           Positioned(
             bottom: 0,
             right: 0,
             child: GestureDetector(
-              onTap: () {
-                // TODO: 사진 업로드 구현
-                ScaffoldMessenger.of(context).showSnackBar(
-                  const SnackBar(
-                    content: Text('사진 업로드 기능은 준비 중입니다.'),
-                    duration: Duration(seconds: 2),
-                  ),
-                );
-              },
+              onTap: _pickPhoto,
               child: Container(
                 padding: const EdgeInsets.all(6),
                 decoration: const BoxDecoration(
@@ -260,6 +278,19 @@ class _MemberFormScreenState extends State<MemberFormScreen> {
         ],
       ),
     );
+  }
+
+  Future<void> _pickPhoto() async {
+    try {
+      final dataUrl = await PhotoCompressService.pickProfileDataUrl();
+      if (!mounted || dataUrl == null || dataUrl.isEmpty) return;
+      setState(() => _photoUrl = dataUrl);
+    } catch (_) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('사진을 불러오지 못했습니다')),
+      );
+    }
   }
 
   // ────────────────────────────────

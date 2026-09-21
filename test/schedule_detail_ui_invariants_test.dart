@@ -166,6 +166,9 @@ void main() {
     expect(card.contains('if (isAdmin) ...['), isTrue);
     expect(card.contains('const SizedBox(width: 4)'), isFalse,
         reason: '확정·편집이 다시 가로로 붙으면 안 됨');
+    expect(card.contains('overflow: TextOverflow.ellipsis'), isTrue);
+    expect(card.contains('AppColors.surfaceVariant'), isFalse,
+        reason: '안내를 안쪽 카드로 겹치면 여백이 이상해 보인다');
   });
 
   test('리치 상세 하단 구성요소 유지 (건드리지 말 것)', () {

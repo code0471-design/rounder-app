@@ -541,6 +541,7 @@ void main() {
         'lib/screens/ad/ad_screen.dart',
         'lib/screens/members/members_screen.dart',
         'lib/screens/members/member_detail_screen.dart',
+        'lib/screens/members/member_form_screen.dart',
       ];
       for (final p in paths) {
         final src = _read(p);
@@ -615,6 +616,38 @@ void main() {
       expect(offenders, isEmpty,
           reason: '회원 상세에 그린이 남았다:\n  ${offenders.join('\n  ')}');
     });
+
+    test('모임 헤더 아래로 끼지 않게 루트 내비로 연다', () {
+      final members = _read('lib/screens/members/members_screen.dart');
+      final room = _read('lib/screens/club_room/club_room_screen.dart');
+      expect(detail.contains('rootNavigator: true'), isTrue);
+      expect(members.contains('rootNavigator: true).push('), isTrue);
+      expect(members.contains('MemberDetailScreen('), isTrue);
+      expect(room.contains('rootNavigator: true).push('), isTrue);
+      expect(room.contains('TreasurerTransferScreen()'), isTrue);
+    });
+
+    test('본문 뒤로가기가 카드 위에 따로 떠 있지 않다', () {
+      expect(detail.contains('appBar: AppBar('), isTrue);
+      expect(
+        detail.contains('onPressed: () => Navigator.pop(context),\n          ),\n        ),\n        Container('),
+        isFalse,
+        reason: '헤더 카드 위 플로팅 뒤로가기는 여백을 키운다',
+      );
+    });
+  });
+
+  group('회원 수정 사진', () {
+    final form = _read('lib/screens/members/member_form_screen.dart');
+
+    test('저장된 사진을 이니셜 대신 보여 주고 저장해도 지우지 않는다', () {
+      expect(form.contains('avatarImage(_photoUrl)'), isTrue);
+      expect(form.contains('PhotoCompressService.pickProfileDataUrl()'), isTrue);
+      expect(form.contains('사진 업로드 기능은 준비 중입니다'), isFalse);
+      expect(form.contains('.copyWith('), isTrue);
+      expect(form.contains('clearPhoto:'), isTrue);
+      expect(form.contains('photoUrl: _photoUrl'), isTrue);
+    });
   });
 
   group('직책 겸직', () {
@@ -622,7 +655,7 @@ void main() {
       final mypage = _read('lib/screens/members/my_role_change_screen.dart');
       expect(mypage.contains('uniqueOfficerConflict'), isFalse);
       expect(mypage.contains('복수 선택 가능'), isTrue);
-      expect(mypage.contains('정회원은 임원과 함께 선택할 수 없습니다'), isTrue);
+      expect(mypage.contains('정회원이 혼자 총무·회장이 될 수는 없습니다'), isTrue);
       final provider = _read('lib/providers/club_provider.dart');
       expect(provider.contains('uniqueOfficerConflict'), isFalse);
     });
