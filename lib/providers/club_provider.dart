@@ -2395,6 +2395,12 @@ class ClubProvider extends ChangeNotifier with WidgetsBindingObserver {
       AttendanceStatus(confirmed: 0, noResponse: 0, declined: 0);
 
   final List<Announcement> _announcements = [];
+  int _localEntitySeq = 0;
+
+  String _newLocalEntityId(String prefix) {
+    _localEntitySeq += 1;
+    return '${prefix}_${DateTime.now().microsecondsSinceEpoch}_$_localEntitySeq';
+  }
 
   // ─── 앱 알림 목록 — 시드 없음(실제 액션만). 잔존 시드는 로그인 시 purge ───
   final List<AppNotification> _appNotifications = [];
@@ -5281,7 +5287,7 @@ class ClubProvider extends ChangeNotifier with WidgetsBindingObserver {
       debugPrint('[ClubProvider] addAnnouncement blocked — not executive');
       return;
     }
-    final id = 'ann_${DateTime.now().millisecondsSinceEpoch}';
+    final id = _newLocalEntityId('ann');
     final authorId = currentMember?.id ?? currentUserId;
     _announcements.insert(
       0,
@@ -5380,10 +5386,66 @@ class ClubProvider extends ChangeNotifier with WidgetsBindingObserver {
     _persistImmediately();
   }
 
-  /// 공지사항 댓글 작성 — 댓글 1건당 +2 포인트.
+  bool _samePointMember(String authorId, String memberId) {
+    if (authorId.isEmpty || memberId.isEmpty) return false;
+    if (authorId == memberId) return true;
+    return _membershipPointKeysFor(memberId).contains(authorId) ||
+        _membershipPointKeysFor(authorId).contains(memberId);
+  }
+
+  bool _isCommentPointForAnnouncement(
+      MembershipPointEvent e, Announcement a) {
+    if (e.type != MembershipPointType.commentActivity) return false;
+    final d = e.desc;
+    final pipe = d.lastIndexOf('|');
+    if (pipe != -1) return d.substring(pipe + 1) == a.id;
+    return d == '공지 참여 (+2): ${a.title}' ||
+        d == '공지 참여 (-2): ${a.title}';
+  }
+
+  int _commentPointNetFor(String memberId, Announcement a) {
+    final seen = <String>{};
+    var sum = 0;
+    for (final key in _membershipPointKeysFor(memberId)) {
+      for (final e in _pointEvents[key] ?? const <MembershipPointEvent>[]) {
+        if (!_isCommentPointForAnnouncement(e, a)) continue;
+        final nk =
+            '${e.type.name}|${e.points}|${e.desc}|${e.date.millisecondsSinceEpoch}';
+        if (!seen.add(nk)) continue;
+        sum += e.points;
+      }
+    }
+    return sum;
+  }
+
+  /// 그 공지에 내 댓글이 있으면 순 +2, 없으면 0. 조정 점수를 반환한다.
+  int _reconcileAnnouncementCommentPoints(
+      String memberId, Announcement a) {
+    final has =
+        a.comments.any((c) => _samePointMember(c.authorId, memberId));
+    final net = _commentPointNetFor(memberId, a);
+    var delta = 0;
+    if (has && net <= 0) {
+      delta = 2;
+    } else if (has && net > 2) {
+      delta = 2 - net;
+    } else if (!has && net != 0) {
+      delta = -net;
+    }
+    if (delta == 0) return 0;
+    final sign = delta > 0 ? '+' : '';
+    addMembershipPoint(
+      memberId: memberId,
+      type: MembershipPointType.commentActivity,
+      points: delta,
+      desc: '공지 참여 ($sign$delta): ${a.title}|${a.id}',
+    );
+    return delta;
+  }
+
+  /// 공지사항 댓글 작성 — 그 공지에 내 댓글이 처음일 때만 +2.
   ///
-  /// 반환값은 포인트 적립 여부. 지금은 항상 true 지만,
-  /// 호출부(스낵바)가 이 값으로 "+2 획득" 문구를 결정하므로 유지한다.
+  /// 반환값은 포인트 적립 여부. 호출부 스낵바가 "+2 획득" 문구에 쓴다.
   bool addAnnouncementComment({
     required String announcementId,
     required String text,
@@ -5394,7 +5456,7 @@ class ClubProvider extends ChangeNotifier with WidgetsBindingObserver {
 
     final pointMemberId = currentMember?.id ?? currentUserId;
     final newComment = AnnouncementComment(
-      id: 'cmt_${DateTime.now().millisecondsSinceEpoch}',
+      id: _newLocalEntityId('cmt'),
       authorId: pointMemberId,
       authorName: currentUserName,
       text: text.trim(),
@@ -5415,14 +5477,11 @@ class ClubProvider extends ChangeNotifier with WidgetsBindingObserver {
       authorName: a.authorName,
     );
 
-    // 댓글마다 +2. 예전엔 공지 1건당 첫 댓글만 줬는데, 두 번째 댓글부터
-    // 조용히 0점이 되어 "댓글 썼는데 포인트가 안 오른다"로 보였다.
-    addMembershipPoint(
-      memberId: pointMemberId,
-      type: MembershipPointType.commentActivity,
-      points: 2,
-      desc: '공지 참여 (+2): ${a.title}',
-    );
+    final awarded = _reconcileAnnouncementCommentPoints(
+      pointMemberId,
+      _announcements[idx],
+    ) ==
+        2;
 
     // 댓글 알림: 관리자용 피드 (자신에게는 쌓이지 않도록 isRead:true로 처리)
     // 실제 앱에서는 FCM으로 다른 멤버에게 발송하지만, 여기선 조용히 기록만
@@ -5441,7 +5500,7 @@ class ClubProvider extends ChangeNotifier with WidgetsBindingObserver {
 
     notifyListeners();
     _persistImmediately();
-    return true; // 포인트 획득 여부 반환
+    return awarded;
   }
 
   bool isOwnAnnouncementComment(AnnouncementComment c) =>
@@ -5499,16 +5558,22 @@ class ClubProvider extends ChangeNotifier with WidgetsBindingObserver {
     if (!isOwnAnnouncementComment(c) && !isClubExecutive) return false;
     // 원격 스냅샷이 늦게 오면 지운 댓글이 되살아난다.
     ClubOpsSync.markCommentDeleted(commentId);
+    final remaining =
+        a.comments.where((e) => e.id != commentId).toList();
     _announcements[idx] = Announcement(
       id: a.id,
       title: a.title,
       content: a.content,
       isPinned: a.isPinned,
       createdAt: a.createdAt,
-      comments: a.comments.where((e) => e.id != commentId).toList(),
+      comments: remaining,
       clubId: a.clubId,
       authorId: a.authorId,
       authorName: a.authorName,
+    );
+    _reconcileAnnouncementCommentPoints(
+      c.authorId,
+      _announcements[idx],
     );
     notifyListeners();
     _persistImmediately();
@@ -8631,7 +8696,7 @@ class ClubProvider extends ChangeNotifier with WidgetsBindingObserver {
 
   // ════════════════════════════════════════════════════════
   //  멤버십 포인트 시스템
-  //  · 라운딩 참석 +10, 회비 정시납부 +5, 댓글/공지 참여 +2
+  //  · 라운딩 참석 +10, 회비 정시납부 +5, 공지당 첫 댓글 +2 / 마지막 댓글 삭제 -2
   //  · 후원사 인사 +2, 노쇼 -10
   // ════════════════════════════════════════════════════════
 

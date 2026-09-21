@@ -281,7 +281,7 @@ void main() {
 
     int myPoints() => clubs.getMembershipPoints(myId);
 
-    test('댓글마다 +2 — 같은 공지에 두 번 달면 +4', () {
+    test('같은 공지에는 첫 댓글만 +2 이고 마지막 댓글을 지우면 -2', () {
       clubs.addAnnouncement(title: '5월 공지', content: '내용');
       final annId = clubs.announcements.first.id;
 
@@ -291,14 +291,54 @@ void main() {
           isTrue);
       expect(myPoints() - before, 2);
 
-      // 예전엔 여기서 0점이었다 → "댓글 썼는데 포인트가 안 오른다"
       expect(clubs.addAnnouncementComment(announcementId: annId, text: '둘째 댓글'),
-          isTrue,
-          reason: '두 번째 댓글도 포인트를 받아야 한다');
-      expect(myPoints() - before, 4);
+          isFalse,
+          reason: '한 공지에 댓글을 여러 번 달아도 한 번만 적립한다');
+      expect(myPoints() - before, 2);
 
       clubs.addAnnouncementComment(announcementId: annId, text: '셋째 댓글');
-      expect(myPoints() - before, 6);
+      expect(myPoints() - before, 2);
+
+      final comments = clubs.announcements.first.comments
+          .where((c) => c.authorId == myId)
+          .toList();
+      expect(comments.length, 3);
+      expect(
+        clubs.deleteAnnouncementComment(
+          announcementId: annId,
+          commentId: comments.first.id,
+        ),
+        isTrue,
+      );
+      expect(myPoints() - before, 2,
+          reason: '같은 공지에 내 댓글이 남아 있으면 회수하지 않는다');
+
+      for (final c in clubs.announcements.first.comments
+          .where((c) => c.authorId == myId)
+          .toList()) {
+        clubs.deleteAnnouncementComment(
+          announcementId: annId,
+          commentId: c.id,
+        );
+      }
+      expect(myPoints() - before, 0, reason: '마지막 댓글을 지우면 -2');
+
+      expect(clubs.addAnnouncementComment(announcementId: annId, text: '다시'),
+          isTrue);
+      expect(myPoints() - before, 2, reason: '지운 뒤 다시 달면 다시 +2');
+    });
+
+    test('다른 공지 댓글은 각각 +2', () {
+      clubs.addAnnouncement(title: '5월 공지', content: '내용');
+      clubs.addAnnouncement(title: '6월 공지', content: '내용');
+      final ids = clubs.announcements.map((a) => a.id).toSet().toList();
+      expect(ids.length, 2, reason: '같은 시각에 만든 공지도 id가 겹치면 안 된다');
+      final before = myPoints();
+      expect(clubs.addAnnouncementComment(announcementId: ids[0], text: 'A'),
+          isTrue);
+      expect(clubs.addAnnouncementComment(announcementId: ids[1], text: 'B'),
+          isTrue);
+      expect(myPoints() - before, 4);
     });
 
     test('없는 공지에 댓글을 달면 적립되지 않는다', () {

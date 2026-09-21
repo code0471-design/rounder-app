@@ -541,7 +541,7 @@ class _MembersScreenState extends State<MembersScreen>
                       SizedBox(height: 6),
                       _PointGuideRow(label: '라운딩 참석', pts: '+10 P'),
                       _PointGuideRow(label: '회비 정시납부', pts: '+5 P'),
-                      _PointGuideRow(label: '공지 댓글', pts: '+2 P'),
+                      _PointGuideRow(label: '공지 댓글 (글당 1회)', pts: '+2 P'),
                       _PointGuideRow(
                           label: '노쇼', pts: '-10 P', negative: true),
                     ],
