@@ -320,12 +320,13 @@ class _FinanceScreenState extends State<FinanceScreen>
           );
         }
 
-        // 회비 미설정: 총무만 진입 가능 (방장·정회원 포함 차단) — Case A
+        // 회비 미설정: 실제 총무만 환영 온보딩. 회장 대행은 환영 문구를 보지 않는다.
         final isTreasurer = provider.isTreasurer;
-        if (isTreasurer && provider.needsTreasurerFinanceOnboarding) {
+        final isActualTreasurer = provider.isActualTreasurer;
+        if (isActualTreasurer && provider.needsTreasurerFinanceOnboarding) {
           _treasurerOnboardingSession = true;
         }
-        if (isTreasurer &&
+        if (isActualTreasurer &&
             (provider.needsTreasurerFinanceOnboarding ||
                 _treasurerOnboardingSession)) {
           return TreasurerFinanceOnboardingScreen(
@@ -362,7 +363,7 @@ class _FinanceScreenState extends State<FinanceScreen>
             onLater: () => _finishTxPrompt(enter: false),
           );
         }
-        if (!isTreasurer && provider.isFinanceSetupPending) {
+        if (!isActualTreasurer && provider.isFinanceSetupPending) {
           return const Scaffold(
             backgroundColor: AppColors.background,
             body: _FinanceSetupPendingView(),

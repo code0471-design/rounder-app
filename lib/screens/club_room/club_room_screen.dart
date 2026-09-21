@@ -313,7 +313,7 @@ class _ClubRoomScreenState extends State<ClubRoomScreen> {
       _showGuestRestrictedDialog();
       return false;
     }
-    if (!provider.isTreasurer && provider.isFinanceSetupPending) {
+    if (!provider.isActualTreasurer && provider.isFinanceSetupPending) {
       _showFinanceSetupPendingDialog();
       return false;
     }
@@ -356,15 +356,15 @@ class _ClubRoomScreenState extends State<ClubRoomScreen> {
         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
         title: const Row(
           children: [
-            Icon(Icons.hourglass_empty_rounded,
-                color: AppColors.primary, size: 20),
+            Icon(Icons.warning_amber_rounded,
+                color: AppColors.danger, size: 20),
             SizedBox(width: 8),
-            Text('회비 설정 전',
+            Text('권한 없음',
                 style: TextStyle(fontWeight: FontWeight.bold, fontSize: 16)),
           ],
         ),
         content: const Text(
-          '아직 회비 설정 전입니다. 총무가 최초 설정한 후 조회 가능합니다',
+          '재무 초기 설정은 총무만 가능합니다.',
           style: TextStyle(fontSize: 14, height: 1.6),
         ),
         actions: [
@@ -2505,10 +2505,6 @@ class _FinanceSummaryCard extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final now = DateTime.now();
-    final isTreasurer = provider.isTreasurer;
-    final canOpenFinance =
-        isTreasurer || !provider.isFinanceSetupPending;
-    final detailTap = canOpenFinance ? onTap : null;
     final balance = provider.totalBalance;
     final isGuest = provider.isGuestMember;
     final homeDues = provider.currentHomeDuesSetting(now.year, now.month);
@@ -2521,7 +2517,7 @@ class _FinanceSummaryCard extends StatelessWidget {
     final canNudge = provider.isClubExecutive;
 
     return GestureDetector(
-      onTap: detailTap,
+      onTap: onTap,
       child: Container(
         padding: const EdgeInsets.fromLTRB(16, 16, 12, 16),
         decoration: BoxDecoration(

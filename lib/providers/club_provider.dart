@@ -3405,7 +3405,7 @@ class ClubProvider extends ChangeNotifier with WidgetsBindingObserver {
 
   /// 신규 모임 총무가 재무 시작 방식(올시즌 / 이번달)을 아직 고르지 않음
   bool get needsTreasurerFinanceOnboarding =>
-      isTreasurer && isFinanceSetupPending && !hasOpeningBalance;
+      isActualTreasurer && isFinanceSetupPending && !hasOpeningBalance;
 
   /// 신규 모임 임원이 아직 일정이 없을 때 — 일정 탭 첫 안내
   bool get needsFirstScheduleGuide =>
@@ -3982,10 +3982,16 @@ class ClubProvider extends ChangeNotifier with WidgetsBindingObserver {
             _userIdsMatch(cid, _persistAuthUserId));
   }
 
+  /// 직책에 총무가 실제로 있는 경우만. 환영 온보딩·재무 첫 설정은 이 값만 본다.
+  bool get isActualTreasurer =>
+      ClubMemberRole.isTreasurer(selectedClub.myRole) ||
+      ClubMemberRole.isTreasurer(currentMember?.role ?? '');
+
   /// 선택 모임에서의 총무 여부 — 재무(회비) 전용 권한
   /// Club.myRole과 회원 명단 role이 어긋난 경우(직책 수정·인수인계)도 허용.
-  /// 총무가 비어 있으면 회장·부회장이 재무를 막히지 않게 한다.
+  /// 총무가 비어 있으면 회장·부회장이 이미 열린 재무를 막히지 않게 한다.
   bool get isTreasurer {
+    if (isActualTreasurer) return true;
     final vacant = !hasActiveTreasurer();
     return ClubMemberRole.canActAsTreasurer(
           selectedClub.myRole,

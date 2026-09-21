@@ -156,6 +156,22 @@ void main() {
         reason: '탭 안 context 로 pop 하면 재무 화면이 사라진다');
   });
 
+  test('총무가 아닌 모임은 환영 화면 대신 총무 전용 안내를 띄운다', () {
+    final room =
+        File('lib/screens/club_room/club_room_screen.dart').readAsStringSync();
+    final start = room.indexOf('void _showFinanceSetupPendingDialog(');
+    final end = room.indexOf('void _onClubSettingsTap(', start);
+    expect(start, greaterThan(0));
+    expect(end, greaterThan(start));
+    final fn = room.substring(start, end);
+    expect(fn.contains('useRootNavigator: true'), isTrue);
+    expect(fn.contains('Navigator.of(dialogCtx, rootNavigator: true).pop()'),
+        isTrue);
+    expect(fn.contains('재무 초기 설정은 총무만 가능합니다.'), isTrue);
+    expect(room.contains('!provider.isActualTreasurer && provider.isFinanceSetupPending'),
+        isTrue);
+  });
+
   test('기존 잔액 등록 카드는 총무만 본다', () {
     // 비총무는 잠금 안내만 보고 금액·수정 버튼을 못 본다.
     expect(finance.contains('final isAdmin = isTreasurer;'), isTrue);
@@ -181,8 +197,13 @@ void main() {
   test('신규 모임 총무는 재무 첫 방문 온보딩을 보고 비총무는 기존 안내다', () {
     expect(finance.contains('TreasurerFinanceOnboardingScreen'), isTrue);
     expect(finance.contains('needsTreasurerFinanceOnboarding'), isTrue);
+    expect(finance.contains('isActualTreasurer'), isTrue,
+        reason: '총무가 아닌 사람에게 총무님 반갑습니다를 보여 주면 안 된다');
     expect(finance.contains('_FinanceSetupPendingView'), isTrue);
     expect(provider.contains('needsTreasurerFinanceOnboarding'), isTrue);
+    expect(provider.contains('isActualTreasurer && isFinanceSetupPending'),
+        isTrue,
+        reason: '회장 대행이 환영 온보딩을 보면 안 된다');
     final onboard = File(
             'lib/screens/finance/treasurer_finance_onboarding_screen.dart')
         .readAsStringSync();

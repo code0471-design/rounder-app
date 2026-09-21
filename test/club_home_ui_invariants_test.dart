@@ -172,7 +172,13 @@ void main() {
         reason: '일정·회원·재무에서도 어느 모임인지 헤더에 보여야 한다');
     final header =
         File('lib/widgets/app_header.dart').readAsStringSync();
-    expect(header.contains('로고 아래 줄에 현재 모임명'), isTrue);
-    expect(header.contains('textAlign: TextAlign.center'), isTrue);
+    expect(header.contains('로고 바로 아래'), isTrue);
+    final titleStart = header.indexOf("if ((title ?? '').trim().isNotEmpty)");
+    final titleEnd = header.indexOf('class _HeaderNotificationButton');
+    expect(titleStart, greaterThan(0));
+    expect(titleEnd, greaterThan(titleStart));
+    final titleBlock = header.substring(titleStart, titleEnd);
+    expect(titleBlock.contains('textAlign: TextAlign.start'), isTrue);
+    expect(titleBlock.contains('textAlign: TextAlign.center'), isFalse);
   });
 }
