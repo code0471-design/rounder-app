@@ -15,6 +15,8 @@ class AppHeader extends StatelessWidget {
   final Widget? leading;
   final List<Widget>? trailingActions;
   final int? notificationCount;
+  /// 모임 방이면 로고 바로 아래(로고와 같은 왼쪽). 원클럽 ONECLUB 아래 모임명과 같음.
+  final String? title;
 
   const AppHeader({
     super.key,
@@ -24,6 +26,7 @@ class AppHeader extends StatelessWidget {
     this.leading,
     this.trailingActions,
     this.notificationCount,
+    this.title,
   });
 
   static void openMyPage(BuildContext context) {
@@ -65,16 +68,45 @@ class AppHeader extends StatelessWidget {
         child: Padding(
           padding: const EdgeInsets.fromLTRB(12, 6, 8, 6),
           child: Row(
-            crossAxisAlignment: CrossAxisAlignment.center,
+            crossAxisAlignment: CrossAxisAlignment.start,
             children: [
               if (leading != null) ...[
-                leading!,
+                Padding(
+                  padding: const EdgeInsets.only(top: 4),
+                  child: leading!,
+                ),
                 const SizedBox(width: 2),
               ],
-              RounderLogo(
-                height: logoHeight,
-                forWhiteHeader: true,
-                onTap: onLogoTap,
+              Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  RounderLogo(
+                    height: logoHeight,
+                    forWhiteHeader: true,
+                    onTap: onLogoTap,
+                  ),
+                  if ((title ?? '').trim().isNotEmpty)
+                    Padding(
+                      padding: const EdgeInsets.only(top: 1),
+                      child: ConstrainedBox(
+                        constraints: const BoxConstraints(maxWidth: 180),
+                        child: Text(
+                          title!.trim(),
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                          textAlign: TextAlign.start,
+                          style: const TextStyle(
+                            fontSize: 12,
+                            fontWeight: FontWeight.w600,
+                            color: Color(0xFF6B7280),
+                            letterSpacing: -0.2,
+                            height: 1.2,
+                          ),
+                        ),
+                      ),
+                    ),
+                ],
               ),
               const Spacer(),
               if (trailingActions != null) ...[

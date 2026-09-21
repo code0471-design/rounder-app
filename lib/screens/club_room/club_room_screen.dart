@@ -551,6 +551,7 @@ class _ClubRoomScreenState extends State<ClubRoomScreen> {
     }
 
     return AppHeader(
+      title: club.name,
       leading: GestureDetector(
         onTap: handleBack,
         behavior: HitTestBehavior.opaque,
