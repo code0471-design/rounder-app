@@ -8,6 +8,11 @@ import 'rounder_logo.dart';
 /// 앱 전역 상단 헤더 — 화이트 배경 + 확대 투명 로고 + 알림/프로필
 class AppHeader extends StatelessWidget {
   static const logoHeight = 34.0;
+  /// `rounder_logo_transparent.png` (761×196)에서 ROUNDER 글자가 시작하는 x.
+  static const _logoAssetHeight = 196.0;
+  static const _logoTextStartX = 216.0;
+  static double get _clubNameLeftInset =>
+      logoHeight * (_logoTextStartX / _logoAssetHeight);
 
   final VoidCallback onNotificationTap;
   final VoidCallback? onProfileTap;
@@ -15,7 +20,7 @@ class AppHeader extends StatelessWidget {
   final Widget? leading;
   final List<Widget>? trailingActions;
   final int? notificationCount;
-  /// 모임 방이면 로고 바로 아래(로고와 같은 왼쪽). 원클럽 ONECLUB 아래 모임명과 같음.
+  /// 모임 방이면 ROUNDER 글자 바로 아래. 공 엠블럼 아래는 아님.
   final String? title;
 
   const AppHeader({
@@ -88,7 +93,7 @@ class AppHeader extends StatelessWidget {
                   ),
                   if ((title ?? '').trim().isNotEmpty)
                     Padding(
-                      padding: const EdgeInsets.only(top: 1),
+                      padding: EdgeInsets.only(top: 1, left: _clubNameLeftInset),
                       child: ConstrainedBox(
                         constraints: const BoxConstraints(maxWidth: 180),
                         child: Text(
