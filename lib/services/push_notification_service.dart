@@ -9,6 +9,7 @@ import 'package:flutter_local_notifications/flutter_local_notifications.dart';
 
 import '../core/firebase/firestore_paths.dart';
 import '../firebase_options.dart';
+import '../utils/d1_enqueue_policy.dart';
 import '../utils/dues_d1_schedule.dart';
 import 'hq_push_catalog.dart';
 import 'hq_remote_settings.dart';
@@ -199,6 +200,20 @@ abstract final class PushNotificationService {
       '${d.month.toString().padLeft(2, '0')}-'
       '${d.day.toString().padLeft(2, '0')}';
 
+  static Future<void> _deleteD1AliasDocs({
+    required String Function(String userId) docIdFor,
+    required String keepUserId,
+    Iterable<String> aliasUserIds = const [],
+  }) async {
+    for (final id in aliasUserIds) {
+      if (id.isEmpty || id == keepUserId) continue;
+      await FirebaseFirestore.instance
+          .collection(FirestorePaths.d1Queue)
+          .doc(docIdFor(id))
+          .delete();
+    }
+  }
+
   /// D-1 10시 리마인더. 참석 회원만 큐. enqueue=false면 대기열에서 뺀다.
   static Future<void> syncD1Reminder({
     required String scheduleId,
@@ -212,14 +227,30 @@ abstract final class PushNotificationService {
     String? memberName,
     String? whenText,
     String? place,
+    String creatorUserId = '',
+    Iterable<String> aliasUserIds = const [],
   }) async {
     if (!HqRemoteSettings.available) return;
+    if (userId.isEmpty) return;
+    if (D1EnqueuePolicy.isBlockedRecipient(
+      name: memberName ?? '',
+      userId: userId,
+      clubId: clubId,
+      creatorUserId: creatorUserId,
+    )) {
+      enqueue = false;
+    }
     final doc = FirebaseFirestore.instance
         .collection(FirestorePaths.d1Queue)
         .doc(_d1DocId(scheduleId, userId));
     try {
       if (!enqueue) {
         await doc.delete();
+        await _deleteD1AliasDocs(
+          docIdFor: (id) => _d1DocId(scheduleId, id),
+          keepUserId: userId,
+          aliasUserIds: aliasUserIds,
+        );
         return;
       }
       final sendOn = DateTime(roundDate.year, roundDate.month, roundDate.day)
@@ -230,6 +261,11 @@ abstract final class PushNotificationService {
       final existing = await doc.get();
       if (existing.data()?['alimtalkSent'] == true ||
           existing.data()?['alimtalkScheduled'] == true) {
+        await _deleteD1AliasDocs(
+          docIdFor: (id) => _d1DocId(scheduleId, id),
+          keepUserId: userId,
+          aliasUserIds: aliasUserIds,
+        );
         return;
       }
       final t = HqPushCatalog.byIdSync(HqPushCatalog.d1Reminder);
@@ -252,6 +288,11 @@ abstract final class PushNotificationService {
         'alimtalkSent': false,
         'updatedAt': FieldValue.serverTimestamp(),
       }, SetOptions(merge: true));
+      await _deleteD1AliasDocs(
+        docIdFor: (id) => _d1DocId(scheduleId, id),
+        keepUserId: userId,
+        aliasUserIds: aliasUserIds,
+      );
     } catch (e) {
       debugPrint('[Push] d1 sync skip: $e');
     }
@@ -277,7 +318,21 @@ abstract final class PushNotificationService {
   /// 오늘 이후(포함) 아직 안 보낸 D-1. 10시 예약용.
   static Future<List<QueryDocumentSnapshot<Map<String, dynamic>>>>
       pendingD1AlimtalkDocs() async {
-    if (!HqRemoteSettings.available) return const [];
+    final plan = await d1AlimtalkFlushPlan();
+    return plan.openDocs;
+  }
+
+  /// lookback 이후 큐. 이미 예약된 같은 번호는 다시 보내지 않는다.
+  static Future<({
+    List<QueryDocumentSnapshot<Map<String, dynamic>>> openDocs,
+    Set<String> claimedKeys,
+  })> d1AlimtalkFlushPlan() async {
+    if (!HqRemoteSettings.available) {
+      return (
+        openDocs: <QueryDocumentSnapshot<Map<String, dynamic>>>[],
+        claimedKeys: <String>{},
+      );
+    }
     try {
       final kst = DateTime.now().toUtc().add(const Duration(hours: 9));
       final lookback = _ymd(kst.subtract(const Duration(days: 1)));
@@ -285,10 +340,30 @@ abstract final class PushNotificationService {
           .collection(FirestorePaths.d1Queue)
           .where('sendOn', isGreaterThanOrEqualTo: lookback)
           .get();
-      return snap.docs.where(_d1AlimtalkOpen).toList();
+      final claimed = <String>{};
+      for (final doc in snap.docs) {
+        final d = doc.data();
+        if (d['alimtalkSent'] == true || d['alimtalkScheduled'] == true) {
+          final key = D1EnqueuePolicy.sendDedupKey(
+            scheduleId: '${d['scheduleId'] ?? ''}',
+            sendOn: '${d['sendOn'] ?? ''}',
+            phone: '${d['phone'] ?? ''}',
+          );
+          if (D1EnqueuePolicy.phoneDigits('${d['phone'] ?? ''}').length >= 10) {
+            claimed.add(key);
+          }
+        }
+      }
+      return (
+        openDocs: snap.docs.where(_d1AlimtalkOpen).toList(),
+        claimedKeys: claimed,
+      );
     } catch (e) {
       debugPrint('[Push] d1 pending query skip: $e');
-      return const [];
+      return (
+        openDocs: <QueryDocumentSnapshot<Map<String, dynamic>>>[],
+        claimedKeys: <String>{},
+      );
     }
   }
 
@@ -373,20 +448,40 @@ abstract final class PushNotificationService {
     required bool enqueue,
     String? phone,
     required String memberName,
+    String creatorUserId = '',
+    Iterable<String> aliasUserIds = const [],
   }) async {
     if (!HqRemoteSettings.available) return;
     if (userId.isEmpty) return;
+    if (D1EnqueuePolicy.isBlockedRecipient(
+      name: memberName,
+      userId: userId,
+      clubId: clubId,
+      creatorUserId: creatorUserId,
+    )) {
+      enqueue = false;
+    }
     final docId = DuesD1Schedule.queueDocId(
       settingId: settingId,
       userId: userId,
       periodKey: periodKey,
     );
+    String duesDocId(String uid) => DuesD1Schedule.queueDocId(
+          settingId: settingId,
+          userId: uid,
+          periodKey: periodKey,
+        );
     final doc = FirebaseFirestore.instance
         .collection(FirestorePaths.d1Queue)
         .doc(docId);
     try {
       if (!enqueue) {
         await doc.delete();
+        await _deleteD1AliasDocs(
+          docIdFor: duesDocId,
+          keepUserId: userId,
+          aliasUserIds: aliasUserIds,
+        );
         return;
       }
       final sendOn = DuesD1Schedule.sendOnDate(dueDate);
@@ -396,6 +491,11 @@ abstract final class PushNotificationService {
       final existing = await doc.get();
       if (existing.data()?['alimtalkSent'] == true ||
           existing.data()?['alimtalkScheduled'] == true) {
+        await _deleteD1AliasDocs(
+          docIdFor: duesDocId,
+          keepUserId: userId,
+          aliasUserIds: aliasUserIds,
+        );
         return;
       }
       final t = HqPushCatalog.byIdSync(HqPushCatalog.duesRequest);
@@ -421,6 +521,11 @@ abstract final class PushNotificationService {
         'alimtalkSent': false,
         'updatedAt': FieldValue.serverTimestamp(),
       });
+      await _deleteD1AliasDocs(
+        docIdFor: duesDocId,
+        keepUserId: userId,
+        aliasUserIds: aliasUserIds,
+      );
     } catch (e) {
       debugPrint('[Push] dues d1 sync skip: $e');
     }

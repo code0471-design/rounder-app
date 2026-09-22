@@ -46,6 +46,11 @@ void main() {
 
   test('다른 회원의 계정 id 는 그 사람 수신함으로 간다', () {
     expect(clubs.fcmInboxIdForTest('m_${clubId}_google_lee'), 'google_lee');
+    expect(
+      clubs.fcmInboxIdForTest('m_c_1786973797931_google_lee'),
+      'google_lee',
+      reason: '선택된 모임이 달라도 같은 사람이 두 줄이면 알림톡이 두 번 간다',
+    );
   });
 
   test('옛 m1 행도 전화번호가 소속 계정과 맞으면 그 사람에게 간다', () async {

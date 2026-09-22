@@ -1,5 +1,6 @@
 import 'package:flutter/foundation.dart';
 
+import '../utils/d1_enqueue_policy.dart';
 import 'hq_alimtalk_catalog.dart';
 import 'push_notification_service.dart';
 import 'solapi_service.dart';
@@ -32,10 +33,12 @@ abstract final class D1AlimtalkFlush {
   }) async {
     final solapi = SolapiService.instance;
     if (!solapi.isConfigured || !solapi.hasKakaoChannel) return;
-    final docs = await PushNotificationService.pendingD1AlimtalkDocs();
+    final plan = await PushNotificationService.d1AlimtalkFlushPlan();
+    final docs = plan.openDocs;
     if (docs.isEmpty) return;
     final utc = DateTime.now().toUtc();
     final now = utc.add(const Duration(hours: 9));
+    final claimed = {...plan.claimedKeys};
 
     for (final doc in docs) {
       final d = doc.data();
@@ -44,6 +47,14 @@ abstract final class D1AlimtalkFlush {
           ? HqAlimtalkCatalog.duesRequestId
           : HqAlimtalkCatalog.d1ReminderId;
       final clubId = '${d['clubId'] ?? ''}';
+      if (D1EnqueuePolicy.isBlockedRecipient(
+        name: '${d['memberName'] ?? ''}',
+        userId: '${d['userId'] ?? ''}',
+        clubId: clubId,
+      )) {
+        await PushNotificationService.markD1AlimtalkSent(doc.id);
+        continue;
+      }
       if (clubId.isNotEmpty &&
           clubEnabled != null &&
           !clubEnabled(clubId, hqTypeId)) {
@@ -63,6 +74,18 @@ abstract final class D1AlimtalkFlush {
       }
       if (phone.length < 10) {
         debugPrint('[Alimtalk] d1 skip no phone ${doc.id}');
+        continue;
+      }
+      final dedupKey = D1EnqueuePolicy.sendDedupKey(
+        scheduleId: '${d['scheduleId'] ?? ''}',
+        sendOn: '${d['sendOn'] ?? ''}',
+        phone: phone,
+      );
+      if (!claimed.add(dedupKey)) {
+        await PushNotificationService.markD1AlimtalkSent(
+          doc.id,
+          scheduled: true,
+        );
         continue;
       }
 

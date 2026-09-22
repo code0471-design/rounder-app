@@ -27,6 +27,7 @@ import '../services/member_phone_index.dart';
 import '../services/push_notification_service.dart';
 import '../services/shared_join_request_store.dart';
 import '../services/solapi_service.dart';
+import '../utils/d1_enqueue_policy.dart';
 import '../utils/dues_d1_schedule.dart';
 import '../utils/past_schedule_import.dart';
 
@@ -1971,27 +1972,49 @@ class ClubProvider extends ChangeNotifier with WidgetsBindingObserver {
   static final RegExp _legacySeedMemberId = RegExp(r'^m[g]?\d+$');
 
   @visibleForTesting
-  String fcmInboxIdForTest(String memberOrUserId) =>
-      _fcmInboxIdFor(memberOrUserId);
+  String fcmInboxIdForTest(String memberOrUserId, {String? clubId}) =>
+      _fcmInboxIdFor(memberOrUserId, clubId: clubId);
+
+  String _clubCreatorId(String clubId) =>
+      [..._myClubs, ..._allClubs]
+          .where((c) => c.id == clubId)
+          .firstOrNull
+          ?.creatorId
+          .trim() ??
+      '';
 
   /// 명단 행 → 푸시 수신함 계정 id. 모르면 빈 문자열(발송 안 함).
   ///
   /// 옛 시드 id 를 내 계정으로 넘기면 안 된다. 실제로 `m1` 로 남아 있던 회원의
   /// 푸시가 방장 수신함으로 가서, 방장은 같은 알림을 두 번 받고 그 회원은
   /// 한 번도 못 받았다.
-  String _fcmInboxIdFor(String memberOrUserId) {
+  ///
+  /// 선택된 모임이 아니어도 `m_<clubId>_<uid>` 는 uid 로 접는다.
+  /// 앱 시작 때 전 모임 일정을 넣으면 같은 사람이 두 아이디로 큐에 쌓였다.
+  String _fcmInboxIdFor(String memberOrUserId, {String? clubId}) {
     final raw = memberOrUserId.trim();
     if (raw.isEmpty) return raw;
+    final resolvedClubId = (clubId != null && clubId.trim().isNotEmpty)
+        ? clubId.trim()
+        : (_myClubs.isNotEmpty ? selectedClub.id : '');
     if (!_isDemoSession && _myClubs.isNotEmpty) {
-      final clubId = selectedClub.id;
-      final prefix = 'm_${clubId}_';
-      final suffix = raw.startsWith(prefix) ? raw.substring(prefix.length) : '';
-      final legacyRow =
-          _legacySeedMemberId.hasMatch(raw) || _legacySeedMemberId.hasMatch(suffix);
+      final prefix =
+          resolvedClubId.isEmpty ? '' : 'm_${resolvedClubId}_';
+      final suffix = prefix.isNotEmpty && raw.startsWith(prefix)
+          ? raw.substring(prefix.length)
+          : '';
+      final roster = D1EnqueuePolicy.rosterMatch(raw);
+      final legacyRow = _legacySeedMemberId.hasMatch(raw) ||
+          _legacySeedMemberId.hasMatch(suffix) ||
+          (roster != null && _legacySeedMemberId.hasMatch(roster.suffix));
       if (legacyRow) {
         // 계정 id 를 모르는 옛 행. 전화번호로 소속 계정을 찾는다.
         // 못 찾으면 발송하지 않는다 (방장에게 잘못 배달되면 더 나쁘다).
-        return _accountIdByRosterPhone(clubId, raw);
+        return _accountIdByRosterPhone(
+          roster?.clubId ??
+              (resolvedClubId.isNotEmpty ? resolvedClubId : selectedClub.id),
+          raw,
+        );
       }
     }
     if (!_isDemoSession && _legacySeedMemberId.hasMatch(raw)) return '';
@@ -2000,16 +2023,28 @@ class ClubProvider extends ChangeNotifier with WidgetsBindingObserver {
       if (auth != null && auth.isNotEmpty) return auth;
       if (currentUserId.trim().isNotEmpty) return currentUserId;
     }
+    final roster = D1EnqueuePolicy.rosterMatch(raw);
+    if (roster != null && roster.suffix.isNotEmpty) {
+      if (!_isDemoSession && _legacySeedMemberId.hasMatch(roster.suffix)) {
+        return '';
+      }
+      return roster.suffix;
+    }
+    if (resolvedClubId.isNotEmpty && raw == 'm_creator_$resolvedClubId') {
+      final cid = _clubCreatorId(resolvedClubId);
+      if (cid.isNotEmpty) return cid;
+    }
     if (_myClubs.isNotEmpty) {
-      final clubId = selectedClub.id;
-      final prefix = 'm_${clubId}_';
+      final mappedClubId =
+          resolvedClubId.isNotEmpty ? resolvedClubId : selectedClub.id;
+      final prefix = 'm_${mappedClubId}_';
       if (raw.startsWith(prefix)) {
         final suffix = raw.substring(prefix.length);
         if (!_isDemoSession && _legacySeedMemberId.hasMatch(suffix)) return '';
         if (suffix.isNotEmpty) return suffix;
       }
-      if (raw == 'm_creator_$clubId') {
-        final cid = selectedClub.creatorId.trim();
+      if (raw == 'm_creator_$mappedClubId') {
+        final cid = _clubCreatorId(mappedClubId);
         if (cid.isNotEmpty) return cid;
       }
     }
@@ -4256,14 +4291,27 @@ class ClubProvider extends ChangeNotifier with WidgetsBindingObserver {
   }
 
   List<Member> _d1RsvpMembers(String clubId) {
+    final creator = _clubCreatorId(clubId);
     final list = membersForClub(clubId)
         .where((m) => m.status == '활성' && m.memberType == '정회원')
+        .where((m) => !D1EnqueuePolicy.isBlockedRecipient(
+              name: m.name,
+              userId: m.id,
+              clubId: clubId,
+              creatorUserId: creator,
+            ))
         .toList();
     if (clubId == selectedClub.id) {
       final me = currentMember;
       if (me != null &&
           me.memberType == '정회원' &&
-          list.every((m) => m.id != me.id)) {
+          list.every((m) => m.id != me.id) &&
+          !D1EnqueuePolicy.isBlockedRecipient(
+            name: me.name,
+            userId: me.id,
+            clubId: clubId,
+            creatorUserId: creator,
+          )) {
         list.add(me);
       }
     }
@@ -4303,29 +4351,56 @@ class ClubProvider extends ChangeNotifier with WidgetsBindingObserver {
       for (final r in schedule.responses)
         if (r.response == '참석') r.memberId,
     };
+    final official = _d1RsvpMembers(schedule.clubId);
+    final officialIds = {for (final m in official) m.id};
+    final creator = _clubCreatorId(schedule.clubId);
+    final attendingCanonical = <String>{};
+    for (final id in attendingIds) {
+      final inbox = _fcmInboxIdFor(id, clubId: schedule.clubId);
+      if (inbox.isNotEmpty) attendingCanonical.add(inbox);
+    }
     final seen = <String>{};
-    for (final m in _d1RsvpMembers(schedule.clubId)) {
-      seen.add(m.id);
+    for (final m in official) {
+      final userId = _fcmInboxIdFor(m.id, clubId: schedule.clubId);
+      if (userId.isEmpty) continue;
+      if (!seen.add(userId)) {
+        await PushNotificationService.syncD1Reminder(
+          scheduleId: schedule.id,
+          userId: m.id,
+          roundDate: schedule.roundDate,
+          clubId: schedule.clubId,
+          clubName: clubName,
+          scheduleTitle: schedule.displayTitle,
+          enqueue: false,
+          creatorUserId: creator,
+        );
+        continue;
+      }
       await PushNotificationService.syncD1Reminder(
         scheduleId: schedule.id,
-        userId: _fcmInboxIdFor(m.id),
+        userId: userId,
         roundDate: schedule.roundDate,
         clubId: schedule.clubId,
         clubName: clubName,
         scheduleTitle: schedule.displayTitle,
-        enqueue: attendingIds.contains(m.id),
+        enqueue: attendingIds.contains(m.id) ||
+            attendingCanonical.contains(userId),
         phone: m.phone,
         memberName: m.name,
         whenText: dateStr,
         place: place,
+        creatorUserId: creator,
+        aliasUserIds: {m.id},
       );
     }
     for (final r in schedule.responses) {
-      if (!seen.add(r.memberId)) continue;
+      if (!officialIds.contains(r.memberId)) continue;
+      final userId = _fcmInboxIdFor(r.memberId, clubId: schedule.clubId);
+      if (userId.isEmpty || !seen.add(userId)) continue;
       final member = memberById(r.memberId);
       await PushNotificationService.syncD1Reminder(
         scheduleId: schedule.id,
-        userId: _fcmInboxIdFor(r.memberId),
+        userId: userId,
         roundDate: schedule.roundDate,
         clubId: schedule.clubId,
         clubName: clubName,
@@ -4335,6 +4410,8 @@ class ClubProvider extends ChangeNotifier with WidgetsBindingObserver {
         memberName: member?.name ?? r.memberName,
         whenText: dateStr,
         place: place,
+        creatorUserId: creator,
+        aliasUserIds: {r.memberId},
       );
     }
     if (flush) await flushDueD1Alimtalk();
@@ -4354,7 +4431,7 @@ class ClubProvider extends ChangeNotifier with WidgetsBindingObserver {
         : schedule.courseName.trim();
     await PushNotificationService.syncD1Reminder(
       scheduleId: schedule.id,
-      userId: _fcmInboxIdFor(memberId),
+      userId: _fcmInboxIdFor(memberId, clubId: schedule.clubId),
       roundDate: schedule.roundDate,
       clubId: schedule.clubId,
       clubName: _clubNameOf(schedule.clubId),
@@ -4364,6 +4441,8 @@ class ClubProvider extends ChangeNotifier with WidgetsBindingObserver {
       memberName: member?.name,
       whenText: dateStr,
       place: place,
+      creatorUserId: _clubCreatorId(schedule.clubId),
+      aliasUserIds: {memberId},
     );
     await flushDueD1Alimtalk();
   }
@@ -4406,12 +4485,20 @@ class ClubProvider extends ChangeNotifier with WidgetsBindingObserver {
         month: setting.type == DuesType.monthly ? due.month : 1,
       );
       for (final m in regularMembers) {
+        if (D1EnqueuePolicy.isBlockedRecipient(
+          name: m.name,
+          userId: m.id,
+          clubId: selectedClub.id,
+          creatorUserId: selectedClub.creatorId,
+        )) {
+          continue;
+        }
         final paid = setting.type == DuesType.monthly
             ? hasPaid(m.id, setting.id, year: due.year, month: due.month)
             : hasPaid(m.id, setting.id, year: due.year);
         await PushNotificationService.syncDuesD1Reminder(
           settingId: setting.id,
-          userId: _fcmInboxIdFor(m.id),
+          userId: _fcmInboxIdFor(m.id, clubId: selectedClub.id),
           dueDate: due,
           periodKey: period,
           clubId: selectedClub.id,
@@ -4421,6 +4508,8 @@ class ClubProvider extends ChangeNotifier with WidgetsBindingObserver {
           enqueue: !paid,
           phone: m.phone,
           memberName: m.name.trim().isEmpty ? '회원' : m.name.trim(),
+          creatorUserId: selectedClub.creatorId,
+          aliasUserIds: {m.id},
         );
       }
     }

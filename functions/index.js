@@ -152,6 +152,58 @@ function digits(value) {
   return String(value || "").replace(/\D/g, "");
 }
 
+const ALADDIN_CLUB_ID = "c_1789270673471";
+const LEFTOVER_NAMES = new Set(["장창현"]);
+const LEFTOVER_UIDS = new Set(["kakao_5049673364"]);
+
+function canonicalUserId(userId, clubId) {
+  const raw = String(userId || "").trim();
+  if (!raw) return "";
+  if (/^m[g]?\d+$/.test(raw)) return "";
+  const prefix = clubId ? `m_${clubId}_` : "";
+  if (prefix && raw.startsWith(prefix)) {
+    const suffix = raw.slice(prefix.length);
+    if (/^m[g]?\d+$/.test(suffix)) return "";
+    return suffix;
+  }
+  const roster = raw.match(/^m_(c_\d+|c\d+|seed_c\d+)_(.+)$/);
+  if (roster) {
+    if (/^m[g]?\d+$/.test(roster[2])) return "";
+    return roster[2];
+  }
+  return raw;
+}
+
+function isLeftoverRecipient(d) {
+  const name = String(d.memberName || "").trim();
+  const raw = String(d.userId || "");
+  const uid = canonicalUserId(raw, d.clubId);
+  const stolen =
+    LEFTOVER_NAMES.has(name) ||
+    LEFTOVER_UIDS.has(uid) ||
+    raw.includes("kakao_5049673364");
+  if (!stolen) return false;
+  return String(d.clubId || "") !== ALADDIN_CLUB_ID;
+}
+
+function sendDedupKey(d, phone) {
+  return `${d.scheduleId || ""}|${d.sendOn || ""}|${digits(phone)}`;
+}
+
+async function resolvePushUserId(d) {
+  const raw = String(d.userId || "").trim();
+  const canon = canonicalUserId(raw, d.clubId);
+  const candidates = [];
+  if (canon) candidates.push(canon);
+  if (raw && raw !== canon) candidates.push(raw);
+  const db = getFirestore();
+  for (const id of candidates) {
+    const snap = await db.doc(`fcm_tokens/${id}`).get();
+    if (snap.data()?.token) return id;
+  }
+  return canon || raw;
+}
+
 function solapiHeaders(apiKey, apiSecret) {
   const date = new Date().toISOString().replace(/\.\d{3}Z$/, "Z");
   const salt = crypto.randomBytes(16).toString("hex");
@@ -239,9 +291,22 @@ async function flushDueD1Alimtalk() {
     .collection("d1_queue")
     .where("sendOn", "==", seoulYmd())
     .get();
+  const claimed = new Set();
+  for (const doc of snap.docs) {
+    const d = doc.data();
+    if (d.alimtalkSent === true || d.alimtalkScheduled === true) {
+      const phone = digits(d.phone);
+      if (phone.length >= 10) claimed.add(sendDedupKey(d, phone));
+    }
+  }
   for (const doc of snap.docs) {
     const d = doc.data();
     if (d.alimtalkSent === true || d.alimtalkScheduled === true) continue;
+    if (isLeftoverRecipient(d)) {
+      console.log("d1 alimtalk leftover skip", doc.id);
+      await doc.ref.set({ alimtalkSent: true }, { merge: true });
+      continue;
+    }
     const isDues = d.kind === "dues";
     const typeId = isDues ? "atk_dues_request" : "atk_d1_reminder";
     if (!(await hqAlimtalkEnabled(typeId))) {
@@ -256,6 +321,12 @@ async function flushDueD1Alimtalk() {
       console.log("d1 alimtalk no phone", doc.id);
       continue;
     }
+    const key = sendDedupKey(d, phone);
+    if (claimed.has(key)) {
+      await doc.ref.set({ alimtalkSent: true, alimtalkScheduled: true }, { merge: true });
+      continue;
+    }
+    claimed.add(key);
     const sent = await sendSolapiAlimtalk({
       to: phone,
       templateId: isDues
@@ -299,14 +370,20 @@ exports.sendD1Reminders = onSchedule(
       const d = doc.data();
       if (!d.userId) continue;
       if (d.pushSent === true) continue;
+      if (isLeftoverRecipient(d)) {
+        await doc.ref.set({ pushSent: true }, { merge: true });
+        continue;
+      }
       const isDues = d.kind === "dues";
       const typeId =
         d.pushType || (isDues ? "push_dues_request" : "push_d1_reminder");
       if (!(await hqPushEnabled(typeId))) {
         continue;
       }
+      const pushUserId = await resolvePushUserId(d);
+      if (!pushUserId) continue;
       await inboxPush(
-        d.userId,
+        pushUserId,
         d.title || (isDues ? "회비 납부 안내" : "내일 라운딩 안내"),
         d.body || "",
         typeId,

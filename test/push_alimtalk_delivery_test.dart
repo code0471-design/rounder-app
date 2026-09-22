@@ -234,7 +234,7 @@ void main() {
     test('라운딩 D-1 알림톡은 10시 이전이면 솔라피에 예약한다', () {
       final src = read('lib/services/d1_alimtalk_flush.dart');
       expect(src.contains('scheduledAtKst'), isTrue);
-      expect(src.contains('pendingD1AlimtalkDocs'), isTrue);
+      expect(src.contains('d1AlimtalkFlushPlan'), isTrue);
       expect(src.contains('HqAlimtalkCatalog.d1ReminderId'), isTrue);
       expect(src.contains('markD1AlimtalkSent'), isTrue);
       expect(src.contains('skip no phone'), isTrue,
@@ -274,6 +274,18 @@ void main() {
       expect(read('lib/services/push_notification_service.dart'),
           contains('claimD1Alimtalk'),
           reason: '두 기기가 같은 큐를 두 번 예약하면 10시에 두 통이 간다');
+      expect(fn.contains('isLeftoverRecipient'), isTrue,
+          reason: '아레나 회원이 아닌 장창현에게 D-1이 나갔다');
+      expect(fn.contains('sendDedupKey'), isTrue,
+          reason: '같은 번호·같은 일정이 두 줄이면 알림톡이 여러 번 간다');
+      expect(fn.contains('resolvePushUserId'), isTrue,
+          reason: '명단 id로 푸시하면 토큰이 없어 알림이 안 간다');
+      expect(read('lib/providers/club_provider.dart'),
+          contains('D1EnqueuePolicy.isBlockedRecipient'),
+          reason: '명단에 leftover가 남아도 D-1 큐에 넣으면 안 된다');
+      expect(read('lib/services/d1_alimtalk_flush.dart'),
+          contains('sendDedupKey'),
+          reason: '앱 예약도 같은 번호면 한 통만 나가야 한다');
     });
   });
 }
