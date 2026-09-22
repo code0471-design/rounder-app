@@ -131,6 +131,46 @@ void main() {
     expect(body.contains('_clubRosterHasMyPhone(c.id)'), isFalse,
         reason: '로컬 명단·번호만으로 남기면 잘못 붙은 모임이 다시 내 모임이 된다');
     expect(body.contains('if (mineIds.contains(c.id)) continue;'), isTrue);
+    expect(body.contains('_iAmClubCreator(c)'), isFalse,
+        reason: '로컬 방장 id 를 믿으면 장창현 폰에 남의 모임이 남는다');
+    expect(body.contains('catalogById'), isTrue);
+  });
+
+  test('로컬 방장 id 가 내 계정이어도 서버 생성자가 다르면 내 모임에서 빠진다', () async {
+    final store = AppDependencies.instance.mockDataStore!;
+    final stolen = Club(
+      id: 'c_1788832999001',
+      name: '강남 미용모임',
+      myRole: '정회원',
+      memberCount: 2,
+      creatorId: 'kakao_tester',
+      region: '서울',
+      industry: '미용',
+      teamCount: 4,
+      description: '',
+      createdAt: DateTime(2026, 8, 1),
+    );
+    store.upsertClub(
+      stolen.copyWith(creatorId: 'kakao_ahn'),
+      persist: false,
+    );
+
+    clubs.hydrateFromBootstrap(AppBootstrapSnapshot(
+      userId: 'kakao_tester',
+      myClubs: [stolen],
+      discoverableClubs: [stolen.copyWith(creatorId: 'kakao_ahn')],
+      membersByClubId: const {},
+      financeByClubId: const {},
+      loadedAt: DateTime(2026, 9, 22),
+    ));
+    expect(clubs.myClubs.any((c) => c.id == stolen.id), isTrue);
+
+    await clubs.refreshOwnedClubs();
+
+    expect(clubs.myClubs.any((c) => c.id == stolen.id), isFalse,
+        reason: '장창현 폰 로컬에 남은 강남은 내 모임이 아니다');
+    expect(clubs.myClubs.any((c) => c.id == myClubId), isTrue,
+        reason: '알라딘만 남아야 한다');
   });
 
   test('서버에서 지운 모임은 카탈로그에 없어도 내 모임에서 빠진다', () async {

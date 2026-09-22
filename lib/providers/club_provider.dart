@@ -616,6 +616,9 @@ class ClubProvider extends ChangeNotifier with WidgetsBindingObserver {
       if (!_isDemoSession) {
         _purgeDemoIdentityClubs();
         _stripHardcodedDemoPayload();
+        if (authUserId.isNotEmpty) {
+          await _pruneForeignClubs(authUserId);
+        }
       }
       for (final club in List<Club>.from(_myClubs)) {
         await _hydrateRosterFromServer(club.id);
@@ -941,9 +944,11 @@ class ClubProvider extends ChangeNotifier with WidgetsBindingObserver {
     }
 
     // 2) 계정 번들 — 데모 계정만 user_guest / user_me 를 훑는다.
+    // 실계정은 로컬 creatorId 를 믿지 않는다. 장창현 찌꺼기가 방장 id 를
+    // 훔치면 강남·평촌이 내 모임으로 복구된다.
     final bundleUids = _isDemoSession
         ? <String>{authUserId, 'user_guest', 'user_me', 'user_other'}
-        : <String>{authUserId};
+        : const <String>{};
     for (final uid in bundleUids) {
       try {
         final bundle = await ClubPersistence.load(uid);
@@ -1316,7 +1321,8 @@ class ClubProvider extends ChangeNotifier with WidgetsBindingObserver {
     if (catalog.isEmpty) return false; // 카탈로그를 못 읽으면 판단 불가
 
     final mineIds = serverMine.map((c) => c.id).toSet();
-    final catalogIds = catalog.map((c) => c.id).toSet();
+    final catalogById = {for (final c in catalog) c.id: c};
+    final catalogIds = catalogById.keys.toSet();
     final aliases = _authAliases(authUserId);
 
     final drop = <String>{};
@@ -1330,8 +1336,13 @@ class ClubProvider extends ChangeNotifier with WidgetsBindingObserver {
         drop.add(c.id);
         continue;
       }
-      if (aliases.contains(c.creatorId.trim())) continue;
-      if (_iAmClubCreator(c)) continue;
+      // 로컬 creatorId 는 쓰지 않는다. 장창현 찌꺼기가 방장 id 를 훔치면
+      // 강남·평촌이 내 모임으로 남는다. 서버 카탈로그 생성자만 본다.
+      final serverCreator =
+          (catalogById[c.id]?.creatorId ?? '').trim();
+      if (serverCreator.isNotEmpty && aliases.contains(serverCreator)) {
+        continue;
+      }
       drop.add(c.id);
     }
     if (drop.isEmpty) return false;
