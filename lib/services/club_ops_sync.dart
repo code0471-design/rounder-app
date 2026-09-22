@@ -99,6 +99,11 @@ class ClubOpsSync {
         for (final id in collapsedPush.droppedIds) {
           markMemberRemoved(id);
         }
+        slice['members'] = dropForeignLeftoverMembers(
+          members: slice['members'] as List? ?? const [],
+          clubId: clubId,
+          creatorUserId: _creatorUserIdFromEncoded(full, clubId),
+        );
 
         final localAwards = slice['awardRecords'] as List? ?? const [];
         final remoteAwards = remote['awardRecords'] as List? ?? const [];
@@ -851,6 +856,11 @@ class ClubOpsSync {
     for (final id in collapsed.droppedIds) {
       markMemberRemoved(id);
     }
+    encoded['members'] = dropForeignLeftoverMembers(
+      members: encoded['members'] as List? ?? const [],
+      clubId: clubId,
+      creatorUserId: creatorUserId,
+    );
     encoded['duesPayments'] =
         DemoFinanceStrip.dropGhostPayments(encoded['duesPayments'] as List?);
     encoded['transactions'] =
@@ -965,6 +975,59 @@ class ClubOpsSync {
   /// tombstone 된 회원만 다르게 처리한다 — 로컬 행을 지키고 원격 행은 버린다.
   ///
   /// [remoteWins] true 면 pull/watch(원격 우선), false 면 push(로컬 우선).
+  /// 장창현처럼 그 모임 생성자도 아닌데 소셜 명단에 남은 행.
+  /// 알라딘 방장 자리는 남기고, 강남·평촌·이글 같은 남의 모임만 뺀다.
+  static const leftoverStolenNames = {'장창현'};
+  static const leftoverStolenUserIds = {'kakao_5049673364'};
+
+  @visibleForTesting
+  static bool isForeignLeftoverMember({
+    required String id,
+    required String name,
+    required String clubId,
+    required String creatorUserId,
+  }) {
+    final creator = creatorUserId.trim();
+    final stolenName = leftoverStolenNames.contains(name.trim());
+    final stolenUid = leftoverStolenUserIds.any(
+      (u) => id == u || id.endsWith('_$u'),
+    );
+    if (!stolenName && !stolenUid) return false;
+    if (id == 'm_creator_$clubId') return false;
+    if (creator.isNotEmpty && (id == creator || id.endsWith('_$creator'))) {
+      return false;
+    }
+    return MemberPhoneIndex.isSocialAccountRosterId(clubId, id) || stolenUid;
+  }
+
+  @visibleForTesting
+  static List<dynamic> dropForeignLeftoverMembers({
+    required List members,
+    required String clubId,
+    required String creatorUserId,
+  }) {
+    final out = <dynamic>[];
+    for (final e in members) {
+      if (e is! Map) {
+        out.add(e);
+        continue;
+      }
+      final id = '${e['id'] ?? ''}';
+      final name = '${e['name'] ?? ''}';
+      if (isForeignLeftoverMember(
+        id: id,
+        name: name,
+        clubId: clubId,
+        creatorUserId: creatorUserId,
+      )) {
+        markMemberRemoved(id);
+        continue;
+      }
+      out.add(e);
+    }
+    return out;
+  }
+
   static List<dynamic> _mergeMembersById({
     required List local,
     required List remote,

@@ -1451,6 +1451,34 @@ class ClubProvider extends ChangeNotifier with WidgetsBindingObserver {
   /// 모임 → 소속 계정. 푸시 대상은 명단 행이 아니라 이 계정들이다.
   final Map<String, List<ClubMemberAccount>> _clubAccounts = {};
 
+  /// 그 모임 생성자가 아닌 장창현 소셜 행은 테스터 폰에도 안 남긴다.
+  /// 로컬만 가리면 서버 명단을 받는 다른 폰에는 그대로 보인다.
+  bool _dropLeftoverStolenForeignRoster() {
+    final clubs = <Club>[..._myClubs, ..._allClubs];
+    final drop = <String>{};
+    for (final m in _members) {
+      for (final club in clubs) {
+        if (!Member.isClubRosterId(club.id, m.id) &&
+            m.id != club.creatorId.trim()) {
+          continue;
+        }
+        if (!ClubOpsSync.isForeignLeftoverMember(
+          id: m.id,
+          name: m.name,
+          clubId: club.id,
+          creatorUserId: club.creatorId,
+        )) {
+          continue;
+        }
+        drop.add(m.id);
+      }
+    }
+    if (drop.isEmpty) return false;
+    ClubOpsSync.seedRemovedMembers(drop);
+    _members.removeWhere((m) => drop.contains(m.id));
+    return true;
+  }
+
   /// 서버 소속이 없는 소셜 계정 명단 행은 지운다.
   /// 장창현이 아레나 총무로 다시 붙던 경로.
   bool _dropUnmemberedAccountRows(String clubId) {
@@ -2208,6 +2236,7 @@ class ClubProvider extends ChangeNotifier with WidgetsBindingObserver {
     _members
       ..clear()
       ..addAll(b.members);
+    _dropLeftoverStolenForeignRoster();
     // 원격 명단이 로컬을 덮은 직후다. 여기서 다시 걸지 않으면
     // switchUser 에서 고친 내 이름이 '홍길동'으로 되돌아간다.
     _repairMyRosterNames(_currentUserName);

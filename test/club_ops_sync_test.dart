@@ -1321,6 +1321,56 @@ void main() {
     expect(ids, isNot(contains('kakao_host')));
   });
 
+  test('남의 모임에 남은 장창현 소셜 행은 합쳐도 다시 안 붙는다', () {
+    ClubOpsSync.resetMemberTombstones();
+    addTearDown(ClubOpsSync.resetMemberTombstones);
+
+    const gangnam = 'c_1788832826557';
+    const aladdin = 'c_1789270673471';
+    expect(
+      ClubOpsSync.isForeignLeftoverMember(
+        id: 'm_${gangnam}_kakao_5049673364',
+        name: '장창현',
+        clubId: gangnam,
+        creatorUserId: 'kakao_5044456654',
+      ),
+      isTrue,
+      reason: '강남 명단에 장창현이 다시 붙으면 테스터 폰에도 그대로 보인다',
+    );
+    expect(
+      ClubOpsSync.isForeignLeftoverMember(
+        id: 'm_creator_$aladdin',
+        name: '장창현',
+        clubId: aladdin,
+        creatorUserId: 'kakao_5049673364',
+      ),
+      isFalse,
+      reason: '알라딘 방장 장창현은 남겨야 한다',
+    );
+
+    final kept = ClubOpsSync.dropForeignLeftoverMembers(
+      members: [
+        {
+          'id': 'm_creator_$gangnam',
+          'name': '안경헌',
+          'role': '회장',
+        },
+        {
+          'id': 'm_${gangnam}_kakao_5049673364',
+          'name': '장창현',
+          'role': '정회원',
+        },
+      ],
+      clubId: gangnam,
+      creatorUserId: 'kakao_5044456654',
+    );
+    expect(kept.map((e) => (e as Map)['name']), ['안경헌']);
+    expect(
+      ClubOpsSync.isMemberRemoved('m_${gangnam}_kakao_5049673364'),
+      isTrue,
+    );
+  });
+
   test('지운 인앱 알림은 원격 목록에서 되살아나지 않는다', () {
     ClubOpsSync.resetNotificationTombstones();
     addTearDown(ClubOpsSync.resetNotificationTombstones);
