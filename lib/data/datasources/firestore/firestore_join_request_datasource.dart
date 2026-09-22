@@ -95,11 +95,9 @@ class FirestoreJoinRequestDataSource {
       final requestRef = _db.doc(
         FirestorePaths.clubJoinRequestDoc(clubId, request.id),
       );
+      // 명단 문서는 신청자 계정 ID. 가짜 회원 번호(m_시각 / rosterId)로 쌓지 않는다.
       final memberRef = _db.doc(
-        FirestorePaths.clubMemberDoc(
-          clubId,
-          Member.rosterId(clubId, request.userId),
-        ),
+        FirestorePaths.clubMemberDoc(clubId, request.userId),
       );
       final membershipRef = _db.doc(
         FirestorePaths.userMembershipDoc(request.userId, clubId),
@@ -115,7 +113,7 @@ class FirestoreJoinRequestDataSource {
       );
 
       final member = Member(
-        id: Member.rosterId(clubId, request.userId),
+        id: request.userId,
         name: request.userName,
         gender: request.userGender,
         memberType: memberType,
@@ -127,7 +125,9 @@ class FirestoreJoinRequestDataSource {
         joinDate: DateTime.now(),
         status: '활성',
       );
-      batch.set(memberRef, MemberMapper.toMap(member), SetOptions(merge: true));
+      final memberData = MemberMapper.toMap(member);
+      memberData['user_id'] = request.userId;
+      batch.set(memberRef, memberData, SetOptions(merge: true));
 
       batch.set(membershipRef, {
         'user_id': request.userId,

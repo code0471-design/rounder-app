@@ -5739,6 +5739,39 @@ class ClubProvider extends ChangeNotifier with WidgetsBindingObserver {
     }
   }
 
+  /// 승인된 모임을 신청자 내 모임에 붙이고 그 모임으로 들어간다.
+  Future<void> attachApprovedClub(String clubId) async {
+    if (clubId.trim().isEmpty) return;
+    if (!_myClubs.any((c) => c.id == clubId)) {
+      Club? club = _allClubs.where((c) => c.id == clubId).firstOrNull;
+      final auth = _persistAuthUserId ?? currentUserId;
+      if (club == null && auth.isNotEmpty) {
+        try {
+          await _ingestServerMemberships(auth);
+        } catch (e) {
+          debugPrint('[ClubProvider] attachApproved ingest skip: $e');
+        }
+        club = _myClubs.where((c) => c.id == clubId).firstOrNull ??
+            _allClubs.where((c) => c.id == clubId).firstOrNull;
+      }
+      if (club == null &&
+          AppDependencies.instance.isInitialized &&
+          !AppDependencies.instance.isOfflineMockMode) {
+        try {
+          club = await AppDependencies.instance.clubRepository
+              .fetchClubById(clubId, userId: auth)
+              .timeout(const Duration(seconds: 8));
+        } catch (e) {
+          debugPrint('[ClubProvider] attachApproved fetch skip: $e');
+        }
+      }
+      if (club != null) {
+        _ingestOwnedClub(club, const []);
+      }
+    }
+    selectClubById(clubId);
+  }
+
   // ════════════════════════════════════════════════════════
   //  Actions — Create Club
   // ════════════════════════════════════════════════════════
@@ -7395,8 +7428,8 @@ class ClubProvider extends ChangeNotifier with WidgetsBindingObserver {
       reviewedAt: DateTime.now(),
     );
 
-    // 회원으로 자동 등록 (직책 = 권한)
-    // 신규 모임 필터: m_{clubId}_* 또는 m_creator_{clubId}
+    // 명단은 신청한 그 모임에만 쌓는다. 총무가 다른 모임을 보고 있어도
+    // selectedClub 이 아니라 req.clubId 로 붙인다. 로컬 필터용 rosterId.
     final newMember = Member(
       id: Member.rosterId(req.clubId, req.userId),
       name: req.userName,
@@ -7412,6 +7445,9 @@ class ClubProvider extends ChangeNotifier with WidgetsBindingObserver {
       referrerId: req.referrerId,
       referrerName: req.referrerName,
     );
+    _members.removeWhere((m) =>
+        m.id == newMember.id ||
+        (m.id == req.userId && Member.isClubRosterId(req.clubId, m.id)));
     _members.add(newMember);
     AppDependencies.instance.mockDataStore
         ?.removePendingJoinRequest(requestId);
@@ -7430,10 +7466,10 @@ class ClubProvider extends ChangeNotifier with WidgetsBindingObserver {
       timestamp: DateTime.now(),
     ));
 
-    // 신청자에게 승인 알림
+    // 신청자에게 승인 알림 — 누르면 신청한 그 모임으로 들어간다.
     final club = _allClubs.where((c) => c.id == req.clubId).firstOrNull ??
         _myClubs.where((c) => c.id == req.clubId).firstOrNull;
-    addAppNotification(AppNotification(
+    final approvedNoti = AppNotification(
       id: 'noti_approved_${req.id}',
       type: AppNotificationType.joinApproved,
       clubId: req.clubId,
@@ -7444,7 +7480,12 @@ class ClubProvider extends ChangeNotifier with WidgetsBindingObserver {
       targetId: req.id,
       targetUserId: _fcmInboxIdFor(req.userId),
       isRead: false,
-    ), hqPushTypeId: HqPushCatalog.joinResult, notifySelf: true);
+    );
+    addAppNotification(
+      approvedNoti,
+      hqPushTypeId: HqPushCatalog.joinResult,
+      notifySelf: false,
+    );
 
     // 탈퇴 이력 있으면 신청자 계정에서 해제 + 내 모임 복구
     unawaited(_clearLeftClubForApplicant(req.userId, req.clubId));
@@ -7453,6 +7494,7 @@ class ClubProvider extends ChangeNotifier with WidgetsBindingObserver {
       request: _joinRequests[idx],
       memberType: assignedType,
       role: assignedRole,
+      approvedNoti: approvedNoti,
     ));
 
     notifyListeners();
@@ -7463,6 +7505,7 @@ class ClubProvider extends ChangeNotifier with WidgetsBindingObserver {
     required JoinRequest request,
     required String memberType,
     required String role,
+    required AppNotification approvedNoti,
   }) async {
     try {
       await AppDependencies.instance.joinRequestRepository.approveJoinRequest(
@@ -7478,6 +7521,23 @@ class ClubProvider extends ChangeNotifier with WidgetsBindingObserver {
       await ClubOpsSync.upsertClubJoinRequest(request);
     } catch (e) {
       debugPrint('[ClubProvider] approve join ops skip: $e');
+    }
+    try {
+      await ClubOpsSync.appendApplicantInbox(
+        authUserId: request.userId,
+        notification: approvedNoti,
+      );
+    } catch (e) {
+      debugPrint('[ClubProvider] approve applicant inbox skip: $e');
+    }
+    try {
+      // 총무가 다른 모임을 보고 있어도 신청한 그 모임 ops만 올린다.
+      await ClubOpsSync.pushClubOps(
+        clubId: request.clubId,
+        bundle: _exportBundle(),
+      );
+    } catch (e) {
+      debugPrint('[ClubProvider] approve club ops skip: $e');
     }
   }
 

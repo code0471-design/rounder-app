@@ -38,6 +38,27 @@ void main() {
       'lib/data/datasources/firestore/firestore_join_request_datasource.dart',
     );
     expect(ds.contains('userMembershipDoc'), isTrue);
-    expect(ds.contains('Member.rosterId'), isTrue);
+    expect(ds.contains('clubMemberDoc(clubId, request.userId)'), isTrue);
+    expect(ds.contains("memberData['user_id'] = request.userId"), isTrue);
+    expect(ds.contains('millisecondsSinceEpoch'), isFalse);
+    expect(
+      ds.contains('Member.rosterId(clubId, request.userId)'),
+      isFalse,
+      reason: '명단 문서는 신청자 계정 ID. 가짜 회원 번호로 넣지 않는다',
+    );
+  });
+
+  test('승인 모임은 신청한 그 모임이고 신청자 내 모임에도 붙는다', () {
+    final src = read('lib/providers/club_provider.dart');
+    expect(src.contains('_updateMemberCount(req.clubId'), isTrue);
+    expect(src.contains('Member.rosterId(req.clubId, req.userId)'), isTrue);
+    expect(src.contains('clubId: request.clubId'), isTrue);
+    expect(src.contains('appendApplicantInbox'), isTrue);
+    expect(src.contains('attachApprovedClub'), isTrue);
+    expect(src.contains('pushClubOps'), isTrue);
+
+    final home = read('lib/screens/home/home_screen.dart');
+    expect(home.contains('attachApprovedClub(n.clubId)'), isTrue);
+    expect(home.contains('AppNotificationType.joinApproved'), isTrue);
   });
 }

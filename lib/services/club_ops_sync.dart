@@ -311,6 +311,37 @@ class ClubOpsSync {
     }
   }
 
+  /// 신청자 알림함에 승인 건을 남긴다. 신청자 앱이 그 모임으로 들어가게 한다.
+  static Future<void> appendApplicantInbox({
+    required String authUserId,
+    required AppNotification notification,
+  }) async {
+    if (!_enabled || authUserId.isEmpty) return;
+    try {
+      final ref = _db.doc(FirestorePaths.userOpsBundle(authUserId));
+      await _db.runTransaction((tx) async {
+        final snap = await tx.get(ref);
+        final data = Map<String, dynamic>.from(snap.data() ?? {});
+        final notifs =
+            List<dynamic>.from(data['appNotifications'] ?? const []);
+        notifs.removeWhere(
+          (e) => e is Map && '${e['id']}' == notification.id,
+        );
+        notifs.insert(0, ClubDataCodec.encodeAppNotification(notification));
+        tx.set(
+          ref,
+          {
+            'appNotifications': notifs,
+            'updatedAt': FieldValue.serverTimestamp(),
+          },
+          SetOptions(merge: true),
+        );
+      });
+    } catch (e) {
+      debugPrint('[ClubOpsSync] appendApplicantInbox fail: $e');
+    }
+  }
+
   /// 총무(없으면 회장) 알림함·대기열에 같은 건을 쌓는다.
   static Future<void> appendOfficerInbox({
     required String authUserId,
