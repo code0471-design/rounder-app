@@ -56,6 +56,7 @@ class FirestoreJoinRequestDataSource {
     String? userPhotoUrl,
     DateTime? userBirthDate,
     required String message,
+    String? requestId,
   }) async {
     try {
       final existing = await fetchPendingForUser(clubId, userId);
@@ -63,7 +64,9 @@ class FirestoreJoinRequestDataSource {
         throw const NetworkDataException('이미 가입 신청 중입니다');
       }
 
-      final doc = _requests(clubId).doc();
+      final doc = (requestId != null && requestId.trim().isNotEmpty)
+          ? _requests(clubId).doc(requestId.trim())
+          : _requests(clubId).doc();
       await doc.set(JoinRequestMapper.toSubmitMap(
         userId: userId,
         userName: userName,
@@ -93,7 +96,10 @@ class FirestoreJoinRequestDataSource {
         FirestorePaths.clubJoinRequestDoc(clubId, request.id),
       );
       final memberRef = _db.doc(
-        FirestorePaths.clubMemberDoc(clubId, request.userId),
+        FirestorePaths.clubMemberDoc(
+          clubId,
+          Member.rosterId(clubId, request.userId),
+        ),
       );
       final membershipRef = _db.doc(
         FirestorePaths.userMembershipDoc(request.userId, clubId),
@@ -109,7 +115,7 @@ class FirestoreJoinRequestDataSource {
       );
 
       final member = Member(
-        id: request.userId,
+        id: Member.rosterId(clubId, request.userId),
         name: request.userName,
         gender: request.userGender,
         memberType: memberType,

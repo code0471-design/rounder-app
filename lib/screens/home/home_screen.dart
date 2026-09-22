@@ -487,8 +487,18 @@ class HomeScreen extends StatelessWidget {
 
   void _navigateToNotification(BuildContext context, AppNotification n, ClubProvider provider) {
     provider.selectClubById(n.clubId);
-    Navigator.push(context,
-        MaterialPageRoute(builder: (_) => ClubRoomScreen(club: provider.selectedClub)));
+    final openJoins = n.type == AppNotificationType.joinRequest;
+    if (openJoins) provider.requestOpenJoinRequests();
+    Navigator.push(
+      context,
+      MaterialPageRoute(
+        builder: (_) => ClubRoomScreen(
+          club: provider.selectedClub,
+          initialTab: openJoins ? 3 : 0,
+          openJoinRequests: openJoins,
+        ),
+      ),
+    );
   }
 }
 

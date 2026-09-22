@@ -128,6 +128,7 @@ class _FakeJoinRequestRepository implements JoinRequestRepository {
     String? userPhotoUrl,
     DateTime? userBirthDate,
     required String message,
+    String? requestId,
   }) async {
     submitCount++;
     pendingForUser = JoinRequest(

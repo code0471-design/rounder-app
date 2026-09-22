@@ -167,6 +167,8 @@ class ClubRoomScreen extends StatefulWidget {
   final bool openGroupAssignment;
   /// id 없을 때 다가오는 일정 상세/조편성으로 진입 (알림톡 딥링크용)
   final bool openNearestSchedule;
+  /// 회원 탭에서 가입 신청 목록을 바로 연다
+  final bool openJoinRequests;
 
   const ClubRoomScreen({
     super.key,
@@ -175,6 +177,7 @@ class ClubRoomScreen extends StatefulWidget {
     this.openScheduleId,
     this.openGroupAssignment = false,
     this.openNearestSchedule = false,
+    this.openJoinRequests = false,
   });
 
   @override
@@ -200,6 +203,11 @@ class _ClubRoomScreenState extends State<ClubRoomScreen> {
       p.syncMyRoleFromMemberRoster();
       // 다른 계정 가입신청 → 총무 알림 동기화
       await p.refreshJoinRequestInbox();
+      if (!mounted) return;
+      if (widget.openJoinRequests) {
+        p.requestOpenJoinRequests();
+        openTab(3);
+      }
       if (!mounted) return;
       // 재무 탭이 막혀 있으면 홈으로
       if (_tabIndex == _financeTabIndex && !_canOpenFinanceTab()) {

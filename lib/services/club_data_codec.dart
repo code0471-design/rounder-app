@@ -256,6 +256,12 @@ class ClubDataCodec {
         createdAt: _parseDt(j['createdAt']),
       );
 
+  static Map<String, dynamic> encodeJoinRequest(JoinRequest r) =>
+      _encodeJoinRequest(r);
+
+  static Map<String, dynamic> encodeAppNotification(AppNotification n) =>
+      _encodeAppNotification(n);
+
   // ── JoinRequest ──
   static Map<String, dynamic> _encodeJoinRequest(JoinRequest r) => {
         'id': r.id,

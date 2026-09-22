@@ -13,6 +13,7 @@ abstract class JoinRequestRepository {
     String? userPhotoUrl,
     DateTime? userBirthDate,
     required String message,
+    String? requestId,
   });
   Future<void> approveJoinRequest({
     required JoinRequest request,

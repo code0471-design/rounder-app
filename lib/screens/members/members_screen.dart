@@ -32,6 +32,15 @@ class _MembersScreenState extends State<MembersScreen>
     _searchController.addListener(() {
       setState(() => _searchQuery = _searchController.text.trim());
     });
+    WidgetsBinding.instance.addPostFrameCallback((_) async {
+      if (!mounted) return;
+      final provider = context.read<ClubProvider>();
+      await provider.refreshJoinRequestInbox();
+      if (!mounted) return;
+      if (provider.consumeOpenJoinRequests()) {
+        _showJoinRequests(context, provider);
+      }
+    });
   }
 
   @override
@@ -180,34 +189,35 @@ class _MembersScreenState extends State<MembersScreen>
                         ),
                       ),
                     ),
-                    if (pending.isNotEmpty)
+                    if (provider.isClubExecutive)
                       IconButton(
                         icon: Stack(
                           clipBehavior: Clip.none,
                           children: [
                             const Icon(Icons.how_to_reg,
                                 color: AppColors.primary),
-                            Positioned(
-                              right: -4,
-                              top: -4,
-                              child: Container(
-                                width: 14,
-                                height: 14,
-                                decoration: const BoxDecoration(
-                                  color: AppColors.danger,
-                                  shape: BoxShape.circle,
-                                ),
-                                child: Center(
-                                  child: Text(
-                                    '${pending.length}',
-                                    style: const TextStyle(
-                                        color: Colors.white,
-                                        fontSize: 8,
-                                        fontWeight: FontWeight.bold),
+                            if (pending.isNotEmpty)
+                              Positioned(
+                                right: -4,
+                                top: -4,
+                                child: Container(
+                                  width: 14,
+                                  height: 14,
+                                  decoration: const BoxDecoration(
+                                    color: AppColors.danger,
+                                    shape: BoxShape.circle,
+                                  ),
+                                  child: Center(
+                                    child: Text(
+                                      '${pending.length}',
+                                      style: const TextStyle(
+                                          color: Colors.white,
+                                          fontSize: 8,
+                                          fontWeight: FontWeight.bold),
+                                    ),
                                   ),
                                 ),
                               ),
-                            ),
                           ],
                         ),
                         tooltip: '가입 신청',

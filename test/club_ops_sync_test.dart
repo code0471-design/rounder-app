@@ -1382,4 +1382,58 @@ void main() {
     ]);
     expect(kept.map((e) => e['id']), ['noti_new']);
   });
+
+  test('원격 가입 신청은 그 모임 대기열에 합쳐진다', () {
+    final local = ClubDataBundle(
+      selectedClubIndex: 0,
+      freshClubIds: {'c_test'},
+      myClubs: [
+        Club(
+          id: 'c_test',
+          name: '테스트',
+          myRole: '총무',
+          memberCount: 1,
+          region: '서울',
+          industry: 'IT',
+          teamCount: 4,
+        ),
+      ],
+      allClubs: const [],
+      joinRequests: const [],
+      members: const [],
+      activities: const [],
+      announcements: const [],
+      appNotifications: const [],
+      duesSettings: const [],
+      duesPayments: const [],
+      paymentRequests: const [],
+      transactions: const [],
+      schedules: const [],
+      photos: const [],
+      groupAssignments: const {},
+      adApplications: const [],
+      adNotifications: const [],
+      sponsorApplications: const [],
+      pointEvents: const {},
+      awardRecords: const [],
+      thankYouMessages: const [],
+      waitingList: const [],
+      alimtalkSettings: const {},
+    );
+    final merged = ClubOpsSync.applyRemoteSlice(local, 'c_test', {
+      'joinRequests': [
+        {
+          'id': 'jr_remote',
+          'clubId': 'c_test',
+          'userId': 'google_lee',
+          'userName': '이정원',
+          'userGender': '남',
+          'message': '',
+          'status': 'pending',
+          'requestedAt': DateTime(2026, 9, 23).toIso8601String(),
+        },
+      ],
+    });
+    expect(merged.joinRequests.any((r) => r.id == 'jr_remote'), isTrue);
+  });
 }

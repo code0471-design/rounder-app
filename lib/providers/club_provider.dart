@@ -1834,7 +1834,9 @@ class ClubProvider extends ChangeNotifier with WidgetsBindingObserver {
         body: '${normalized.userName}님이 가입을 신청했습니다 → $notifyRole 수신',
         createdAt: normalized.requestedAt,
         targetId: normalized.id,
-        targetUserId: notifyTarget ?? currentUserId,
+        targetUserId: notifyTarget != null
+            ? _fcmInboxIdFor(notifyTarget, clubId: clubId)
+            : currentUserId,
         isRead: false,
       ),
       hqPushTypeId: HqPushCatalog.joinRequest,
@@ -6754,10 +6756,11 @@ class ClubProvider extends ChangeNotifier with WidgetsBindingObserver {
       debugPrint('[ClubProvider] submitJoinRequest blocked — already in $clubId');
       return false;
     }
+    final applicantId = userId ?? _persistAuthUserId ?? currentUserId;
     final req = JoinRequest(
       id: 'jr_${DateTime.now().millisecondsSinceEpoch}',
       clubId: clubId,
-      userId: userId ?? currentUserId,
+      userId: applicantId,
       userName: userName ?? currentUserName,
       userGender: (_accountGender != null && _accountGender!.isNotEmpty)
           ? _accountGender!
@@ -6771,57 +6774,107 @@ class ClubProvider extends ChangeNotifier with WidgetsBindingObserver {
       referrerName: referrerName,
       requestedAt: DateTime.now(),
     );
-    // 총무 계정에 먼저 공유 (신청자 persist 레이스보다 우선)
+    try {
+      await AppDependencies.instance.joinRequestRepository.submitJoinRequest(
+        clubId: req.clubId,
+        userId: req.userId,
+        userName: req.userName,
+        userGender: req.userGender,
+        userHandicap: req.userHandicap,
+        userPhone: req.userPhone,
+        userPhotoUrl: req.userPhotoUrl,
+        userBirthDate: req.userBirthDate,
+        message: req.message,
+        requestId: req.id,
+      );
+    } catch (e) {
+      debugPrint('[ClubProvider] firestore join submit: $e');
+    }
+    await publishJoinRequestToOfficer(req);
+    return true;
+  }
+
+  bool _pendingOpenJoinRequests = false;
+
+  void requestOpenJoinRequests() {
+    _pendingOpenJoinRequests = true;
+  }
+
+  bool consumeOpenJoinRequests() {
+    final open = _pendingOpenJoinRequests;
+    _pendingOpenJoinRequests = false;
+    return open;
+  }
+
+  /// 신청을 총무(없으면 회장) 알림함·모임 대기열에 올린다.
+  Future<void> publishJoinRequestToOfficer(JoinRequest req) async {
     try {
       await SharedJoinRequestStore.upsert(req);
     } catch (e) {
       debugPrint('[ClubProvider] shared join upsert early failed: $e');
     }
-    _joinRequests.add(req);
+    _ingestPendingJoinRequest(req);
 
-    // 활동 피드에 가입 신청 기록
     _activities.insert(0, ActivityItem(
       id: 'act_join_${DateTime.now().millisecondsSinceEpoch}',
-      memberId: userId ?? currentUserId,
-      memberName: userName ?? currentUserName,
+      memberId: req.userId,
+      memberName: req.userName,
       activityType: 'join',
       description: '가입 신청 (승인 대기 중)',
       timestamp: DateTime.now(),
     ));
 
-    // 가입 신청 알림 — 총무 우선, 없으면 방장(회장)
-    final club = _allClubs.where((c) => c.id == clubId).firstOrNull ??
-        _myClubs.where((c) => c.id == clubId).firstOrNull;
-    final notifyTarget = joinRequestNotifyTargetId(clubId);
-    final notifyRole = hasActiveTreasurer(clubId)
+    final club = _allClubs.where((c) => c.id == req.clubId).firstOrNull ??
+        _myClubs.where((c) => c.id == req.clubId).firstOrNull;
+    final notifyTarget = joinRequestNotifyTargetId(req.clubId);
+    final inboxId = notifyTarget == null || notifyTarget.isEmpty
+        ? ''
+        : _fcmInboxIdFor(notifyTarget, clubId: req.clubId);
+    final notifyRole = hasActiveTreasurer(req.clubId)
         ? ClubMemberRole.treasurer
         : ClubMemberRole.president;
     final noti = AppNotification(
       id: 'noti_jr_${req.id}',
       type: AppNotificationType.joinRequest,
-      clubId: clubId,
+      clubId: req.clubId,
       clubName: club?.name ?? '모임',
       isAdmin: true,
       title: '가입 신청',
       body: '${req.userName}님이 가입을 신청했습니다 → $notifyRole 수신',
       createdAt: DateTime.now(),
       targetId: req.id,
-      targetUserId: notifyTarget,
+      targetUserId: inboxId.isNotEmpty ? inboxId : notifyTarget,
       isRead: false,
     );
-    addAppNotification(
-      noti,
-      hqPushTypeId: HqPushCatalog.joinRequest,
-      notifySelf: true,
-    );
 
-    // 계정 전환과 무관한 공유 대기열 + 총무 계정 번들에 즉시 전달
-    final store = AppDependencies.instance.mockDataStore;
-    store?.upsertPendingJoinRequest(req);
+    await ClubOpsSync.upsertClubJoinRequest(req);
+    if (inboxId.isNotEmpty && !_isSelfTarget(inboxId)) {
+      await ClubOpsSync.appendOfficerInbox(
+        authUserId: inboxId,
+        notification: noti,
+        request: req,
+      );
+      unawaited(PushNotificationService.enqueue(
+        targetUserId: inboxId,
+        title: noti.title,
+        body: '${req.userName}님이 ${club?.name ?? '모임'} 가입을 신청했습니다',
+        type: HqPushCatalog.joinRequest,
+        clubId: req.clubId,
+      ));
+    } else if (notifyTarget != null && notifyTarget.isNotEmpty) {
+      unawaited(PushNotificationService.enqueue(
+        targetUserId: inboxId.isNotEmpty ? inboxId : notifyTarget,
+        title: noti.title,
+        body: '${req.userName}님이 ${club?.name ?? '모임'} 가입을 신청했습니다',
+        type: HqPushCatalog.joinRequest,
+        clubId: req.clubId,
+      ));
+    }
+
+    AppDependencies.instance.mockDataStore?.upsertPendingJoinRequest(req);
     notifyListeners();
     _persistImmediately();
     await _publishJoinRequestCrossAccount(req, noti);
-    return true;
   }
 
   /// 초대 링크 수락 — 총무 승인 없이 즉시 가입 (밴드형)
@@ -6993,8 +7046,25 @@ class ClubProvider extends ChangeNotifier with WidgetsBindingObserver {
     return true;
   }
 
-  /// 총무 화면 진입 시 호출 — 공유 대기열 → 알림 강제 동기화
+  /// 총무 화면 진입 시 호출 — Firestore 대기열 → 알림 강제 동기화
   Future<void> refreshJoinRequestInbox() async {
+    if (!AppDependencies.instance.isOfflineMockMode) {
+      for (final club in _myClubs) {
+        final canApprove = ClubMemberRole.canApproveJoins(club.myRole) ||
+            _userIdsMatch(club.creatorId, currentUserId) ||
+            _userIdsMatch(club.creatorId, _persistAuthUserId);
+        if (!canApprove) continue;
+        try {
+          final remote = await AppDependencies.instance.joinRequestRepository
+              .fetchPendingForClub(club.id);
+          for (final req in remote) {
+            _ingestPendingJoinRequest(req);
+          }
+        } catch (e) {
+          debugPrint('[ClubProvider] fetch pending join skip ${club.id}: $e');
+        }
+      }
+    }
     await mergeSharedJoinRequests();
     // 이미 _joinRequests에만 있고 알림이 없는 건도 보정
     for (final req in List<JoinRequest>.from(_joinRequests)) {
@@ -7074,19 +7144,6 @@ class ClubProvider extends ChangeNotifier with WidgetsBindingObserver {
       }
     }
 
-    // Firestore/Mock 리포지토리에도 기록 (가능하면)
-    try {
-      await AppDependencies.instance.joinRequestRepository.submitJoinRequest(
-        clubId: req.clubId,
-        userId: req.userId,
-        userName: req.userName,
-        userGender: req.userGender,
-        userHandicap: req.userHandicap,
-        message: req.message,
-      );
-    } catch (e) {
-      debugPrint('[ClubProvider] joinRequestRepository submit skip: $e');
-    }
   }
 
   Future<void> _fanoutJoinRequestToAccount(
@@ -7392,8 +7449,36 @@ class ClubProvider extends ChangeNotifier with WidgetsBindingObserver {
     // 탈퇴 이력 있으면 신청자 계정에서 해제 + 내 모임 복구
     unawaited(_clearLeftClubForApplicant(req.userId, req.clubId));
 
+    unawaited(_persistApprovedJoin(
+      request: _joinRequests[idx],
+      memberType: assignedType,
+      role: assignedRole,
+    ));
+
     notifyListeners();
     _persistImmediately();
+  }
+
+  Future<void> _persistApprovedJoin({
+    required JoinRequest request,
+    required String memberType,
+    required String role,
+  }) async {
+    try {
+      await AppDependencies.instance.joinRequestRepository.approveJoinRequest(
+        request: request,
+        memberType: memberType,
+        role: role,
+        reviewedBy: _persistAuthUserId ?? currentUserId,
+      );
+    } catch (e) {
+      debugPrint('[ClubProvider] approve join remote skip: $e');
+    }
+    try {
+      await ClubOpsSync.upsertClubJoinRequest(request);
+    } catch (e) {
+      debugPrint('[ClubProvider] approve join ops skip: $e');
+    }
   }
 
   void rejectRequest(String requestId) {

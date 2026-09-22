@@ -8,6 +8,7 @@ import '../core/firebase/firestore_paths.dart';
 import '../di/app_dependencies.dart';
 import '../domain/services/demo_finance_strip.dart';
 import '../domain/services/roster_dedupe.dart';
+import '../models/club_model.dart';
 import 'club_data_codec.dart';
 import 'club_ops_overflow.dart';
 import 'member_phone_index.dart';
@@ -281,6 +282,68 @@ class ClubOpsSync {
           .set(payload, SetOptions(merge: false));
     } catch (e) {
       debugPrint('[ClubOpsSync] pushUserOps fail: $e');
+    }
+  }
+
+  /// 가입 신청은 신청자 user_ops가 아니라 그 모임 문서에 남긴다.
+  /// 총무 폰이 신청자 계정을 열어보지 않아도 대기열이 보여야 한다.
+  static Future<void> upsertClubJoinRequest(JoinRequest req) async {
+    if (!_enabled || req.clubId.isEmpty || req.id.isEmpty) return;
+    try {
+      final ref = _db.doc(FirestorePaths.clubOpsBundle(req.clubId));
+      await _db.runTransaction((tx) async {
+        final snap = await tx.get(ref);
+        final data = Map<String, dynamic>.from(snap.data() ?? {});
+        final list = List<dynamic>.from(data['joinRequests'] ?? const []);
+        list.removeWhere((e) => e is Map && '${e['id']}' == req.id);
+        list.add(ClubDataCodec.encodeJoinRequest(req));
+        tx.set(
+          ref,
+          {
+            'joinRequests': list,
+            'updatedAt': FieldValue.serverTimestamp(),
+          },
+          SetOptions(merge: true),
+        );
+      });
+    } catch (e) {
+      debugPrint('[ClubOpsSync] upsertClubJoinRequest fail: $e');
+    }
+  }
+
+  /// 총무(없으면 회장) 알림함·대기열에 같은 건을 쌓는다.
+  static Future<void> appendOfficerInbox({
+    required String authUserId,
+    required AppNotification notification,
+    required JoinRequest request,
+  }) async {
+    if (!_enabled || authUserId.isEmpty) return;
+    try {
+      final ref = _db.doc(FirestorePaths.userOpsBundle(authUserId));
+      await _db.runTransaction((tx) async {
+        final snap = await tx.get(ref);
+        final data = Map<String, dynamic>.from(snap.data() ?? {});
+        final notifs =
+            List<dynamic>.from(data['appNotifications'] ?? const []);
+        notifs.removeWhere(
+          (e) => e is Map && '${e['id']}' == notification.id,
+        );
+        notifs.insert(0, ClubDataCodec.encodeAppNotification(notification));
+        final jrs = List<dynamic>.from(data['joinRequests'] ?? const []);
+        jrs.removeWhere((e) => e is Map && '${e['id']}' == request.id);
+        jrs.add(ClubDataCodec.encodeJoinRequest(request));
+        tx.set(
+          ref,
+          {
+            'appNotifications': notifs,
+            'joinRequests': jrs,
+            'updatedAt': FieldValue.serverTimestamp(),
+          },
+          SetOptions(merge: true),
+        );
+      });
+    } catch (e) {
+      debugPrint('[ClubOpsSync] appendOfficerInbox fail: $e');
     }
   }
 
@@ -710,6 +773,8 @@ class ClubOpsSync {
       'roundScores': roundScores,
       'thankYouMessages': full['thankYouMessages'] ?? [],
       'pointEvents': pointEvents,
+      'joinRequests':
+          (full['joinRequests'] as List? ?? []).where(clubField).toList(),
     };
   }
 
@@ -822,6 +887,12 @@ class ClubOpsSync {
       encoded['adNotifications'] as List? ?? const [],
       remote['adNotifications'] as List? ?? const [],
     );
+    if (remote.containsKey('joinRequests')) {
+      encoded['joinRequests'] = _mergeJoinRequests(
+        encoded['joinRequests'] as List? ?? const [],
+        remote['joinRequests'] as List? ?? const [],
+      );
+    }
 
     // members: 합집합. 원격만 쓰면 초대 가입 직후 로컬 명단이 사라진다.
     // 단, 강퇴·탈퇴로 뺀 회원은 원격이 되살리지 못하게 tombstone 으로 막는다.

@@ -79,6 +79,7 @@ class MockJoinRequestRepository implements JoinRequestRepository {
     String? userPhotoUrl,
     DateTime? userBirthDate,
     required String message,
+    String? requestId,
   }) async {
     // 탈퇴 후 재신청: 스토어에 남은 ghost 멤버십 제거
     _removeMemberAny(clubId, userId);
@@ -87,7 +88,9 @@ class MockJoinRequestRepository implements JoinRequestRepository {
       throw StateError('이미 가입 신청 중입니다');
     }
 
-    final id = 'mock_jr_${DateTime.now().millisecondsSinceEpoch}';
+    final id = (requestId != null && requestId.trim().isNotEmpty)
+        ? requestId.trim()
+        : 'mock_jr_${DateTime.now().millisecondsSinceEpoch}';
     _store.pendingJoinRequests.add(
       JoinRequest(
         id: id,

@@ -27,6 +27,7 @@ class FirestoreJoinRequestRepository implements JoinRequestRepository {
     String? userPhotoUrl,
     DateTime? userBirthDate,
     required String message,
+    String? requestId,
   }) =>
       _dataSource.submit(
         clubId: clubId,
@@ -38,6 +39,7 @@ class FirestoreJoinRequestRepository implements JoinRequestRepository {
         userPhotoUrl: userPhotoUrl,
         userBirthDate: userBirthDate,
         message: message,
+        requestId: requestId,
       );
 
   @override
