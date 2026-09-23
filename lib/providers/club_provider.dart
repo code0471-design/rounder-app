@@ -41,6 +41,8 @@ class ClubProvider extends ChangeNotifier with WidgetsBindingObserver {
   bool _serverClubsAligned = false;
   final Set<String> _confirmedClubIds = {};
   bool _applyingCloudOps = false;
+  /// 설정에서 고친 모임 정보. pull/watch 가 옛 번들을 넣어도 되돌리지 않는다.
+  final Map<String, Club> _clubInfoOverrides = {};
   String? _watchingClubId;
   String? _watchingMembersClubId;
   StreamSubscription<List<Member>>? _memberWatchSub;
@@ -324,6 +326,7 @@ class ClubProvider extends ChangeNotifier with WidgetsBindingObserver {
 
     // 일정 기준 D-day로 맞춤 (bootstrap 템플릿 날짜로 덮지 않음)
     _syncAllNextRounds();
+    _applyClubInfoOverrides();
     _suppressPersist = false;
     notifyListeners();
     // bootstrap 후 스테이징 ops 동기화
@@ -398,6 +401,7 @@ class ClubProvider extends ChangeNotifier with WidgetsBindingObserver {
   }) async {
     _persistAuthUserId = authUserId;
     _serverClubsAligned = false;
+    _clubInfoOverrides.clear();
     _accountBirthDate = birthDate;
     _accountHandicap = handicap;
     _accountGender = gender;
@@ -1684,6 +1688,12 @@ class ClubProvider extends ChangeNotifier with WidgetsBindingObserver {
   Future<void> mergeRemoteRosterForTest(String clubId, List<Member> remote) =>
       _mergeRemoteRoster(clubId, remote);
 
+  @visibleForTesting
+  ClubDataBundle exportBundleForTest() => _exportBundle();
+
+  @visibleForTesting
+  void importBundleForTest(ClubDataBundle b) => _importBundle(b);
+
   Future<void> _mergeRemoteRoster(String clubId, List<Member> remote) async {
     if (clubId.isEmpty || remote.isEmpty) return;
     var creatorUserId = (_clubById(clubId)?.creatorId ?? '').trim();
@@ -2280,6 +2290,28 @@ class ClubProvider extends ChangeNotifier with WidgetsBindingObserver {
     });
   }
 
+  void _applyClubInfoOverrides() {
+    if (_clubInfoOverrides.isEmpty) return;
+    void apply(List<Club> list) {
+      for (var i = 0; i < list.length; i++) {
+        final o = _clubInfoOverrides[list[i].id];
+        if (o == null) continue;
+        final cur = list[i];
+        list[i] = cur.copyWith(
+          name: o.name,
+          description: o.description,
+          imageUrl: o.imageUrl,
+          region: o.region,
+          industry: o.industry,
+          teamCount: o.teamCount,
+        );
+      }
+    }
+
+    apply(_myClubs);
+    apply(_allClubs);
+  }
+
   ClubDataBundle _exportBundle() => ClubDataBundle(
         selectedClubIndex: _selectedClubIndex,
         freshClubIds: Set<String>.from(_freshClubIds),
@@ -2326,6 +2358,7 @@ class ClubProvider extends ChangeNotifier with WidgetsBindingObserver {
     _allClubs
       ..clear()
       ..addAll(b.allClubs);
+    _applyClubInfoOverrides();
     _joinRequests
       ..clear()
       ..addAll(b.joinRequests);
@@ -6762,6 +6795,11 @@ class ClubProvider extends ChangeNotifier with WidgetsBindingObserver {
 
     apply(_myClubs);
     apply(_allClubs);
+    final saved = _myClubs.where((c) => c.id == clubId).firstOrNull ??
+        _allClubs.where((c) => c.id == clubId).firstOrNull;
+    if (saved != null) {
+      _clubInfoOverrides[clubId] = saved;
+    }
     notifyListeners();
     _syncMyClubsToMockStore();
     await _persistNow();

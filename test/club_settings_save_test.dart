@@ -75,4 +75,37 @@ void main() {
     expect(clubs.selectedClub.industry, '제조');
     expect(clubs.selectedClub.teamCount, 6);
   });
+
+  test('설정 후 다른 화면 동기화가 옛 번들을 넣어도 모임 정보가 유지된다', () async {
+    final ok = await clubs.createClub(
+      name: '옛이름',
+      region: '서울',
+      industry: '골프',
+      teamCount: 4,
+      myRole: '회장',
+      description: '옛소개',
+    );
+    expect(ok, isTrue);
+    final id = clubs.selectedClub.id;
+    final stale = clubs.exportBundleForTest();
+
+    await clubs.updateClubInfo(
+      clubId: id,
+      name: '새이름',
+      description: '새소개',
+      region: '부산',
+      industry: '제조',
+      teamCount: 6,
+    );
+    expect(clubs.selectedClub.name, '새이름');
+
+    clubs.importBundleForTest(stale);
+
+    expect(clubs.selectedClub.name, '새이름',
+        reason: '일정·홈 동기화가 옛 정보를 다시 넣어도 설정 저장을 지우면 안 된다');
+    expect(clubs.selectedClub.description, '새소개');
+    expect(clubs.selectedClub.region, '부산');
+    expect(clubs.selectedClub.industry, '제조');
+    expect(clubs.selectedClub.teamCount, 6);
+  });
 }
