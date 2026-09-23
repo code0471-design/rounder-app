@@ -212,13 +212,27 @@ abstract final class SocialAuthService {
 
     final given = apple.givenName?.trim() ?? '';
     final family = apple.familyName?.trim() ?? '';
-    final fullName = '$family$given'.trim();
+    final fullName = _applePersonName(family: family, given: given);
     return SocialProfile(
       provider: SocialProvider.apple,
       providerUserId: userId,
       name: fullName.isEmpty ? '회원' : fullName,
       email: apple.email,
     );
+  }
+
+  /// Apple이 준 이름. 한글은 성+이름, 영문은 Given Family.
+  static String _applePersonName({
+    required String family,
+    required String given,
+  }) {
+    if (family.isEmpty) return given;
+    if (given.isEmpty) return family;
+    final hangul = RegExp(r'[ㄱ-ㅎ가-힣]');
+    if (hangul.hasMatch(family) || hangul.hasMatch(given)) {
+      return '$family$given';
+    }
+    return '$given $family';
   }
 
   static Future<void> signOutProviders() async {

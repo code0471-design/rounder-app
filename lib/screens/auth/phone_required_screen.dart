@@ -74,6 +74,16 @@ class _PhoneRequiredScreenState extends State<PhoneRequiredScreen> {
     return '${m.toString().padLeft(2, '0')}:${s.toString().padLeft(2, '0')}';
   }
 
+  bool _appleGaveName(AuthProvider auth) {
+    return auth.lastLoginMethod == 'apple' &&
+        !AuthProvider.isPlaceholderName(auth.currentUser?.name);
+  }
+
+  String _nameToSave(AuthProvider auth) {
+    if (_appleGaveName(auth)) return auth.currentUser!.name.trim();
+    return _nameCtrl.text.trim();
+  }
+
   Future<void> _sendSms() async {
     if (!_formKey.currentState!.validate()) return;
     setState(() {
@@ -84,7 +94,7 @@ class _PhoneRequiredScreenState extends State<PhoneRequiredScreen> {
       final auth = context.read<AuthProvider>();
       await auth.sendSmsCode(
         _phoneCtrl.text.trim(),
-        name: _nameCtrl.text.trim(),
+        name: _nameToSave(auth),
       );
       if (!mounted) return;
       setState(() {
@@ -129,7 +139,7 @@ class _PhoneRequiredScreenState extends State<PhoneRequiredScreen> {
     try {
       final auth = context.read<AuthProvider>();
       final phone = phoneOverride ?? _phoneCtrl.text.trim();
-      final name = _nameCtrl.text.trim();
+      final name = _nameToSave(auth);
       final user = await auth.attachPhoneToCurrentUser(
         phone: phone,
         name: name,
@@ -203,26 +213,34 @@ class _PhoneRequiredScreenState extends State<PhoneRequiredScreen> {
           padding: const EdgeInsets.fromLTRB(24, 16, 24, 32),
           child: Form(
             key: _formKey,
-            child: Column(
+            child: Builder(builder: (context) {
+              final appleNameLocked =
+                  _appleGaveName(context.watch<AuthProvider>());
+              return Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                const Text(
-                  '이름과 휴대폰 번호를 입력해 주세요',
-                  style: TextStyle(
+                Text(
+                  appleNameLocked
+                      ? '휴대폰 번호를 입력해 주세요'
+                      : '이름과 휴대폰 번호를 입력해 주세요',
+                  style: const TextStyle(
                     fontSize: 20,
                     fontWeight: FontWeight.bold,
                     color: AppColors.textPrimary,
                   ),
                 ),
                 const SizedBox(height: 8),
-                const Text(
-                  '알림톡·모임 연락에 사용됩니다. 카카오 알림톡으로 인증번호를 보내 드릴게요.',
-                  style: TextStyle(
+                Text(
+                  appleNameLocked
+                      ? 'Apple이 제공한 이름을 그대로 씁니다. 알림톡 인증만 하면 됩니다.'
+                      : '알림톡·모임 연락에 사용됩니다. 카카오 알림톡으로 인증번호를 보내 드릴게요.',
+                  style: const TextStyle(
                     fontSize: 13,
                     height: 1.45,
                     color: AppColors.textSecondary,
                   ),
                 ),
+                if (!appleNameLocked) ...[
                 const SizedBox(height: 12),
                 Container(
                   width: double.infinity,
@@ -272,6 +290,7 @@ class _PhoneRequiredScreenState extends State<PhoneRequiredScreen> {
                     return null;
                   },
                 ),
+                ],
                 const SizedBox(height: 20),
                 const Text(
                   '휴대폰 번호',
@@ -390,7 +409,8 @@ class _PhoneRequiredScreenState extends State<PhoneRequiredScreen> {
                   ),
                 ],
               ],
-            ),
+            );
+            }),
           ),
         ),
       ),

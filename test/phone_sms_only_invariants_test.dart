@@ -41,6 +41,9 @@ void main() {
     expect(phoneRequired.contains('카카오 알림톡'), isTrue);
     // 생년월일·핸디캡은 인증 성공 후 별도 화면에서 받는다.
     expect(phoneRequired.contains("'/golf-profile'"), isTrue);
+    expect(phoneRequired.contains("lastLoginMethod == 'apple'"), isTrue,
+        reason: 'Apple이 준 이름을 다시 필수로 받으면 심사 4가 거절한다');
+    expect(phoneRequired.contains('Apple이 제공한 이름을 그대로 씁니다'), isTrue);
   });
 
   test('가입 다음 단계는 휴대폰 인증(알림톡)이어야 한다', () {
