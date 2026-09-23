@@ -59,15 +59,6 @@ abstract final class AppStartupBootstrap {
         '[AppStartup] Firebase.initializeApp OK '
         '(${AppEnv.label} / ${Firebase.app().options.projectId})',
       );
-      try {
-        await Future.wait([
-          HqPushCatalog.load(),
-          HqAlimtalkCatalog.load(),
-          PushNotificationService.init(),
-        ]).timeout(const Duration(seconds: 6));
-      } catch (e) {
-        debugPrint('[AppStartup] Push init skip: $e');
-      }
     } catch (e, st) {
       errorDetail = e.toString();
       debugPrint('[AppStartup] Firebase failed: $e\n$st');
@@ -84,19 +75,8 @@ abstract final class AppStartupBootstrap {
       return runOfflineMock();
     }
 
-    // Firestore rules(request.auth) — 시드/어드민 조회 전에 Auth 세션 확보
-    try {
-      final ok = await FirebaseAuthBridge.ensureStagingSession()
-          .timeout(const Duration(seconds: 8));
-      debugPrint('[AppStartup] staging Auth session: $ok');
-      if (!ok) {
-        warning ??= 'Firebase Auth 세션을 만들지 못했습니다. Firestore가 비어 보일 수 있습니다.';
-      }
-    } catch (e) {
-      debugPrint('[AppStartup] staging Auth skip: $e');
-      warning ??= 'Firebase Auth 연결에 실패했습니다.';
-    }
-
+    // 인트로 뒤에 푸시·카탈로그·Auth 를 기다리면 홈이 다시 늦어진다.
+    unawaited(_warmServicesInBackground());
     unawaited(_seedInBackground());
 
     try {
@@ -117,6 +97,25 @@ abstract final class AppStartupBootstrap {
       warning: warning,
       errorDetail: errorDetail,
     );
+  }
+
+  static Future<void> _warmServicesInBackground() async {
+    try {
+      await Future.wait([
+        HqPushCatalog.load(),
+        HqAlimtalkCatalog.load(),
+        PushNotificationService.init(),
+      ]).timeout(const Duration(seconds: 6));
+    } catch (e) {
+      debugPrint('[AppStartup] Push init skip: $e');
+    }
+    try {
+      final ok = await FirebaseAuthBridge.ensureStagingSession()
+          .timeout(const Duration(seconds: 8));
+      debugPrint('[AppStartup] Auth session: $ok');
+    } catch (e) {
+      debugPrint('[AppStartup] Auth session skip: $e');
+    }
   }
 
   static Future<void> _seedInBackground() async {

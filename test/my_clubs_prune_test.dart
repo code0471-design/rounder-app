@@ -142,8 +142,10 @@ void main() {
         reason: '빼고 나서 홈을 다시 그려야 예전 7개가 화면에 남지 않는다');
     expect(body.contains('_serverClubsAligned = true'), isTrue,
         reason: '멤버십을 읽은 뒤에는 그 목록을 확정해야 한다');
-    expect(src.contains('await _alignMyClubsWithServer().timeout'), isFalse,
-        reason: '시간 초과로 홈을 열면 폰에 남은 7개가 먼저 보인다');
+    expect(src.contains('await _alignMyClubsWithServer()'), isFalse,
+        reason: '서버 소속을 기다리면 인트로 뒤 홈이 다시 늦어진다');
+    expect(src.contains('_shouldHideUnalignedMyClubs'), isTrue,
+        reason: '홈은 먼저 열고, 맞추기 전엔 예전 7개를 그리지 않는다');
     expect(
       src.contains('!_confirmedClubIds.contains(c.id)'),
       isTrue,

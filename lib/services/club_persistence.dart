@@ -8,8 +8,24 @@ import 'club_data_codec.dart';
 class ClubPersistence {
   static String _key(String authUserId) => 'rounder_club_data_v2_$authUserId';
 
-  static Future<void> save(String authUserId, ClubDataBundle bundle) async {
+  /// 콜드스타트는 getInstance 값으로 충분하다. reload 는 큰 번들을 디스크에서
+  /// 한 번 더 읽어 인트로 뒤 홈을 늦춘다.
+  static bool _coldStartPrefs = true;
+
+  static Future<SharedPreferences> _prefs({bool reload = false}) async {
     final prefs = await SharedPreferences.getInstance();
+    final shouldReload = reload && !_coldStartPrefs;
+    _coldStartPrefs = false;
+    if (shouldReload) {
+      try {
+        await prefs.reload();
+      } catch (_) {}
+    }
+    return prefs;
+  }
+
+  static Future<void> save(String authUserId, ClubDataBundle bundle) async {
+    final prefs = await _prefs();
     final json = ClubDataCodec.encode(bundle);
     json['savedAt'] = DateTime.now().toIso8601String();
     json['authUserId'] = authUserId;
@@ -17,10 +33,7 @@ class ClubPersistence {
   }
 
   static Future<ClubDataBundle?> load(String authUserId) async {
-    final prefs = await SharedPreferences.getInstance();
-    try {
-      await prefs.reload(); // 다른 탭에서 저장한 모임 반영
-    } catch (_) {}
+    final prefs = await _prefs(reload: true);
     final raw = prefs.getString(_key(authUserId));
     if (raw == null || raw.isEmpty) return null;
     try {

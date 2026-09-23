@@ -391,6 +391,7 @@ class ClubProvider extends ChangeNotifier with WidgetsBindingObserver {
     String? photoUrl,
   }) async {
     _persistAuthUserId = authUserId;
+    _serverClubsAligned = false;
     _accountBirthDate = birthDate;
     _accountHandicap = handicap;
     _accountGender = gender;
@@ -527,46 +528,14 @@ class ClubProvider extends ChangeNotifier with WidgetsBindingObserver {
     // 내 모임 → Mock 저장소(어드민·모임찾기) 강제 동기화
     _syncMyClubsToMockStore();
 
-    // 서버 소속을 읽기 전에 홈을 열면 폰에 남은 7개가 그대로 보인다.
+    // 홈은 바로 연다. 서버 소속은 뒤에서 맞춘다.
+    // 예전 목록을 그대로 그리면 7개가 보이므로, 맞추기 전엔 myClubs 를 비운다.
+    notifyListeners();
     if (AppDependencies.instance.isInitialized &&
         AppDependencies.instance.isOfflineMockMode) {
       await _afterSwitchUserCloud();
     } else {
-      try {
-        await _alignMyClubsWithServer();
-      } catch (e) {
-        debugPrint('[ClubProvider] align my clubs skip: $e');
-      }
       unawaited(_afterSwitchUserCloud());
-    }
-    notifyListeners();
-  }
-
-  /// 로그인 직후, 홈을 그리기 전에 내 모임을 서버 소속과 맞춘다.
-  Future<void> _alignMyClubsWithServer() async {
-    final authUserId = _persistAuthUserId;
-    if (authUserId == null || _isDemoSession) return;
-    final deps = AppDependencies.instance;
-    if (!deps.isInitialized || deps.isOfflineMockMode) return;
-
-    try {
-      await FirebaseAuthBridge.ensureSignedIn(
-        AppUser(
-          id: authUserId,
-          name: _currentUserName,
-          phone: (_accountPhone ?? '').trim(),
-        ),
-      );
-    } catch (e) {
-      debugPrint('[ClubProvider] align auth skip: $e');
-    }
-    for (var attempt = 0; attempt < 3 && !_serverClubsAligned; attempt++) {
-      if (attempt > 0) {
-        await Future<void>.delayed(const Duration(seconds: 1));
-      }
-      await _claimClubsByPhone(authUserId);
-      await _ingestServerMemberships(authUserId);
-      await _pruneForeignClubs(authUserId);
     }
   }
 
@@ -621,6 +590,9 @@ class ClubProvider extends ChangeNotifier with WidgetsBindingObserver {
     unawaited(_enqueueAllUpcomingD1());
     unawaited(syncAllDuesD1Reminders());
     unawaited(_pushOwnedClubCatalog());
+    if (!_serverClubsAligned) {
+      _serverClubsAligned = true;
+    }
     notifyListeners();
   }
 
@@ -766,9 +738,6 @@ class ClubProvider extends ChangeNotifier with WidgetsBindingObserver {
     _leftClubIds.clear();
     try {
       final prefs = await SharedPreferences.getInstance();
-      try {
-        await prefs.reload();
-      } catch (_) {}
       final list = prefs.getStringList(_leftClubsPrefsKey(authUserId));
       if (list != null) {
         for (final id in list) {
@@ -2560,7 +2529,20 @@ class ClubProvider extends ChangeNotifier with WidgetsBindingObserver {
   // ════════════════════════════════════════════════════════
   int get selectedClubIndex => _selectedClubIndex;
   List<Club> get clubs        => List.unmodifiable(_myClubs);
-  List<Club> get myClubs      => List.unmodifiable(_myClubs);   // MyClubsScreen용
+  List<Club> get myClubs {
+    if (_shouldHideUnalignedMyClubs) {
+      return List.unmodifiable(
+        _myClubs.where((c) => _sessionCreatedClubIds.contains(c.id)),
+      );
+    }
+    return List.unmodifiable(_myClubs);
+  }
+
+  bool get _shouldHideUnalignedMyClubs =>
+      !_isDemoSession &&
+      !_serverClubsAligned &&
+      AppDependencies.instance.isInitialized &&
+      !AppDependencies.instance.isOfflineMockMode;
   Club get selectedClub {
     if (_myClubs.isEmpty) {
       throw StateError('선택된 모임이 없습니다. myClubs가 비어 있습니다.');

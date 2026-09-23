@@ -65,6 +65,8 @@ void main() {
         File('lib/providers/club_provider.dart').readAsStringSync();
     expect(provider.contains('unawaited(_afterSwitchUserCloud())'), isTrue,
         reason: '로그인 직후 서버 소속·ops 를 기다리면 홈이 늦게 뜬다');
+    expect(provider.contains('await _alignMyClubsWithServer()'), isFalse,
+        reason: '서버 소속을 기다리면 인트로 뒤 홈이 다시 늦어진다');
     expect(provider.contains('_claimClubsByPhone(authUserId)'), isTrue);
     final afterCloudStart = provider.indexOf('Future<void> _afterSwitchUserCloud()');
     final claimAt = provider.indexOf('await _claimClubsByPhone(authUserId);');
@@ -74,5 +76,22 @@ void main() {
     final auth = File('lib/providers/auth_provider.dart').readAsStringSync();
     expect(auth.contains('unawaited(_hydrateRemoteSession(prefs, user))'), isTrue,
         reason: '자동로그인이 서버 번호 조회를 기다리면 인트로 뒤가 길다');
+    final boot =
+        File('lib/app/app_startup_bootstrap.dart').readAsStringSync();
+    expect(boot.contains('unawaited(_warmServicesInBackground())'), isTrue,
+        reason: '인트로에서 푸시·카탈로그·Auth 를 기다리면 홈이 다시 늦어진다');
+    final runStart = boot.indexOf('static Future<AppStartupResult> run()');
+    final warmStart = boot.indexOf('static Future<void> _warmServicesInBackground');
+    expect(runStart, greaterThan(0));
+    expect(warmStart, greaterThan(runStart));
+    final runBody = boot.substring(runStart, warmStart);
+    expect(runBody.contains('await Future.wait'), isFalse,
+        reason: '푸시 카탈로그는 홈을 연 뒤에 데운다');
+    expect(runBody.contains('ensureStagingSession'), isFalse,
+        reason: 'Auth 세션은 인트로에서 기다리지 않는다');
+    final persist =
+        File('lib/services/club_persistence.dart').readAsStringSync();
+    expect(persist.contains('_coldStartPrefs'), isTrue,
+        reason: '첫 실행에서 prefs.reload 하면 큰 번들을 디스크에서 또 읽는다');
   });
 }
