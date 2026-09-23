@@ -23,9 +23,9 @@ void main() {
     expect(dash.contains('existing.coalesceDisplayFields(c)'), isTrue);
     expect(provider.contains('byId.putIfAbsent(c.id, () => c)'), isTrue);
     expect(
-      provider.contains('name: bootClub.name.trim().isNotEmpty'),
+      provider.contains('설정에서 고친 이름'),
       isTrue,
-      reason: '내 모임 이름이 서버와 다르게 남지 않아야 한다',
+      reason: '설정에서 고친 이름·소개는 서버 옛값으로 덮지 않는다',
     );
   });
 

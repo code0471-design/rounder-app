@@ -151,15 +151,24 @@ class _ClubSettingsScreenState extends State<ClubSettingsScreen> {
     }
 
     setState(() => _saving = true);
-    provider.updateClubInfo(
-      clubId: provider.selectedClub.id,
-      name: name,
-      description: description,
-      imageUrl: _imageUrl,
-      teamCount: teamCount,
-      region: _region,
-      industry: _industry,
-    );
+    try {
+      await provider.updateClubInfo(
+        clubId: provider.selectedClub.id,
+        name: name,
+        description: description,
+        imageUrl: _imageUrl,
+        teamCount: teamCount,
+        region: _region,
+        industry: _industry,
+      );
+    } catch (e) {
+      if (!mounted) return;
+      setState(() => _saving = false);
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('모임 정보를 저장하지 못했습니다. 다시 시도해 주세요.')),
+      );
+      return;
+    }
     if (!mounted) return;
     setState(() => _saving = false);
 

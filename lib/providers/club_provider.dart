@@ -251,12 +251,17 @@ class ClubProvider extends ChangeNotifier with WidgetsBindingObserver {
       final idx = _myClubs.indexWhere((c) => c.id == legacy.id);
       if (idx >= 0) {
         final existing = _myClubs[idx];
-        _myClubs[idx] = legacy.copyWith(
+        // 설정에서 고친 이름·소개·사진·지역·업종·팀수는 서버 옛값으로 덮지 않는다.
+        _myClubs[idx] = existing.copyWith(
           myRole: existing.myRole.trim().isNotEmpty
               ? existing.myRole
               : legacy.myRole,
+          memberCount: legacy.memberCount,
           nextRoundDate: existing.nextRoundDate,
           nextRoundCourse: existing.nextRoundCourse,
+          creatorId: existing.creatorId.trim().isNotEmpty
+              ? existing.creatorId
+              : legacy.creatorId,
         );
       } else {
         _myClubs.add(legacy);
@@ -275,8 +280,9 @@ class ClubProvider extends ChangeNotifier with WidgetsBindingObserver {
         _allClubs.add(legacy);
       } else {
         final existing = _allClubs[idx];
-        _allClubs[idx] = legacy.copyWith(
+        _allClubs[idx] = existing.copyWith(
           myRole: existing.myRole,
+          memberCount: legacy.memberCount,
           nextRoundDate: existing.nextRoundDate,
           nextRoundCourse: existing.nextRoundCourse,
         );
@@ -6726,11 +6732,11 @@ class ClubProvider extends ChangeNotifier with WidgetsBindingObserver {
   //  Actions — Update Club teamCount (매달 변경)
   // ════════════════════════════════════════════════════════
   void updateClubTeamCount(String clubId, int teamCount) {
-    updateClubInfo(clubId: clubId, teamCount: teamCount);
+    unawaited(updateClubInfo(clubId: clubId, teamCount: teamCount));
   }
 
   /// 모임 기본 정보 수정 (이름·소개·이미지·팀 수·지역·업종)
-  void updateClubInfo({
+  Future<void> updateClubInfo({
     required String clubId,
     String? name,
     String? description,
@@ -6740,7 +6746,7 @@ class ClubProvider extends ChangeNotifier with WidgetsBindingObserver {
     String? hostUserId,
     String? region,
     String? industry,
-  }) {
+  }) async {
     void apply(List<Club> list) {
       final idx = list.indexWhere((c) => c.id == clubId);
       if (idx == -1) return;
@@ -6757,16 +6763,23 @@ class ClubProvider extends ChangeNotifier with WidgetsBindingObserver {
     apply(_myClubs);
     apply(_allClubs);
     notifyListeners();
-    _persistImmediately();
-    unawaited(_pushClubCatalogToServer(clubId,
+    _syncMyClubsToMockStore();
+    await _persistNow();
+    String? catalogImage = imageUrl;
+    if (catalogImage != null &&
+        catalogImage.startsWith('data:') &&
+        catalogImage.length > 180000) {
+      catalogImage = null;
+    }
+    await _pushClubCatalogToServer(clubId,
         name: name,
         description: description,
-        imageUrl: imageUrl,
+        imageUrl: catalogImage,
         teamCount: teamCount,
         hostName: hostName,
         hostUserId: hostUserId,
         region: region,
-        industry: industry));
+        industry: industry);
   }
 
   Future<void> _pushClubCatalogToServer(
