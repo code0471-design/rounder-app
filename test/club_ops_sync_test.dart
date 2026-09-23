@@ -4,6 +4,26 @@ import 'package:golf_rounder/services/club_data_codec.dart';
 import 'package:golf_rounder/services/club_ops_sync.dart';
 
 void main() {
+  test('다른 폰에 없는 일정은 올릴 때 서버 일정을 지우지 않는다', () {
+    final merged = ClubOpsSync.mergeRowsById(
+      local: [
+        {'id': 'old', 'title': '예전'},
+      ],
+      remote: [
+        {'id': 'old', 'title': '예전-서버수정'},
+        {'id': 'sep25', 'title': '더크로스비', 'roundDate': '2026-09-25'},
+      ],
+      localWins: true,
+    );
+    expect(merged.any((e) => e['id'] == 'sep25'), isTrue,
+        reason: '이 폰 목록에 없어도 서버에 있는 9/25 일정은 남긴다');
+    expect(
+      merged.firstWhere((e) => e['id'] == 'old')['title'],
+      '예전',
+      reason: '이 폰이 가진 일정은 이 폰 내용을 유지한다',
+    );
+  });
+
   test('applyRemoteSlice merges schedules for same club', () {
     final local = ClubDataBundle(
       selectedClubIndex: 0,
@@ -122,7 +142,8 @@ void main() {
 
     final merged = ClubOpsSync.applyRemoteSlice(local, 'c_test', remote);
     expect(merged.schedules.any((s) => s.id == 's_remote'), isTrue);
-    expect(merged.schedules.any((s) => s.id == 's_local'), isFalse);
+    expect(merged.schedules.any((s) => s.id == 's_local'), isTrue,
+        reason: '이 폰에서만 만든 일정은 서버에 다른 일정이 있어도 지우면 안 된다');
     expect(merged.members.any((m) => m.id == 'm_c_test_u2'), isTrue);
   });
 

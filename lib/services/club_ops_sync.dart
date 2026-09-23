@@ -117,11 +117,33 @@ class ClubOpsSync {
           slice['roundScores'] = remoteScores;
         }
 
-        final localSchedules = slice['schedules'] as List? ?? const [];
-        final remoteSchedules = remote['schedules'] as List? ?? const [];
-        if (localSchedules.isEmpty && remoteSchedules.isNotEmpty) {
-          slice['schedules'] = remoteSchedules;
-        }
+        // 이 폰에 없는 일정은 지우지 않는다. 예전 목록을 통째로 올리면
+        // 다른 폰에서 방금 만든 일정이 서버에서 사라진다.
+        slice['schedules'] = mergeRowsById(
+          local: slice['schedules'] as List? ?? const [],
+          remote: remote['schedules'] as List? ?? const [],
+          localWins: true,
+        );
+        slice['groupAssignments'] = mergeMaps(
+          local: slice['groupAssignments'],
+          remote: remote['groupAssignments'],
+          localWins: true,
+        );
+        slice['waitingList'] = mergeRowsById(
+          local: slice['waitingList'] as List? ?? const [],
+          remote: remote['waitingList'] as List? ?? const [],
+          localWins: true,
+        );
+        slice['awardRecords'] = mergeRowsById(
+          local: slice['awardRecords'] as List? ?? const [],
+          remote: remote['awardRecords'] as List? ?? const [],
+          localWins: true,
+        );
+        slice['roundScores'] = mergeRowsById(
+          local: slice['roundScores'] as List? ?? const [],
+          remote: remote['roundScores'] as List? ?? const [],
+          localWins: true,
+        );
         final localAnnounce = slice['announcements'] as List? ?? const [];
         final remoteAnnounce = remote['announcements'] as List? ?? const [];
         if (localAnnounce.isEmpty && remoteAnnounce.isNotEmpty) {
@@ -191,6 +213,68 @@ class ClubOpsSync {
     } catch (e, st) {
       debugPrint('[ClubOpsSync] pushClubOps fail ($clubId): $e\n$st');
     }
+  }
+
+  /// 같은 id 는 [localWins] 쪽을 남긴다. 한쪽에만 있는 일정은 지우지 않는다.
+  @visibleForTesting
+  static List<dynamic> mergeRowsById({
+    required List local,
+    required List remote,
+    required bool localWins,
+  }) {
+    final byId = <String, Map<String, dynamic>>{};
+    final first = localWins ? remote : local;
+    final second = localWins ? local : remote;
+    for (final list in [first, second]) {
+      for (final e in list) {
+        if (e is! Map) continue;
+        final id = '${e['id'] ?? ''}'.trim();
+        if (id.isEmpty) continue;
+        byId[id] = Map<String, dynamic>.from(e);
+      }
+    }
+    return byId.values.toList();
+  }
+
+  @visibleForTesting
+  static Map<String, dynamic> mergeMaps({
+    required Object? local,
+    required Object? remote,
+    required bool localWins,
+  }) {
+    final out = <String, dynamic>{};
+    final first = localWins ? remote : local;
+    final second = localWins ? local : remote;
+    for (final src in [first, second]) {
+      if (src is! Map) continue;
+      src.forEach((k, v) => out['$k'] = v);
+    }
+    return out;
+  }
+
+  static List<dynamic> _mergeClubSchedules(
+    List? localList,
+    List? remoteList,
+    String clubId,
+  ) {
+    final others = (localList ?? const []).where(
+      (e) => e is! Map || e['clubId'] != clubId,
+    );
+    final localClub = (localList ?? const [])
+        .where((e) => e is Map && e['clubId'] == clubId)
+        .toList();
+    final remoteClub = remoteList ?? const [];
+    if (remoteClub.isEmpty) {
+      return [...others, ...localClub];
+    }
+    return [
+      ...others,
+      ...mergeRowsById(
+        local: localClub,
+        remote: remoteClub,
+        localWins: false,
+      ),
+    ];
   }
 
   /// 사진 Firestore 문서용 — 초대형 data URI는 메타만 남긴다.
@@ -841,9 +925,10 @@ class ClubOpsSync {
         .toSet();
 
     if (remote.containsKey('schedules')) {
-      encoded['schedules'] = replaceClubList(
+      encoded['schedules'] = _mergeClubSchedules(
         encoded['schedules'] as List?,
         remote['schedules'] as List?,
+        clubId,
       );
     }
     encoded['announcements'] = mergeAnnouncements(
