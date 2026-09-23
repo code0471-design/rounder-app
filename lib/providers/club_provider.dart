@@ -37,6 +37,9 @@ import '../utils/past_schedule_import.dart';
 class ClubProvider extends ChangeNotifier with WidgetsBindingObserver {
   String? _persistAuthUserId;
   bool _suppressPersist = false;
+  /// 이번 실행에서 서버 멤버십을 읽었으면, 그 목록 밖의 모임은 다시 넣지 않는다.
+  bool _serverClubsAligned = false;
+  final Set<String> _confirmedClubIds = {};
   bool _applyingCloudOps = false;
   String? _watchingClubId;
   String? _watchingMembersClubId;
@@ -524,14 +527,13 @@ class ClubProvider extends ChangeNotifier with WidgetsBindingObserver {
     // 내 모임 → Mock 저장소(어드민·모임찾기) 강제 동기화
     _syncMyClubsToMockStore();
 
-    // 홈을 열기 전에 서버 소속으로 맞춘다. 로컬 목록을 먼저 그리면
-    // 정리가 실패할 때 폰에 남은 남의 모임이 그대로 보인다.
+    // 서버 소속을 읽기 전에 홈을 열면 폰에 남은 7개가 그대로 보인다.
     if (AppDependencies.instance.isInitialized &&
         AppDependencies.instance.isOfflineMockMode) {
       await _afterSwitchUserCloud();
     } else {
       try {
-        await _alignMyClubsWithServer().timeout(const Duration(seconds: 8));
+        await _alignMyClubsWithServer();
       } catch (e) {
         debugPrint('[ClubProvider] align my clubs skip: $e');
       }
@@ -558,9 +560,14 @@ class ClubProvider extends ChangeNotifier with WidgetsBindingObserver {
     } catch (e) {
       debugPrint('[ClubProvider] align auth skip: $e');
     }
-    await _claimClubsByPhone(authUserId);
-    await _ingestServerMemberships(authUserId);
-    await _pruneForeignClubs(authUserId);
+    for (var attempt = 0; attempt < 3 && !_serverClubsAligned; attempt++) {
+      if (attempt > 0) {
+        await Future<void>.delayed(const Duration(seconds: 1));
+      }
+      await _claimClubsByPhone(authUserId);
+      await _ingestServerMemberships(authUserId);
+      await _pruneForeignClubs(authUserId);
+    }
   }
 
   Future<void> _afterSwitchUserCloud() async {
@@ -1399,6 +1406,13 @@ class ClubProvider extends ChangeNotifier with WidgetsBindingObserver {
         debugPrint('[ClubProvider] prune keep ${c.id} (단건 조회 실패): $e');
       }
     }
+    _serverClubsAligned = true;
+    _confirmedClubIds
+      ..clear()
+      ..addAll([
+        for (final c in _myClubs)
+          if (!drop.contains(c.id)) c.id,
+      ]);
     if (drop.isEmpty) return false;
 
     _myClubs.removeWhere((c) => drop.contains(c.id));
@@ -2329,6 +2343,11 @@ class ClubProvider extends ChangeNotifier with WidgetsBindingObserver {
     _myClubs
       ..clear()
       ..addAll(b.myClubs);
+    if (_serverClubsAligned) {
+      _myClubs.removeWhere((c) =>
+          !_confirmedClubIds.contains(c.id) &&
+          !_sessionCreatedClubIds.contains(c.id));
+    }
     _allClubs
       ..clear()
       ..addAll(b.allClubs);

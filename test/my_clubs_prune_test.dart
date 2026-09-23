@@ -140,6 +140,15 @@ void main() {
         reason: '탐색 목록이 비면 모임 문서를 하나씩 보고 소속 아닌 것을 뺀다');
     expect(body.contains('notifyListeners()'), isTrue,
         reason: '빼고 나서 홈을 다시 그려야 예전 7개가 화면에 남지 않는다');
+    expect(body.contains('_serverClubsAligned = true'), isTrue,
+        reason: '멤버십을 읽은 뒤에는 그 목록을 확정해야 한다');
+    expect(src.contains('await _alignMyClubsWithServer().timeout'), isFalse,
+        reason: '시간 초과로 홈을 열면 폰에 남은 7개가 먼저 보인다');
+    expect(
+      src.contains('!_confirmedClubIds.contains(c.id)'),
+      isTrue,
+      reason: '동기화가 예전 목록을 다시 넣으면 7개가 돌아온다',
+    );
   });
 
   test('탐색 목록이 비어도 서버 소속이 아닌 모임은 내 모임에서 빠진다', () async {
