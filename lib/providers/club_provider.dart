@@ -524,14 +524,43 @@ class ClubProvider extends ChangeNotifier with WidgetsBindingObserver {
     // 내 모임 → Mock 저장소(어드민·모임찾기) 강제 동기화
     _syncMyClubsToMockStore();
 
-    // 홈은 로컬 명단으로 먼저 연다. 서버 소속·ops 는 뒤에서 이어 간다.
-    notifyListeners();
+    // 홈을 열기 전에 서버 소속으로 맞춘다. 로컬 목록을 먼저 그리면
+    // 정리가 실패할 때 폰에 남은 남의 모임이 그대로 보인다.
     if (AppDependencies.instance.isInitialized &&
         AppDependencies.instance.isOfflineMockMode) {
       await _afterSwitchUserCloud();
     } else {
+      try {
+        await _alignMyClubsWithServer().timeout(const Duration(seconds: 8));
+      } catch (e) {
+        debugPrint('[ClubProvider] align my clubs skip: $e');
+      }
       unawaited(_afterSwitchUserCloud());
     }
+    notifyListeners();
+  }
+
+  /// 로그인 직후, 홈을 그리기 전에 내 모임을 서버 소속과 맞춘다.
+  Future<void> _alignMyClubsWithServer() async {
+    final authUserId = _persistAuthUserId;
+    if (authUserId == null || _isDemoSession) return;
+    final deps = AppDependencies.instance;
+    if (!deps.isInitialized || deps.isOfflineMockMode) return;
+
+    try {
+      await FirebaseAuthBridge.ensureSignedIn(
+        AppUser(
+          id: authUserId,
+          name: _currentUserName,
+          phone: (_accountPhone ?? '').trim(),
+        ),
+      );
+    } catch (e) {
+      debugPrint('[ClubProvider] align auth skip: $e');
+    }
+    await _claimClubsByPhone(authUserId);
+    await _ingestServerMemberships(authUserId);
+    await _pruneForeignClubs(authUserId);
   }
 
   Future<void> _afterSwitchUserCloud() async {
@@ -1298,53 +1327,77 @@ class ClubProvider extends ChangeNotifier with WidgetsBindingObserver {
   /// 테스터 폰에서 전 모임이 내 모임으로 보이던 원인. 예전 빌드가 탐색 카탈로그를
   /// 내 모임으로 복구해 저장했고, 그 뒤로 아무도 지우지 않았다.
   ///
-  /// 지우는 기준은 **서버 사실**뿐이다. 서버를 못 읽으면 아무것도 지우지 않는다
+  /// 지우는 기준은 **서버 멤버십**이다. 멤버십 조회가 실패하면 아무것도 지우지 않는다
   /// (비행기모드·권한 오류에 내 모임이 사라지면 훨씬 큰 사고다).
-  /// 다음 중 하나라도 걸리면 남긴다.
+  /// 탐색 목록이 비거나 실패해도, 소속이 아닌 모임은 문서 단건으로 확인하고 뺀다.
+  /// 다음 중 하나면 남긴다.
   ///   · 서버 멤버십(`user_memberships`)이 있다
-  ///   · 내가 만든 모임이다 (`creator_id` / `host_user_id`)
-  ///   · 이 모임 명단에 내 계정 ID 행이 있다 (초대 가입)
-  ///   · 서버 카탈로그에 아직 없다 (방금 만들어 아직 안 올라간 모임)
+  ///   · 서버 문서의 생성자가 나다 (`creator_id` / `host_user_id`)
+  ///   · 이 실행에서 방금 만든 모임이라 서버에 아직 없다
   Future<bool> _pruneForeignClubs(String authUserId) async {
     if (_isDemoSession || _myClubs.isEmpty) return false;
     if (!AppDependencies.instance.isInitialized) return false;
 
+    final repo = AppDependencies.instance.clubRepository;
     List<Club> serverMine;
-    List<Club> catalog;
     try {
-      final repo = AppDependencies.instance.clubRepository;
       serverMine = await repo.fetchMyClubs(authUserId);
-      catalog = await repo.fetchDiscoverableClubs();
     } catch (e) {
-      debugPrint('[ClubProvider] prune skip (서버 조회 실패): $e');
+      debugPrint('[ClubProvider] prune skip (멤버십 조회 실패): $e');
       return false;
     }
-    if (catalog.isEmpty) return false; // 카탈로그를 못 읽으면 판단 불가
+
+    var catalogOk = true;
+    var catalog = <Club>[];
+    try {
+      catalog = await repo.fetchDiscoverableClubs();
+    } catch (e) {
+      catalogOk = false;
+      debugPrint('[ClubProvider] prune catalog skip: $e');
+    }
 
     final mineIds = serverMine.map((c) => c.id).toSet();
     final catalogById = {for (final c in catalog) c.id: c};
-    final catalogIds = catalogById.keys.toSet();
     final aliases = _authAliases(authUserId);
 
     final drop = <String>{};
-    for (final c in _myClubs) {
+    for (final c in List<Club>.from(_myClubs)) {
       if (_legacyMockClubIds.contains(c.id)) continue;
       if (mineIds.contains(c.id)) continue;
-      if (!catalogIds.contains(c.id)) {
-        // 카탈로그에 없는 모임은 두 가지다. 방금 만든 모임, 또는 서버에서 지운 모임.
-        // 예전에는 둘 다 남겼기 때문에 볼케이노처럼 지운 모임이 폰에 남았다.
-        if (_sessionCreatedClubIds.contains(c.id)) continue;
+      if (_sessionCreatedClubIds.contains(c.id)) continue;
+
+      if (catalogOk && catalogById.containsKey(c.id)) {
+        // 로컬 creatorId 는 쓰지 않는다. 장창현 찌꺼기가 방장 id 를 훔치면
+        // 강남·평촌이 내 모임으로 남는다. 서버 생성자만 본다.
+        final serverCreator = (catalogById[c.id]?.creatorId ?? '').trim();
+        if (serverCreator.isNotEmpty && aliases.contains(serverCreator)) {
+          continue;
+        }
         drop.add(c.id);
         continue;
       }
-      // 로컬 creatorId 는 쓰지 않는다. 장창현 찌꺼기가 방장 id 를 훔치면
-      // 강남·평촌이 내 모임으로 남는다. 서버 카탈로그 생성자만 본다.
-      final serverCreator =
-          (catalogById[c.id]?.creatorId ?? '').trim();
-      if (serverCreator.isNotEmpty && aliases.contains(serverCreator)) {
+
+      if (catalogOk && catalog.isNotEmpty) {
+        // 목록은 읽혔는데 이 모임만 없다. 서버에서 지운 모임이다.
+        drop.add(c.id);
         continue;
       }
-      drop.add(c.id);
+
+      // 탐색 목록이 비었거나 조회가 실패했다. 이 모임 문서만 확인한다.
+      try {
+        final one = await repo.fetchClubById(c.id, userId: authUserId);
+        if (one == null) {
+          drop.add(c.id);
+          continue;
+        }
+        final serverCreator = one.creatorId.trim();
+        if (serverCreator.isNotEmpty && aliases.contains(serverCreator)) {
+          continue;
+        }
+        drop.add(c.id);
+      } catch (e) {
+        debugPrint('[ClubProvider] prune keep ${c.id} (단건 조회 실패): $e');
+      }
     }
     if (drop.isEmpty) return false;
 
@@ -1360,6 +1413,7 @@ class ClubProvider extends ChangeNotifier with WidgetsBindingObserver {
     _schedules.removeWhere((s) => drop.contains(s.clubId));
     if (_selectedClubIndex >= _myClubs.length) _selectedClubIndex = 0;
     debugPrint('[ClubProvider] pruned foreign clubs $drop');
+    notifyListeners();
     return true;
   }
 

@@ -22,10 +22,16 @@ class FirestoreClubDataSource {
   Future<List<Club>> fetchAllClubs({String defaultMyRole = '일반'}) async {
     try {
       final snap = await _fetchAllClubDocs();
-      final clubs = snap.docs
-          .where(_isDiscoverable)
-          .map((d) => ClubMapper.fromFirestore(d, myRole: defaultMyRole))
-          .toList();
+      final clubs = <Club>[];
+      for (final d in snap.docs) {
+        if (!_isDiscoverable(d)) continue;
+        try {
+          clubs.add(ClubMapper.fromFirestore(d, myRole: defaultMyRole));
+        } catch (e) {
+          // 문서 하나 파싱 실패로 전체 목록이 비면 내 모임 정리가 통째로 건너뛴다.
+          debugPrint('[FirestoreClubDataSource] skip club ${d.id}: $e');
+        }
+      }
       clubs.sort((a, b) => b.createdAt.compareTo(a.createdAt));
       return clubs;
     } on FirebaseException catch (e) {
