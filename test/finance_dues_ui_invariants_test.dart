@@ -66,6 +66,22 @@ void main() {
     expect(finance.contains('panelColor: Colors.white'), isTrue);
   });
 
+  test('재무를 다시 열면 이번 달·올해가 기본이고 연회비 설정 연도는 안 바꾼다', () {
+    expect(finance.contains('void onReentered()'), isTrue);
+    expect(finance.contains('resetPeriod(now)'), isTrue);
+    expect(finance.contains('if (_tab.index != 0) _tab.animateTo(0)'), isTrue,
+        reason: '다른 탭에서 들어오면 이번 달 납부현황으로 돌아간다');
+    expect(finance.contains('Timer.periodic'), isFalse,
+        reason: '앉아 있는 동안 자정에 달을 실시간으로 바꾸면 안 된다');
+    final tab = finance.substring(
+      finance.indexOf('class _PaymentStatusTab '),
+      finance.indexOf('class _MonthSelector'),
+    );
+    expect(tab.contains('selected.year ?? selected.createdAt.year'), isTrue,
+        reason: '연회비 납부는 달력 해가 아니라 설정에 적힌 연도다');
+    expect(tab.contains('isAnnual'), isTrue);
+  });
+
   test('연회비 회비납부에는 연도 화살표가 없다', () {
     final tab = finance.substring(
       finance.indexOf('class _PaymentStatusTab '),

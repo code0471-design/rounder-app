@@ -180,4 +180,10 @@ void main() {
         reason: '모임명은 공 엠블럼이 아니라 ROUNDER 글자 아래에 둔다');
     expect(header.contains('fontSize: 12'), isTrue);
   });
+
+  test('다른 탭에서 재무로 들어오면 이번 달 납부현황으로 돌아간다', () {
+    expect(room.contains('_selectClubTab'), isTrue);
+    expect(room.contains('onReentered()'), isTrue);
+    expect(room.contains('from != _financeTabIndex'), isTrue);
+  });
 }

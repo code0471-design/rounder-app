@@ -206,11 +206,24 @@ class FinanceScreen extends StatefulWidget {
   const FinanceScreen({super.key});
 
   @override
-  State<FinanceScreen> createState() => _FinanceScreenState();
+  State<FinanceScreen> createState() => FinanceScreenState();
 }
 
-class _FinanceScreenState extends State<FinanceScreen>
+class FinanceScreenState extends State<FinanceScreen>
     with SingleTickerProviderStateMixin {
+  final _paymentTabKey = GlobalKey<_PaymentStatusTabState>();
+  final _txTabKey = GlobalKey<_TransactionTabState>();
+  final _settleTabKey = GlobalKey<_SettlementReportTabState>();
+
+  /// 다른 탭에서 재무로 다시 들어오면 이번 달·올해가 기본.
+  /// 화면에 앉아 있는 동안 자정이 지나도 실시간으로 바꾸지 않는다.
+  void onReentered() {
+    final now = DateTime.now();
+    _paymentTabKey.currentState?.resetPeriod(now);
+    _txTabKey.currentState?.resetPeriod(now);
+    _settleTabKey.currentState?.resetPeriod(now);
+    if (_tab.index != 0) _tab.animateTo(0);
+  }
   late TabController _tab;
   /// 잔고를 저장해도 회비 종류를 고를 때까지 온보딩을 유지한다.
   bool _treasurerOnboardingSession = false;
@@ -436,13 +449,14 @@ class _FinanceScreenState extends State<FinanceScreen>
                   controller: _tab,
                   physics: const NeverScrollableScrollPhysics(),
                   children: [
-                    _PaymentStatusTab(isAdmin: isAdmin),
+                    _PaymentStatusTab(key: _paymentTabKey, isAdmin: isAdmin),
                     _TransactionTab(
+                      key: _txTabKey,
                       isAdmin: isAdmin,
                       focusYear: _txFocusYear,
                       focusMonth: _txFocusMonth,
                     ),
-                    _SettlementReportTab(isAdmin: isAdmin),
+                    _SettlementReportTab(key: _settleTabKey, isAdmin: isAdmin),
                     _DuesSettingTab(
                       isAdmin: isAdmin,
                       onFirstDuesCreated: () {
@@ -655,7 +669,7 @@ class _MiniStat extends StatelessWidget {
 // ════════════════════════════════════════════════════════════
 class _PaymentStatusTab extends StatefulWidget {
   final bool isAdmin;
-  const _PaymentStatusTab({required this.isAdmin});
+  const _PaymentStatusTab({super.key, required this.isAdmin});
 
   @override
   State<_PaymentStatusTab> createState() => _PaymentStatusTabState();
@@ -666,6 +680,15 @@ class _PaymentStatusTabState extends State<_PaymentStatusTab> {
   int _year = DateTime.now().year;
   int _month = DateTime.now().month;
   final Set<String> _bulkSelectedIds = {};
+
+  /// 월회비는 오늘 기준 이번 달. 연회비는 설정 연도를 보므로 달을 안 고른다.
+  void resetPeriod(DateTime now) {
+    setState(() {
+      _year = now.year;
+      _month = now.month;
+      _bulkSelectedIds.clear();
+    });
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -2152,6 +2175,7 @@ class _TransactionTab extends StatefulWidget {
   final int? focusYear;
   final int? focusMonth;
   const _TransactionTab({
+    super.key,
     required this.isAdmin,
     this.focusYear,
     this.focusMonth,
@@ -2170,6 +2194,13 @@ class _TransactionTabState extends State<_TransactionTab> {
     super.initState();
     _year = widget.focusYear ?? DateTime.now().year;
     _month = widget.focusMonth ?? DateTime.now().month;
+  }
+
+  void resetPeriod(DateTime now) {
+    setState(() {
+      _year = now.year;
+      _month = now.month;
+    });
   }
 
   @override
@@ -5969,7 +6000,7 @@ class _PaymentRequestCard extends StatelessWidget {
 // ════════════════════════════════════════════════════════════
 class _SettlementReportTab extends StatefulWidget {
   final bool isAdmin;
-  const _SettlementReportTab({required this.isAdmin});
+  const _SettlementReportTab({super.key, required this.isAdmin});
 
   @override
   State<_SettlementReportTab> createState() => _SettlementReportTabState();
@@ -5980,6 +6011,13 @@ class _SettlementReportTabState extends State<_SettlementReportTab>
   late TabController _inner;
   int _year = DateTime.now().year;
   int _month = DateTime.now().month;
+
+  void resetPeriod(DateTime now) {
+    setState(() {
+      _year = now.year;
+      _month = now.month;
+    });
+  }
 
   @override
   void initState() {

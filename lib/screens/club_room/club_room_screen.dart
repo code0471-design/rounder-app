@@ -225,7 +225,7 @@ class _ClubRoomScreenState extends State<ClubRoomScreen> {
         const ScheduleScreen(),
         const GalleryScreen(),
         const MembersScreen(),
-        const FinanceScreen(),
+        FinanceScreen(key: _financeScreenKey),
       ];
 
   // ── 탭 Navigator 빌더 ──
@@ -245,11 +245,27 @@ class _ClubRoomScreenState extends State<ClubRoomScreen> {
 
   // 재무 탭 인덱스 (하단 탭바 4번째 항목)
   static const int _financeTabIndex = 4;
+  final GlobalKey<FinanceScreenState> _financeScreenKey =
+      GlobalKey<FinanceScreenState>();
 
   void openTab(int index) {
+    _selectClubTab(index);
+  }
+
+  void _selectClubTab(int index, {bool popToRoot = false}) {
     if (index < 0 || index >= _tabs.length) return;
     if (index == _financeTabIndex && !_canOpenFinanceTab()) return;
+    final from = _tabIndex;
     setState(() => _tabIndex = index);
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (!mounted) return;
+      if (popToRoot) {
+        _navigatorKeys[index].currentState?.popUntil((route) => route.isFirst);
+      }
+      if (index == _financeTabIndex && from != _financeTabIndex) {
+        _financeScreenKey.currentState?.onReentered();
+      }
+    });
   }
 
   /// 재무 탭 진입 가능 여부
@@ -566,17 +582,7 @@ class _ClubRoomScreenState extends State<ClubRoomScreen> {
               final selected = _tabIndex == i;
               return Expanded(
                   child: GestureDetector(
-                  onTap: () {
-                    if (i == _financeTabIndex && !_canOpenFinanceTab()) {
-                      return;
-                    }
-                    setState(() => _tabIndex = i);
-                    WidgetsBinding.instance.addPostFrameCallback((_) {
-                      _navigatorKeys[i]
-                          .currentState
-                          ?.popUntil((route) => route.isFirst);
-                    });
-                  },
+                  onTap: () => _selectClubTab(i, popToRoot: true),
                   behavior: HitTestBehavior.opaque,
                   child: Column(
                     mainAxisAlignment: MainAxisAlignment.center,
