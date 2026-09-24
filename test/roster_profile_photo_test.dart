@@ -151,9 +151,15 @@ void main() {
   test('계정 프로필은 모든 모임 명단 문서에 같이 쓴다', () {
     final ops = File('lib/services/club_ops_sync.dart').readAsStringSync();
     expect(ops.contains('static Future<void> upsertMemberProfile('), isTrue);
+    expect(ops.contains('if (!existing.exists)'), isTrue,
+        reason: '없는 명단 행을 만들면 어드민에만 kakao_ 회원이 생긴다');
     final clubs = File('lib/providers/club_provider.dart').readAsStringSync();
     expect(clubs.contains('_pushMyProfileToAllClubMemberDocs()'), isTrue);
     expect(clubs.contains('ClubOpsSync.upsertMemberProfile('), isTrue);
+    expect(clubs.contains('if (!_serverClubsAligned) return;'), isTrue,
+        reason: '서버 소속 전에 프로필을 쓰면 남의 모임에 카카오 회원이 생긴다');
+    expect(clubs.contains('isForeignLeftoverMember('), isTrue,
+        reason: '장창현 찌꺼기 모임에는 명단 문서를 쓰면 안 된다');
   });
 
   test('자동로그인 원격 프로필이 명단에 다시 흘러가게 연결돼 있다', () {

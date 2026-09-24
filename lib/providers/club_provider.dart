@@ -604,6 +604,7 @@ class ClubProvider extends ChangeNotifier with WidgetsBindingObserver {
     } finally {
       if (!_serverClubsAligned) _serverClubsAligned = true;
       notifyListeners();
+      unawaited(_pushMyProfileToAllClubMemberDocs());
     }
 
     try {
@@ -8346,7 +8347,21 @@ class ClubProvider extends ChangeNotifier with WidgetsBindingObserver {
   Future<void> _pushMyProfileToAllClubMemberDocs() async {
     final uid = (_persistAuthUserId ?? '').trim();
     if (uid.isEmpty || _isDemoSession) return;
+    if (!_serverClubsAligned) return;
+    final allowed = _confirmedClubIds.isNotEmpty
+        ? _confirmedClubIds
+        : _sessionCreatedClubIds;
+    if (allowed.isEmpty) return;
     for (final club in List<Club>.from(_myClubs)) {
+      if (!allowed.contains(club.id)) continue;
+      if (ClubOpsSync.isForeignLeftoverMember(
+        id: uid,
+        name: _currentUserName,
+        clubId: club.id,
+        creatorUserId: club.creatorId,
+      )) {
+        continue;
+      }
       unawaited(ClubOpsSync.upsertMemberProfile(
         clubId: club.id,
         userId: uid,

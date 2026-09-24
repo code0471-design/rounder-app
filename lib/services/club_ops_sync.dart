@@ -730,9 +730,16 @@ class ClubOpsSync {
               photo.length > photoDataUriMaxChars)) {
         data['photo_url'] = photo;
       }
-      await _db
-          .doc(FirestorePaths.clubMemberDoc(clubId, userId))
-          .set(data, SetOptions(merge: true));
+      final ref = _db.doc(FirestorePaths.clubMemberDoc(clubId, userId));
+      final existing = await ref.get();
+      if (!existing.exists) {
+        // 없는 명단 행을 만들면 어드민에 kakao_… 회원만 생기고, 앱 명단에는 없다.
+        debugPrint(
+          '[ClubOpsSync] member profile skip create $clubId $userId',
+        );
+        return;
+      }
+      await ref.set(data, SetOptions(merge: true));
     } catch (e) {
       debugPrint('[ClubOpsSync] member profile upsert fail $clubId: $e');
     }
