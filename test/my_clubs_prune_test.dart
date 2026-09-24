@@ -138,6 +138,10 @@ void main() {
         reason: '로컬 방장 id 를 믿으면 장창현 폰에 남의 모임이 남는다');
     expect(body.contains('fetchClubById'), isTrue,
         reason: '탐색 목록이 비면 모임 문서를 하나씩 보고 소속 아닌 것을 뺀다');
+    expect(body.contains('isUserMember'), isTrue,
+        reason: '멤버십 목록이 빠져도 그 모임 소속이면 알라딘이 내 모임에서 빠지면 안 된다');
+    expect(body.contains('if (catalogOk && catalog.isNotEmpty)'), isFalse,
+        reason: '탐색 목록에 없다고 지우면 초대 가입 모임이 빠진다');
     expect(body.contains('notifyListeners()'), isTrue,
         reason: '빼고 나서 홈을 다시 그려야 예전 7개가 화면에 남지 않는다');
     expect(body.contains('_serverClubsAligned = true'), isTrue,

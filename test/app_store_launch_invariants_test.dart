@@ -51,9 +51,12 @@ void main() {
   test('인트로는 가운데 로고를 띄운 뒤 자동로그인한다', () {
     final splash =
         File('lib/screens/splash/splash_screen.dart').readAsStringSync();
-    expect(splash.contains('RounderLogo'), isFalse,
-        reason: '시작 로딩에서 이미 로고를 보여 줬다. 스플래시에서 다시 그리면 인트로가 두 번이다');
-    expect(splash.contains('milliseconds: 1800'), isFalse);
+    expect(splash.contains('RounderLogo'), isTrue,
+        reason: '인트로 로고를 빼면 시작 화면이 바로 지나간다');
+    expect(splash.contains('milliseconds: 1800'), isTrue,
+        reason: '로고는 최소 1.8초 보여 준다');
+    expect(splash.contains('Future.wait'), isTrue,
+        reason: '로고를 띄운 동안 자동로그인한다. 끝난 뒤 또 기다리지 않는다');
     expect(splash.contains('tryAutoLogin'), isTrue);
     expect(splash.contains('bootstrapForUser'), isFalse,
         reason: '인트로 뒤에 서버 부트스트랩을 또 기다리면 홈이 늦게 뜬다');

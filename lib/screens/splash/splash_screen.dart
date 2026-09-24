@@ -3,6 +3,7 @@ import 'package:flutter/services.dart';
 import 'package:provider/provider.dart';
 import '../../providers/auth_provider.dart';
 import '../../providers/club_provider.dart';
+import '../../widgets/rounder_logo.dart';
 
 class SplashScreen extends StatefulWidget {
   const SplashScreen({super.key});
@@ -53,9 +54,15 @@ class _SplashScreenState extends State<SplashScreen> {
     return autoLoggedIn;
   }
 
+  static const _minHold = Duration(milliseconds: 1800);
+
   Future<void> _run() async {
-    // 시작 로딩에서 이미 로고를 보여 줬다. 여기서 다시 그리면 인트로가 두 번이다.
-    var autoLoggedIn = await _autoLoginAndHydrate();
+    // 로고는 최소 1.8초. 자동로그인은 그 사이에 한다. 끝나도 로고를 더 기다리지 않는다.
+    final results = await Future.wait<Object?>([
+      Future<void>.delayed(_minHold),
+      _autoLoginAndHydrate(),
+    ]);
+    var autoLoggedIn = results[1] as bool;
 
     if (!mounted) return;
 
@@ -91,7 +98,23 @@ class _SplashScreenState extends State<SplashScreen> {
       ),
       child: Scaffold(
         backgroundColor: Colors.white,
-        body: SizedBox.expand(),
+        body: _IntroLogo(),
+      ),
+    );
+  }
+}
+
+class _IntroLogo extends StatelessWidget {
+  const _IntroLogo();
+
+  @override
+  Widget build(BuildContext context) {
+    final h = MediaQuery.sizeOf(context).height;
+    return Center(
+      child: RounderLogo(
+        vertical: true,
+        height: h * 0.36,
+        width: h * 0.36,
       ),
     );
   }

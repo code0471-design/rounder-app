@@ -1253,6 +1253,7 @@ class ClubProvider extends ChangeNotifier with WidgetsBindingObserver {
       for (final c in remote) {
         if (SampleClubFilter.isSample(id: c.id, name: c.name)) continue;
         if (_ingestOwnedClub(c, const [])) changed = true;
+        _confirmedClubIds.add(c.id);
       }
     } catch (e) {
       debugPrint('[ClubProvider] ingest fetchMyClubs skip: $e');
@@ -1353,12 +1354,10 @@ class ClubProvider extends ChangeNotifier with WidgetsBindingObserver {
       return false;
     }
 
-    var catalogOk = true;
     var catalog = <Club>[];
     try {
       catalog = await repo.fetchDiscoverableClubs();
     } catch (e) {
-      catalogOk = false;
       debugPrint('[ClubProvider] prune catalog skip: $e');
     }
 
@@ -1372,38 +1371,32 @@ class ClubProvider extends ChangeNotifier with WidgetsBindingObserver {
       if (mineIds.contains(c.id)) continue;
       if (_sessionCreatedClubIds.contains(c.id)) continue;
 
-      if (catalogOk && catalogById.containsKey(c.id)) {
-        // 로컬 creatorId 는 쓰지 않는다. 장창현 찌꺼기가 방장 id 를 훔치면
-        // 강남·평촌이 내 모임으로 남는다. 서버 생성자만 본다.
-        final serverCreator = (catalogById[c.id]?.creatorId ?? '').trim();
-        if (serverCreator.isNotEmpty && aliases.contains(serverCreator)) {
+      Club? serverClub = catalogById[c.id];
+      if (serverClub == null) {
+        try {
+          serverClub = await repo.fetchClubById(c.id, userId: authUserId);
+        } catch (e) {
+          debugPrint('[ClubProvider] prune keep ${c.id} (단건 조회 실패): $e');
           continue;
         }
+      }
+      if (serverClub == null) {
         drop.add(c.id);
         continue;
       }
-
-      if (catalogOk && catalog.isNotEmpty) {
-        // 목록은 읽혔는데 이 모임만 없다. 서버에서 지운 모임이다.
-        drop.add(c.id);
+      // 로컬 creatorId 는 쓰지 않는다. 장창현 찌꺼기가 방장 id 를 훔치면
+      // 강남·평촌이 내 모임으로 남는다. 서버 생성자만 본다.
+      final serverCreator = serverClub.creatorId.trim();
+      if (serverCreator.isNotEmpty && aliases.contains(serverCreator)) {
         continue;
       }
-
-      // 탐색 목록이 비었거나 조회가 실패했다. 이 모임 문서만 확인한다.
       try {
-        final one = await repo.fetchClubById(c.id, userId: authUserId);
-        if (one == null) {
-          drop.add(c.id);
-          continue;
-        }
-        final serverCreator = one.creatorId.trim();
-        if (serverCreator.isNotEmpty && aliases.contains(serverCreator)) {
-          continue;
-        }
-        drop.add(c.id);
+        if (await repo.isUserMember(c.id, authUserId)) continue;
       } catch (e) {
-        debugPrint('[ClubProvider] prune keep ${c.id} (단건 조회 실패): $e');
+        debugPrint('[ClubProvider] prune keep ${c.id} (소속 확인 실패): $e');
+        continue;
       }
+      drop.add(c.id);
     }
     _serverClubsAligned = true;
     _confirmedClubIds
