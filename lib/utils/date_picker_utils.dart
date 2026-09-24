@@ -10,8 +10,11 @@ const _localizationDelegates = [
   GlobalCupertinoLocalizations.delegate,
 ];
 
-/// 티오프 분. 시계 다이얼 대신 10분 단위만 고른다.
-const kTeeTimeMinuteSteps = [0, 10, 20, 30, 40, 50];
+/// 티오프 분 0–59. 8:36처럼 10분 단위가 아닌 시간도 그대로 넣는다.
+int clampTeeMinute(int minute) => minute.clamp(0, 59);
+
+/// 예약 문자 등에서 온 분을 그대로 둔다. 10분으로 올리지 않는다.
+int snapTeeMinute(int minute) => clampTeeMinute(minute);
 
 ThemeData _pickerThemeData(BuildContext context) {
   return Theme.of(context).copyWith(
@@ -21,19 +24,6 @@ ThemeData _pickerThemeData(BuildContext context) {
       onSurface: AppColors.textPrimary,
     ),
   );
-}
-
-int snapTeeMinute(int minute) {
-  var best = kTeeTimeMinuteSteps.first;
-  var bestDiff = (minute - best).abs();
-  for (final step in kTeeTimeMinuteSteps) {
-    final diff = (minute - step).abs();
-    if (diff < bestDiff) {
-      best = step;
-      bestDiff = diff;
-    }
-  }
-  return best;
 }
 
 /// 세로로 달을 넘기는 달력. 가로로 밀어서 넘기는 달력은 쓰지 않는다.
@@ -286,14 +276,14 @@ class _MonthBlock extends StatelessWidget {
   }
 }
 
-/// 시 0–23, 분 00/10/20/30/40/50. 시계 다이얼 금지.
+/// 시 0–23, 분 00–59. 시계 다이얼 금지.
 Future<TimeOfDay?> showRounderTimePicker({
   required BuildContext context,
   required TimeOfDay initialTime,
   bool useRootNavigator = false,
 }) {
   var hour = initialTime.hour.clamp(0, 23);
-  var minute = snapTeeMinute(initialTime.minute);
+  var minute = clampTeeMinute(initialTime.minute);
 
   return showDialog<TimeOfDay>(
     context: context,
@@ -353,7 +343,7 @@ Future<TimeOfDay?> showRounderTimePicker({
                         spacing: 6,
                         runSpacing: 6,
                         children: [
-                          for (final m in kTeeTimeMinuteSteps)
+                          for (var m = 0; m <= 59; m++)
                             _TimeChip(
                               label: m.toString().padLeft(2, '0'),
                               selected: minute == m,
