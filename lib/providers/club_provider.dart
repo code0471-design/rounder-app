@@ -43,6 +43,8 @@ class ClubProvider extends ChangeNotifier with WidgetsBindingObserver {
   bool _suppressPersist = false;
   /// 이번 실행에서 서버 멤버십을 읽었으면, 그 목록 밖의 모임은 다시 넣지 않는다.
   bool _serverClubsAligned = false;
+  /// 서버 조회를 한 뒤부터 번들/클라우드가 확정 안 된 모임을 다시 넣지 못하게.
+  bool _membershipGateReady = false;
   final Set<String> _confirmedClubIds = {};
   bool _applyingCloudOps = false;
   /// 설정에서 고친 모임 정보. pull/watch 가 옛 번들을 넣어도 되돌리지 않는다.
@@ -415,6 +417,7 @@ class ClubProvider extends ChangeNotifier with WidgetsBindingObserver {
   }) async {
     _persistAuthUserId = authUserId;
     _serverClubsAligned = false;
+    _membershipGateReady = false;
     _confirmedClubIds.clear();
     _sessionCreatedClubIds.clear();
     _clubInfoOverrides.clear();
@@ -611,6 +614,7 @@ class ClubProvider extends ChangeNotifier with WidgetsBindingObserver {
     } catch (e) {
       debugPrint('[ClubProvider] afterSwitch align skip: $e');
     } finally {
+      if (!_isDemoSession) _membershipGateReady = true;
       notifyListeners();
       unawaited(_pushMyProfileToAllClubMemberDocs());
     }
@@ -809,6 +813,14 @@ class ClubProvider extends ChangeNotifier with WidgetsBindingObserver {
         !_confirmedClubIds.contains(c.id) &&
         !_sessionCreatedClubIds.contains(c.id));
     if (_selectedClubIndex >= _myClubs.length) _selectedClubIndex = 0;
+  }
+
+  /// 서버 조회가 비면 확정·방금 만든 모임만 남긴다.
+  bool _dropUnconfirmedMyClubs() {
+    if (_isDemoSession) return false;
+    final before = _myClubs.map((c) => c.id).toSet();
+    _applyMembershipOnlyMyClubs();
+    return before != _myClubs.map((c) => c.id).toSet();
   }
 
   void _rememberOfficialClub(String clubId) {
@@ -1342,8 +1354,11 @@ class ClubProvider extends ChangeNotifier with WidgetsBindingObserver {
         if (!SampleClubFilter.isSample(id: c.id, name: c.name)) c,
     ];
     if (remote.isEmpty) {
+      // 조회가 비었다고 확정 가입까지 지우면 안 된다.
+      // 반대로 폰에 남은 탐색 찌꺼기(장창현 7개)는 여기서 뺀다.
+      final dropped = _dropUnconfirmedMyClubs();
       debugPrint('[ClubProvider] replace my clubs skip: empty memberships');
-      return false;
+      return dropped;
     }
     for (final c in remote) {
       _leftClubIds.removeWhere((id) => clubIdAliases(c.id).contains(id));
@@ -2530,7 +2545,9 @@ class ClubProvider extends ChangeNotifier with WidgetsBindingObserver {
       ..clear()
       ..addAll(b.myClubs);
     if (!_isDemoSession &&
-        (_serverClubsAligned || _confirmedClubIds.isNotEmpty)) {
+        (_membershipGateReady ||
+            _serverClubsAligned ||
+            _confirmedClubIds.isNotEmpty)) {
       _applyMembershipOnlyMyClubs();
       for (final c in keptConfirmed) {
         if (!_myClubs.any((x) => x.id == c.id)) _myClubs.add(c);

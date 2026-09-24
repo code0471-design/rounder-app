@@ -229,6 +229,8 @@ void main() {
     expect(replaceBody.contains('if (remote.isEmpty)'), isTrue,
         reason: '멤버십이 비었다고 내 모임을 통째로 바꾸면 업데이트 후 홈이 빈다');
     expect(replaceBody.contains('empty memberships'), isTrue);
+    expect(replaceBody.contains('_dropUnconfirmedMyClubs()'), isTrue,
+        reason: '조회가 비면 확정 가입은 남기고 장창현 7개 같은 찌꺼기만 뺀다');
     expect(src.contains('멤버십 목록 비어 있음'), isTrue,
         reason: '멤버십이 비면 정리도 건너뛴다');
   });
@@ -239,9 +241,43 @@ void main() {
     ).readAsStringSync();
     expect(ds.contains("where('creator_id'"), isTrue);
     expect(ds.contains("where('host_user_id'"), isTrue);
-    expect(ds.contains('collectionGroup'), isTrue);
+    expect(ds.contains('collectionGroup'), isFalse,
+        reason: '명단 찌꺼기로 소속을 만들면 가입 안 한 모임이 다시 내 모임이 된다');
     expect(ds.contains("if (membershipSnap.docs.isEmpty) return [];"), isFalse,
         reason: '멤버십 문서가 없다고 바로 빈 목록이면 예전 가입이 다 빠진다');
+  });
+
+  test('서버 조회가 비면 확정 안 된 찌꺼기만 빠지고 가입한 모임은 남는다', () async {
+    final leftover = Club(
+      id: 'c_1786973797931',
+      name: '아레나 골프회',
+      myRole: '정회원',
+      memberCount: 2,
+      creatorId: 'kakao_ahn',
+      region: '서울',
+      industry: '골프',
+      teamCount: 4,
+      description: '',
+      createdAt: DateTime(2026, 9, 1),
+    );
+    clubs.hydrateFromBootstrap(AppBootstrapSnapshot(
+      userId: 'kakao_tester',
+      myClubs: [leftover],
+      discoverableClubs: [leftover],
+      membersByClubId: const {},
+      financeByClubId: const {},
+      loadedAt: DateTime(2026, 9, 24),
+    ));
+    expect(clubs.myClubs.any((c) => c.id == leftover.id), isTrue);
+    expect(clubs.myClubs.any((c) => c.id == myClubId), isTrue);
+
+    AppDependencies.instance.mockDataStore!.membersByClub.clear();
+    await clubs.refreshOwnedClubs();
+
+    expect(clubs.myClubs.any((c) => c.id == leftover.id), isFalse,
+        reason: '가입하지 않은 아레나는 서버가 비어도 다시 내 모임이 되면 안 된다');
+    expect(clubs.myClubs.any((c) => c.id == myClubId), isTrue,
+        reason: '이미 확정된 가입 모임은 조회가 비어도 지우면 안 된다');
   });
 
   test('탐색 목록이 비어도 서버 소속이 아닌 모임은 내 모임에서 빠진다', () async {

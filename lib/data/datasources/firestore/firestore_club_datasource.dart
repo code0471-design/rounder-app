@@ -194,35 +194,8 @@ class FirestoreClubDataSource {
         debugPrint('[FirestoreClubDataSource] host_user_id skip: $e');
       }
 
-      // 3) 모임 명단 — 초대·승인만 있고 user_memberships 가 없는 가입
-      try {
-        final byUser = await _db
-            .collectionGroup(FirestorePaths.members)
-            .where('user_id', isEqualTo: userId)
-            .get();
-        for (final d in byUser.docs) {
-          final data = d.data();
-          final status = '${data['status'] ?? ''}';
-          if (status.isNotEmpty && status != '활성') continue;
-          remember(_clubIdFromMemberDoc(d), data['role'] as String?);
-        }
-      } catch (e) {
-        debugPrint('[FirestoreClubDataSource] members user_id skip: $e');
-      }
-      try {
-        final byId = await _db
-            .collectionGroup(FirestorePaths.members)
-            .where('id', isEqualTo: userId)
-            .get();
-        for (final d in byId.docs) {
-          final data = d.data();
-          final status = '${data['status'] ?? ''}';
-          if (status.isNotEmpty && status != '활성') continue;
-          remember(_clubIdFromMemberDoc(d), data['role'] as String?);
-        }
-      } catch (e) {
-        debugPrint('[FirestoreClubDataSource] members id skip: $e');
-      }
+      // 명단 문서만으로는 넣지 않는다. 예전 빌드가 모임찾기 열람만으로
+      // 카카오 명단 행을 남겨 장창현 내 모임이 7개가 됐다.
 
       if (roles.isEmpty) return [];
 
@@ -246,12 +219,6 @@ class FirestoreClubDataSource {
     } on FirebaseException catch (e) {
       throw NetworkDataException('내 모임 조회 실패', cause: e);
     }
-  }
-
-  String _clubIdFromMemberDoc(DocumentSnapshot<Map<String, dynamic>> doc) {
-    final fromField = '${doc.data()?['club_id'] ?? ''}'.trim();
-    if (fromField.isNotEmpty) return fromField;
-    return doc.reference.parent.parent?.id ?? '';
   }
 
   Future<void> _backfillMembership({
