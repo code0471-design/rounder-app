@@ -108,4 +108,106 @@ void main() {
     expect(clubs.selectedClub.industry, '제조');
     expect(clubs.selectedClub.teamCount, 6);
   });
+
+  test('알라딘에 들어가 있으면 옛 번들이 아레나 선택으로 되돌리지 않는다', () async {
+    expect(
+      await clubs.createClub(
+        name: '아레나',
+        region: '서울',
+        industry: '골프',
+        teamCount: 4,
+        myRole: '회장',
+        description: '아레나',
+      ),
+      isTrue,
+    );
+    expect(
+      await clubs.createClub(
+        name: '알라딘',
+        region: '서울',
+        industry: '골프',
+        teamCount: 4,
+        myRole: '회장',
+        description: '알라딘',
+      ),
+      isTrue,
+    );
+    expect(clubs.selectedClub.name, '알라딘');
+    final arenaId = clubs.myClubs.firstWhere((c) => c.name == '아레나').id;
+    final aladdinId = clubs.selectedClub.id;
+
+    clubs.selectClubById(arenaId);
+    expect(clubs.selectedClub.name, '아레나');
+    final stale = clubs.exportBundleForTest();
+
+    clubs.selectClubById(aladdinId);
+    expect(clubs.selectedClub.name, '알라딘');
+
+    clubs.importBundleForTest(stale);
+    expect(clubs.selectedClub.id, aladdinId,
+        reason: '동기화가 선택 모임을 아레나로 바꾸면 안 된다');
+    expect(clubs.selectedClub.name, '알라딘');
+  });
+
+  test('bootstrap이 모임 목록 순서를 바꿔도 들어간 모임을 유지한다', () async {
+    expect(
+      await clubs.createClub(
+        name: '아레나',
+        region: '서울',
+        industry: '골프',
+        teamCount: 4,
+        myRole: '회장',
+        description: '아레나',
+      ),
+      isTrue,
+    );
+    final arenaId = clubs.selectedClub.id;
+    expect(
+      await clubs.createClub(
+        name: '알라딘',
+        region: '서울',
+        industry: '골프',
+        teamCount: 4,
+        myRole: '회장',
+        description: '알라딘',
+      ),
+      isTrue,
+    );
+    final aladdinId = clubs.selectedClub.id;
+
+    clubs.hydrateFromBootstrap(AppBootstrapSnapshot(
+      userId: 'kakao_settings',
+      myClubs: [
+        Club(
+          id: arenaId,
+          name: '아레나',
+          myRole: '회장',
+          memberCount: 1,
+          region: '서울',
+          industry: '골프',
+          teamCount: 4,
+          description: '아레나',
+          creatorId: 'kakao_settings',
+        ),
+        Club(
+          id: aladdinId,
+          name: '알라딘',
+          myRole: '회장',
+          memberCount: 1,
+          region: '서울',
+          industry: '골프',
+          teamCount: 4,
+          description: '알라딘',
+          creatorId: 'kakao_settings',
+        ),
+      ],
+      discoverableClubs: const [],
+      membersByClubId: const {},
+      financeByClubId: const {},
+      loadedAt: DateTime(2026, 9, 24),
+    ));
+
+    expect(clubs.selectedClub.id, aladdinId,
+        reason: '홈 새로고침이 알라딘에서 아레나로 바꿔면 안 된다');
+  });
 }

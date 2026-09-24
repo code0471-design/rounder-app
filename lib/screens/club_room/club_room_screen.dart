@@ -279,13 +279,13 @@ class _ClubRoomScreenState extends State<ClubRoomScreen> {
   ];
 
   // ── 탭별 루트 화면 (Navigator로 감쌀 초기 화면) ──
-  static const List<Widget> _rootScreens = [
-    ClubHomeTab(),
-    ScheduleScreen(),
-    GalleryScreen(),
-    MembersScreen(),
-    FinanceScreen(),
-  ];
+  List<Widget> get _rootScreens => [
+        ClubHomeTab(clubId: widget.club.id),
+        const ScheduleScreen(),
+        const GalleryScreen(),
+        const MembersScreen(),
+        const FinanceScreen(),
+      ];
 
   // ── 탭 Navigator 빌더 ──
   // 각 탭을 독립 Navigator로 감싸 탭 내부 push/pop이 탭바를 가리지 않게 함
@@ -514,7 +514,21 @@ class _ClubRoomScreenState extends State<ClubRoomScreen> {
       },
       child: Consumer<ClubProvider>(
         builder: (context, provider, _) {
-          final club = provider.selectedClub;
+          final openedId = widget.club.id;
+          if (provider.selectedClubOrNull?.id != openedId &&
+              provider.myClubs.any((c) => c.id == openedId)) {
+            WidgetsBinding.instance.addPostFrameCallback((_) {
+              if (!mounted) return;
+              final p = context.read<ClubProvider>();
+              if (p.selectedClubOrNull?.id != openedId) {
+                p.selectClubById(openedId);
+              }
+            });
+          }
+          final club = provider.myClubs
+                  .where((c) => c.id == openedId)
+                  .firstOrNull ??
+              provider.selectedClub;
           // 자동 알림톡이 조용히 실패하던 문제. 총무가 원인을 볼 수 있게 띄운다.
           _showAlimtalkErrorIfAny(context, provider);
 
@@ -676,13 +690,16 @@ class _TabItem {
 //  (기존 HomeScreen 본문 내용 그대로)
 // ════════════════════════════════════════
 class ClubHomeTab extends StatelessWidget {
-  const ClubHomeTab({super.key});
+  const ClubHomeTab({super.key, required this.clubId});
+
+  final String clubId;
 
   @override
   Widget build(BuildContext context) {
     return Consumer<ClubProvider>(
       builder: (context, provider, _) {
-        final club = provider.selectedClub;
+        final club = provider.myClubs.where((c) => c.id == clubId).firstOrNull ??
+            provider.selectedClub;
         return RefreshIndicator(
           color: AppColors.primary,
           onRefresh: () async =>

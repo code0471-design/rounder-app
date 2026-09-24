@@ -245,6 +245,7 @@ class ClubProvider extends ChangeNotifier with WidgetsBindingObserver {
     List<JoinRequest> pendingRequests = const [],
   }) {
     _suppressPersist = true;
+    final keepSelectedId = _selectedClubIdOrNull();
 
     for (final bootClub in snapshot.myClubs) {
       final legacy = _clubFromBootstrap(bootClub);
@@ -323,6 +324,7 @@ class ClubProvider extends ChangeNotifier with WidgetsBindingObserver {
     if (_selectedClubIndex >= _myClubs.length) {
       _selectedClubIndex = 0;
     }
+    _restoreSelectedClubId(keepSelectedId);
 
     // 일정 기준 D-day로 맞춤 (bootstrap 템플릿 날짜로 덮지 않음)
     _syncAllNextRounds();
@@ -2360,7 +2362,32 @@ class ClubProvider extends ChangeNotifier with WidgetsBindingObserver {
         alimtalkSettings: Map<String, ClubAlimtalkSettings>.from(_alimtalkSettings),
       );
 
+  String? _selectedClubIdOrNull() {
+    if (_myClubs.isEmpty) return null;
+    if (_selectedClubIndex < 0 || _selectedClubIndex >= _myClubs.length) {
+      return null;
+    }
+    return _myClubs[_selectedClubIndex].id;
+  }
+
+  void _restoreSelectedClubId(String? clubId, {int? fallbackIndex}) {
+    if (clubId != null && clubId.isNotEmpty) {
+      final idx = _myClubs.indexWhere((c) => c.id == clubId);
+      if (idx >= 0) {
+        _selectedClubIndex = idx;
+        return;
+      }
+    }
+    if (_myClubs.isEmpty) {
+      _selectedClubIndex = 0;
+      return;
+    }
+    final fb = fallbackIndex ?? 0;
+    _selectedClubIndex = fb.clamp(0, _myClubs.length - 1);
+  }
+
   void _importBundle(ClubDataBundle b) {
+    final keepSelectedId = _selectedClubIdOrNull();
     _selectedClubIndex = b.selectedClubIndex;
     _freshClubIds
       ..clear()
@@ -2464,6 +2491,7 @@ class ClubProvider extends ChangeNotifier with WidgetsBindingObserver {
     if (_selectedClubIndex >= _myClubs.length) {
       _selectedClubIndex = 0;
     }
+    _restoreSelectedClubId(keepSelectedId, fallbackIndex: b.selectedClubIndex);
 
     _syncAllNextRounds();
     _normalizeScheduleTitles();
