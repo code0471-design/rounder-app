@@ -62,6 +62,16 @@ void main() {
       expect(ids, contains(authId));
     });
 
+    test('장창현 leftover 모임 명단 id 는 푸시 등록하지 않는다', () {
+      final src = read('lib/providers/club_provider.dart');
+      expect(src.contains('dropForeignLeftoverFcmTokens'), isTrue);
+      expect(
+        src.contains('isBlockedRecipient'),
+        isTrue,
+        reason: '장창현 토큰이 아레나·강남 명단 id 로 남으면 그 모임 푸시가 간다',
+      );
+    });
+
     test('창단자 명단 ID 는 creatorId 가 비어도 커버된다', () async {
       await clubs.createClub(
         name: '푸시 테스트 모임',
@@ -286,6 +296,11 @@ void main() {
       expect(read('lib/services/d1_alimtalk_flush.dart'),
           contains('sendDedupKey'),
           reason: '앱 예약도 같은 번호면 한 통만 나가야 한다');
+      expect(
+        read('lib/services/club_ops_sync.dart'),
+        contains('if (!_deletedPhotoIds.contains(d.id)) continue;'),
+        reason: '로컬 사진 목록이 비었다고 원격 사진을 지우면 갤러리가 사라진다',
+      );
       expect(read('lib/utils/dues_d1_schedule.dart'),
           contains('imminentDueDates'),
           reason: '월회비 1년치를 오늘 예약하면 알림톡이 한꺼번에 나간다');

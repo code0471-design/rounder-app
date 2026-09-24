@@ -624,6 +624,26 @@ class ClubOpsSync {
   }
 
   static final Set<String> _removedMemberIds = {};
+  static final Set<String> _removedDuesSettingIds = {};
+
+  static String duesTombstoneKey(String clubId, String settingId) =>
+      '$clubId|$settingId';
+
+  static void markDuesSettingRemoved(String settingId, {required String clubId}) {
+    if (settingId.isEmpty || clubId.isEmpty) return;
+    _removedDuesSettingIds.add(duesTombstoneKey(clubId, settingId));
+  }
+
+  static bool isDuesSettingRemoved(String settingId, {required String clubId}) {
+    return settingId.isNotEmpty &&
+        clubId.isNotEmpty &&
+        _removedDuesSettingIds.contains(duesTombstoneKey(clubId, settingId));
+  }
+
+  @visibleForTesting
+  static void resetDuesSettingTombstones() {
+    _removedDuesSettingIds.clear();
+  }
 
   static final Set<String> _removedNotificationIds = {};
 
@@ -740,12 +760,11 @@ class ClubOpsSync {
       }
     }
     for (final d in existing.docs) {
-      if (!keepIds.contains(d.id) || _deletedPhotoIds.contains(d.id)) {
-        try {
-          await d.reference.delete();
-          _deletedPhotoIds.remove(d.id);
-        } catch (_) {}
-      }
+      if (!_deletedPhotoIds.contains(d.id)) continue;
+      try {
+        await d.reference.delete();
+        _deletedPhotoIds.remove(d.id);
+      } catch (_) {}
     }
   }
 
@@ -832,7 +851,10 @@ class ClubOpsSync {
     }
 
     final duesSettings = (full['duesSettings'] as List? ?? [])
-        .where((e) => e is Map && e['clubId'] == clubId)
+        .where((e) =>
+            e is Map &&
+            e['clubId'] == clubId &&
+            !isDuesSettingRemoved('${e['id'] ?? ''}', clubId: clubId))
         .map((e) => Map<String, dynamic>.from(e as Map))
         .toList();
     final duesSettingIds =
@@ -936,7 +958,7 @@ class ClubOpsSync {
       remote['announcements'] as List?,
       clubId,
     );
-    encoded['duesSettings'] = _mergeClubScopedById(
+    encoded['duesSettings'] = _mergeDuesSettings(
       encoded['duesSettings'] as List?,
       remote['duesSettings'] as List?,
       clubId,
@@ -1219,6 +1241,25 @@ class ClubOpsSync {
   }) {
     final merged =
         remoteWins ? _mergeById(local, remote) : _mergeById(remote, local);
+    final localPhoto = <String, String>{};
+    for (final e in local) {
+      if (e is! Map) continue;
+      final id = e['id'] as String?;
+      final url = '${e['photoUrl'] ?? ''}'.trim();
+      if (id != null && id.isNotEmpty && url.isNotEmpty) {
+        localPhoto[id] = url;
+      }
+    }
+    for (final e in merged) {
+      if (e is! Map) continue;
+      final id = e['id'] as String?;
+      if (id == null) continue;
+      final remoteUrl = '${e['photoUrl'] ?? ''}'.trim();
+      final kept = localPhoto[id];
+      if (remoteUrl.isEmpty && kept != null) {
+        e['photoUrl'] = kept;
+      }
+    }
     if (_removedMemberIds.isEmpty) return merged;
 
     final localById = <String, Map<String, dynamic>>{};
@@ -1369,6 +1410,33 @@ class ClubOpsSync {
     take(localRaw);
     take(remoteRaw);
     return out;
+  }
+
+  static List<dynamic> _mergeDuesSettings(
+    List? localList,
+    List? remoteList,
+    String clubId,
+  ) {
+    final keptOther = <dynamic>[
+      ...(localList ?? []).where((e) => e is Map && e['clubId'] != clubId),
+    ];
+    final byId = <String, Map<String, dynamic>>{};
+    for (final e in localList ?? const []) {
+      if (e is! Map) continue;
+      if (e['clubId'] != clubId) continue;
+      final id = e['id'] as String?;
+      if (id == null || id.isEmpty) continue;
+      if (isDuesSettingRemoved(id, clubId: clubId)) continue;
+      byId[id] = Map<String, dynamic>.from(e);
+    }
+    for (final m in _asDynamicMaps(remoteList)) {
+      final id = m['id'] as String?;
+      if (id == null || id.isEmpty) continue;
+      if (isDuesSettingRemoved(id, clubId: clubId)) continue;
+      if (byId.containsKey(id)) continue;
+      byId[id] = m;
+    }
+    return [...keptOther, ...byId.values];
   }
 
   static List<dynamic> _mergeClubScopedById(

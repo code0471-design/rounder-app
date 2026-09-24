@@ -1467,4 +1467,194 @@ void main() {
     });
     expect(merged.joinRequests.any((r) => r.id == 'jr_remote'), isTrue);
   });
+
+  test('지운 회비 설정은 원격 옛 목록이 되살리지 못한다', () {
+    ClubOpsSync.resetDuesSettingTombstones();
+    addTearDown(ClubOpsSync.resetDuesSettingTombstones);
+    ClubOpsSync.markDuesSettingRemoved('ds_club_1', clubId: 'c_test');
+
+    final local = ClubDataBundle(
+      selectedClubIndex: 0,
+      freshClubIds: {'c_test'},
+      myClubs: [
+        Club(
+          id: 'c_test',
+          name: '테스트',
+          myRole: '총무',
+          memberCount: 1,
+          region: '서울',
+          industry: 'IT',
+          teamCount: 4,
+        ),
+      ],
+      allClubs: const [],
+      joinRequests: const [],
+      members: const [],
+      activities: const [],
+      announcements: const [],
+      appNotifications: const [],
+      duesSettings: const [],
+      duesPayments: const [],
+      paymentRequests: const [],
+      transactions: const [],
+      schedules: const [],
+      photos: const [],
+      groupAssignments: const {},
+      adApplications: const [],
+      adNotifications: const [],
+      sponsorApplications: const [],
+      pointEvents: const {},
+      awardRecords: const [],
+      thankYouMessages: const [],
+      waitingList: const [],
+      alimtalkSettings: const {},
+    );
+    final merged = ClubOpsSync.applyRemoteSlice(local, 'c_test', {
+      'duesSettings': [
+        {
+          'id': 'ds_club_1',
+          'type': 'monthly',
+          'amount': 50000,
+          'title': '2026년 월회비',
+          'createdAt': DateTime(2026, 1, 1).toIso8601String(),
+          'isActive': true,
+          'clubId': 'c_test',
+          'amountHistory': <dynamic>[],
+        },
+      ],
+    });
+    expect(merged.duesSettings.any((d) => d.id == 'ds_club_1'), isFalse,
+        reason: '회비를 지운 뒤 동기화가 다시 넣으면 삭제가 안 된다');
+  });
+
+  test('회비 수정은 원격 옛 제목으로 돌아가지 않는다', () {
+    ClubOpsSync.resetDuesSettingTombstones();
+    addTearDown(ClubOpsSync.resetDuesSettingTombstones);
+    final local = ClubDataBundle(
+      selectedClubIndex: 0,
+      freshClubIds: {'c_test'},
+      myClubs: [
+        Club(
+          id: 'c_test',
+          name: '테스트',
+          myRole: '총무',
+          memberCount: 1,
+          region: '서울',
+          industry: 'IT',
+          teamCount: 4,
+        ),
+      ],
+      allClubs: const [],
+      joinRequests: const [],
+      members: const [],
+      activities: const [],
+      announcements: const [],
+      appNotifications: const [],
+      duesSettings: [
+        DuesSetting(
+          id: 'ds_club_1',
+          type: DuesType.monthly,
+          amount: 70000,
+          title: '새 월회비',
+          createdAt: DateTime(2026, 1, 1),
+          clubId: 'c_test',
+        ),
+      ],
+      duesPayments: const [],
+      paymentRequests: const [],
+      transactions: const [],
+      schedules: const [],
+      photos: const [],
+      groupAssignments: const {},
+      adApplications: const [],
+      adNotifications: const [],
+      sponsorApplications: const [],
+      pointEvents: const {},
+      awardRecords: const [],
+      thankYouMessages: const [],
+      waitingList: const [],
+      alimtalkSettings: const {},
+    );
+    final merged = ClubOpsSync.applyRemoteSlice(local, 'c_test', {
+      'duesSettings': [
+        {
+          'id': 'ds_club_1',
+          'type': 'monthly',
+          'amount': 50000,
+          'title': '옛 월회비',
+          'createdAt': DateTime(2026, 1, 1).toIso8601String(),
+          'isActive': true,
+          'clubId': 'c_test',
+          'amountHistory': <dynamic>[],
+        },
+      ],
+    });
+    expect(merged.duesSettings.single.title, '새 월회비');
+    expect(merged.duesSettings.single.amount, 70000);
+  });
+
+  test('원격 명단 사진이 비어도 로컬 프로필 사진을 유지한다', () {
+    final local = ClubDataBundle(
+      selectedClubIndex: 0,
+      freshClubIds: {'c_test'},
+      myClubs: [
+        Club(
+          id: 'c_test',
+          name: '테스트',
+          myRole: '회장',
+          memberCount: 1,
+          region: '서울',
+          industry: 'IT',
+          teamCount: 4,
+        ),
+      ],
+      allClubs: const [],
+      joinRequests: const [],
+      members: [
+        Member(
+          id: 'm_creator_c_test',
+          name: '안경헌',
+          gender: '남',
+          memberType: '정회원',
+          role: '회장',
+          joinDate: DateTime(2024, 1, 1),
+          status: '활성',
+          photoUrl: 'data:image/jpeg;base64,abc',
+        ),
+      ],
+      activities: const [],
+      announcements: const [],
+      appNotifications: const [],
+      duesSettings: const [],
+      duesPayments: const [],
+      paymentRequests: const [],
+      transactions: const [],
+      schedules: const [],
+      photos: const [],
+      groupAssignments: const {},
+      adApplications: const [],
+      adNotifications: const [],
+      sponsorApplications: const [],
+      pointEvents: const {},
+      awardRecords: const [],
+      thankYouMessages: const [],
+      waitingList: const [],
+      alimtalkSettings: const {},
+    );
+    final merged = ClubOpsSync.applyRemoteSlice(local, 'c_test', {
+      'members': [
+        {
+          'id': 'm_creator_c_test',
+          'name': '안경헌',
+          'gender': '남',
+          'memberType': '정회원',
+          'role': '회장',
+          'joinDate': DateTime(2024, 1, 1).toIso8601String(),
+          'status': '활성',
+        },
+      ],
+    });
+    expect(merged.members.single.photoUrl, 'data:image/jpeg;base64,abc',
+        reason: '원격이 사진을 빼면 내 프로필 사진이 사라진다');
+  });
 }

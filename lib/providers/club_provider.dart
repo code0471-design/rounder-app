@@ -1992,10 +1992,27 @@ class ClubProvider extends ChangeNotifier with WidgetsBindingObserver {
     for (final club in _myClubs) {
       // 데모 모임(c1~c5)은 공유 명단이라 남의 알림을 받게 되므로 제외.
       if (_legacyMockClubIds.contains(club.id)) continue;
+      if (D1EnqueuePolicy.isBlockedRecipient(
+        name: club.name,
+        userId: _persistAuthUserId ?? '',
+        clubId: club.id,
+        creatorUserId: club.creatorId,
+      )) {
+        continue;
+      }
       ids.add('m_creator_${club.id}');
       for (final uid in {_persistAuthUserId, _currentUserId, currentUserId}) {
         if (uid == null || uid.trim().isEmpty) continue;
-        ids.add(Member.rosterId(club.id, uid));
+        final roster = Member.rosterId(club.id, uid);
+        if (D1EnqueuePolicy.isBlockedRecipient(
+          name: '',
+          userId: roster,
+          clubId: club.id,
+          creatorUserId: club.creatorId,
+        )) {
+          continue;
+        }
+        ids.add(roster);
       }
     }
     final me = currentMember?.id;
@@ -2020,6 +2037,7 @@ class ClubProvider extends ChangeNotifier with WidgetsBindingObserver {
     if (signature == _boundPushIdsSignature) return;
     _boundPushIdsSignature = signature;
     unawaited(PushNotificationService.bindUserIds(ids));
+    unawaited(PushNotificationService.dropForeignLeftoverFcmTokens());
   }
 
   /// FCM·푸시함은 Firebase 로그인 ID를 쓴다. 명단 ID를 그 키로 바꾼다.
@@ -3725,7 +3743,7 @@ class ClubProvider extends ChangeNotifier with WidgetsBindingObserver {
     if (idx != -1) {
       _duesSettings[idx] = updated;
       notifyListeners();
-      _persistImmediately();
+      unawaited(_persistNow());
       unawaited(() async {
         await PushNotificationService.clearD1ForSchedule(
             DuesD1Schedule.scheduleIdFor(updated.id));
@@ -3778,8 +3796,9 @@ class ClubProvider extends ChangeNotifier with WidgetsBindingObserver {
     _duesPayments.removeWhere((p) => p.duesSettingId == id);
     _paymentRequests.removeWhere((r) => r.duesSettingId == id);
     _duesSettings.removeWhere((d) => d.id == id);
+    ClubOpsSync.markDuesSettingRemoved(id, clubId: selectedClub.id);
     notifyListeners();
-    _persistImmediately();
+    unawaited(_persistNow());
     unawaited(PushNotificationService.clearD1ForSchedule(
         DuesD1Schedule.scheduleIdFor(id)));
   }

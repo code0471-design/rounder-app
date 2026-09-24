@@ -158,6 +158,27 @@ abstract final class PushNotificationService {
     }
   }
 
+  /// 장창현 토큰이 알라딘 아닌 모임 명단 id 로 남아 있으면 그 모임 푸시가 간다.
+  static Future<void> dropForeignLeftoverFcmTokens() async {
+    if (!HqRemoteSettings.available) return;
+    const uid = 'kakao_5049673364';
+    const aladdin = 'c_1789270673471';
+    try {
+      final col = FirebaseFirestore.instance.collection(FirestorePaths.fcmTokens);
+      final snap = await col.get();
+      for (final d in snap.docs) {
+        final id = d.id;
+        if (!id.contains(uid)) continue;
+        if (id == uid) continue;
+        if (id.contains(aladdin)) continue;
+        await d.reference.delete();
+        debugPrint('[Push] dropped leftover fcm $id');
+      }
+    } catch (e) {
+      debugPrint('[Push] leftover fcm drop skip: $e');
+    }
+  }
+
   static Future<void> unbind() async {
     for (final sub in _inboxSubs) {
       await sub.cancel();
