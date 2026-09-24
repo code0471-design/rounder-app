@@ -37,6 +37,15 @@ abstract class ClubRepository {
     required Member member,
   });
 
+  /// 서버 멤버십 수로 clubs.member_count 를 다시 쓴다.
+  Future<int> recountMemberCount(String clubId);
+
+  /// 탈퇴 — 서버 멤버십·계정 명단을 지우고 회원수를 다시 센다.
+  Future<void> removeOfficialMembership({
+    required String clubId,
+    required String userId,
+  });
+
   /// 이 모임에 소속된 **계정** 목록. 푸시 대상은 명단 행이 아니라 계정이다.
   Future<List<ClubMemberAccount>> fetchClubMemberAccounts(String clubId);
 }

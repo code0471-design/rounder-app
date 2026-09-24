@@ -15,17 +15,21 @@ void main() {
     expect(dash.contains('size: 64'), isTrue);
   });
 
-  test('모임찾기 회원수는 가입하지 않은 모임의 폰 명단으로 덮지 않는다', () {
-    final src = _read('lib/providers/club_provider.dart');
-    expect(src.contains('_isOfficialMyClub(c.id)'), isTrue);
-    expect(src.contains('_officialMemberCount(c.id)'), isTrue);
+  test('모임찾기 회원수는 서버 멤버십 recount 만 쓰고 폰 명단으로 덮지 않는다', () {
+    final provider = _read('lib/providers/club_provider.dart');
+    final catalog = _read(
+        'lib/data/datasources/firestore/firestore_club_datasource.dart');
+    final join = _read(
+        'lib/data/datasources/firestore/firestore_join_request_datasource.dart');
+    expect(provider.contains('_pushClubCatalogToServer(clubId, memberCount:'),
+        isFalse);
+    expect(catalog.contains("'member_count': FieldValue.increment"), isFalse);
+    expect(join.contains("'member_count': FieldValue.increment"), isFalse);
+    expect(catalog.contains('recountClubMemberCount'), isTrue);
+    expect(join.contains('recountClubMemberCount'), isTrue);
     expect(
-      src.contains('_confirmedClubIds'),
-      isTrue,
-    );
-    expect(
-      _read('lib/domain/services/official_member_count.dart')
-          .contains('isForeignLeftoverMember'),
+      _read('lib/data/datasources/firestore/firestore_membership_count.dart')
+          .contains("where('club_id', isEqualTo: clubId)"),
       isTrue,
     );
   });

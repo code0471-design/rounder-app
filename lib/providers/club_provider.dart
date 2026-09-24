@@ -2238,8 +2238,7 @@ class ClubProvider extends ChangeNotifier with WidgetsBindingObserver {
     }
   }
 
-  /// 내가 만든·초대·승인으로 들어간 모임만 공식 회원수를 카탈로그에 쓴다.
-  /// 모임찾기 목록에 있는 남의 모임 찌꺼기 명단으로 member_count 를 덮지 않는다.
+  /// 로컬 화면용. 서버 clubs.member_count 는 멤버십 recount 만 쓴다.
   void _reconcileLiveMemberCounts() {
     final ids = <String>{
       ..._confirmedClubIds,
@@ -2251,8 +2250,7 @@ class ClubProvider extends ChangeNotifier with WidgetsBindingObserver {
       final n = _officialMemberCount(id);
       if (n <= 0) continue;
       final mine = _myClubs.where((c) => c.id == id).firstOrNull;
-      final catalog = _allClubs.where((c) => c.id == id).firstOrNull;
-      if (mine?.memberCount == n && catalog?.memberCount == n) continue;
+      if (mine?.memberCount == n) continue;
       _setMemberCount(id, n);
     }
   }
@@ -2760,15 +2758,7 @@ class ClubProvider extends ChangeNotifier with WidgetsBindingObserver {
     for (final c in _myClubs) {
       byId.putIfAbsent(c.id, () => c);
     }
-    return byId.values.map((c) {
-      // 가입하지 않은 모임의 폰 찌꺼기 명단으로 회원수를 덮지 않는다.
-      if (!_isOfficialMyClub(c.id)) return c;
-      final live = _officialMemberCount(c.id);
-      if (live > 0 && c.memberCount != live) {
-        return c.copyWith(memberCount: live);
-      }
-      return c;
-    }).where((c) {
+    return byId.values.where((c) {
       // 지역전체/전체: 전부, '지역다양함': 해당 모임만, 그 외: 시·도 접두사 or 완전일치
       final matchRegion = isAllRegionFilter(region) ||
           c.region == region ||
@@ -7082,8 +7072,20 @@ class ClubProvider extends ChangeNotifier with WidgetsBindingObserver {
     if (i2 != -1) {
       _allClubs[i2] = _allClubs[i2].copyWith(memberCount: count);
     }
-    if (!_suppressPersist && !_applyingCloudOps) {
-      unawaited(_pushClubCatalogToServer(clubId, memberCount: count));
+  }
+
+  Future<void> _recountOfficialMemberCount(String clubId) async {
+    if (_isDemoSession || clubId.trim().isEmpty) return;
+    if (!AppDependencies.instance.isInitialized ||
+        AppDependencies.instance.isOfflineMockMode) {
+      return;
+    }
+    try {
+      final n = await AppDependencies.instance.clubRepository
+          .recountMemberCount(clubId);
+      _setMemberCount(clubId, n);
+    } catch (e) {
+      debugPrint('[ClubProvider] member count recount skip: $e');
     }
   }
 
@@ -7158,7 +7160,6 @@ class ClubProvider extends ChangeNotifier with WidgetsBindingObserver {
     String? description,
     String? imageUrl,
     int? teamCount,
-    int? memberCount,
     String? hostName,
     String? hostUserId,
     String? region,
@@ -7176,7 +7177,6 @@ class ClubProvider extends ChangeNotifier with WidgetsBindingObserver {
         description: description,
         imageUrl: imageUrl,
         teamCount: teamCount,
-        memberCount: memberCount,
         hostName: hostName,
         hostUserId: hostUserId,
         region: region,
@@ -7199,7 +7199,6 @@ class ClubProvider extends ChangeNotifier with WidgetsBindingObserver {
         description: club.description,
         imageUrl: club.imageUrl,
         teamCount: club.teamCount,
-        memberCount: _officialMemberCount(club.id),
         hostName: currentUserName,
         hostUserId: (_persistAuthUserId ?? currentUserId).trim(),
       );
@@ -8006,6 +8005,7 @@ class ClubProvider extends ChangeNotifier with WidgetsBindingObserver {
     } catch (e) {
       debugPrint('[ClubProvider] approve club ops skip: $e');
     }
+    await _recountOfficialMemberCount(request.clubId);
   }
 
   void rejectRequest(String requestId) {
@@ -8157,6 +8157,19 @@ class ClubProvider extends ChangeNotifier with WidgetsBindingObserver {
     if (_persistAuthUserId != null) {
       await _saveLeftClubIds(_persistAuthUserId!);
       await _persistNow();
+    }
+    final leavingUser = (_persistAuthUserId ?? currentUserId).trim();
+    if (leavingUser.isNotEmpty &&
+        AppDependencies.instance.isInitialized &&
+        !AppDependencies.instance.isOfflineMockMode) {
+      try {
+        await AppDependencies.instance.clubRepository.removeOfficialMembership(
+          clubId: resolvedId,
+          userId: leavingUser,
+        );
+      } catch (e) {
+        debugPrint('[ClubProvider] leave membership skip: $e');
+      }
     }
     notifyListeners();
     return LeaveClubResult(success: true, treasurerVacated: wasTreasurer);

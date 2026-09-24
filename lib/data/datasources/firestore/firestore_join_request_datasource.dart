@@ -5,6 +5,7 @@ import '../../../core/firebase/firestore_paths.dart';
 import '../../../models/club_model.dart';
 import '../../mappers/join_request_mapper.dart';
 import '../../mappers/member_mapper.dart';
+import 'firestore_membership_count.dart';
 
 class FirestoreJoinRequestDataSource {
   FirestoreJoinRequestDataSource({FirebaseFirestore? firestore})
@@ -102,7 +103,6 @@ class FirestoreJoinRequestDataSource {
       final membershipRef = _db.doc(
         FirestorePaths.userMembershipDoc(request.userId, clubId),
       );
-      final clubRef = _db.doc(FirestorePaths.clubDoc(clubId));
 
       batch.update(
         requestRef,
@@ -138,12 +138,8 @@ class FirestoreJoinRequestDataSource {
         'updated_at': FieldValue.serverTimestamp(),
       }, SetOptions(merge: true));
 
-      batch.update(clubRef, {
-        'member_count': FieldValue.increment(1),
-        'updated_at': FieldValue.serverTimestamp(),
-      });
-
       await batch.commit();
+      await recountClubMemberCount(_db, clubId);
     } on FirebaseException catch (e) {
       throw NetworkDataException('가입 승인 처리 실패', cause: e);
     }

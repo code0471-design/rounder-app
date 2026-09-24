@@ -126,7 +126,6 @@ class MockClubRepository implements ClubRepository {
       description: description,
       imageUrl: imageUrl,
       teamCount: teamCount,
-      memberCount: memberCount,
       region: region,
       industry: industry,
     );
@@ -174,6 +173,39 @@ class MockClubRepository implements ClubRepository {
       member: member,
       alsoAsIds: _userAliases(userId).toList(),
     );
+  }
+
+  @override
+  Future<int> recountMemberCount(String clubId) async {
+    final seen = <String>{};
+    for (final key in _clubKeys(clubId)) {
+      for (final m in _store.membersOf(key)) {
+        if (m.status != '활성' || m.memberType == '게스트') continue;
+        seen.add(m.id);
+      }
+    }
+    final n = seen.length;
+    final i = _store.clubs.indexWhere((c) => c.id == clubId);
+    if (i != -1) {
+      _store.clubs[i] = _store.clubs[i].copyWith(memberCount: n);
+      _store.bump();
+    }
+    return n;
+  }
+
+  @override
+  Future<void> removeOfficialMembership({
+    required String clubId,
+    required String userId,
+  }) async {
+    for (final key in _clubKeys(clubId)) {
+      final map = _store.membersByClub[key];
+      if (map == null) continue;
+      for (final id in _userAliases(userId)) {
+        map.remove(id);
+      }
+    }
+    await recountMemberCount(clubId);
   }
 
   @override

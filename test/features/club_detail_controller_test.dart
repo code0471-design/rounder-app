@@ -55,6 +55,15 @@ class _FakeClubRepository implements ClubRepository {
   }) async {}
 
   @override
+  Future<int> recountMemberCount(String clubId) async => 0;
+
+  @override
+  Future<void> removeOfficialMembership({
+    required String clubId,
+    required String userId,
+  }) async {}
+
+  @override
   Future<List<ClubMemberAccount>> fetchClubMemberAccounts(String clubId) async =>
       const [];
 

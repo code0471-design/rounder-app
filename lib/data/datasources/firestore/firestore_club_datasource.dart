@@ -8,6 +8,7 @@ import '../../../models/club_model.dart';
 import '../../mappers/club_mapper.dart';
 import '../../mappers/member_mapper.dart';
 import '../../repositories/club_repository.dart';
+import 'firestore_membership_count.dart';
 
 /// clubs 컬렉션 Raw I/O (Repository 하위 계층)
 class FirestoreClubDataSource {
@@ -133,6 +134,7 @@ class FirestoreClubDataSource {
       );
 
       await batch.commit();
+      await recountClubMemberCount(_db, club.id);
     } on FirebaseException catch (e) {
       throw NetworkDataException('모임 생성 실패', cause: e);
     }
@@ -307,18 +309,29 @@ class FirestoreClubDataSource {
         throw const NetworkDataException('초대 대상 모임이 없습니다');
       }
 
-      batch.set(
-        clubRef,
-        {
-          'member_count': FieldValue.increment(1),
-          'updated_at': FieldValue.serverTimestamp(),
-        },
-        SetOptions(merge: true),
-      );
-
       await batch.commit();
+      await recountClubMemberCount(_db, clubId);
     } on FirebaseException catch (e) {
       throw NetworkDataException('초대 가입 실패', cause: e);
+    }
+  }
+
+  Future<int> recountMemberCount(String clubId) =>
+      recountClubMemberCount(_db, clubId);
+
+  Future<void> removeOfficialMembership({
+    required String clubId,
+    required String userId,
+  }) async {
+    if (clubId.trim().isEmpty || userId.trim().isEmpty) return;
+    try {
+      final batch = _db.batch();
+      batch.delete(_db.doc(FirestorePaths.userMembershipDoc(userId, clubId)));
+      batch.delete(_db.doc(FirestorePaths.clubMemberDoc(clubId, userId)));
+      await batch.commit();
+      await recountClubMemberCount(_db, clubId);
+    } on FirebaseException catch (e) {
+      throw NetworkDataException('멤버십 삭제 실패', cause: e);
     }
   }
 
@@ -346,7 +359,6 @@ class FirestoreClubDataSource {
       if (description != null) data['description'] = description;
       if (imageUrl != null) data['image_url'] = imageUrl;
       if (teamCount != null) data['team_count'] = teamCount;
-      if (memberCount != null) data['member_count'] = memberCount;
       if (region != null && region.isNotEmpty) data['region'] = region;
       if (industry != null && industry.isNotEmpty) data['industry'] = industry;
       if (hostName != null) data['host_name'] = hostName;
