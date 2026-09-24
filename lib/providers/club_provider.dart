@@ -11,6 +11,7 @@ import '../domain/services/app_data_bootstrap_service.dart';
 import '../domain/services/club_discovery_service.dart';
 import '../domain/services/demo_finance_strip.dart';
 import '../domain/services/group_assignment_service.dart';
+import '../domain/services/join_request_service.dart';
 import '../domain/data/sample_club_filter.dart';
 import '../domain/services/roster_dedupe.dart';
 import '../models/club_model.dart';
@@ -5274,18 +5275,36 @@ class ClubProvider extends ChangeNotifier with WidgetsBindingObserver {
   /// 가입 신청 알림 수신 대상 memberId (총무 → 없으면 회장 → 생성자)
   String? joinRequestNotifyTargetId(String clubId) {
     final aliases = clubIdAliases(clubId);
+    final fromAccounts = JoinRequestService.notifyAccountIds(
+      officers: [
+        for (final a in _clubAccounts[clubId] ?? const <ClubMemberAccount>[])
+          JoinOfficer(userId: a.userId, role: a.role),
+      ],
+    );
+    if (fromAccounts.isNotEmpty) return fromAccounts.first;
+
     final pool = membersForClub(legacyClubIdFor(clubId))
         .where((m) => m.status == '활성')
         .toList();
     final treasurer = pool
         .where((m) => ClubMemberRole.isTreasurer(m.role))
         .firstOrNull;
-    if (treasurer != null) return treasurer.id;
+    if (treasurer != null) {
+      return JoinRequestService.accountIdOf(
+        clubId: clubId,
+        memberOrUserId: treasurer.id,
+      );
+    }
 
     final president = pool
         .where((m) => ClubMemberRole.hasRole(m.role, ClubMemberRole.president))
         .firstOrNull;
-    if (president != null) return president.id;
+    if (president != null) {
+      return JoinRequestService.accountIdOf(
+        clubId: clubId,
+        memberOrUserId: president.id,
+      );
+    }
 
     // 내 모임 myRole 기준
     final club = _myClubs.where((c) => aliases.contains(c.id)).firstOrNull ??
@@ -5319,6 +5338,126 @@ class ClubProvider extends ChangeNotifier with WidgetsBindingObserver {
       }
     }
     return null;
+  }
+
+  /// 신청자 기기의 로컬 명단이 아니라 서버 소속·명단으로 총무(없으면 회장) 계정을 고른다.
+  Future<List<String>> _resolveJoinNotifyAccountIds(String clubId) async {
+    final officers = await _joinOfficerAccounts(clubId);
+    final club = _allClubs.where((c) => c.id == clubId).firstOrNull ??
+        _myClubs.where((c) => c.id == clubId).firstOrNull;
+    final ids = JoinRequestService.notifyAccountIds(
+      officers: officers,
+      creatorId: club?.creatorId,
+    );
+    if (ids.isNotEmpty) return ids;
+    final fallback = joinRequestNotifyTargetId(clubId);
+    if (fallback == null || fallback.isEmpty) return const [];
+    final inbox = _fcmInboxIdFor(fallback, clubId: clubId);
+    return [if (inbox.isNotEmpty) inbox else fallback];
+  }
+
+  Future<List<JoinOfficer>> _joinOfficerAccounts(String clubId) async {
+    final byId = <String, JoinOfficer>{};
+    void add(JoinOfficer officer) {
+      final uid = officer.userId.trim();
+      if (uid.isEmpty) return;
+      final prev = byId[uid];
+      if (prev == null) {
+        byId[uid] = officer;
+        return;
+      }
+      final nextIsOfficer = ClubMemberRole.isOfficer(officer.role);
+      final prevIsOfficer = ClubMemberRole.isOfficer(prev.role);
+      if (nextIsOfficer && !prevIsOfficer) {
+        byId[uid] = officer;
+      } else if (ClubMemberRole.isTreasurer(officer.role)) {
+        byId[uid] = officer;
+      }
+    }
+
+    void addLocal() {
+      for (final m in membersForClub(legacyClubIdFor(clubId))) {
+        if (m.status != '활성') continue;
+        add(JoinOfficer(
+          userId: JoinRequestService.accountIdOf(
+            clubId: clubId,
+            memberOrUserId: m.id,
+          ),
+          role: m.role,
+        ));
+      }
+    }
+
+    if (!AppDependencies.instance.isInitialized ||
+        AppDependencies.instance.isOfflineMockMode) {
+      addLocal();
+      return byId.values.toList();
+    }
+    try {
+      final accounts = await AppDependencies.instance.clubRepository
+          .fetchClubMemberAccounts(clubId)
+          .timeout(const Duration(seconds: 8));
+      if (accounts.isNotEmpty) {
+        _clubAccounts[clubId] = accounts;
+        for (final a in accounts) {
+          add(JoinOfficer(userId: a.userId, role: a.role));
+        }
+      }
+    } catch (e) {
+      debugPrint('[ClubProvider] join officer accounts skip: $e');
+    }
+    final hasOfficer = byId.values.any((o) => ClubMemberRole.isOfficer(o.role));
+    if (!hasOfficer) {
+      try {
+        final remote = await AppDependencies.instance.memberRepository
+            .fetchMembers(clubId)
+            .timeout(const Duration(seconds: 8));
+        for (final m in remote) {
+          if (m.status != '활성') continue;
+          add(JoinOfficer(
+            userId: JoinRequestService.accountIdOf(
+              clubId: clubId,
+              memberOrUserId: m.id,
+            ),
+            role: m.role,
+          ));
+        }
+      } catch (e) {
+        debugPrint('[ClubProvider] join officer members skip: $e');
+      }
+    }
+    if (byId.isEmpty) addLocal();
+    return byId.values.toList();
+  }
+
+  bool _joinNotifyHasTreasurer(String clubId) {
+    final accounts = _clubAccounts[clubId];
+    if (accounts != null &&
+        accounts.any((a) => ClubMemberRole.isTreasurer(a.role))) {
+      return true;
+    }
+    return hasActiveTreasurer(clubId);
+  }
+
+  bool _canReviewJoin(JoinRequest req) {
+    final aliases = clubIdAliases(req.clubId);
+    final club = _myClubs.where((c) => aliases.contains(c.id)).firstOrNull;
+    final reviewer = _persistAuthUserId ?? currentUserId;
+    String memberRole = '';
+    if (club != null) {
+      for (final m in membersForClub(club.id)) {
+        if (_isMyRosterRowFor(club, m.id)) {
+          memberRole = m.role;
+          break;
+        }
+      }
+    }
+    return JoinRequestService.canApprove(
+      myRole: club?.myRole ?? '',
+      creatorId: club?.creatorId,
+      reviewerId: reviewer,
+      memberRole: memberRole,
+    );
   }
 
   /// 내 모임 기준으로 볼 수 있는 알림인지
@@ -6976,6 +7115,19 @@ class ClubProvider extends ChangeNotifier with WidgetsBindingObserver {
       return false;
     }
     final applicantId = userId ?? _persistAuthUserId ?? currentUserId;
+    if (AppDependencies.instance.isInitialized &&
+        !AppDependencies.instance.isOfflineMockMode) {
+      try {
+        final existing = await AppDependencies.instance.joinRequestRepository
+            .fetchPendingForUser(clubId, applicantId);
+        if (existing != null) {
+          await publishJoinRequestToOfficer(existing);
+          return true;
+        }
+      } catch (e) {
+        debugPrint('[ClubProvider] fetch pending join user skip: $e');
+      }
+    }
     final req = JoinRequest(
       id: 'jr_${DateTime.now().millisecondsSinceEpoch}',
       clubId: clubId,
@@ -7045,13 +7197,23 @@ class ClubProvider extends ChangeNotifier with WidgetsBindingObserver {
 
     final club = _allClubs.where((c) => c.id == req.clubId).firstOrNull ??
         _myClubs.where((c) => c.id == req.clubId).firstOrNull;
-    final notifyTarget = joinRequestNotifyTargetId(req.clubId);
-    final inboxId = notifyTarget == null || notifyTarget.isEmpty
-        ? ''
-        : _fcmInboxIdFor(notifyTarget, clubId: req.clubId);
-    final notifyRole = hasActiveTreasurer(req.clubId)
+    // 신청자 폰 명단은 그 모임 총무가 없다. 서버 소속 계정으로 고른다.
+    final officerIds = await _resolveJoinNotifyAccountIds(req.clubId);
+    final inboxIds = <String>{};
+    for (final raw in officerIds) {
+      final inbox = raw.isEmpty
+          ? ''
+          : _fcmInboxIdFor(raw, clubId: req.clubId);
+      if (inbox.isNotEmpty) {
+        inboxIds.add(inbox);
+      } else if (raw.isNotEmpty) {
+        inboxIds.add(raw);
+      }
+    }
+    final notifyRole = _joinNotifyHasTreasurer(req.clubId)
         ? ClubMemberRole.treasurer
         : ClubMemberRole.president;
+    final primaryInbox = inboxIds.isEmpty ? '' : inboxIds.first;
     final noti = AppNotification(
       id: 'noti_jr_${req.id}',
       type: AppNotificationType.joinRequest,
@@ -7062,12 +7224,15 @@ class ClubProvider extends ChangeNotifier with WidgetsBindingObserver {
       body: '${req.userName}님이 가입을 신청했습니다 → $notifyRole 수신',
       createdAt: DateTime.now(),
       targetId: req.id,
-      targetUserId: inboxId.isNotEmpty ? inboxId : notifyTarget,
+      targetUserId: primaryInbox.isNotEmpty ? primaryInbox : null,
       isRead: false,
     );
 
     await ClubOpsSync.upsertClubJoinRequest(req);
-    if (inboxId.isNotEmpty && !_isSelfTarget(inboxId)) {
+    var delivered = false;
+    for (final inboxId in inboxIds) {
+      if (inboxId.isEmpty || _isSelfTarget(inboxId)) continue;
+      delivered = true;
       await ClubOpsSync.appendOfficerInbox(
         authUserId: inboxId,
         notification: noti,
@@ -7080,9 +7245,10 @@ class ClubProvider extends ChangeNotifier with WidgetsBindingObserver {
         type: HqPushCatalog.joinRequest,
         clubId: req.clubId,
       ));
-    } else if (notifyTarget != null && notifyTarget.isNotEmpty) {
+    }
+    if (!delivered && primaryInbox.isNotEmpty) {
       unawaited(PushNotificationService.enqueue(
-        targetUserId: inboxId.isNotEmpty ? inboxId : notifyTarget,
+        targetUserId: primaryInbox,
         title: noti.title,
         body: '${req.userName}님이 ${club?.name ?? '모임'} 가입을 신청했습니다',
         type: HqPushCatalog.joinRequest,
@@ -7604,6 +7770,10 @@ class ClubProvider extends ChangeNotifier with WidgetsBindingObserver {
     final idx = _joinRequests.indexWhere((r) => r.id == requestId);
     if (idx == -1) return;
     final req = _joinRequests[idx];
+    if (!_canReviewJoin(req)) {
+      debugPrint('[ClubProvider] approveRequest blocked — not an officer');
+      return;
+    }
 
     final assignedRole = ClubMemberRole.roleForMemberType(memberType, role);
     final assignedType = ClubMemberRole.memberTypeForRole(assignedRole);
@@ -7731,6 +7901,10 @@ class ClubProvider extends ChangeNotifier with WidgetsBindingObserver {
     final idx = _joinRequests.indexWhere((r) => r.id == requestId);
     if (idx == -1) return;
     final req = _joinRequests[idx];
+    if (!_canReviewJoin(req)) {
+      debugPrint('[ClubProvider] rejectRequest blocked — not an officer');
+      return;
+    }
     _joinRequests[idx] = req.copyWith(
       status: JoinRequestStatus.rejected,
       reviewedBy: currentUserName,

@@ -9,6 +9,9 @@ void main() {
     final src = read('lib/providers/club_provider.dart');
     expect(src.contains('publishJoinRequestToOfficer'), isTrue);
     expect(src.contains('joinRequestRepository.submitJoinRequest'), isTrue);
+    expect(src.contains('fetchClubMemberAccounts'), isTrue);
+    expect(src.contains('JoinRequestService.notifyAccountIds'), isTrue);
+    expect(src.contains('_canReviewJoin'), isTrue);
     expect(src.contains('ClubOpsSync.upsertClubJoinRequest'), isTrue);
     expect(src.contains('ClubOpsSync.appendOfficerInbox'), isTrue);
     expect(src.contains("notifySelf: true"), isTrue);
