@@ -278,6 +278,8 @@ final class MockDataStore extends ChangeNotifier {
   /// 테스트/데모 데이터를 시드 모임(ClubSampleCatalog) 상태로 완전 초기화.
   /// localStorage에 누적된 임의 테스트 모임·회원수를 모두 제거한다.
   void resetToSeedDefaults({bool persist = true}) {
+    _persistTimer?.cancel();
+    _persistTimer = null;
     clubs
       ..clear()
       ..addAll(ClubSampleCatalog.clubs);

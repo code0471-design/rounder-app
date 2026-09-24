@@ -46,7 +46,12 @@ final class AppDependencies {
   MockDataStore? get mockDataStore => _mockDataStore;
 
   void init({bool offlineMock = false}) {
-    if (_initialized) return;
+    if (_initialized) {
+      if (offlineMock && _offlineMock) {
+        _mockDataStore?.resetToSeedDefaults(persist: false);
+      }
+      return;
+    }
     _initialized = true;
     _offlineMock = offlineMock;
 

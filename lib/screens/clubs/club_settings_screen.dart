@@ -152,7 +152,7 @@ class _ClubSettingsScreenState extends State<ClubSettingsScreen> {
 
     setState(() => _saving = true);
     try {
-      await provider.updateClubInfo(
+      final saved = await provider.updateClubInfo(
         clubId: provider.selectedClub.id,
         name: name,
         description: description,
@@ -161,6 +161,14 @@ class _ClubSettingsScreenState extends State<ClubSettingsScreen> {
         region: _region,
         industry: _industry,
       );
+      if (!saved) {
+        if (!mounted) return;
+        setState(() => _saving = false);
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('같은 이름의 모임이 이미 있습니다')),
+        );
+        return;
+      }
     } catch (e) {
       if (!mounted) return;
       setState(() => _saving = false);

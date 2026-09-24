@@ -1,3 +1,5 @@
+import 'dart:io';
+
 import 'package:flutter_test/flutter_test.dart';
 import 'package:golf_rounder/di/app_dependencies.dart';
 import 'package:golf_rounder/domain/services/app_data_bootstrap_service.dart';
@@ -263,5 +265,11 @@ void main() {
 
     expect(clubs.selectedClub.id, aladdinId,
         reason: '홈 새로고침이 알라딘에서 아레나로 바꿔면 안 된다');
+  });
+
+  test('설정에서도 같은 이름으로는 저장하지 않는다', () {
+    final src =
+        File('lib/screens/clubs/club_settings_screen.dart').readAsStringSync();
+    expect(src.contains('같은 이름의 모임이 이미 있습니다'), isTrue);
   });
 }

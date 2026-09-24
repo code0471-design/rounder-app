@@ -12,6 +12,7 @@ import '../domain/services/club_discovery_service.dart';
 import '../domain/services/demo_finance_strip.dart';
 import '../domain/services/group_assignment_service.dart';
 import '../domain/services/join_request_service.dart';
+import '../domain/services/club_name_policy.dart';
 import '../domain/data/sample_club_filter.dart';
 import '../domain/services/roster_dedupe.dart';
 import '../models/club_model.dart';
@@ -6095,6 +6096,28 @@ class ClubProvider extends ChangeNotifier with WidgetsBindingObserver {
   //  Actions — Create Club
   // ════════════════════════════════════════════════════════
   /// 반환: 어드민 저장소(Mock/Firestore) 동기화 성공 여부
+  Future<bool> isClubNameTaken(String name, {String? exceptClubId}) async {
+    final seen = <Club>[..._allClubs, ..._myClubs];
+    if (AppDependencies.instance.isInitialized) {
+      try {
+        final remote = await AppDependencies.instance.clubRepository
+            .fetchDiscoverableClubs()
+            .timeout(const Duration(seconds: 8));
+        for (final c in remote) {
+          if (SampleClubFilter.isSample(id: c.id, name: c.name)) continue;
+          if (seen.every((x) => x.id != c.id)) seen.add(c);
+        }
+      } catch (e) {
+        debugPrint('[ClubProvider] name check catalog skip: $e');
+      }
+    }
+    return ClubNamePolicy.isTaken(
+      name: name,
+      clubs: seen,
+      exceptClubId: exceptClubId,
+    );
+  }
+
   Future<bool> createClub({
     required String name,
     required String region,
@@ -6104,6 +6127,7 @@ class ClubProvider extends ChangeNotifier with WidgetsBindingObserver {
     String description = '',
     String? imageUrl,
   }) async {
+    if (await isClubNameTaken(name)) return false;
     final id = 'c_${DateTime.now().millisecondsSinceEpoch}';
     final authUserId = _persistAuthUserId ?? currentUserId;
     final roleEncoded = ClubMemberRole.encodeRoles(
@@ -6994,7 +7018,8 @@ class ClubProvider extends ChangeNotifier with WidgetsBindingObserver {
   }
 
   /// 모임 기본 정보 수정 (이름·소개·이미지·팀 수·지역·업종)
-  Future<void> updateClubInfo({
+  /// 같은 이름이 이미 있으면 저장하지 않고 false.
+  Future<bool> updateClubInfo({
     required String clubId,
     String? name,
     String? description,
@@ -7005,6 +7030,10 @@ class ClubProvider extends ChangeNotifier with WidgetsBindingObserver {
     String? region,
     String? industry,
   }) async {
+    if (name != null &&
+        await isClubNameTaken(name, exceptClubId: clubId)) {
+      return false;
+    }
     void apply(List<Club> list) {
       final idx = list.indexWhere((c) => c.id == clubId);
       if (idx == -1) return;
@@ -7043,6 +7072,7 @@ class ClubProvider extends ChangeNotifier with WidgetsBindingObserver {
         hostUserId: hostUserId,
         region: region,
         industry: industry);
+    return true;
   }
 
   Future<void> _pushClubCatalogToServer(

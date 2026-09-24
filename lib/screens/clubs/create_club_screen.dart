@@ -6,6 +6,7 @@ import 'package:flutter/services.dart';
 import 'package:image_picker/image_picker.dart';
 import 'package:provider/provider.dart';
 
+import '../../domain/services/club_name_policy.dart';
 import '../../models/club_model.dart';
 import '../../models/member_role.dart';
 import '../../providers/auth_provider.dart';
@@ -185,6 +186,16 @@ class _CreateClubScreenState extends State<CreateClubScreen> {
       return;
     }
 
+    if (await provider.isClubNameTaken(name)) {
+      if (!mounted) return;
+      setState(() => _submitting = false);
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('같은 이름의 모임이 이미 있습니다')),
+      );
+      setState(() => _step = 0);
+      return;
+    }
+
     final synced = await provider.createClub(
       name: name,
       region: _region,
@@ -197,6 +208,14 @@ class _CreateClubScreenState extends State<CreateClubScreen> {
 
     if (!mounted) return;
     setState(() => _submitting = false);
+    if (provider.myClubs.every((c) => ClubNamePolicy.key(c.name) !=
+        ClubNamePolicy.key(name))) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('같은 이름의 모임이 이미 있습니다')),
+      );
+      setState(() => _step = 0);
+      return;
+    }
     Navigator.pop(context);
 
     ScaffoldMessenger.of(context).showSnackBar(

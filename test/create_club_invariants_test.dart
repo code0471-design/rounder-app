@@ -58,6 +58,13 @@ void main() {
       expect(src.contains('직책을 하나 이상 선택해주세요'), isTrue);
     });
 
+    test('같은 이름의 모임은 만들지 못한다', () {
+      expect(src.contains('isClubNameTaken(name)'), isTrue);
+      expect(src.contains('같은 이름의 모임이 이미 있습니다'), isTrue);
+      expect(provider.contains('if (await isClubNameTaken(name)) return false;'),
+          isTrue);
+    });
+
     test('createClub 인자와 소개 10자 제한을 깨지 않는다', () {
       expect(src.contains('provider.createClub('), isTrue);
       expect(src.contains('myRole: _myRoleEncoded'), isTrue);
