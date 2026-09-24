@@ -1149,6 +1149,7 @@ class RoundSchedule {
   final ScheduleStatus status;
   final String createdBy;      // 등록자 이름
   final List<AttendanceResponse> responses; // 참석 응답 목록
+  final List<WaitingEntry> waitingList; // 정원 마감 후 대기 명단 (일정에 저장)
   final List<String> companionIds; // 등록 시 지정한 동반자 명단
   final String? reviewMemo; // 라운딩 후기/메모
   final DateTime? rsvpDeadline; // 참석 응답 마감 (null = 마감 없음)
@@ -1177,11 +1178,13 @@ class RoundSchedule {
     this.status = ScheduleStatus.upcoming,
     required this.createdBy,
     List<AttendanceResponse>? responses,
+    List<WaitingEntry>? waitingList,
     List<String>? companionIds,
     this.reviewMemo,
     this.rsvpDeadline,
     this.deadlineNotified = false,
   })  : responses = responses ?? [],
+        waitingList = waitingList ?? [],
         companionIds = companionIds ?? [];
 
   int get daysUntil {
@@ -1246,6 +1249,7 @@ class RoundSchedule {
     String? notice,
     ScheduleStatus? status,
     List<AttendanceResponse>? responses,
+    List<WaitingEntry>? waitingList,
     List<String>? companionIds,
     String? reviewMemo,
     bool clearReviewMemo = false,
@@ -1269,6 +1273,7 @@ class RoundSchedule {
       status: status ?? this.status,
       createdBy: createdBy,
       responses: responses ?? this.responses,
+      waitingList: waitingList ?? this.waitingList,
       companionIds: companionIds ?? this.companionIds,
       reviewMemo: clearReviewMemo ? null : (reviewMemo ?? this.reviewMemo),
       rsvpDeadline:
@@ -2083,14 +2088,11 @@ class ThankYouMessage {
 // ────────────────────────────────────────────────────────────
 //  대기 등록 시스템
 // ────────────────────────────────────────────────────────────
-/// 대기 제안(자리 남음 알림) 수락 기한
-const Duration kWaitingAcceptWindow = Duration(hours: 12);
-
 enum WaitingStatus {
   waiting,   // 대기 중
-  notified,  // 알림 발송됨 (12시간 내 수락 대기)
-  accepted,  // 수락
-  expired,   // 기간 초과 (다음 대기자로 넘어감)
+  notified,  // 자리 남음 알림을 받음. 본인이 참석으로 바꿔야 확정
+  accepted,  // 예전 수락 값. 지금은 명단에서 바로 뺀다
+  expired,   // 예전 만료 값. 쓰지 않는다
   cancelled, // 본인 취소
 }
 

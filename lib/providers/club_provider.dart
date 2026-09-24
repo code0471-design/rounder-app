@@ -2417,7 +2417,9 @@ class ClubProvider extends ChangeNotifier with WidgetsBindingObserver {
     apply(_allClubs);
   }
 
-  ClubDataBundle _exportBundle() => ClubDataBundle(
+  ClubDataBundle _exportBundle() {
+    _stampWaitingOntoSchedules();
+    return ClubDataBundle(
         selectedClubIndex: _selectedClubIndex,
         freshClubIds: Set<String>.from(_freshClubIds),
         myClubs: List<Club>.from(_myClubs),
@@ -2446,6 +2448,7 @@ class ClubProvider extends ChangeNotifier with WidgetsBindingObserver {
         waitingList: List<WaitingEntry>.from(_waitingList),
         alimtalkSettings: Map<String, ClubAlimtalkSettings>.from(_alimtalkSettings),
       );
+  }
 
   String? _selectedClubIdOrNull() {
     if (_myClubs.isEmpty) return null;
@@ -2601,6 +2604,8 @@ class ClubProvider extends ChangeNotifier with WidgetsBindingObserver {
     _waitingList
       ..clear()
       ..addAll(b.waitingList);
+    _ingestWaitingFromSchedules();
+    _dropConfirmedWaiters();
     _alimtalkSettings
       ..clear()
       ..addAll(b.alimtalkSettings);
@@ -4240,27 +4245,16 @@ class ClubProvider extends ChangeNotifier with WidgetsBindingObserver {
     return targets.length;
   }
 
-  /// 대기 제안 수락/거절
+  /// 예전 12시간 수락 버튼. 지금은 참석 응답으로만 확정한다.
   void respondToWaitingOffer(String waitingId, {required bool accept}) {
     final idx = _waitingList.indexWhere((w) => w.id == waitingId);
     if (idx == -1) return;
     final w = _waitingList[idx];
     if (accept) {
-      final ok = respondToSchedule(scheduleId: w.scheduleId, response: '참석');
-      if (!ok) return;
-      _waitingList[idx] = WaitingEntry(
-        id: w.id,
-        scheduleId: w.scheduleId,
-        memberId: w.memberId,
-        memberName: w.memberName,
-        registeredAt: w.registeredAt,
-        status: WaitingStatus.accepted,
-        notifiedAt: w.notifiedAt,
-      );
-    } else {
-      _waitingList.removeAt(idx);
-      notifyFirstWaiting(w.scheduleId);
+      respondToSchedule(scheduleId: w.scheduleId, response: '참석');
+      return;
     }
+    _removeWaitingEntry(w.id);
     notifyListeners();
     _persistImmediately();
   }
@@ -5213,6 +5207,11 @@ class ClubProvider extends ChangeNotifier with WidgetsBindingObserver {
       response: response,
     );
 
+    if (response == '참석') {
+      _acceptWaitingIfAny(scheduleId, memberId);
+    } else {
+      _cancelWaitingIfAny(scheduleId, memberId);
+    }
     if (prev == '참석' && response == '불참') {
       notifyFirstWaiting(scheduleId);
       _notifyTreasurerIfDroppedFromGroup(
@@ -10327,8 +10326,9 @@ class ClubProvider extends ChangeNotifier with WidgetsBindingObserver {
 
   // ════════════════════════════════════════════════════════
   //  라운딩 대기 등록 시스템
-  //  · 정원 초과 시 대기 등록
-  //  · 취소자 발생 시 대기자 자동 알림
+  //  · 정원 있는 일정만. 마감 후 참석은 대기 등록
+  //  · 결원 시 자동 참석 없음. 아직 알림 안 받은 1번에게만 푸시
+  //  · 대기자가 참석으로 바꾸면 명단에서 즉시 제외
   // ════════════════════════════════════════════════════════
 
   final List<WaitingEntry> _waitingList = [];
@@ -10336,17 +10336,94 @@ class ClubProvider extends ChangeNotifier with WidgetsBindingObserver {
   List<WaitingEntry> get waitingList => List.unmodifiable(_waitingList);
 
   List<WaitingEntry> waitingListForSchedule(String scheduleId) =>
-      _waitingList.where((w) => w.scheduleId == scheduleId).toList()
+      _waitingList
+          .where((w) =>
+              w.scheduleId == scheduleId &&
+              (w.status == WaitingStatus.waiting ||
+                  w.status == WaitingStatus.notified))
+          .toList()
         ..sort((a, b) => a.registeredAt.compareTo(b.registeredAt));
 
-  /// 대기 등록
+  bool scheduleUsesWaitlist(String scheduleId) {
+    final s = scheduleById(scheduleId);
+    if (s == null) return false;
+    return s.teamCount > 0 || s.maxCapacity != null;
+  }
+
+  void _stampWaitingOntoSchedules() {
+    final bySchedule = <String, List<WaitingEntry>>{};
+    for (final w in _waitingList) {
+      if (w.status != WaitingStatus.waiting &&
+          w.status != WaitingStatus.notified) {
+        continue;
+      }
+      bySchedule.putIfAbsent(w.scheduleId, () => []).add(w);
+    }
+    for (var i = 0; i < _schedules.length; i++) {
+      final s = _schedules[i];
+      _schedules[i] = s.copyWith(
+        waitingList: List<WaitingEntry>.from(bySchedule[s.id] ?? const []),
+      );
+    }
+  }
+
+  void _ingestWaitingFromSchedules() {
+    for (final s in _schedules) {
+      for (final w in s.waitingList) {
+        if (ClubOpsSync.isWaitingRemoved(w.id)) continue;
+        if (w.status == WaitingStatus.accepted ||
+            w.status == WaitingStatus.expired ||
+            w.status == WaitingStatus.cancelled) {
+          ClubOpsSync.markWaitingRemoved(w.id);
+          continue;
+        }
+        if (_waitingList.any((x) => x.id == w.id)) continue;
+        _waitingList.add(w);
+      }
+    }
+  }
+
+  void _dropConfirmedWaiters() {
+    _waitingList.removeWhere((w) {
+      if (ClubOpsSync.isWaitingRemoved(w.id)) return true;
+      if (w.status == WaitingStatus.accepted ||
+          w.status == WaitingStatus.expired ||
+          w.status == WaitingStatus.cancelled) {
+        ClubOpsSync.markWaitingRemoved(w.id);
+        return true;
+      }
+      final s = scheduleById(w.scheduleId);
+      final attending = s?.responses.any(
+            (r) => r.memberId == w.memberId && r.response == '참석',
+          ) ??
+          false;
+      if (attending) {
+        ClubOpsSync.markWaitingRemoved(w.id);
+        return true;
+      }
+      return false;
+    });
+    _stampWaitingOntoSchedules();
+  }
+
+  void _removeWaitingEntry(String waitingId) {
+    ClubOpsSync.markWaitingRemoved(waitingId);
+    _waitingList.removeWhere((w) => w.id == waitingId);
+    _stampWaitingOntoSchedules();
+  }
+
+  /// 대기 등록. 정원 없는 일정에는 넣지 않는다.
   void addToWaitingList({
     required String scheduleId,
     required String memberId,
     required String memberName,
   }) {
-    // 이미 대기 중인지 확인
-    if (_waitingList.any((w) => w.scheduleId == scheduleId && w.memberId == memberId)) {
+    if (!scheduleUsesWaitlist(scheduleId)) return;
+    if (_waitingList.any((w) =>
+        w.scheduleId == scheduleId &&
+        w.memberId == memberId &&
+        (w.status == WaitingStatus.waiting ||
+            w.status == WaitingStatus.notified))) {
       return;
     }
     _waitingList.add(WaitingEntry(
@@ -10357,20 +10434,22 @@ class ClubProvider extends ChangeNotifier with WidgetsBindingObserver {
       registeredAt: DateTime.now(),
       status: WaitingStatus.waiting,
     ));
+    _stampWaitingOntoSchedules();
     notifyListeners();
     _persistImmediately();
   }
 
   /// 대기 취소
   void cancelWaiting(String waitingId) {
-    _waitingList.removeWhere((w) => w.id == waitingId);
+    _removeWaitingEntry(waitingId);
     notifyListeners();
     _persistImmediately();
   }
 
-  /// 대기 1번 연락: 앱 알림 + FCM. 알림톡은 나가지 않는다.
-  /// 자동 참석 확정은 하지 않는다. 대기자가 참석으로 응답해야 들어온다.
+  /// 아직 알림 안 받은 대기 1번에게만 푸시·인박스.
+  /// 자동 참석·「참석이 확정되었습니다」·12시간 만료는 없다.
   void notifyFirstWaiting(String scheduleId) {
+    if (!scheduleUsesWaitlist(scheduleId)) return;
     final waiters = waitingListForSchedule(scheduleId)
         .where((w) => w.status == WaitingStatus.waiting)
         .toList();
@@ -10388,55 +10467,60 @@ class ClubProvider extends ChangeNotifier with WidgetsBindingObserver {
         notifiedAt: DateTime.now(),
       );
     }
+    _stampWaitingOntoSchedules();
     final schedule = scheduleById(scheduleId);
     final inboxId = _fcmInboxIdFor(firstWaiter.memberId);
-    addAppNotification(AppNotification(
+    final target = inboxId.isNotEmpty ? inboxId : firstWaiter.memberId;
+    final noti = AppNotification(
       id: 'noti_wl_${DateTime.now().millisecondsSinceEpoch}',
       type: AppNotificationType.announcement,
       clubId: schedule?.clubId ?? selectedClub.id,
       clubName: selectedClub.name,
-      title: '대기 순번 — 참석 가능',
-      body:
-          '${schedule?.displayTitle ?? '라운딩'}에 자리가 생겼습니다. 12시간 안에 참석으로 응답하면 확정됩니다.',
+      title: '참석이 가능해졌습니다',
+      body: '참석자 취소로 참석이 가능해졌습니다. 참석으로 변경해 주세요.',
       createdAt: DateTime.now(),
       targetId: scheduleId,
-      targetUserId: inboxId.isNotEmpty ? inboxId : firstWaiter.memberId,
+      targetUserId: target,
       isRead: false,
-    ));
+    );
+    addAppNotification(noti);
+    if (target.isNotEmpty) {
+      unawaited(ClubOpsSync.appendApplicantInbox(
+        authUserId: target,
+        notification: noti,
+      ));
+    }
     notifyListeners();
     _persistImmediately();
   }
 
-  /// 대기자가 참석으로 확정할 때 대기 상태 → accepted
+  /// 대기자가 참석으로 바꾸면 명단에서 즉시 뺀다. 다시 불러와도 안 올라온다.
   void _acceptWaitingIfAny(String scheduleId, String memberId) {
-    final idx = _waitingList.indexWhere(
-      (w) =>
-          w.scheduleId == scheduleId &&
-          w.memberId == memberId &&
-          (w.status == WaitingStatus.waiting ||
-              w.status == WaitingStatus.notified),
-    );
-    if (idx == -1) return;
-    final w = _waitingList[idx];
-    _waitingList[idx] = WaitingEntry(
-      id: w.id,
-      scheduleId: w.scheduleId,
-      memberId: w.memberId,
-      memberName: w.memberName,
-      registeredAt: w.registeredAt,
-      status: WaitingStatus.accepted,
-      notifiedAt: w.notifiedAt,
-    );
+    final ids = [
+      for (final w in _waitingList)
+        if (w.scheduleId == scheduleId &&
+            w.memberId == memberId &&
+            (w.status == WaitingStatus.waiting ||
+                w.status == WaitingStatus.notified))
+          w.id,
+    ];
+    for (final id in ids) {
+      _removeWaitingEntry(id);
+    }
   }
 
   void _cancelWaitingIfAny(String scheduleId, String memberId) {
-    _waitingList.removeWhere(
-      (w) =>
-          w.scheduleId == scheduleId &&
-          w.memberId == memberId &&
-          (w.status == WaitingStatus.waiting ||
-              w.status == WaitingStatus.notified),
-    );
+    final ids = [
+      for (final w in _waitingList)
+        if (w.scheduleId == scheduleId &&
+            w.memberId == memberId &&
+            (w.status == WaitingStatus.waiting ||
+                w.status == WaitingStatus.notified))
+          w.id,
+    ];
+    for (final id in ids) {
+      _removeWaitingEntry(id);
+    }
   }
 
   /// 확정 참석 인원이 정원(팀수×4, 또는 그 이상 maxCapacity)에 찼는지

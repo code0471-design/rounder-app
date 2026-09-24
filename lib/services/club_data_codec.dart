@@ -606,6 +606,7 @@ class ClubDataCodec {
         'status': s.status.name,
         'createdBy': s.createdBy,
         'responses': s.responses.map(_encodeAttendanceResponse).toList(),
+        'waitingList': s.waitingList.map(_encodeWaiting).toList(),
         'companionIds': s.companionIds,
         'reviewMemo': s.reviewMemo,
         'rsvpDeadline': _dt(s.rsvpDeadline),
@@ -635,6 +636,10 @@ class ClubDataCodec {
           .map((e) => _decodeAttendanceResponse(
                 Map<String, dynamic>.from(e as Map),
               ))
+          .toList(),
+      waitingList: (j['waitingList'] as List<dynamic>? ?? [])
+          .whereType<Map>()
+          .map((e) => _decodeWaiting(Map<String, dynamic>.from(e)))
           .toList(),
       companionIds: (j['companionIds'] as List<dynamic>? ?? [])
           .map((e) => e as String)

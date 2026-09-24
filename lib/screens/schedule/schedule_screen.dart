@@ -757,7 +757,7 @@ class _AttendButton extends StatelessWidget {
                           scheduleId: schedule.id, response: '참석');
                       if (sheetCtx.mounted) {
                         ScaffoldMessenger.of(sheetCtx).showSnackBar(
-                          _snack('참석이 확정되었습니다 ✅', AppColors.success),
+                          _snack('참석으로 변경했습니다', AppColors.success),
                         );
                       }
                     }
@@ -1331,7 +1331,7 @@ class ScheduleDetailScreen extends StatelessWidget {
 
                       const SizedBox(height: 16),
 
-                      // ── RSVP 마감 안내 + 대기 명단 (정원 초과 자동 승격) ──
+                      // ── RSVP 마감 안내 + 대기 명단 (결원 시 자동 참석 없음) ──
                       _RsvpWaitingCard(schedule: schedule, isAdmin: isAdmin),
 
                       const SizedBox(height: 16),
@@ -1459,7 +1459,7 @@ class ScheduleDetailScreen extends StatelessWidget {
                         if (context.mounted) {
                           ScaffoldMessenger.of(context).showSnackBar(
                             SnackBar(
-                              content: const Text('참석이 확정되었습니다'),
+                              content: const Text('참석으로 변경했습니다'),
                               backgroundColor: AppColors.charcoal,
                               behavior: SnackBarBehavior.floating,
                             ),
@@ -1783,7 +1783,7 @@ class ScheduleDetailScreen extends StatelessWidget {
           ],
         ),
         content: const Text(
-          '이미 정원이 마감된 모임입니다.\n\n대기 상태로 등록되며, 결원 발생 시 자동으로 참석 확정됩니다.',
+          '이미 정원이 마감된 모임입니다.\n\n대기 명단에 등록하면 자리가 생길 때 앱 푸시로 알려 드립니다. 참석으로 변경해야 확정됩니다.',
           style: TextStyle(fontSize: 14, height: 1.6),
         ),
         actionsPadding: const EdgeInsets.fromLTRB(16, 0, 16, 16),
@@ -1847,13 +1847,7 @@ class ScheduleDetailScreen extends StatelessWidget {
                         color: AppColors.danger),
                   ),
                   const TextSpan(text: '되었습니다.\n\n'),
-                  const TextSpan(text: '대기 명단에 등록하면 자리가 생길 때 알림을 드립니다. '),
-                  TextSpan(
-                    text: '(12시간 내 수락 필요)',
-                    style: TextStyle(
-                        fontSize: 12,
-                        color: AppColors.textSecondary),
-                  ),
+                  const TextSpan(text: '대기 명단에 등록하면 자리가 생길 때 알림을 드립니다. 참석으로 변경해야 확정됩니다.'),
                 ],
               ),
             ),
@@ -2372,10 +2366,10 @@ class _ReviewMemoCardState extends State<_ReviewMemoCard> {
 }
 
 // ════════════════════════════════════════════════════════════
-//  RSVP 마감 안내 + 대기 명단(정원 초과 자동 승격) 카드
+//  RSVP 마감 안내 + 대기 명단
 //  · 마감시간이 지나면 미응답자 알림이 자동 발송된다 (관리자는 즉시 재발송 가능)
-//  · 정원 초과로 대기 등록된 인원은 자리가 나면 순서대로 자동 알림을 받고,
-//    12시간 내 수락하지 않으면 자동으로 다음 대기자에게 순번이 넘어간다
+//  · 정원 마감 후 참석은 대기 등록. 결원 시 자동 참석 없음.
+//    아직 알림 안 받은 대기 1번에게만 푸시. 본인이 참석으로 바꿔야 확정
 // ════════════════════════════════════════════════════════════
 class _RsvpWaitingCard extends StatefulWidget {
   final RoundSchedule schedule;
@@ -2569,8 +2563,7 @@ class _RsvpWaitingCardState extends State<_RsvpWaitingCard> {
                                 fontSize: 12, color: AppColors.textSecondary)),
                       ],
                     ),
-                    // ── 내가 자리 제안(알림)을 받은 경우 — 수락/거절 배너 ──
-                    if (myEntry != null && myEntry.status == WaitingStatus.notified) ...[
+                      if (myEntry != null && myEntry.status == WaitingStatus.notified) ...[
                       const SizedBox(height: 12),
                       Container(
                         padding: const EdgeInsets.all(12),
@@ -2579,52 +2572,12 @@ class _RsvpWaitingCardState extends State<_RsvpWaitingCard> {
                           borderRadius: BorderRadius.circular(10),
                           border: Border.all(color: AppColors.warning.withValues(alpha: 0.35)),
                         ),
-                        child: Column(
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          children: [
-                            const Text('🎉 자리가 났습니다! 지금 수락하시겠어요?',
-                                style: TextStyle(
-                                    fontSize: 13, fontWeight: FontWeight.w700,
-                                    color: AppColors.textPrimary)),
-                            const SizedBox(height: 4),
-                            Text(
-                              '${kWaitingAcceptWindow.inHours}시간 내 수락하지 않으면 다음 대기자에게 순번이 넘어갑니다',
-                              style: const TextStyle(fontSize: 11, color: AppColors.textSecondary),
-                            ),
-                            const SizedBox(height: 10),
-                            Row(
-                              children: [
-                                Expanded(
-                                  child: OutlinedButton(
-                                    onPressed: () {
-                                      provider.respondToWaitingOffer(myEntry.id, accept: false);
-                                      ScaffoldMessenger.of(context).showSnackBar(
-                                        _snack('대기를 거절했습니다', AppColors.textSecondary),
-                                      );
-                                    },
-                                    style: OutlinedButton.styleFrom(
-                                        foregroundColor: AppColors.textSecondary),
-                                    child: const Text('거절'),
-                                  ),
-                                ),
-                                const SizedBox(width: 10),
-                                Expanded(
-                                  child: ElevatedButton(
-                                    onPressed: () {
-                                      provider.respondToWaitingOffer(myEntry.id, accept: true);
-                                      ScaffoldMessenger.of(context).showSnackBar(
-                                        _snack('참석이 확정되었습니다 ✅', AppColors.charcoal),
-                                      );
-                                    },
-                                    style: ElevatedButton.styleFrom(
-                                        backgroundColor: AppColors.charcoal,
-                                        foregroundColor: Colors.white),
-                                    child: const Text('수락'),
-                                  ),
-                                ),
-                              ],
-                            ),
-                          ],
+                        child: const Text(
+                          '참석이 가능해졌습니다. 참석으로 변경해 주세요.',
+                          style: TextStyle(
+                              fontSize: 13,
+                              fontWeight: FontWeight.w700,
+                              color: AppColors.textPrimary),
                         ),
                       ),
                     ],

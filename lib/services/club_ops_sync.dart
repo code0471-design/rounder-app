@@ -129,11 +129,11 @@ class ClubOpsSync {
           remote: remote['groupAssignments'],
           localWins: true,
         );
-        slice['waitingList'] = mergeRowsById(
+        slice['waitingList'] = applyWaitingTombstones(mergeRowsById(
           local: slice['waitingList'] as List? ?? const [],
           remote: remote['waitingList'] as List? ?? const [],
           localWins: true,
-        );
+        ));
         slice['awardRecords'] = mergeRowsById(
           local: slice['awardRecords'] as List? ?? const [],
           remote: remote['awardRecords'] as List? ?? const [],
@@ -645,6 +645,39 @@ class ClubOpsSync {
     _removedDuesSettingIds.clear();
   }
 
+  static final Set<String> _removedWaitingIds = {};
+
+  /// 참석 확정·대기 취소 후 원격 옛 목록이 되살리지 못하게 한다.
+  static void markWaitingRemoved(String waitingId) {
+    if (waitingId.isEmpty) return;
+    _removedWaitingIds.add(waitingId);
+  }
+
+  static bool isWaitingRemoved(String waitingId) =>
+      waitingId.isNotEmpty && _removedWaitingIds.contains(waitingId);
+
+  static void seedRemovedWaitings(Iterable<String> waitingIds) {
+    for (final id in waitingIds) {
+      markWaitingRemoved(id);
+    }
+  }
+
+  @visibleForTesting
+  static void resetWaitingTombstones() {
+    _removedWaitingIds.clear();
+  }
+
+  @visibleForTesting
+  static List<dynamic> applyWaitingTombstones(List? list) {
+    return [
+      for (final e in list ?? const [])
+        if (e is Map &&
+            (e['id'] as String? ?? '').isNotEmpty &&
+            !_removedWaitingIds.contains(e['id']))
+          Map<String, dynamic>.from(e),
+    ];
+  }
+
   static final Set<String> _removedNotificationIds = {};
 
   /// 지운 인앱 알림. pull/watch 가 user_ops 옛 목록으로 되살리지 못하게 한다.
@@ -1137,7 +1170,7 @@ class ClubOpsSync {
           (w) => w is! Map || !scheduleIds.contains(w['scheduleId'])),
       ..._asDynamicMaps(remote['waitingList']),
     ];
-    encoded['waitingList'] = waiting;
+    encoded['waitingList'] = applyWaitingTombstones(waiting);
 
     final ats = Map<String, dynamic>.from(
       (encoded['alimtalkSettings'] as Map?)?.map(

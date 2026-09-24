@@ -152,6 +152,13 @@ void main() {
         reason: '정원 마감은 effectiveCapacity로 봐야 대기가 열린다');
     expect(source.contains('maxCapacity ?? 9999'), isFalse,
         reason: 'maxCapacity 없으면 9999로 봐서 대기가 영영 안 열린다');
+    expect(source.contains('12시간'), isFalse,
+        reason: '대기 수락 만료를 두면 안 된다');
+    expect(source.contains('자동으로 참석 확정'), isFalse,
+        reason: '결원 시 자동 참석이면 안 된다');
+    expect(source.contains('참석이 확정되었습니다'), isFalse,
+        reason: '자동 확정 알림이면 안 된다');
+    expect(source.contains('참석이 가능해졌습니다. 참석으로 변경해 주세요.'), isTrue);
   });
 
   test('조편성 보기 헤더는 확정·편집을 세로로 두고 안내를 두 줄로 쓴다', () {

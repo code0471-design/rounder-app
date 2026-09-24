@@ -178,11 +178,128 @@ void main() {
     final waiters = clubs.waitingListForSchedule('s_drop');
     expect(waiters.first.status, WaitingStatus.notified);
     expect(
+      clubs.scheduleById('s_drop')!.responses.any(
+            (r) => r.memberId == waiterId && r.response == '참석',
+          ),
+      isFalse,
+      reason: '결원 시 대기 1번을 자동 참석 시키면 안 된다',
+    );
+    expect(
       clubs.appNotifications.any((n) =>
-          n.title.contains('대기') &&
+          n.title == '참석이 가능해졌습니다' &&
+          n.body.contains('참석으로 변경해 주세요') &&
           (n.targetUserId == waiterId || n.targetUserId == 'kakao_wait')),
       isTrue,
-      reason: '대기 1번은 알림톡이 아니라 앱 알림+FCM 대상이어야 한다',
+      reason: '대기 1번은 푸시·인박스로 참석 가능만 알린다',
+    );
+    expect(
+      clubs.appNotifications.any((n) => n.title.contains('참석이 확정되었습니다')),
+      isFalse,
+    );
+  });
+
+  test('대기자가 참석으로 바꾸면 명단에서 빠지고 다시 불러와도 없다', () {
+    clubs.addSchedule(sched('s_confirm'));
+    clubs.adminSetAttendance(
+      scheduleId: 's_confirm',
+      memberId: leftoverId,
+      memberName: 'Jeongwon Lee',
+      response: '참석',
+    );
+    clubs.addToWaitingList(
+      scheduleId: 's_confirm',
+      memberId: waiterId,
+      memberName: '대기김',
+    );
+    clubs.adminSetAttendance(
+      scheduleId: 's_confirm',
+      memberId: leftoverId,
+      memberName: 'Jeongwon Lee',
+      response: '불참',
+    );
+    expect(clubs.waitingListForSchedule('s_confirm'), isNotEmpty);
+    clubs.adminSetAttendance(
+      scheduleId: 's_confirm',
+      memberId: waiterId,
+      memberName: '대기김',
+      response: '참석',
+    );
+    expect(clubs.waitingListForSchedule('s_confirm'), isEmpty,
+        reason: '참석 확정 뒤 대기 명단에 남아 있으면 안 된다');
+    final stale = clubs.exportBundleForTest();
+    expect(
+      stale.waitingList.any(
+        (w) => w.scheduleId == 's_confirm' && w.memberId == waiterId,
+      ),
+      isFalse,
+      reason: '다시 불러와도 확정된 대기자는 올라오면 안 된다',
+    );
+    expect(
+      stale.schedules
+          .firstWhere((s) => s.id == 's_confirm')
+          .waitingList
+          .any((w) => w.memberId == waiterId),
+      isFalse,
+      reason: '대기 명단은 일정에 저장되고 확정자는 빠져 있어야 한다',
+    );
+  });
+
+  test('자리가 또 나면 아직 알림 안 받은 다음 대기자에게 간다', () {
+    clubs.addSchedule(sched('s_next'));
+    clubs.adminSetAttendance(
+      scheduleId: 's_next',
+      memberId: leftoverId,
+      memberName: 'Jeongwon Lee',
+      response: '참석',
+    );
+    clubs.adminSetAttendance(
+      scheduleId: 's_next',
+      memberId: extraA,
+      memberName: '회원A',
+      response: '참석',
+    );
+    clubs.addToWaitingList(
+      scheduleId: 's_next',
+      memberId: waiterId,
+      memberName: '대기김',
+    );
+    clubs.addToWaitingList(
+      scheduleId: 's_next',
+      memberId: extraB,
+      memberName: '회원B',
+    );
+    clubs.adminSetAttendance(
+      scheduleId: 's_next',
+      memberId: leftoverId,
+      memberName: 'Jeongwon Lee',
+      response: '불참',
+    );
+    expect(
+      clubs.waitingListForSchedule('s_next').first.memberId,
+      waiterId,
+    );
+    expect(
+      clubs.waitingListForSchedule('s_next').first.status,
+      WaitingStatus.notified,
+    );
+    expect(
+      clubs.waitingListForSchedule('s_next')
+          .firstWhere((w) => w.memberId == extraB)
+          .status,
+      WaitingStatus.waiting,
+    );
+    clubs.adminSetAttendance(
+      scheduleId: 's_next',
+      memberId: extraA,
+      memberName: '회원A',
+      response: '불참',
+    );
+    expect(
+      clubs.waitingListForSchedule('s_next')
+          .firstWhere((w) => w.memberId == extraB)
+          .status,
+      WaitingStatus.notified,
+      reason: '두 번째 결원은 아직 알림 안 받은 다음 대기자에게 간다',
     );
   });
 
