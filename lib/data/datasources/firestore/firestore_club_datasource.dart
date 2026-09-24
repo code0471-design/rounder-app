@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:flutter/foundation.dart';
 
@@ -145,43 +147,129 @@ class FirestoreClubDataSource {
     String defaultMyRole = '일반',
   }) async {
     try {
-      final membershipSnap = await _db
-          .collection(FirestorePaths.userMemberships)
-          .where('user_id', isEqualTo: userId)
-          .get();
-
-      if (membershipSnap.docs.isEmpty) return [];
-
-      final clubIds = membershipSnap.docs
-          .map((d) => d.data()['club_id'] as String?)
-          .whereType<String>()
-          .toSet()
-          .toList();
-
-      if (clubIds.length <= 10) {
-        final snap = await _clubs
-            .where(FieldPath.documentId, whereIn: clubIds)
-            .get();
-        return snap.docs
-            .where((d) => !SampleClubFilter.isSampleDoc(d.id, d.data()))
-            .map((d) {
-          final role = membershipSnap.docs
-              .firstWhere(
-                (m) => m.data()['club_id'] == d.id,
-                orElse: () => membershipSnap.docs.first,
-              )
-              .data()['role'] as String?;
-          return ClubMapper.fromFirestore(
-            d,
-            myRole: role ?? defaultMyRole,
-          );
-        }).toList();
+      final roles = <String, String>{};
+      void remember(String clubId, String? role) {
+        final id = clubId.trim();
+        if (id.isEmpty) return;
+        final next = (role ?? '').trim();
+        if (next.isEmpty) {
+          roles.putIfAbsent(id, () => defaultMyRole);
+        } else {
+          roles[id] = next;
+        }
       }
 
-      final all = await fetchAllClubs(defaultMyRole: defaultMyRole);
-      return all.where((c) => clubIds.contains(c.id)).toList();
+      // 1) 공식 멤버십
+      try {
+        final membershipSnap = await _db
+            .collection(FirestorePaths.userMemberships)
+            .where('user_id', isEqualTo: userId)
+            .get();
+        for (final d in membershipSnap.docs) {
+          remember(
+            '${d.data()['club_id'] ?? ''}',
+            d.data()['role'] as String?,
+          );
+        }
+      } catch (e) {
+        debugPrint('[FirestoreClubDataSource] user_memberships skip: $e');
+      }
+
+      // 2) 내가 만든 모임 — 예전 빌드는 멤버십 문서를 안 남겼다.
+      try {
+        final created = await _clubs.where('creator_id', isEqualTo: userId).get();
+        for (final d in created.docs) {
+          remember(d.id, '회장');
+        }
+      } catch (e) {
+        debugPrint('[FirestoreClubDataSource] creator_id skip: $e');
+      }
+      try {
+        final hosted =
+            await _clubs.where('host_user_id', isEqualTo: userId).get();
+        for (final d in hosted.docs) {
+          remember(d.id, '회장');
+        }
+      } catch (e) {
+        debugPrint('[FirestoreClubDataSource] host_user_id skip: $e');
+      }
+
+      // 3) 모임 명단 — 초대·승인만 있고 user_memberships 가 없는 가입
+      try {
+        final byUser = await _db
+            .collectionGroup(FirestorePaths.members)
+            .where('user_id', isEqualTo: userId)
+            .get();
+        for (final d in byUser.docs) {
+          final data = d.data();
+          final status = '${data['status'] ?? ''}';
+          if (status.isNotEmpty && status != '활성') continue;
+          remember(_clubIdFromMemberDoc(d), data['role'] as String?);
+        }
+      } catch (e) {
+        debugPrint('[FirestoreClubDataSource] members user_id skip: $e');
+      }
+      try {
+        final byId = await _db
+            .collectionGroup(FirestorePaths.members)
+            .where('id', isEqualTo: userId)
+            .get();
+        for (final d in byId.docs) {
+          final data = d.data();
+          final status = '${data['status'] ?? ''}';
+          if (status.isNotEmpty && status != '활성') continue;
+          remember(_clubIdFromMemberDoc(d), data['role'] as String?);
+        }
+      } catch (e) {
+        debugPrint('[FirestoreClubDataSource] members id skip: $e');
+      }
+
+      if (roles.isEmpty) return [];
+
+      final clubs = <Club>[];
+      for (final entry in roles.entries) {
+        try {
+          final doc = await _clubs.doc(entry.key).get();
+          if (!doc.exists) continue;
+          if (SampleClubFilter.isSampleDoc(doc.id, doc.data())) continue;
+          clubs.add(ClubMapper.fromFirestore(doc, myRole: entry.value));
+          unawaited(_backfillMembership(
+            userId: userId,
+            clubId: entry.key,
+            role: entry.value,
+          ));
+        } catch (e) {
+          debugPrint('[FirestoreClubDataSource] skip club ${entry.key}: $e');
+        }
+      }
+      return clubs;
     } on FirebaseException catch (e) {
       throw NetworkDataException('내 모임 조회 실패', cause: e);
+    }
+  }
+
+  String _clubIdFromMemberDoc(DocumentSnapshot<Map<String, dynamic>> doc) {
+    final fromField = '${doc.data()?['club_id'] ?? ''}'.trim();
+    if (fromField.isNotEmpty) return fromField;
+    return doc.reference.parent.parent?.id ?? '';
+  }
+
+  Future<void> _backfillMembership({
+    required String userId,
+    required String clubId,
+    required String role,
+  }) async {
+    if (userId.trim().isEmpty || clubId.trim().isEmpty) return;
+    try {
+      await _db.doc(FirestorePaths.userMembershipDoc(userId, clubId)).set({
+        'user_id': userId,
+        'club_id': clubId,
+        'role': role,
+        'updated_at': FieldValue.serverTimestamp(),
+        'backfilled': true,
+      }, SetOptions(merge: true));
+    } catch (e) {
+      debugPrint('[FirestoreClubDataSource] membership backfill skip: $e');
     }
   }
 

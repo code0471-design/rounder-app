@@ -1288,11 +1288,33 @@ class ClubProvider extends ChangeNotifier with WidgetsBindingObserver {
     return changed;
   }
 
+  Future<List<Club>> _fetchServerMyClubs(String authUserId) async {
+    final repo = AppDependencies.instance.clubRepository;
+    final ids = <String>{
+      authUserId,
+      if (currentUserId.trim().isNotEmpty) currentUserId,
+    };
+    final byId = <String, Club>{};
+    Object? lastError;
+    var anyOk = false;
+    for (final id in ids) {
+      try {
+        for (final c in await repo.fetchMyClubs(id)) {
+          byId.putIfAbsent(c.id, () => c);
+        }
+        anyOk = true;
+      } catch (e) {
+        lastError = e;
+      }
+    }
+    if (!anyOk && lastError != null) throw lastError;
+    return byId.values.toList();
+  }
+
   Future<bool> _ingestServerMemberships(String authUserId) async {
     var changed = false;
     try {
-      final remote = await AppDependencies.instance.clubRepository
-          .fetchMyClubs(authUserId);
+      final remote = await _fetchServerMyClubs(authUserId);
       for (final c in remote) {
         if (SampleClubFilter.isSample(id: c.id, name: c.name)) continue;
         if (_ingestOwnedClub(c, const [])) changed = true;
@@ -1310,8 +1332,7 @@ class ClubProvider extends ChangeNotifier with WidgetsBindingObserver {
     if (_isDemoSession) return false;
     List<Club> remote;
     try {
-      remote = await AppDependencies.instance.clubRepository
-          .fetchMyClubs(authUserId);
+      remote = await _fetchServerMyClubs(authUserId);
     } catch (e) {
       debugPrint('[ClubProvider] replace my clubs skip: $e');
       return false;
@@ -1320,6 +1341,10 @@ class ClubProvider extends ChangeNotifier with WidgetsBindingObserver {
       for (final c in remote)
         if (!SampleClubFilter.isSample(id: c.id, name: c.name)) c,
     ];
+    if (remote.isEmpty) {
+      debugPrint('[ClubProvider] replace my clubs skip: empty memberships');
+      return false;
+    }
     for (final c in remote) {
       _leftClubIds.removeWhere((id) => clubIdAliases(c.id).contains(id));
     }
@@ -1366,22 +1391,11 @@ class ClubProvider extends ChangeNotifier with WidgetsBindingObserver {
 
   bool _purgeDemoIdentityClubs() {
     if (_isDemoSession) return false;
-    const demoCreators = {
-      'user_me',
-      'm1',
-      'user_guest',
-      'mg1',
-      'user_other',
-      'm4',
-    };
     final drop = <String>{};
     for (final c in _myClubs) {
       if (SampleClubFilter.isSample(id: c.id, name: c.name)) {
         drop.add(c.id);
-        continue;
       }
-      final cid = c.creatorId.trim();
-      if (demoCreators.contains(cid)) drop.add(c.id);
     }
     if (drop.isEmpty) return false;
     _myClubs.removeWhere((c) => drop.contains(c.id));
@@ -1435,16 +1449,19 @@ class ClubProvider extends ChangeNotifier with WidgetsBindingObserver {
     if (_isDemoSession || _myClubs.isEmpty) return false;
     if (!AppDependencies.instance.isInitialized) return false;
 
-    final repo = AppDependencies.instance.clubRepository;
     List<Club> serverMine;
     try {
-      serverMine = await repo.fetchMyClubs(authUserId);
+      serverMine = await _fetchServerMyClubs(authUserId);
     } catch (e) {
       debugPrint('[ClubProvider] prune skip (멤버십 조회 실패): $e');
       return false;
     }
 
     final mineIds = serverMine.map((c) => c.id).toSet();
+    if (mineIds.isEmpty) {
+      debugPrint('[ClubProvider] prune skip (멤버십 목록 비어 있음)');
+      return false;
+    }
 
     final drop = <String>{};
     for (final c in List<Club>.from(_myClubs)) {
@@ -2512,7 +2529,8 @@ class ClubProvider extends ChangeNotifier with WidgetsBindingObserver {
     _myClubs
       ..clear()
       ..addAll(b.myClubs);
-    if (!_isDemoSession) {
+    if (!_isDemoSession &&
+        (_serverClubsAligned || _confirmedClubIds.isNotEmpty)) {
       _applyMembershipOnlyMyClubs();
       for (final c in keptConfirmed) {
         if (!_myClubs.any((x) => x.id == c.id)) _myClubs.add(c);

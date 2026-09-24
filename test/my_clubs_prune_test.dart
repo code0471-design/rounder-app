@@ -220,6 +220,28 @@ void main() {
       lessThan(refreshBody.indexOf('_pruneForeignClubs')),
       reason: '새로고침이 서버 소속을 넣기 전에 지우면 알라딘이 안 뜬다',
     );
+    final replaceStart =
+        src.indexOf('Future<bool> _replaceMyClubsFromServerMemberships');
+    final replaceEnd = src.indexOf('bool _purgeDemoIdentityClubs', replaceStart);
+    expect(replaceStart, greaterThan(0));
+    expect(replaceEnd, greaterThan(replaceStart));
+    final replaceBody = src.substring(replaceStart, replaceEnd);
+    expect(replaceBody.contains('if (remote.isEmpty)'), isTrue,
+        reason: '멤버십이 비었다고 내 모임을 통째로 바꾸면 업데이트 후 홈이 빈다');
+    expect(replaceBody.contains('empty memberships'), isTrue);
+    expect(src.contains('멤버십 목록 비어 있음'), isTrue,
+        reason: '멤버십이 비면 정리도 건너뛴다');
+  });
+
+  test('내 모임 서버 조회는 멤버십 문서만 보지 않는다', () {
+    final ds = File(
+      'lib/data/datasources/firestore/firestore_club_datasource.dart',
+    ).readAsStringSync();
+    expect(ds.contains("where('creator_id'"), isTrue);
+    expect(ds.contains("where('host_user_id'"), isTrue);
+    expect(ds.contains('collectionGroup'), isTrue);
+    expect(ds.contains("if (membershipSnap.docs.isEmpty) return [];"), isFalse,
+        reason: '멤버십 문서가 없다고 바로 빈 목록이면 예전 가입이 다 빠진다');
   });
 
   test('탐색 목록이 비어도 서버 소속이 아닌 모임은 내 모임에서 빠진다', () async {
