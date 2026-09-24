@@ -702,6 +702,42 @@ class ClubOpsSync {
     }
   }
 
+  /// 내 프로필을 그 모임 명단 문서에 반영한다. 원클럽처럼 계정 한 번 저장이
+  /// 모든 모임 `members/{userId}` 에 같이 간다.
+  static Future<void> upsertMemberProfile({
+    required String clubId,
+    required String userId,
+    String? photoUrl,
+    String? phone,
+    DateTime? birthDate,
+    double? handicap,
+  }) async {
+    if (!_enabled || clubId.isEmpty || userId.isEmpty) return;
+    try {
+      final data = <String, dynamic>{
+        'user_id': userId,
+        'updated_at': FieldValue.serverTimestamp(),
+      };
+      final p = (phone ?? '').trim();
+      if (p.isNotEmpty) data['phone'] = p;
+      if (birthDate != null) {
+        data['birth_date'] = birthDate.toIso8601String();
+      }
+      if (handicap != null) data['handicap'] = handicap;
+      final photo = (photoUrl ?? '').trim();
+      if (photo.isNotEmpty &&
+          !(photo.startsWith('data:') &&
+              photo.length > photoDataUriMaxChars)) {
+        data['photo_url'] = photo;
+      }
+      await _db
+          .doc(FirestorePaths.clubMemberDoc(clubId, userId))
+          .set(data, SetOptions(merge: true));
+    } catch (e) {
+      debugPrint('[ClubOpsSync] member profile upsert fail $clubId: $e');
+    }
+  }
+
   /// 명단 문서 삭제. 같은 사람이 두 줄일 때 옛 행을 서버에서도 지운다.
   /// 안 지우면 다음에 앱을 켤 때 서버 명단에서 다시 내려와 또 두 줄이 된다.
   static Future<void> deleteClubMemberDoc(

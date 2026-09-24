@@ -1,5 +1,4 @@
 import 'dart:async';
-import 'dart:convert';
 
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
@@ -9,6 +8,7 @@ import '../../models/member_role.dart';
 import '../../providers/club_provider.dart';
 import '../../theme/app_theme.dart';
 import '../../utils/d_day_utils.dart';
+import '../../widgets/club_cover_mark.dart';
 import '../../widgets/empty_state.dart';
 import '../../widgets/app_card.dart';
 import '../../widgets/app_header.dart';
@@ -76,65 +76,6 @@ class _InviteChipButton extends StatelessWidget {
             height: 1.1,
             letterSpacing: -0.2,
           ),
-        ),
-      ),
-    );
-  }
-}
-
-class _ClubThumb extends StatelessWidget {
-  final Club club;
-  final double size;
-  const _ClubThumb({required this.club, this.size = 80});
-
-  @override
-  Widget build(BuildContext context) {
-    final url = club.imageUrl?.trim() ?? '';
-    Widget child;
-    if (url.startsWith('data:image')) {
-      try {
-        child = Image.memory(
-          base64Decode(url.split(',').last),
-          fit: BoxFit.cover,
-          errorBuilder: (_, __, ___) => _fallback(),
-        );
-      } catch (_) {
-        child = _fallback();
-      }
-    } else if (url.startsWith('http://') || url.startsWith('https://')) {
-      child = Image.network(
-        url,
-        fit: BoxFit.cover,
-        errorBuilder: (_, __, ___) => _fallback(),
-      );
-    } else {
-      child = _fallback();
-    }
-
-    return Container(
-      width: size,
-      height: size,
-      decoration: BoxDecoration(
-        color: const Color(0xFFF7F8FA),
-        borderRadius: BorderRadius.circular(14),
-        border: Border.all(color: const Color(0xFF6B7280), width: 2),
-      ),
-      child: ClipRRect(
-        borderRadius: BorderRadius.circular(12),
-        child: child,
-      ),
-    );
-  }
-
-  /// 사진 없을 때 — 라운더 로고 대신 그린 위 핀(깃발)
-  Widget _fallback() {
-    return ColoredBox(
-      color: const Color(0xFFF7F8FA),
-      child: Center(
-        child: Icon(
-          Icons.golf_course_rounded,
-          size: size * 0.54,
-          color: AppColors.primary,
         ),
       ),
     );
@@ -715,7 +656,7 @@ class ClubHomeTab extends StatelessWidget {
                   child: Row(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
-                      _ClubThumb(club: club, size: 80),
+                      ClubCoverMark(club: club, size: 80),
                       const SizedBox(width: 12),
                       Expanded(
                         child: Column(

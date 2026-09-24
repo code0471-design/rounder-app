@@ -2,6 +2,7 @@ import 'package:cloud_firestore/cloud_firestore.dart';
 
 import '../../core/errors/data_exception.dart';
 import '../../models/club_model.dart';
+import '../../services/club_ops_sync.dart';
 
 abstract final class MemberMapper {
   static Member fromFirestore(DocumentSnapshot<Map<String, dynamic>> doc) {
@@ -38,12 +39,17 @@ abstract final class MemberMapper {
     }
   }
 
-  static Map<String, dynamic> toMap(Member member) => {
+  static Map<String, dynamic> toMap(Member member) {
+    final photo = (member.photoUrl ?? '').trim();
+    final photoFits = photo.isNotEmpty &&
+        !(photo.startsWith('data:') &&
+            photo.length > ClubOpsSync.photoDataUriMaxChars);
+    return {
         'id': member.id,
         'name': member.name,
         'gender': member.gender,
         'birth_date': member.birthDate?.toIso8601String(),
-        'photo_url': member.photoUrl,
+        if (photoFits) 'photo_url': photo,
         'phone': member.phone,
         'bio': member.bio,
         'member_type': member.memberType,
@@ -54,7 +60,8 @@ abstract final class MemberMapper {
         'memo': member.memo,
         'status': member.status,
         'updated_at': FieldValue.serverTimestamp(),
-      };
+    };
+  }
 
   static DateTime? _asDateTime(dynamic v) {
     if (v == null) return null;

@@ -33,21 +33,20 @@ void main() {
   });
 
   test('모임 홈 헤더는 원클럽형 썸네일·가로 초대 버튼이다', () {
-    expect(room.contains('class _ClubThumb'), isTrue);
-    expect(room.contains('Color(0xFFF7F8FA)'), isTrue);
-    expect(room.contains('Color(0xFF6B7280)'), isTrue);
-    expect(room.contains('_ClubThumb(club: club, size: 80)'), isTrue);
+    expect(room.contains('ClubCoverMark(club: club, size: 80)'), isTrue);
     expect(room.contains("label: '정회원 초대하기'"), isTrue);
     expect(room.contains("label: '게스트 초대하기'"), isTrue);
     expect(room.contains('Icons.badge_outlined'), isFalse);
     expect(
-      room.indexOf('_ClubThumb(club: club, size: 80)'),
+      room.indexOf('ClubCoverMark(club: club, size: 80)'),
       lessThan(room.indexOf("label: '정회원 초대하기'")),
     );
   });
 
   test('모임 기본 썸네일은 라운더 로고가 아니라 골프 핀이다', () {
-    expect(room.contains('Icons.golf_course_rounded'), isTrue);
+    final mark =
+        File('lib/widgets/club_cover_mark.dart').readAsStringSync();
+    expect(mark.contains('Icons.golf_course_rounded'), isTrue);
     expect(room.contains('rounder_ball_crop.png'), isFalse);
     expect(room.contains('rounder_logo'), isFalse);
   });
@@ -174,7 +173,7 @@ void main() {
         reason: '원클럽처럼 ROUNDER 글자 아래에도 모임명이 있다');
     expect(room.contains("'알림톡 설정'"), isFalse,
         reason: '모임 설정 시트에서 알림톡 설정은 뺀다');
-    expect(room.contains('_ClubThumb(club: club, size: 80)'), isTrue);
+    expect(room.contains('ClubCoverMark(club: club, size: 80)'), isTrue);
     final header =
         File('lib/widgets/app_header.dart').readAsStringSync();
     expect(header.contains('_clubNameLeftInset'), isTrue,

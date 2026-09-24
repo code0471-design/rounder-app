@@ -14,8 +14,9 @@ import '../domain/services/group_assignment_service.dart';
 import '../domain/data/sample_club_filter.dart';
 import '../domain/services/roster_dedupe.dart';
 import '../models/club_model.dart';
-import '../models/member_role.dart';
 import '../models/user_model.dart';
+import 'auth_provider.dart';
+import '../models/member_role.dart';
 import '../services/club_data_codec.dart';
 import '../services/club_ops_sync.dart';
 import '../services/d1_alimtalk_flush.dart';
@@ -54,6 +55,7 @@ class ClubProvider extends ChangeNotifier with WidgetsBindingObserver {
     _syncAllNextRounds();
     WidgetsBinding.instance.addObserver(this);
     PushNotificationService.onD1AlimtalkHint = flushDueD1Alimtalk;
+    AuthProvider.onRemoteProfileHydrated = _applyHydratedAuthProfile;
   }
 
   @override
@@ -63,6 +65,9 @@ class ClubProvider extends ChangeNotifier with WidgetsBindingObserver {
     _cloudPushTimer?.cancel();
     ClubOpsSync.stopAllWatches();
     unawaited(_memberWatchSub?.cancel());
+    if (AuthProvider.onRemoteProfileHydrated == _applyHydratedAuthProfile) {
+      AuthProvider.onRemoteProfileHydrated = null;
+    }
     super.dispose();
   }
 
@@ -1745,17 +1750,25 @@ class ClubProvider extends ChangeNotifier with WidgetsBindingObserver {
         _members.add(row);
         changed = true;
       } else if (_members[idx].id != id) {
-        _members[idx] = row;
+        _members[idx] = _preferLocalMemberProfile(row, _members[idx]);
         changed = true;
       } else if (isPlaceholderMemberName(_members[idx].name) &&
           row.name.trim().isNotEmpty &&
           !isPlaceholderMemberName(row.name)) {
-        _members[idx] = row;
+        _members[idx] = _preferLocalMemberProfile(row, _members[idx]);
         changed = true;
+      } else {
+        final kept = _preferLocalMemberProfile(row, _members[idx]);
+        if ((kept.photoUrl ?? '') != (_members[idx].photoUrl ?? '') ||
+            (kept.phone ?? '') != (_members[idx].phone ?? '')) {
+          _members[idx] = kept;
+          changed = true;
+        }
       }
     }
     if (_absorbUnlinkedRowsByPhone(clubId)) changed = true;
     if (pruneDuplicateRosterRows()) changed = true;
+    if (_fillMyRosterProfile()) changed = true;
     final leftoverGhosts = _members
         .where((m) =>
             Member.isClubRosterId(clubId, m.id) &&
@@ -2386,8 +2399,30 @@ class ClubProvider extends ChangeNotifier with WidgetsBindingObserver {
     _selectedClubIndex = fb.clamp(0, _myClubs.length - 1);
   }
 
+  void _keepClubImagesIfIncomingEmpty(Map<String, String> keep) {
+    if (keep.isEmpty) return;
+    void apply(List<Club> list) {
+      for (var i = 0; i < list.length; i++) {
+        final kept = keep[list[i].id];
+        if (kept == null || kept.isEmpty) continue;
+        if ((list[i].imageUrl ?? '').trim().isEmpty) {
+          list[i] = list[i].copyWith(imageUrl: kept);
+        }
+      }
+    }
+
+    apply(_myClubs);
+    apply(_allClubs);
+  }
+
   void _importBundle(ClubDataBundle b) {
     final keepSelectedId = _selectedClubIdOrNull();
+    final keepImages = <String, String>{
+      for (final c in _myClubs)
+        if ((c.imageUrl ?? '').trim().isNotEmpty) c.id: c.imageUrl!.trim(),
+      for (final c in _allClubs)
+        if ((c.imageUrl ?? '').trim().isNotEmpty) c.id: c.imageUrl!.trim(),
+    };
     _selectedClubIndex = b.selectedClubIndex;
     _freshClubIds
       ..clear()
@@ -2403,6 +2438,7 @@ class ClubProvider extends ChangeNotifier with WidgetsBindingObserver {
     _allClubs
       ..clear()
       ..addAll(b.allClubs);
+    _keepClubImagesIfIncomingEmpty(keepImages);
     _applyClubInfoOverrides();
     _joinRequests
       ..clear()
@@ -2742,28 +2778,8 @@ class ClubProvider extends ChangeNotifier with WidgetsBindingObserver {
         final clubId = selectedClub.id;
         final clubMembers = membersForClub(clubId);
         if (clubMembers.isNotEmpty) {
-          final creatorId = 'm_creator_$clubId';
-          final creator =
-              clubMembers.where((m) => m.id == creatorId).firstOrNull;
-          if (creator != null && _iAmClubCreator(selectedClub)) {
-            return creator;
-          }
-
-          final aliases = <String>{
-            if (_isDemoSession) currentUserId,
-            if (_persistAuthUserId != null) _persistAuthUserId!,
-            ..._authAliases(
-              _persistAuthUserId ?? (_isDemoSession ? currentUserId : ''),
-            ),
-          }..removeWhere((id) => id.isEmpty);
-          for (final id in aliases) {
-            final hit =
-                clubMembers.where((m) => m.id == id).firstOrNull;
-            if (hit != null) return hit;
-            final prefixed = clubMembers
-                .where((m) => m.id == 'm_${clubId}_$id')
-                .firstOrNull;
-            if (prefixed != null) return prefixed;
+          for (final m in clubMembers) {
+            if (_isMyRosterRowFor(selectedClub, m.id)) return m;
           }
         }
       } catch (_) {}
@@ -7912,6 +7928,13 @@ class ClubProvider extends ChangeNotifier with WidgetsBindingObserver {
           _allClubs[allIdx] =
               _allClubs[allIdx].copyWith(myRole: roleEncoded);
         }
+        syncAuthGolfProfile(
+          birthDate: normalized.birthDate,
+          handicap: normalized.handicap,
+          gender: normalized.gender,
+          phone: normalized.phone,
+          photoUrl: normalized.photoUrl,
+        );
       }
       // 이름은 라벨이다. ID가 같은 회비·시상·참석 표시만 맞춘다. 새 행을 만들지 않는다.
       if (prev.name.trim() != normalized.name.trim()) {
@@ -7976,15 +7999,37 @@ class ClubProvider extends ChangeNotifier with WidgetsBindingObserver {
     syncAuthUserProfile(phone: phone);
   }
 
+  void _applyHydratedAuthProfile(AppUser user) {
+    final authId = (_persistAuthUserId ?? '').trim();
+    if (authId.isEmpty) return;
+    if (!_userIdsMatch(user.id, authId)) return;
+    syncAuthGolfProfile(
+      birthDate: user.birthDate,
+      handicap: user.handicap,
+      gender: user.gender,
+      phone: user.phone,
+      photoUrl: user.profileImageUrl,
+    );
+  }
+
+  Member _preferLocalMemberProfile(Member incoming, Member local) {
+    final inPhoto = (incoming.photoUrl ?? '').trim();
+    final inPhone = (incoming.phone ?? '').trim();
+    return incoming.copyWith(
+      photoUrl: inPhoto.isNotEmpty ? incoming.photoUrl : local.photoUrl,
+      phone: inPhone.isNotEmpty ? incoming.phone : local.phone,
+      birthDate: incoming.birthDate ?? local.birthDate,
+      handicap: incoming.handicap ?? local.handicap,
+    );
+  }
+
   /// 계정에 저장한 생년월일·평균타수·성별·전화·사진을 내가 속한 모든 모임 명단에 반영.
   ///
   /// 본인이 직접 입력한 값이므로 비어 있지 않으면 덮어쓴다.
   /// 반영 후 Firestore ops bundle 까지 밀어서 다른 기기·총무 화면에도 보이게 한다.
-  /// 계정에 저장된 사진·전화번호·생일·핸디를 내 명단 행의 **빈 칸에만** 채운다.
-  ///
-  /// 원격 명단을 받아오면 내 행이 원격 값으로 통째 교체된다. 서버 명단 문서에는
-  /// 사진·번호가 없을 수 있어서, 매번 다시 채워 주지 않으면 내 프로필 사진이
-  /// 계속 안 보인다. 사람이 직접 고친 값은 덮지 않는다(빈 칸만 채움).
+  /// 내 사진의 기준은 계정이다. 모임 명단 문서는 만들 때 한 번 찍힌 값이라
+  /// 계정 사진이 나중에 오면 방장 칸이 비어 남는다. 원격 명단을 받은 뒤에도
+  /// 계정 값으로 빈 칸만 채운다.
   bool _fillMyRosterProfile() {
     final authId = (_persistAuthUserId ?? '').trim();
     if (authId.isEmpty) return false;
@@ -8091,6 +8136,22 @@ class ClubProvider extends ChangeNotifier with WidgetsBindingObserver {
     if (changed) {
       notifyListeners();
       _persistImmediately();
+    }
+    unawaited(_pushMyProfileToAllClubMemberDocs());
+  }
+
+  Future<void> _pushMyProfileToAllClubMemberDocs() async {
+    final uid = (_persistAuthUserId ?? '').trim();
+    if (uid.isEmpty || _isDemoSession) return;
+    for (final club in List<Club>.from(_myClubs)) {
+      unawaited(ClubOpsSync.upsertMemberProfile(
+        clubId: club.id,
+        userId: uid,
+        photoUrl: _accountPhotoUrl,
+        phone: _accountPhone,
+        birthDate: _accountBirthDate,
+        handicap: _accountHandicap,
+      ));
     }
   }
 

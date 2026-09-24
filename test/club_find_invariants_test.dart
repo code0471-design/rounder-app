@@ -91,5 +91,7 @@ void main() {
     expect(mark.contains('Color(0xFF111827)'), isTrue);
     expect(mark.contains('width: 1.5'), isTrue);
     expect(mark.contains('club.imageUrl'), isTrue);
+    expect(mark.contains('gaplessPlayback: true'), isTrue,
+        reason: '동기화로 화면이 다시 그려져도 모임 이미지가 깜빡이면 안 된다');
   });
 }

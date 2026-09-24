@@ -3,6 +3,7 @@ import 'package:golf_rounder/di/app_dependencies.dart';
 import 'package:golf_rounder/domain/services/app_data_bootstrap_service.dart';
 import 'package:golf_rounder/models/club_model.dart';
 import 'package:golf_rounder/providers/club_provider.dart';
+import 'package:golf_rounder/services/club_data_codec.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
 void main() {
@@ -107,6 +108,59 @@ void main() {
     expect(clubs.selectedClub.region, '부산');
     expect(clubs.selectedClub.industry, '제조');
     expect(clubs.selectedClub.teamCount, 6);
+  });
+
+  test('동기화가 빈 이미지를 넣어도 있던 모임 사진은 유지된다', () async {
+    expect(
+      await clubs.createClub(
+        name: '아레나',
+        region: '서울',
+        industry: '골프',
+        teamCount: 4,
+        myRole: '회장',
+        description: '아레나',
+        imageUrl: 'https://example.com/arena.jpg',
+      ),
+      isTrue,
+    );
+    final id = clubs.selectedClub.id;
+    expect(clubs.selectedClub.imageUrl, 'https://example.com/arena.jpg');
+
+    final stale = clubs.exportBundleForTest();
+    final blank = ClubDataBundle(
+      selectedClubIndex: stale.selectedClubIndex,
+      freshClubIds: stale.freshClubIds,
+      myClubs: [
+        for (final c in stale.myClubs)
+          c.id == id ? c.copyWith(imageUrl: '') : c,
+      ],
+      allClubs: stale.allClubs,
+      joinRequests: stale.joinRequests,
+      members: stale.members,
+      activities: stale.activities,
+      announcements: stale.announcements,
+      appNotifications: stale.appNotifications,
+      duesSettings: stale.duesSettings,
+      duesPayments: stale.duesPayments,
+      paymentRequests: stale.paymentRequests,
+      transactions: stale.transactions,
+      schedules: stale.schedules,
+      photos: stale.photos,
+      groupAssignments: stale.groupAssignments,
+      adApplications: stale.adApplications,
+      adNotifications: stale.adNotifications,
+      sponsorApplications: stale.sponsorApplications,
+      pointEvents: stale.pointEvents,
+      awardRecords: stale.awardRecords,
+      roundScores: stale.roundScores,
+      thankYouMessages: stale.thankYouMessages,
+      waitingList: stale.waitingList,
+      alimtalkSettings: stale.alimtalkSettings,
+    );
+
+    clubs.importBundleForTest(blank);
+    expect(clubs.selectedClub.imageUrl, 'https://example.com/arena.jpg',
+        reason: '서버가 빈 이미지를 내려도 있던 모임 사진을 지우면 깜빡인다');
   });
 
   test('알라딘에 들어가 있으면 옛 번들이 아레나 선택으로 되돌리지 않는다', () async {

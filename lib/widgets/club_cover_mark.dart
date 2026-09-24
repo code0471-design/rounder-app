@@ -1,4 +1,5 @@
 import 'dart:convert';
+import 'dart:typed_data';
 
 import 'package:flutter/material.dart';
 
@@ -15,6 +16,16 @@ class ClubCoverMark extends StatelessWidget {
     required this.club,
     this.size = 80,
   });
+
+  static final Map<String, Uint8List> _dataUriCache = {};
+
+  static Uint8List _bytesForDataUri(String url) {
+    final key = '${url.length}:${url.hashCode}';
+    final cached = _dataUriCache[key];
+    if (cached != null) return cached;
+    if (_dataUriCache.length >= 16) _dataUriCache.clear();
+    return _dataUriCache[key] = base64Decode(url.split(',').last);
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -39,8 +50,9 @@ class ClubCoverMark extends StatelessWidget {
     if (url.startsWith('data:image')) {
       try {
         return Image.memory(
-          base64Decode(url.split(',').last),
+          _bytesForDataUri(url),
           fit: BoxFit.cover,
+          gaplessPlayback: true,
           errorBuilder: (_, __, ___) => _fallback(),
         );
       } catch (_) {
@@ -51,6 +63,7 @@ class ClubCoverMark extends StatelessWidget {
       return Image.network(
         url,
         fit: BoxFit.cover,
+        gaplessPlayback: true,
         errorBuilder: (_, __, ___) => _fallback(),
       );
     }

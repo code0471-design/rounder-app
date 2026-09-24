@@ -18,6 +18,9 @@ import '../services/solapi_service.dart';
 //  AuthProvider — 로그인 / 자동로그인 / 세션 관리
 // ════════════════════════════════════════════════════════════
 class AuthProvider extends ChangeNotifier {
+  /// 자동로그인은 홈을 먼저 연 뒤 서버에서 사진·번호를 채운다.
+  /// 명단은 그 계정 사진을 써야 한다. 안 넘기면 방장 칸이 영원히 비어 있다.
+  static void Function(AppUser user)? onRemoteProfileHydrated;
 
   // ── SharedPreferences 키 ─────────────────────────────────
   static const _kSavedPhone    = 'saved_phone';
@@ -219,6 +222,7 @@ class AuthProvider extends ChangeNotifier {
     if (sessionUser == null) return;
     await FirebaseAuthBridge.ensureSignedIn(sessionUser);
     notifyListeners();
+    onRemoteProfileHydrated?.call(sessionUser);
   }
 
   Future<void> loadLastLoginMethod() async {
