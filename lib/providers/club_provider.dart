@@ -256,8 +256,12 @@ class ClubProvider extends ChangeNotifier with WidgetsBindingObserver {
 
     for (final bootClub in snapshot.myClubs) {
       final legacy = _clubFromBootstrap(bootClub);
-      // 탈퇴한 모임은 bootstrap이 다시 넣지 못함 (상세 복귀·새로고침 회귀 방지)
-      if (_isLeftClub(legacy.id) || _isLeftClub(bootClub.id)) continue;
+      // 서버가 내 모임으로 준 것은 로컬 탈퇴보다 앞선다. 초대 가입이 다시 안 뜨던 원인.
+      _leftClubIds.removeWhere(
+        (id) =>
+            clubIdAliases(legacy.id).contains(id) ||
+            clubIdAliases(bootClub.id).contains(id),
+      );
       final idx = _myClubs.indexWhere((c) => c.id == legacy.id);
       if (idx >= 0) {
         final existing = _myClubs[idx];
@@ -583,7 +587,9 @@ class ClubProvider extends ChangeNotifier with WidgetsBindingObserver {
         if (_purgeDemoIdentityClubs()) recovered = true;
         _stripHardcodedDemoPayload();
         await _claimClubsByPhone(authUserId);
-        if (await _ingestServerMemberships(authUserId)) recovered = true;
+        if (await _replaceMyClubsFromServerMemberships(authUserId)) {
+          recovered = true;
+        }
         if (_purgeDemoIdentityClubs()) recovered = true;
         if (await _pruneForeignClubs(authUserId)) recovered = true;
       }
@@ -615,7 +621,7 @@ class ClubProvider extends ChangeNotifier with WidgetsBindingObserver {
       _rebindPushIdsIfChanged();
       await _pullCloudOpsForMyClubs();
       if (!_isDemoSession && authUserId.isNotEmpty) {
-        await _ingestServerMemberships(authUserId);
+        await _replaceMyClubsFromServerMemberships(authUserId);
       }
       _watchSelectedClubOps();
       unawaited(_enqueueAllUpcomingD1());
@@ -888,6 +894,7 @@ class ClubProvider extends ChangeNotifier with WidgetsBindingObserver {
     if (authId == null) return;
     await _claimClubsByPhone(authId);
     var recovered = await _restoreOwnedClubsFromStores(authId);
+    if (await _replaceMyClubsFromServerMemberships(authId)) recovered = true;
     if (await _pruneForeignClubs(authId)) recovered = true;
     // 복구 성공 여부와 관계없이 동기화·저장 (멤버십 별칭 보정 포함)
     _syncMyClubsToMockStore();
@@ -1255,11 +1262,67 @@ class ClubProvider extends ChangeNotifier with WidgetsBindingObserver {
         if (SampleClubFilter.isSample(id: c.id, name: c.name)) continue;
         if (_ingestOwnedClub(c, const [])) changed = true;
         _confirmedClubIds.add(c.id);
+        _leftClubIds.removeWhere((id) => clubIdAliases(c.id).contains(id));
       }
     } catch (e) {
       debugPrint('[ClubProvider] ingest fetchMyClubs skip: $e');
     }
     return changed;
+  }
+
+  /// 원클럽과 같이 내 모임 = 서버 소속. 폰 목록을 기준으로 지우지 않는다.
+  Future<bool> _replaceMyClubsFromServerMemberships(String authUserId) async {
+    if (_isDemoSession) return false;
+    List<Club> remote;
+    try {
+      remote = await AppDependencies.instance.clubRepository
+          .fetchMyClubs(authUserId);
+    } catch (e) {
+      debugPrint('[ClubProvider] replace my clubs skip: $e');
+      return false;
+    }
+    remote = [
+      for (final c in remote)
+        if (!SampleClubFilter.isSample(id: c.id, name: c.name)) c,
+    ];
+    for (final c in remote) {
+      _leftClubIds.removeWhere((id) => clubIdAliases(c.id).contains(id));
+    }
+    final keepById = {for (final c in _myClubs) c.id: c};
+    final next = <Club>[];
+    final seen = <String>{};
+    for (final c in remote) {
+      if (!seen.add(c.id)) continue;
+      final local = keepById[c.id];
+      next.add(
+        local == null
+            ? c
+            : local.copyWith(
+                myRole: c.myRole.trim().isNotEmpty ? c.myRole : local.myRole,
+                creatorId: c.creatorId.trim().isNotEmpty
+                    ? c.creatorId
+                    : local.creatorId,
+              ),
+      );
+    }
+    for (final c in _myClubs) {
+      if (_sessionCreatedClubIds.contains(c.id) && seen.add(c.id)) {
+        next.add(c);
+      }
+    }
+    final before = _myClubs.map((c) => c.id).toSet();
+    final after = next.map((c) => c.id).toSet();
+    _myClubs
+      ..clear()
+      ..addAll(next);
+    _confirmedClubIds
+      ..clear()
+      ..addAll(after);
+    _serverClubsAligned = true;
+    if (_selectedClubIndex >= _myClubs.length) _selectedClubIndex = 0;
+    final auth = _persistAuthUserId;
+    if (auth != null) unawaited(_saveLeftClubIds(auth));
+    return before != after;
   }
 
   bool _purgeDemoIdentityClubs() {

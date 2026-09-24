@@ -115,6 +115,41 @@ void main() {
         reason: '서버 멤버십이 있으면 남긴다');
   });
 
+  test('폰에 없어도 서버에 가입된 모임은 내 모임에 넣는다', () async {
+    final store = AppDependencies.instance.mockDataStore!;
+    final invited = Club(
+      id: 'c_1789270673471',
+      name: '알라딘 정기월례회',
+      myRole: '정회원',
+      memberCount: 2,
+      creatorId: 'kakao_jang',
+      region: '서울',
+      industry: '골프',
+      teamCount: 4,
+      description: '',
+      createdAt: DateTime(2026, 9, 13),
+    );
+    store.upsertClub(invited, persist: false);
+    store.addMember(
+      clubId: invited.id,
+      member: Member(
+        id: 'kakao_tester',
+        name: '테스터',
+        gender: '남',
+        memberType: '정회원',
+        role: '정회원',
+        joinDate: DateTime(2026, 9, 13),
+      ),
+      persist: false,
+    );
+    expect(clubs.myClubs.any((c) => c.id == invited.id), isFalse);
+
+    await clubs.refreshOwnedClubs();
+
+    expect(clubs.myClubs.any((c) => c.id == invited.id), isTrue,
+        reason: '원클럽처럼 서버 소속이 있으면 내가 만든 모임이 아니어도 내 모임이다');
+  });
+
   test('멤버십 조회가 실패하면 아무것도 지우지 않는다', () {
     final src = File('lib/providers/club_provider.dart').readAsStringSync();
     final start = src.indexOf('Future<bool> _pruneForeignClubs(');
@@ -159,6 +194,18 @@ void main() {
       src.contains('!_confirmedClubIds.contains(c.id)'),
       isTrue,
       reason: '동기화가 예전 목록을 다시 넣으면 7개가 돌아온다',
+    );
+    expect(src.contains('_replaceMyClubsFromServerMemberships'), isTrue,
+        reason: '원클럽처럼 내 모임은 서버 소속 목록이다');
+    final refreshStart = src.indexOf('Future<void> refreshOwnedClubs()');
+    final refreshEnd = src.indexOf('bool get _isDemoSession', refreshStart);
+    expect(refreshStart, greaterThan(0));
+    expect(refreshEnd, greaterThan(refreshStart));
+    final refreshBody = src.substring(refreshStart, refreshEnd);
+    expect(
+      refreshBody.indexOf('_replaceMyClubsFromServerMemberships'),
+      lessThan(refreshBody.indexOf('_pruneForeignClubs')),
+      reason: '새로고침이 서버 소속을 넣기 전에 지우면 알라딘이 안 뜬다',
     );
   });
 
