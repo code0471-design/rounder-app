@@ -68,7 +68,10 @@ abstract final class D1EnqueuePolicy {
     required String scheduleId,
     required String sendOn,
     required String phone,
+    String kind = '',
+    String clubId = '',
   }) {
-    return '$scheduleId|$sendOn|${phoneDigits(phone)}';
+    final sched = kind == 'dues' ? 'dues|$clubId' : scheduleId;
+    return '$sched|$sendOn|${phoneDigits(phone)}';
   }
 }

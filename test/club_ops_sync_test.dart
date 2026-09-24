@@ -1368,6 +1368,16 @@ void main() {
       isFalse,
       reason: '알라딘 방장 장창현은 남겨야 한다',
     );
+    expect(
+      ClubOpsSync.isForeignLeftoverMember(
+        id: 'm_creator_c_1786973797931',
+        name: '장창현',
+        clubId: 'c_1786973797931',
+        creatorUserId: 'kakao_5049673364',
+      ),
+      isTrue,
+      reason: '아레나 방장 자리에 남은 장창현은 찌꺼기다',
+    );
 
     final kept = ClubOpsSync.dropForeignLeftoverMembers(
       members: [

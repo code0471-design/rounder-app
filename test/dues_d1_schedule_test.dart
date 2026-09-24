@@ -36,6 +36,19 @@ void main() {
     ]);
   });
 
+  test('임박 D-1만 잡고 다음 달 이후는 미리 넣지 않는다', () {
+    final s = monthly(dueDay: 25);
+    expect(
+      DuesD1Schedule.imminentDueDates(s, now: DateTime(2026, 9, 24)),
+      [DateTime(2026, 9, 25)],
+    );
+    expect(
+      DuesD1Schedule.imminentDueDates(s, now: DateTime(2026, 9, 8)),
+      isEmpty,
+      reason: '8일에 10월·11월까지 넣으면 알림톡이 한꺼번에 나간다',
+    );
+  });
+
   test('오늘이 납부일 당일이면 이번 달 D-1은 이미 지나 다음 달만 잡는다', () {
     final s = monthly(dueDay: 25);
     final now = DateTime(2026, 9, 25);

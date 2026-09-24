@@ -4560,19 +4560,35 @@ class ClubProvider extends ChangeNotifier with WidgetsBindingObserver {
 
   Future<void> syncAllDuesD1Reminders() async {
     if (_myClubs.isEmpty) return;
-    for (final s in activeDuesSettings) {
-      await syncDuesD1Reminders(s);
+    for (final club in _myClubs) {
+      for (final s in _duesSettings) {
+        if (!s.isActive) continue;
+        final sid = (s.clubId ?? '').trim();
+        if (sid.isNotEmpty && sid != club.id) continue;
+        if (sid.isEmpty && !_legacyMockClubIds.contains(club.id)) continue;
+        await syncDuesD1Reminders(s, club: club, flush: false);
+      }
     }
+    await flushDueD1Alimtalk();
   }
 
-  Future<void> syncDuesD1Reminders(DuesSetting setting) async {
+  Future<void> syncDuesD1Reminders(
+    DuesSetting setting, {
+    Club? club,
+    bool flush = true,
+  }) async {
+    final target = club ??
+        _clubById((setting.clubId ?? '').trim()) ??
+        selectedClub;
     if (!setting.isActive) {
       await PushNotificationService.clearD1ForSchedule(
           DuesD1Schedule.scheduleIdFor(setting.id));
       return;
     }
-    final dues = DuesD1Schedule.upcomingDueDates(setting);
+    final dues = DuesD1Schedule.imminentDueDates(setting);
     if (dues.isEmpty) return;
+    final members = membersForClub(target.id)
+        .where((m) => m.status == '활성' && m.memberType == '정회원');
     for (final due in dues) {
       final period = DuesD1Schedule.periodKey(setting, due);
       final dueLabel = DuesD1Schedule.dueText(due);
@@ -4580,12 +4596,12 @@ class ClubProvider extends ChangeNotifier with WidgetsBindingObserver {
         year: due.year,
         month: setting.type == DuesType.monthly ? due.month : 1,
       );
-      for (final m in regularMembers) {
+      for (final m in members) {
         if (D1EnqueuePolicy.isBlockedRecipient(
           name: m.name,
           userId: m.id,
-          clubId: selectedClub.id,
-          creatorUserId: selectedClub.creatorId,
+          clubId: target.id,
+          creatorUserId: target.creatorId,
         )) {
           continue;
         }
@@ -4594,22 +4610,22 @@ class ClubProvider extends ChangeNotifier with WidgetsBindingObserver {
             : hasPaid(m.id, setting.id, year: due.year);
         await PushNotificationService.syncDuesD1Reminder(
           settingId: setting.id,
-          userId: _fcmInboxIdFor(m.id, clubId: selectedClub.id),
+          userId: _fcmInboxIdFor(m.id, clubId: target.id),
           dueDate: due,
           periodKey: period,
-          clubId: selectedClub.id,
-          clubName: selectedClub.name,
+          clubId: target.id,
+          clubName: target.name,
           amountText: '$amount',
           dueText: dueLabel,
           enqueue: !paid,
           phone: m.phone,
           memberName: m.name.trim().isEmpty ? '회원' : m.name.trim(),
-          creatorUserId: selectedClub.creatorId,
+          creatorUserId: target.creatorId,
           aliasUserIds: {m.id},
         );
       }
     }
-    await flushDueD1Alimtalk();
+    if (flush) await flushDueD1Alimtalk();
   }
 
   Future<void> _dropPaidDuesD1({
@@ -4622,15 +4638,16 @@ class ClubProvider extends ChangeNotifier with WidgetsBindingObserver {
     final setting =
         _duesSettings.where((d) => d.id == duesSettingId).firstOrNull;
     if (setting == null) return;
+    final club = _clubById((setting.clubId ?? '').trim()) ?? selectedClub;
     final due = setting.dueDateFor(year: year, month: month) ??
         DateTime(year ?? paidAt.year, month ?? paidAt.month, paidAt.day);
     await PushNotificationService.syncDuesD1Reminder(
       settingId: setting.id,
-      userId: _fcmInboxIdFor(memberId),
+      userId: _fcmInboxIdFor(memberId, clubId: club.id),
       dueDate: due,
       periodKey: DuesD1Schedule.periodKey(setting, due),
-      clubId: selectedClub.id,
-      clubName: selectedClub.name,
+      clubId: club.id,
+      clubName: club.name,
       amountText: '${setting.amount}',
       dueText: DuesD1Schedule.dueText(due),
       enqueue: false,

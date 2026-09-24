@@ -1174,17 +1174,14 @@ class ClubOpsSync {
     required String clubId,
     required String creatorUserId,
   }) {
-    final creator = creatorUserId.trim();
     final stolenName = leftoverStolenNames.contains(name.trim());
     final stolenUid = leftoverStolenUserIds.any(
       (u) => id == u || id.endsWith('_$u'),
     );
     if (!stolenName && !stolenUid) return false;
-    if (id == 'm_creator_$clubId') return false;
-    if (creator.isNotEmpty && (id == creator || id.endsWith('_$creator'))) {
-      return false;
-    }
-    return MemberPhoneIndex.isSocialAccountRosterId(clubId, id) || stolenUid;
+    // 알라딘만 장창현 본인 모임. 방장 자리여도 다른 모임이면 찌꺼기다.
+    if (clubId == 'c_1789270673471') return false;
+    return true;
   }
 
   @visibleForTesting

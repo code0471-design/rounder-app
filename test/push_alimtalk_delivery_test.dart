@@ -286,6 +286,15 @@ void main() {
       expect(read('lib/services/d1_alimtalk_flush.dart'),
           contains('sendDedupKey'),
           reason: '앱 예약도 같은 번호면 한 통만 나가야 한다');
+      expect(read('lib/utils/dues_d1_schedule.dart'),
+          contains('imminentDueDates'),
+          reason: '월회비 1년치를 오늘 예약하면 알림톡이 한꺼번에 나간다');
+      expect(read('lib/services/push_notification_service.dart'),
+          contains("SetOptions(merge: true)"),
+          reason: '회비 큐를 통째로 덮으면 보낸 표시가 지워져 앱 열 때마다 또 간다');
+      expect(read('lib/providers/club_provider.dart'),
+          contains('imminentDueDates'),
+          reason: '회비 동기화가 선택된 모임 명단으로 남의 모임 회비를 넣으면 안 된다');
     });
   });
 }

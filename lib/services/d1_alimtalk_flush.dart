@@ -80,6 +80,8 @@ abstract final class D1AlimtalkFlush {
         scheduleId: '${d['scheduleId'] ?? ''}',
         sendOn: '${d['sendOn'] ?? ''}',
         phone: phone,
+        kind: isDues ? 'dues' : '',
+        clubId: clubId,
       );
       if (!claimed.add(dedupKey)) {
         await PushNotificationService.markD1AlimtalkSent(
@@ -95,6 +97,10 @@ abstract final class D1AlimtalkFlush {
 
       final sendOn = _parseYmd('${d['sendOn'] ?? ''}');
       if (sendOn == null) continue;
+      final today = DateTime(now.year, now.month, now.day);
+      if (sendOn.isAfter(today.add(const Duration(days: 1)))) {
+        continue;
+      }
       final dueAt10 = DateTime(sendOn.year, sendOn.month, sendOn.day, 10);
       final sendNow = !dueAt10.isAfter(now);
       if (!await PushNotificationService.claimD1Alimtalk(doc.id)) {

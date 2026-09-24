@@ -29,8 +29,25 @@ abstract final class DuesD1Schedule {
     required String settingId,
     required String userId,
     required String periodKey,
+    String clubId = '',
   }) =>
-      '${scheduleIdFor(settingId)}__${userId}__$periodKey';
+      clubId.isEmpty
+          ? '${scheduleIdFor(settingId)}__${userId}__$periodKey'
+          : '${scheduleIdFor(settingId)}__${clubId}__${userId}__$periodKey';
+
+  /// D-1이 오늘·내일인 납부일만. 1년치를 미리 넣으면 알림톡이 한꺼번에 나간다.
+  static List<DateTime> imminentDueDates(
+    DuesSetting setting, {
+    DateTime? now,
+  }) {
+    final n = now ?? DateTime.now();
+    final today = DateTime(n.year, n.month, n.day);
+    final horizon = today.add(const Duration(days: 1));
+    return upcomingDueDates(setting, now: n, monthsAhead: 2).where((due) {
+      final send = sendOnDate(due);
+      return !send.isBefore(today) && !send.isAfter(horizon);
+    }).toList();
+  }
 
   static String dueText(DateTime due) =>
       '${due.year}.${due.month.toString().padLeft(2, '0')}.'

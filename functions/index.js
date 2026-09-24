@@ -187,7 +187,9 @@ function isLeftoverRecipient(d) {
 }
 
 function sendDedupKey(d, phone) {
-  return `${d.scheduleId || ""}|${d.sendOn || ""}|${digits(phone)}`;
+  const isDues = d.kind === "dues";
+  const sched = isDues ? `dues|${d.clubId || ""}` : (d.scheduleId || "");
+  return `${sched}|${d.sendOn || ""}|${digits(phone)}`;
 }
 
 async function resolvePushUserId(d) {

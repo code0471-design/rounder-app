@@ -348,6 +348,8 @@ abstract final class PushNotificationService {
             scheduleId: '${d['scheduleId'] ?? ''}',
             sendOn: '${d['sendOn'] ?? ''}',
             phone: '${d['phone'] ?? ''}',
+            kind: '${d['kind'] ?? ''}',
+            clubId: '${d['clubId'] ?? ''}',
           );
           if (D1EnqueuePolicy.phoneDigits('${d['phone'] ?? ''}').length >= 10) {
             claimed.add(key);
@@ -465,11 +467,13 @@ abstract final class PushNotificationService {
       settingId: settingId,
       userId: userId,
       periodKey: periodKey,
+      clubId: clubId,
     );
     String duesDocId(String uid) => DuesD1Schedule.queueDocId(
           settingId: settingId,
           userId: uid,
           periodKey: periodKey,
+          clubId: clubId,
         );
     final doc = FirebaseFirestore.instance
         .collection(FirestorePaths.d1Queue)
@@ -518,9 +522,9 @@ abstract final class PushNotificationService {
         'clubName': clubName,
         'amount': amountText,
         'dueText': dueText,
-        'alimtalkSent': false,
+        if (existing.data()?['alimtalkSent'] != true) 'alimtalkSent': false,
         'updatedAt': FieldValue.serverTimestamp(),
-      });
+      }, SetOptions(merge: true));
       await _deleteD1AliasDocs(
         docIdFor: duesDocId,
         keepUserId: userId,
