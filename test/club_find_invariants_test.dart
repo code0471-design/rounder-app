@@ -71,6 +71,15 @@ void main() {
     );
   });
 
+  test('모임찾기 상세에 입장 버튼이 없다', () {
+    final dash = _read(
+        'lib/features/clubs/presentation/club_detail_dashboard_screen.dart');
+    expect(dash.contains('_enterClubRoom'), isFalse);
+    expect(dash.contains("'모임 입장'"), isFalse);
+    expect(dash.contains("isAdmin ? '입장'"), isFalse);
+    expect(dash.contains('ClubRoomScreen'), isFalse);
+  });
+
   test('모임 상세 헤더 위 빈 그린을 키우지 않는다', () {
     final dash = _read(
         'lib/features/clubs/presentation/club_detail_dashboard_screen.dart');

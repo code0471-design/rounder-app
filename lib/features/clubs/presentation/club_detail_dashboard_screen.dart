@@ -5,7 +5,6 @@ import '../../../models/club_model.dart';
 import '../../../models/member_role.dart';
 import '../../../providers/auth_provider.dart';
 import '../../../providers/club_provider.dart';
-import '../../../screens/club_room/club_room_screen.dart';
 import '../../../theme/app_theme.dart';
 import '../../../widgets/club_cover_mark.dart';
 import '../application/club_detail_controller.dart';
@@ -80,7 +79,7 @@ class ClubDetailDashboardScreen extends StatelessWidget {
             legacyProvider.hasPendingRequest(
                 ClubProvider.legacyClubIdFor(club.id));
         // Firestore 모임은 controller.isMember만 신뢰 (legacy isMyClub 오판으로
-        // 가입 버튼이 '모임 입장'으로 바뀌는 문제 방지)
+        // 가입 버튼이 내 모임 진입으로 바뀌는 문제 방지)
         final isLegacyDemo = RegExp(r'^c[1-5]$').hasMatch(club.id) ||
             club.id.startsWith('seed_');
         final isMine = !left &&
@@ -139,8 +138,6 @@ class ClubDetailDashboardScreen extends StatelessWidget {
                         club: club,
                         isAdmin: isAdmin,
                         pendingCount: controller.pendingRequests.length,
-                        controller: controller,
-                        legacyProvider: legacyProvider,
                       )
                     : isPending
                         ? _PendingBar(
@@ -534,116 +531,66 @@ class _MemberBar extends StatelessWidget {
   final Club club;
   final bool isAdmin;
   final int pendingCount;
-  final ClubDetailController controller;
-  final ClubProvider legacyProvider;
 
   const _MemberBar({
     required this.club,
     required this.isAdmin,
     required this.pendingCount,
-    required this.controller,
-    required this.legacyProvider,
   });
-
-  void _enterClubRoom(BuildContext context) {
-    final legacyId = controller.legacyClubIdForRoom ?? club.id;
-    legacyProvider.selectClubById(legacyId);
-    Club selected;
-    try {
-      selected = legacyProvider.myClubs.firstWhere((c) => c.id == legacyId);
-    } catch (_) {
-      selected = Club(
-        id: legacyId,
-        name: club.name,
-        myRole: club.myRole,
-        memberCount: club.memberCount,
-        region: club.region,
-        industry: club.industry,
-        teamCount: club.teamCount,
-        description: club.description,
-      );
-    }
-    Navigator.of(context).push(
-      MaterialPageRoute(
-        builder: (_) => ClubRoomScreen(club: selected),
-      ),
-    );
-  }
 
   @override
   Widget build(BuildContext context) {
-    return Row(
-      children: [
-        if (isAdmin) ...[
-          Expanded(
-            child: Container(
-              height: 48,
-              padding: const EdgeInsets.symmetric(horizontal: 10),
+    final roleLabel = isAdmin ? '${club.myRole} · 관리자' : club.myRole;
+    return Container(
+      height: 48,
+      padding: const EdgeInsets.symmetric(horizontal: 10),
+      decoration: BoxDecoration(
+        color: Colors.white.withValues(alpha: 0.15),
+        borderRadius: BorderRadius.circular(10),
+      ),
+      child: Row(
+        mainAxisAlignment: MainAxisAlignment.center,
+        children: [
+          Icon(
+            isAdmin
+                ? Icons.admin_panel_settings_outlined
+                : Icons.verified_outlined,
+            size: 16,
+            color: Colors.white,
+          ),
+          const SizedBox(width: 6),
+          Flexible(
+            child: Text(
+              roleLabel,
+              overflow: TextOverflow.ellipsis,
+              style: const TextStyle(
+                color: Colors.white,
+                fontWeight: FontWeight.bold,
+                fontSize: 13,
+                height: 1.2,
+              ),
+            ),
+          ),
+          if (isAdmin && pendingCount > 0) ...[
+            const SizedBox(width: 6),
+            Container(
+              padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
               decoration: BoxDecoration(
-                color: Colors.white.withValues(alpha: 0.15),
+                color: AppColors.danger,
                 borderRadius: BorderRadius.circular(10),
               ),
-              child: Row(
-                mainAxisAlignment: MainAxisAlignment.center,
-                children: [
-                  const Icon(Icons.admin_panel_settings_outlined,
-                      size: 16, color: Colors.white),
-                  const SizedBox(width: 6),
-                  Flexible(
-                    child: Text('${club.myRole} · 관리자',
-                        overflow: TextOverflow.ellipsis,
-                        style: const TextStyle(
-                            color: Colors.white,
-                            fontWeight: FontWeight.bold,
-                            fontSize: 13,
-                            height: 1.2)),
-                  ),
-                  if (pendingCount > 0) ...[
-                    const SizedBox(width: 6),
-                    Container(
-                      padding: const EdgeInsets.symmetric(
-                          horizontal: 8, vertical: 2),
-                      decoration: BoxDecoration(
-                        color: AppColors.danger,
-                        borderRadius: BorderRadius.circular(10),
-                      ),
-                      child: Text('$pendingCount',
-                          style: const TextStyle(
-                              fontSize: 11,
-                              color: Colors.white,
-                              fontWeight: FontWeight.bold)),
-                    ),
-                  ],
-                ],
+              child: Text(
+                '$pendingCount',
+                style: const TextStyle(
+                  fontSize: 11,
+                  color: Colors.white,
+                  fontWeight: FontWeight.bold,
+                ),
               ),
             ),
-          ),
-          const SizedBox(width: 8),
+          ],
         ],
-        Expanded(
-          child: SizedBox(
-            height: 48,
-            child: ElevatedButton.icon(
-              onPressed: () => _enterClubRoom(context),
-              icon: const Icon(Icons.meeting_room_outlined, size: 18),
-              label: Text(isAdmin ? '입장' : '모임 입장',
-                  style: const TextStyle(
-                      fontWeight: FontWeight.bold, fontSize: 13, height: 1.2)),
-              style: ElevatedButton.styleFrom(
-                backgroundColor: AppColors.accent,
-                foregroundColor: Colors.white,
-                shape: RoundedRectangleBorder(
-                    borderRadius: BorderRadius.circular(10)),
-                elevation: 0,
-                padding:
-                    const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
-                minimumSize: const Size(0, 48),
-                tapTargetSize: MaterialTapTargetSize.shrinkWrap,
-              ),
-            ),
-          ),
-        ),
-      ],
+      ),
     );
   }
 }
