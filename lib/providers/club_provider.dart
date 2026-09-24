@@ -13,6 +13,7 @@ import '../domain/services/demo_finance_strip.dart';
 import '../domain/services/group_assignment_service.dart';
 import '../domain/services/join_request_service.dart';
 import '../domain/services/club_name_policy.dart';
+import '../domain/services/official_member_count.dart';
 import '../domain/data/sample_club_filter.dart';
 import '../domain/services/roster_dedupe.dart';
 import '../models/club_model.dart';
@@ -1715,7 +1716,7 @@ class ClubProvider extends ChangeNotifier with WidgetsBindingObserver {
       absorbed,
       {for (final m in _members) m.id: m.name},
     );
-    _setMemberCount(clubId, membersForClub(clubId).length);
+    _setMemberCount(clubId, _officialMemberCount(clubId));
     return true;
   }
 
@@ -1853,7 +1854,7 @@ class ClubProvider extends ChangeNotifier with WidgetsBindingObserver {
     }
     if (!changed) return;
     _syncSelfDisplayName();
-    _setMemberCount(clubId, membersForClub(clubId).length);
+    _setMemberCount(clubId, _officialMemberCount(clubId));
     notifyListeners();
     if (!_suppressPersist) _persistImmediately();
   }
@@ -2237,16 +2238,17 @@ class ClubProvider extends ChangeNotifier with WidgetsBindingObserver {
     }
   }
 
-  /// 모임찾기 카탈로그 회원수를 실제 활성 명단에 맞춘다.
-  /// leftover 삭제 후에도 clubs.member_count 가 4로 남는 일을 막는다.
+  /// 내가 만든·초대·승인으로 들어간 모임만 공식 회원수를 카탈로그에 쓴다.
+  /// 모임찾기 목록에 있는 남의 모임 찌꺼기 명단으로 member_count 를 덮지 않는다.
   void _reconcileLiveMemberCounts() {
     final ids = <String>{
-      ..._myClubs.map((c) => c.id),
-      ..._allClubs.map((c) => c.id),
+      ..._confirmedClubIds,
+      ..._sessionCreatedClubIds,
     };
     for (final id in ids) {
       if (_legacyMockClubIds.contains(id)) continue;
-      final n = membersForClub(id).where((m) => m.status == '활성').length;
+      if (!_isOfficialMyClub(id)) continue;
+      final n = _officialMemberCount(id);
       if (n <= 0) continue;
       final mine = _myClubs.where((c) => c.id == id).firstOrNull;
       final catalog = _allClubs.where((c) => c.id == id).firstOrNull;
@@ -2759,7 +2761,9 @@ class ClubProvider extends ChangeNotifier with WidgetsBindingObserver {
       byId.putIfAbsent(c.id, () => c);
     }
     return byId.values.map((c) {
-      final live = membersForClub(c.id).where((m) => m.status == '활성').length;
+      // 가입하지 않은 모임의 폰 찌꺼기 명단으로 회원수를 덮지 않는다.
+      if (!_isOfficialMyClub(c.id)) return c;
+      final live = _officialMemberCount(c.id);
       if (live > 0 && c.memberCount != live) {
         return c.copyWith(memberCount: live);
       }
@@ -2806,6 +2810,22 @@ class ClubProvider extends ChangeNotifier with WidgetsBindingObserver {
   // ════════════════════════════════════════════════════════
   List<Member> get members {
     return membersForClub(selectedClub.id);
+  }
+
+  bool _isOfficialMyClub(String clubId) {
+    if (_confirmedClubIds.contains(clubId)) return true;
+    if (_sessionCreatedClubIds.contains(clubId)) return true;
+    return false;
+  }
+
+  int _officialMemberCount(String clubId) {
+    final club = _myClubs.where((c) => c.id == clubId).firstOrNull ??
+        _allClubs.where((c) => c.id == clubId).firstOrNull;
+    return OfficialMemberCount.of(
+      clubId: clubId,
+      creatorUserId: club?.creatorId ?? '',
+      roster: membersForClub(clubId),
+    );
   }
 
   /// 어드민·동기화용 — 특정 모임의 회원 목록
@@ -6724,7 +6744,7 @@ class ClubProvider extends ChangeNotifier with WidgetsBindingObserver {
         {for (final m in result.members) m.id: m.name},
       );
       _syncScheduleMemberNames(club.id);
-      _setMemberCount(club.id, membersForClub(club.id).length);
+      _setMemberCount(club.id, _officialMemberCount(club.id));
       changed = true;
     }
     if (changed) _syncSelfDisplayName();
@@ -7179,9 +7199,7 @@ class ClubProvider extends ChangeNotifier with WidgetsBindingObserver {
         description: club.description,
         imageUrl: club.imageUrl,
         teamCount: club.teamCount,
-        memberCount: membersForClub(club.id)
-            .where((m) => m.status == '활성')
-            .length,
+        memberCount: _officialMemberCount(club.id),
         hostName: currentUserName,
         hostUserId: (_persistAuthUserId ?? currentUserId).trim(),
       );

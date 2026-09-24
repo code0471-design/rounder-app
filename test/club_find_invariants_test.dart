@@ -15,6 +15,21 @@ void main() {
     expect(dash.contains('size: 64'), isTrue);
   });
 
+  test('모임찾기 회원수는 가입하지 않은 모임의 폰 명단으로 덮지 않는다', () {
+    final src = _read('lib/providers/club_provider.dart');
+    expect(src.contains('_isOfficialMyClub(c.id)'), isTrue);
+    expect(src.contains('_officialMemberCount(c.id)'), isTrue);
+    expect(
+      src.contains('_confirmedClubIds'),
+      isTrue,
+    );
+    expect(
+      _read('lib/domain/services/official_member_count.dart')
+          .contains('isForeignLeftoverMember'),
+      isTrue,
+    );
+  });
+
   test('모임찾기는 내 모임을 포함한다', () {
     final dash =
         _read('lib/features/clubs/presentation/club_list_dashboard_screen.dart');
