@@ -277,6 +277,11 @@ void main() {
       expect(fn.contains('exports.flushD1Alimtalk'), isTrue);
       expect(fn.contains('seoulMinute() < 10'), isTrue,
           reason: '15분 주기 플러시도 10:00에는 알림톡을 내면 안 된다');
+      expect(fn.contains('seoulMinute() > 20'), isTrue,
+          reason: '10:20이 지나면 오후에 회비 알림톡을 따라 보내면 안 된다');
+      expect(read('lib/services/d1_alimtalk_flush.dart'),
+          contains('shouldSkipAsMissed'),
+          reason: '앱을 1시 52분에 열었다고 오늘 회비 알림톡을 즉시 내면 안 된다');
       expect(fn.contains('defineSecret'), isFalse,
           reason: 'Secret Manager 없으면 운영 Functions 배포가 막힌다');
       expect(fn.contains('alimtalkScheduled'), isTrue,

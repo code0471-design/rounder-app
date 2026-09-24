@@ -1,6 +1,7 @@
 import 'package:flutter/foundation.dart';
 
 import '../utils/d1_enqueue_policy.dart';
+import '../utils/d1_send_window.dart';
 import 'hq_alimtalk_catalog.dart';
 import 'push_notification_service.dart';
 import 'solapi_service.dart';
@@ -101,8 +102,14 @@ abstract final class D1AlimtalkFlush {
       if (sendOn.isAfter(today.add(const Duration(days: 1)))) {
         continue;
       }
+      if (D1SendWindow.shouldSkipAsMissed(now, sendOn)) {
+        await PushNotificationService.markD1AlimtalkSent(doc.id);
+        continue;
+      }
       final dueAt10 = DateTime(sendOn.year, sendOn.month, sendOn.day, 10);
-      final sendNow = !dueAt10.isAfter(now);
+      final sendNow = D1SendWindow.shouldSendNow(now, sendOn);
+      final reserve = D1SendWindow.shouldReserve(now, sendOn);
+      if (!sendNow && !reserve) continue;
       if (!await PushNotificationService.claimD1Alimtalk(doc.id)) {
         continue;
       }

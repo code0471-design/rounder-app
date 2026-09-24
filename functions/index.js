@@ -289,6 +289,8 @@ async function flushDueD1Alimtalk() {
   if (seoulHour() < 10) return;
   // 10:00 정각은 앱 솔라피 예약과 겹친다. 예약 안 된 건 10:10 이후만 보조.
   if (seoulHour() === 10 && seoulMinute() < 10) return;
+  // 10:20이 지나면 오후에 따라 보내지 않는다.
+  if (seoulHour() > 10 || seoulMinute() > 20) return;
   const snap = await getFirestore()
     .collection("d1_queue")
     .where("sendOn", "==", seoulYmd())

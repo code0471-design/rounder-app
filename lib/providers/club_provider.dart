@@ -409,6 +409,7 @@ class ClubProvider extends ChangeNotifier with WidgetsBindingObserver {
   }) async {
     _persistAuthUserId = authUserId;
     _serverClubsAligned = false;
+    _confirmedClubIds.clear();
     _clubInfoOverrides.clear();
     _accountBirthDate = birthDate;
     _accountHandicap = handicap;
@@ -546,8 +547,7 @@ class ClubProvider extends ChangeNotifier with WidgetsBindingObserver {
     // 내 모임 → Mock 저장소(어드민·모임찾기) 강제 동기화
     _syncMyClubsToMockStore();
 
-    // 홈은 바로 연다. 서버 소속은 뒤에서 맞춘다.
-    // 예전 목록을 그대로 그리면 7개가 보이므로, 맞추기 전엔 myClubs 를 비운다.
+    // 홈은 저장된 내 모임을 바로 보여 준다. 서버 소속 정리는 뒤에서.
     notifyListeners();
     if (AppDependencies.instance.isInitialized &&
         AppDependencies.instance.isOfflineMockMode) {
@@ -576,40 +576,51 @@ class ClubProvider extends ChangeNotifier with WidgetsBindingObserver {
       }
     }
 
-    var recovered = await _restoreOwnedClubsFromStores(authUserId);
-    if (!_isDemoSession) {
-      if (_purgeDemoIdentityClubs()) recovered = true;
-      _stripHardcodedDemoPayload();
-      await _claimClubsByPhone(authUserId);
-      if (await _ingestServerMemberships(authUserId)) recovered = true;
-      if (_purgeDemoIdentityClubs()) recovered = true;
-      if (await _pruneForeignClubs(authUserId)) recovered = true;
+    try {
+      var recovered = await _restoreOwnedClubsFromStores(authUserId);
+      if (!_isDemoSession) {
+        if (_purgeDemoIdentityClubs()) recovered = true;
+        _stripHardcodedDemoPayload();
+        await _claimClubsByPhone(authUserId);
+        if (await _ingestServerMemberships(authUserId)) recovered = true;
+        if (_purgeDemoIdentityClubs()) recovered = true;
+        if (await _pruneForeignClubs(authUserId)) recovered = true;
+      }
+      _myClubs.removeWhere((c) => _isLeftClub(c.id));
+      if (recovered) {
+        await _persistNow();
+      }
+      ensureCreatorMembers();
+      syncAuthGolfProfile(
+        birthDate: _accountBirthDate,
+        handicap: _accountHandicap,
+        gender: _accountGender,
+        phone: _accountPhone,
+        photoUrl: _accountPhotoUrl,
+      );
+    } catch (e) {
+      debugPrint('[ClubProvider] afterSwitch align skip: $e');
+    } finally {
+      if (!_serverClubsAligned) _serverClubsAligned = true;
+      notifyListeners();
     }
-    _myClubs.removeWhere((c) => _isLeftClub(c.id));
-    if (recovered) {
-      await _persistNow();
-    }
-    ensureCreatorMembers();
-    syncAuthGolfProfile(
-      birthDate: _accountBirthDate,
-      handicap: _accountHandicap,
-      gender: _accountGender,
-      phone: _accountPhone,
-      photoUrl: _accountPhotoUrl,
-    );
 
-    await mergeSharedJoinRequests();
-    await refreshJoinRequestInbox();
-    _purgeDemoSeedNotifications();
-    await HqPushCatalog.load();
-    _rebindPushIdsIfChanged();
-    await _pullCloudOpsForMyClubs();
-    _watchSelectedClubOps();
-    unawaited(_enqueueAllUpcomingD1());
-    unawaited(syncAllDuesD1Reminders());
-    unawaited(_pushOwnedClubCatalog());
-    if (!_serverClubsAligned) {
-      _serverClubsAligned = true;
+    try {
+      await mergeSharedJoinRequests();
+      await refreshJoinRequestInbox();
+      _purgeDemoSeedNotifications();
+      await HqPushCatalog.load();
+      _rebindPushIdsIfChanged();
+      await _pullCloudOpsForMyClubs();
+      if (!_isDemoSession && authUserId.isNotEmpty) {
+        await _ingestServerMemberships(authUserId);
+      }
+      _watchSelectedClubOps();
+      unawaited(_enqueueAllUpcomingD1());
+      unawaited(syncAllDuesD1Reminders());
+      unawaited(_pushOwnedClubCatalog());
+    } catch (e) {
+      debugPrint('[ClubProvider] afterSwitch sync skip: $e');
     }
     notifyListeners();
   }
@@ -1265,7 +1276,7 @@ class ClubProvider extends ChangeNotifier with WidgetsBindingObserver {
         continue;
       }
       final cid = c.creatorId.trim();
-      if (cid.isEmpty || demoCreators.contains(cid)) drop.add(c.id);
+      if (demoCreators.contains(cid)) drop.add(c.id);
     }
     if (drop.isEmpty) return false;
     _myClubs.removeWhere((c) => drop.contains(c.id));
@@ -2428,13 +2439,21 @@ class ClubProvider extends ChangeNotifier with WidgetsBindingObserver {
     _freshClubIds
       ..clear()
       ..addAll(b.freshClubIds);
+    final keptConfirmed = <Club>[
+      if (_serverClubsAligned && _confirmedClubIds.isNotEmpty)
+        for (final c in _myClubs)
+          if (_confirmedClubIds.contains(c.id)) c,
+    ];
     _myClubs
       ..clear()
       ..addAll(b.myClubs);
-    if (_serverClubsAligned) {
+    if (_serverClubsAligned && _confirmedClubIds.isNotEmpty) {
       _myClubs.removeWhere((c) =>
           !_confirmedClubIds.contains(c.id) &&
           !_sessionCreatedClubIds.contains(c.id));
+      for (final c in keptConfirmed) {
+        if (!_myClubs.any((x) => x.id == c.id)) _myClubs.add(c);
+      }
     }
     _allClubs
       ..clear()
@@ -2651,20 +2670,7 @@ class ClubProvider extends ChangeNotifier with WidgetsBindingObserver {
   // ════════════════════════════════════════════════════════
   int get selectedClubIndex => _selectedClubIndex;
   List<Club> get clubs        => List.unmodifiable(_myClubs);
-  List<Club> get myClubs {
-    if (_shouldHideUnalignedMyClubs) {
-      return List.unmodifiable(
-        _myClubs.where((c) => _sessionCreatedClubIds.contains(c.id)),
-      );
-    }
-    return List.unmodifiable(_myClubs);
-  }
-
-  bool get _shouldHideUnalignedMyClubs =>
-      !_isDemoSession &&
-      !_serverClubsAligned &&
-      AppDependencies.instance.isInitialized &&
-      !AppDependencies.instance.isOfflineMockMode;
+  List<Club> get myClubs => List.unmodifiable(_myClubs);
   Club get selectedClub {
     if (_myClubs.isEmpty) {
       throw StateError('선택된 모임이 없습니다. myClubs가 비어 있습니다.');

@@ -144,8 +144,13 @@ void main() {
         reason: '멤버십을 읽은 뒤에는 그 목록을 확정해야 한다');
     expect(src.contains('await _alignMyClubsWithServer()'), isFalse,
         reason: '서버 소속을 기다리면 인트로 뒤 홈이 다시 늦어진다');
-    expect(src.contains('_shouldHideUnalignedMyClubs'), isTrue,
-        reason: '홈은 먼저 열고, 맞추기 전엔 예전 7개를 그리지 않는다');
+    expect(src.contains('List<Club> get myClubs => List.unmodifiable(_myClubs);'),
+        isTrue,
+        reason: '서버 정리를 기다리다 내 모임을 숨기면 홈이 빈다');
+    expect(src.contains('_shouldHideUnalignedMyClubs'), isFalse,
+        reason: '맞추기 전 숨김이 안경헌 홈을 비게 했다');
+    expect(src.contains('afterSwitch align skip'), isTrue,
+        reason: '소속 조회가 실패해도 홈은 저장된 내 모임을 보여야 한다');
     expect(
       src.contains('!_confirmedClubIds.contains(c.id)'),
       isTrue,
