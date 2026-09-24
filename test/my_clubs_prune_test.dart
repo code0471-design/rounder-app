@@ -5,10 +5,11 @@ import 'package:golf_rounder/di/app_dependencies.dart';
 import 'package:golf_rounder/domain/services/app_data_bootstrap_service.dart';
 import 'package:golf_rounder/models/club_model.dart';
 import 'package:golf_rounder/providers/club_provider.dart';
+import 'package:golf_rounder/services/club_data_codec.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
 /// 테스터 폰에서 남의 모임이 전부 '내 모임'으로 보이던 버그.
-/// 내 모임은 서버 멤버십·생성자·내 명단 행으로만 정해진다.
+/// 내 모임 = 서버 멤버십만. 회원수 = 서버 가입만. 폰 찌꺼기는 기준이 아니다.
 void main() {
   TestWidgetsFlutterBinding.ensureInitialized();
 
@@ -65,7 +66,7 @@ void main() {
     await clubs.refreshOwnedClubs();
 
     expect(clubs.myClubs.any((c) => c.id == foreign.id), isFalse,
-        reason: '서버 멤버십도 생성자도 내 명단 행도 없으면 내 모임이 아니다');
+        reason: '서버 멤버십이 없으면 내 모임이 아니다');
     expect(clubs.myClubs.any((c) => c.id == myClubId), isTrue,
         reason: '내가 만든 모임은 그대로 남아야 한다');
     expect(clubs.allClubs.any((c) => c.id == foreign.id), isTrue,
@@ -165,16 +166,18 @@ void main() {
         reason: '탐색 목록이 비었다고 정리를 건너뛰면 폰에 남은 남의 모임이 남는다');
     expect(body.contains('if (_sessionCreatedClubIds.contains(c.id)) continue;'),
         isTrue,
-        reason: '방금 만든 모임만 카탈로그 없어도 남긴다. 지운 모임은 뺀다');
+        reason: '방금 만든 모임만 서버에 아직 없어도 남긴다. 지운 모임은 뺀다');
     expect(body.contains('_clubRosterHasMyPhone(c.id)'), isFalse,
         reason: '로컬 명단·번호만으로 남기면 잘못 붙은 모임이 다시 내 모임이 된다');
     expect(body.contains('if (mineIds.contains(c.id)) continue;'), isTrue);
     expect(body.contains('_iAmClubCreator(c)'), isFalse,
         reason: '로컬 방장 id 를 믿으면 장창현 폰에 남의 모임이 남는다');
-    expect(body.contains('fetchClubById'), isTrue,
-        reason: '탐색 목록이 비면 모임 문서를 하나씩 보고 소속 아닌 것을 뺀다');
-    expect(body.contains('isUserMember'), isTrue,
-        reason: '멤버십 목록이 빠져도 그 모임 소속이면 알라딘이 내 모임에서 빠지면 안 된다');
+    expect(body.contains('fetchClubById'), isFalse,
+        reason: '카탈로그·문서 생성자로 남기면 가입 안 한 모임이 내 모임에 남는다');
+    expect(body.contains('isUserMember'), isFalse,
+        reason: '멤버십 목록이 기준이다. 다른 경로로 남기지 않는다');
+    expect(body.contains('serverCreator'), isFalse,
+        reason: '서버 생성자만 맞아도 가입이 없으면 내 모임이 아니다');
     expect(body.contains('if (catalogOk && catalog.isNotEmpty)'), isFalse,
         reason: '탐색 목록에 없다고 지우면 초대 가입 모임이 빠진다');
     expect(body.contains('notifyListeners()'), isTrue,
@@ -189,7 +192,7 @@ void main() {
     expect(src.contains('_shouldHideUnalignedMyClubs'), isFalse,
         reason: '맞추기 전 숨김이 안경헌 홈을 비게 했다');
     expect(src.contains('afterSwitch align skip'), isTrue,
-        reason: '소속 조회가 실패해도 홈은 저장된 내 모임을 보여야 한다');
+        reason: '소속 조회가 실패해도 마지막 서버 확정 목록은 유지한다');
     expect(
       src.contains('!_confirmedClubIds.contains(c.id)'),
       isTrue,
@@ -197,6 +200,16 @@ void main() {
     );
     expect(src.contains('_replaceMyClubsFromServerMemberships'), isTrue,
         reason: '원클럽처럼 내 모임은 서버 소속 목록이다');
+    expect(src.contains('MemberPhoneIndex.claimForUser('), isFalse,
+        reason: '번호 색인으로 소속을 만들면 가입 안 한 모임이 내 모임이 된다');
+    expect(src.contains('restore discoverable skip'), isFalse,
+        reason: '카탈로그 생성자를 내 모임으로 복구하면 안 된다');
+    expect(src.contains('if (!_isDemoSession) return;'), isTrue,
+        reason: '실계정 회원수를 폰 명단 길이로 맞추면 안 된다');
+    expect(src.contains('memberCount: c.memberCount,'), isTrue,
+        reason: '내 모임 회원수는 서버 카탈로그 값이다');
+    expect(src.contains('_applyMembershipOnlyMyClubs()'), isTrue,
+        reason: '폰에 남은 클럽 목록은 실제 가입처럼 보여 주면 안 된다');
     final refreshStart = src.indexOf('Future<void> refreshOwnedClubs()');
     final refreshEnd = src.indexOf('bool get _isDemoSession', refreshStart);
     expect(refreshStart, greaterThan(0));
@@ -309,6 +322,54 @@ void main() {
     expect(clubs.myClubs.any((c) => c.id == gone.id), isFalse,
         reason: '서버 문서가 없는 모임은 폰 내 모임에서 빠져야 한다');
     expect(clubs.myClubs.any((c) => c.id == myClubId), isTrue);
+  });
+
+  test('폰에 남은 모임 목록은 실제 가입처럼 다시 넣지 않는다', () {
+    final leftover = Club(
+      id: 'c_viewed_only',
+      name: '모임찾기에서 본 모임',
+      myRole: '정회원',
+      memberCount: 9,
+      creatorId: 'kakao_other',
+      region: '서울',
+      industry: '골프',
+      teamCount: 4,
+      description: '',
+      createdAt: DateTime(2026, 9, 1),
+    );
+    final stale = clubs.exportBundleForTest();
+    clubs.importBundleForTest(ClubDataBundle(
+      selectedClubIndex: stale.selectedClubIndex,
+      freshClubIds: stale.freshClubIds,
+      myClubs: [...stale.myClubs, leftover],
+      allClubs: [...stale.allClubs, leftover],
+      joinRequests: stale.joinRequests,
+      members: stale.members,
+      activities: stale.activities,
+      announcements: stale.announcements,
+      appNotifications: stale.appNotifications,
+      duesSettings: stale.duesSettings,
+      duesPayments: stale.duesPayments,
+      paymentRequests: stale.paymentRequests,
+      transactions: stale.transactions,
+      schedules: stale.schedules,
+      photos: stale.photos,
+      groupAssignments: stale.groupAssignments,
+      adApplications: stale.adApplications,
+      adNotifications: stale.adNotifications,
+      sponsorApplications: stale.sponsorApplications,
+      pointEvents: stale.pointEvents,
+      awardRecords: stale.awardRecords,
+      roundScores: stale.roundScores,
+      thankYouMessages: stale.thankYouMessages,
+      waitingList: stale.waitingList,
+      alimtalkSettings: stale.alimtalkSettings,
+    ));
+
+    expect(clubs.myClubs.any((c) => c.id == leftover.id), isFalse,
+        reason: '모임찾기에서 보기만 한 모임은 내 모임이 아니다');
+    expect(clubs.myClubs.any((c) => c.id == myClubId), isTrue,
+        reason: '서버에 가입된 모임만 남는다');
   });
 
   test('내 모임 카드 직책은 Club.myRole이 아니라 그 모임 명단을 본다', () {

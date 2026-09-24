@@ -50,12 +50,8 @@ class MockClubRepository implements ClubRepository {
     final aliases = _userAliases(userId);
     return _store.clubs
         .where((c) {
-          if (_isMemberAnyKey(c.id, aliases)) return true;
-          // 멤버십 키 유실돼도 creatorId로 내 생성 모임 복구
-          if (c.creatorId.isNotEmpty && aliases.contains(c.creatorId)) {
-            return true;
-          }
-          return false;
+          // 운영과 같이 서버 명단(가입)만 내 모임이다. 생성자 칸만으로는 안 넣는다.
+          return _isMemberAnyKey(c.id, aliases);
         })
         .map((c) {
           try {

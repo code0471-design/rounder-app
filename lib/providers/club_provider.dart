@@ -416,6 +416,7 @@ class ClubProvider extends ChangeNotifier with WidgetsBindingObserver {
     _persistAuthUserId = authUserId;
     _serverClubsAligned = false;
     _confirmedClubIds.clear();
+    _sessionCreatedClubIds.clear();
     _clubInfoOverrides.clear();
     _accountBirthDate = birthDate;
     _accountHandicap = handicap;
@@ -423,6 +424,7 @@ class ClubProvider extends ChangeNotifier with WidgetsBindingObserver {
     _accountPhone = phone;
     _accountPhotoUrl = photoUrl;
     await _loadLeftClubIds(authUserId);
+    await _loadConfirmedClubIds(authUserId);
     switch (authUserId) {
       case 'user_guest':
         _currentUserId = 'mg1';
@@ -609,7 +611,6 @@ class ClubProvider extends ChangeNotifier with WidgetsBindingObserver {
     } catch (e) {
       debugPrint('[ClubProvider] afterSwitch align skip: $e');
     } finally {
-      if (!_serverClubsAligned) _serverClubsAligned = true;
       notifyListeners();
       unawaited(_pushMyProfileToAllClubMemberDocs());
     }
@@ -771,6 +772,51 @@ class ClubProvider extends ChangeNotifier with WidgetsBindingObserver {
 
   static String _leftClubsPrefsKey(String authUserId) =>
       'rounder_left_clubs_v2_$authUserId';
+
+  static String _confirmedClubsPrefsKey(String authUserId) =>
+      'rounder_confirmed_clubs_v1_$authUserId';
+
+  Future<void> _loadConfirmedClubIds(String authUserId) async {
+    _confirmedClubIds.clear();
+    if (_isDemoSession) return;
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      final list = prefs.getStringList(_confirmedClubsPrefsKey(authUserId));
+      if (list == null) return;
+      _confirmedClubIds.addAll(list.where((id) => id.trim().isNotEmpty));
+    } catch (e) {
+      debugPrint('[ClubProvider] load confirmed clubs skip: $e');
+    }
+  }
+
+  Future<void> _saveConfirmedClubIds(String authUserId) async {
+    if (_isDemoSession) return;
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      await prefs.setStringList(
+        _confirmedClubsPrefsKey(authUserId),
+        _confirmedClubIds.toList(),
+      );
+    } catch (e) {
+      debugPrint('[ClubProvider] save confirmed clubs skip: $e');
+    }
+  }
+
+  /// 내 모임은 서버 가입만. 폰에 남은 목록은 멤버십이 아니다.
+  void _applyMembershipOnlyMyClubs() {
+    if (_isDemoSession) return;
+    _myClubs.removeWhere((c) =>
+        !_confirmedClubIds.contains(c.id) &&
+        !_sessionCreatedClubIds.contains(c.id));
+    if (_selectedClubIndex >= _myClubs.length) _selectedClubIndex = 0;
+  }
+
+  void _rememberOfficialClub(String clubId) {
+    if (clubId.trim().isEmpty || _isDemoSession) return;
+    _confirmedClubIds.add(clubId);
+    final auth = _persistAuthUserId;
+    if (auth != null) unawaited(_saveConfirmedClubIds(auth));
+  }
 
   Future<void> _loadLeftClubIds(String authUserId) async {
     _leftClubIds.clear();
@@ -1035,20 +1081,8 @@ class ClubProvider extends ChangeNotifier with WidgetsBindingObserver {
       }
     }
 
-    // 4) 서버 멤버십 + 내가 만든 공개 모임
+    // 4) 서버 멤버십만. 카탈로그 생성자·모임찾기 열람은 내 모임이 아니다.
     if (await _ingestServerMemberships(authUserId)) changed = true;
-    try {
-      final discoverable = await AppDependencies.instance.clubRepository
-          .fetchDiscoverableClubs();
-      for (final c in discoverable) {
-        if (SampleClubFilter.isSample(id: c.id, name: c.name)) continue;
-        if (!c.id.startsWith('c_')) continue;
-        if (c.creatorId.isEmpty || !aliases.contains(c.creatorId)) continue;
-        if (_ingestOwnedClub(c, const [])) changed = true;
-      }
-    } catch (e) {
-      debugPrint('[ClubProvider] restore discoverable skip: $e');
-    }
 
     if (changed) {
       final names = _myClubs
@@ -1303,6 +1337,7 @@ class ClubProvider extends ChangeNotifier with WidgetsBindingObserver {
                 creatorId: c.creatorId.trim().isNotEmpty
                     ? c.creatorId
                     : local.creatorId,
+                memberCount: c.memberCount,
               ),
       );
     }
@@ -1322,7 +1357,10 @@ class ClubProvider extends ChangeNotifier with WidgetsBindingObserver {
     _serverClubsAligned = true;
     if (_selectedClubIndex >= _myClubs.length) _selectedClubIndex = 0;
     final auth = _persistAuthUserId;
-    if (auth != null) unawaited(_saveLeftClubIds(auth));
+    if (auth != null) {
+      unawaited(_saveLeftClubIds(auth));
+      unawaited(_saveConfirmedClubIds(auth));
+    }
     return before != after;
   }
 
@@ -1365,23 +1403,17 @@ class ClubProvider extends ChangeNotifier with WidgetsBindingObserver {
   /// 번호로 이어 붙은 모임 → 그 모임에서 내 명단 행 id.
   final Map<String, String> _claimedRosterIds = {};
 
-  /// 방장이 손으로 추가해 둔 명단 행을 내 계정에 잇는다.
+  /// 번호 색인으로 잘못 만든 소속만 지운다.
   ///
-  /// 계정 없이 이름·번호만 적힌 회원은 서버에 소속이 없어서, 나중에 같은 번호로
-  /// 가입해도 그 모임이 안 보였다. 로그인할 때 번호 색인을 한 번 읽어 잇는다.
+  /// 만든 사람 · 초대 수락 · 가입 승인만 내 모임이다. 번호가 같다고
+  /// 소속을 만들면 가입하지 않은 모임이 내 모임에 붙는다.
   Future<bool> _claimClubsByPhone(String authUserId) async {
     if (_isDemoSession || authUserId.trim().isEmpty) return false;
     await MemberPhoneIndex.revokeSpuriousPhoneMemberships(
       userId: authUserId,
       phone: _accountPhone,
     );
-    final claimed = await MemberPhoneIndex.claimForUser(
-      userId: authUserId,
-      phone: _accountPhone,
-    );
-    if (claimed.isEmpty) return false;
-    _claimedRosterIds.addAll(claimed);
-    return true;
+    return false;
   }
 
   /// 예전 초대 가입자는 명단 행 id 가 `m_{모임}_m1` 로 남아 계정 ID 로 못 찾는다.
@@ -1394,18 +1426,11 @@ class ClubProvider extends ChangeNotifier with WidgetsBindingObserver {
         MemberPhoneIndex.digitsOf(m.phone) == mine);
   }
 
-  /// 폰에만 남은 '남의 모임'을 내 모임에서 뺀다.
+  /// 서버 멤버십이 없는 모임을 내 모임에서 뺀다.
   ///
-  /// 테스터 폰에서 전 모임이 내 모임으로 보이던 원인. 예전 빌드가 탐색 카탈로그를
-  /// 내 모임으로 복구해 저장했고, 그 뒤로 아무도 지우지 않았다.
-  ///
-  /// 지우는 기준은 **서버 멤버십**이다. 멤버십 조회가 실패하면 아무것도 지우지 않는다
-  /// (비행기모드·권한 오류에 내 모임이 사라지면 훨씬 큰 사고다).
-  /// 탐색 목록이 비거나 실패해도, 소속이 아닌 모임은 문서 단건으로 확인하고 뺀다.
-  /// 다음 중 하나면 남긴다.
-  ///   · 서버 멤버십(`user_memberships`)이 있다
-  ///   · 서버 문서의 생성자가 나다 (`creator_id` / `host_user_id`)
-  ///   · 이 실행에서 방금 만든 모임이라 서버에 아직 없다
+  /// 멤버십 조회가 실패하면 아무것도 지우지 않는다. 조회에 성공하면
+  /// 가입(만든 사람 · 초대 수락 · 가입 승인)이 있는 모임과 방금 만든 모임만 남긴다.
+  /// 카탈로그 생성자·폰 명단·모임찾기 열람은 남기는 이유가 아니다.
   Future<bool> _pruneForeignClubs(String authUserId) async {
     if (_isDemoSession || _myClubs.isEmpty) return false;
     if (!AppDependencies.instance.isInitialized) return false;
@@ -1419,48 +1444,13 @@ class ClubProvider extends ChangeNotifier with WidgetsBindingObserver {
       return false;
     }
 
-    var catalog = <Club>[];
-    try {
-      catalog = await repo.fetchDiscoverableClubs();
-    } catch (e) {
-      debugPrint('[ClubProvider] prune catalog skip: $e');
-    }
-
     final mineIds = serverMine.map((c) => c.id).toSet();
-    final catalogById = {for (final c in catalog) c.id: c};
-    final aliases = _authAliases(authUserId);
 
     final drop = <String>{};
     for (final c in List<Club>.from(_myClubs)) {
       if (_legacyMockClubIds.contains(c.id)) continue;
       if (mineIds.contains(c.id)) continue;
       if (_sessionCreatedClubIds.contains(c.id)) continue;
-
-      Club? serverClub = catalogById[c.id];
-      if (serverClub == null) {
-        try {
-          serverClub = await repo.fetchClubById(c.id, userId: authUserId);
-        } catch (e) {
-          debugPrint('[ClubProvider] prune keep ${c.id} (단건 조회 실패): $e');
-          continue;
-        }
-      }
-      if (serverClub == null) {
-        drop.add(c.id);
-        continue;
-      }
-      // 로컬 creatorId 는 쓰지 않는다. 장창현 찌꺼기가 방장 id 를 훔치면
-      // 강남·평촌이 내 모임으로 남는다. 서버 생성자만 본다.
-      final serverCreator = serverClub.creatorId.trim();
-      if (serverCreator.isNotEmpty && aliases.contains(serverCreator)) {
-        continue;
-      }
-      try {
-        if (await repo.isUserMember(c.id, authUserId)) continue;
-      } catch (e) {
-        debugPrint('[ClubProvider] prune keep ${c.id} (소속 확인 실패): $e');
-        continue;
-      }
       drop.add(c.id);
     }
     _serverClubsAligned = true;
@@ -1469,7 +1459,10 @@ class ClubProvider extends ChangeNotifier with WidgetsBindingObserver {
       ..addAll([
         for (final c in _myClubs)
           if (!drop.contains(c.id)) c.id,
+        ...mineIds,
       ]);
+    final auth = _persistAuthUserId;
+    if (auth != null) unawaited(_saveConfirmedClubIds(auth));
     if (drop.isEmpty) return false;
 
     _myClubs.removeWhere((c) => drop.contains(c.id));
@@ -1716,11 +1709,15 @@ class ClubProvider extends ChangeNotifier with WidgetsBindingObserver {
       absorbed,
       {for (final m in _members) m.id: m.name},
     );
-    _setMemberCount(clubId, _officialMemberCount(clubId));
+    if (_isDemoSession) {
+      _setMemberCount(clubId, _officialMemberCount(clubId));
+    } else {
+      unawaited(_recountOfficialMemberCount(clubId));
+    }
     return true;
   }
 
-  /// 방장 자리(`m_creator_{모임}`)에 내 행이 들어가 있으면 내 자리로 옮긴다.
+  /// 방장 자리(`m_creator_{모임}`)에 들어가 있으면 내 자리로 옮긴다.
   ///
   /// 초대로 들어온 모임인데 예전 빌드가 내 행을 방장 자리에 만들어 두면, 서버의
   /// 진짜 방장은 "이미 있는 행"으로 취급돼 명단에 영영 안 들어온다. 모임에
@@ -1854,7 +1851,11 @@ class ClubProvider extends ChangeNotifier with WidgetsBindingObserver {
     }
     if (!changed) return;
     _syncSelfDisplayName();
-    _setMemberCount(clubId, _officialMemberCount(clubId));
+    if (_isDemoSession) {
+      _setMemberCount(clubId, _officialMemberCount(clubId));
+    } else {
+      unawaited(_recountOfficialMemberCount(clubId));
+    }
     notifyListeners();
     if (!_suppressPersist) _persistImmediately();
   }
@@ -2238,8 +2239,9 @@ class ClubProvider extends ChangeNotifier with WidgetsBindingObserver {
     }
   }
 
-  /// 로컬 화면용. 서버 clubs.member_count 는 멤버십 recount 만 쓴다.
+  /// 데모 화면용. 실계정 회원수는 서버 멤버십 recount 만 쓴다.
   void _reconcileLiveMemberCounts() {
+    if (!_isDemoSession) return;
     final ids = <String>{
       ..._confirmedClubIds,
       ..._sessionCreatedClubIds,
@@ -2498,20 +2500,21 @@ class ClubProvider extends ChangeNotifier with WidgetsBindingObserver {
       ..clear()
       ..addAll(b.freshClubIds);
     final keptConfirmed = <Club>[
-      if (_serverClubsAligned && _confirmedClubIds.isNotEmpty)
+      if (!_isDemoSession)
         for (final c in _myClubs)
-          if (_confirmedClubIds.contains(c.id)) c,
+          if (_confirmedClubIds.contains(c.id) ||
+              _sessionCreatedClubIds.contains(c.id))
+            c,
     ];
     _myClubs
       ..clear()
       ..addAll(b.myClubs);
-    if (_serverClubsAligned && _confirmedClubIds.isNotEmpty) {
-      _myClubs.removeWhere((c) =>
-          !_confirmedClubIds.contains(c.id) &&
-          !_sessionCreatedClubIds.contains(c.id));
+    if (!_isDemoSession) {
+      _applyMembershipOnlyMyClubs();
       for (final c in keptConfirmed) {
         if (!_myClubs.any((x) => x.id == c.id)) _myClubs.add(c);
       }
+      _applyMembershipOnlyMyClubs();
     }
     _allClubs
       ..clear()
@@ -6154,6 +6157,7 @@ class ClubProvider extends ChangeNotifier with WidgetsBindingObserver {
       }
       if (club != null) {
         _ingestOwnedClub(club, const []);
+        _rememberOfficialClub(clubId);
       }
     }
     selectClubById(clubId);
@@ -6217,6 +6221,7 @@ class ClubProvider extends ChangeNotifier with WidgetsBindingObserver {
     _allClubs.add(newClub);
     _freshClubIds.add(id);
     _sessionCreatedClubIds.add(id);
+    _rememberOfficialClub(id);
 
     // 생성자를 해당 모임 회원으로 등록 (mock 시드 회원과 분리: m_creator_*)
     final creatorMember = _selfMember(
@@ -6309,7 +6314,7 @@ class ClubProvider extends ChangeNotifier with WidgetsBindingObserver {
       final iAmCreator = _iAmClubCreator(club);
 
       if (existing.isNotEmpty) {
-        if (club.memberCount != existing.length) {
+        if (_isDemoSession && club.memberCount != existing.length) {
           _setMemberCount(club.id, existing.length);
           changed = true;
         }
@@ -7534,6 +7539,7 @@ class ClubProvider extends ChangeNotifier with WidgetsBindingObserver {
     await _hydrateRosterFromServer(clubId);
     // 방장이 이름·번호만 적어 둔 내 행이 있으면 새 행과 합친다 (두 줄 방지)
     _absorbUnlinkedRowsByPhone(clubId);
+    _rememberOfficialClub(clubId);
 
     selectClubById(clubId);
     notifyListeners();

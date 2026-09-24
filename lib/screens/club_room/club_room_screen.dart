@@ -691,7 +691,7 @@ class ClubHomeTab extends StatelessWidget {
                             ),
                             const SizedBox(height: 3),
                             Text(
-                              '${club.region} · ${club.industry} · ${provider.activeMembers.isNotEmpty ? provider.activeMembers.length : club.memberCount}명',
+                              '${club.region} · ${club.industry} · ${club.memberCount}명',
                               style: const TextStyle(
                                   fontSize: 12,
                                   fontWeight: FontWeight.w500,

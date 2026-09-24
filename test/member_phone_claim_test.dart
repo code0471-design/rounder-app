@@ -108,10 +108,8 @@ void main() {
     expect(src.contains('MemberPhoneIndex.removeClub(digits, clubId)'), isTrue);
     expect(src.contains('revokeSpuriousPhoneMemberships('), isTrue,
         reason: '잘못된 번호 소속을 먼저 지워야 아레나 총무가 다시 안 붙는다');
-    expect(
-      src.indexOf('revokeSpuriousPhoneMemberships('),
-      lessThan(src.indexOf('MemberPhoneIndex.claimForUser(')),
-    );
+    expect(src.contains('MemberPhoneIndex.claimForUser('), isFalse,
+        reason: '번호로 소속을 만들면 가입하지 않은 모임이 내 모임이 된다');
     expect(src.contains('if (_isSelfTarget(authorId))'), isTrue);
     expect(src.contains('if (!_isMyRosterRowById(selectedClub, me.id)) return;'),
         isTrue);
