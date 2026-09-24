@@ -6,7 +6,7 @@ import 'package:golf_rounder/models/club_model.dart';
 import 'package:golf_rounder/providers/club_provider.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
-/// 정원 마감→대기, 불참 시 조편성 제외, 대기 1번 앱푸시, leftover 참석 포인트.
+/// 정원 마감→대기, 불참 시 조편성 제외, 대기 전원 앱푸시, leftover 참석 포인트.
 void main() {
   TestWidgetsFlutterBinding.ensureInitialized();
 
@@ -137,7 +137,7 @@ void main() {
     );
   });
 
-  test('불참하면 조편성에서 빠지고 대기 1번에게 앱 알림이 간다', () {
+  test('불참하면 조편성에서 빠지고 대기자 전원에게 앱 알림이 간다', () {
     clubs.addSchedule(sched('s_drop'));
     clubs.adminSetAttendance(
       scheduleId: 's_drop',
@@ -190,7 +190,7 @@ void main() {
           n.body.contains('참석으로 변경해 주세요') &&
           (n.targetUserId == waiterId || n.targetUserId == 'kakao_wait')),
       isTrue,
-      reason: '대기 1번은 푸시·인박스로 참석 가능만 알린다',
+      reason: '대기자는 푸시·인박스로 참석 가능만 알린다',
     );
     expect(
       clubs.appNotifications.any((n) => n.title.contains('참석이 확정되었습니다')),
@@ -244,7 +244,7 @@ void main() {
     );
   });
 
-  test('자리가 또 나면 아직 알림 안 받은 다음 대기자에게 간다', () {
+  test('결원이 나면 대기자 전원에게 알린다', () {
     clubs.addSchedule(sched('s_next'));
     clubs.adminSetAttendance(
       scheduleId: 's_next',
@@ -275,32 +275,114 @@ void main() {
       response: '불참',
     );
     expect(
-      clubs.waitingListForSchedule('s_next').first.memberId,
-      waiterId,
+      clubs.waitingListForSchedule('s_next').map((w) => w.memberId).toSet(),
+      {waiterId, extraB},
     );
     expect(
-      clubs.waitingListForSchedule('s_next').first.status,
-      WaitingStatus.notified,
+      clubs.waitingListForSchedule('s_next').every(
+        (w) => w.status == WaitingStatus.notified,
+      ),
+      isTrue,
+      reason: '결원 시 대기 1번만 알리면 안 된다',
     );
     expect(
-      clubs.waitingListForSchedule('s_next')
-          .firstWhere((w) => w.memberId == extraB)
-          .status,
-      WaitingStatus.waiting,
+      clubs.appNotifications
+          .where((n) =>
+              n.title == '참석이 가능해졌습니다' && n.targetId == 's_next')
+          .length,
+      greaterThanOrEqualTo(2),
+    );
+  });
+
+  test('먼저 참석한 사람만 확정되고 늦은 사람은 대기에 남는다', () {
+    clubs.addSchedule(sched('s_late'));
+    clubs.adminSetAttendance(
+      scheduleId: 's_late',
+      memberId: leftoverId,
+      memberName: 'Jeongwon Lee',
+      response: '참석',
     );
     clubs.adminSetAttendance(
-      scheduleId: 's_next',
+      scheduleId: 's_late',
       memberId: extraA,
       memberName: '회원A',
+      response: '참석',
+    );
+    clubs.adminSetAttendance(
+      scheduleId: 's_late',
+      memberId: extraB,
+      memberName: '회원B',
+      response: '참석',
+    );
+    clubs.adminSetAttendance(
+      scheduleId: 's_late',
+      memberId: extraC,
+      memberName: '회원C',
+      response: '참석',
+    );
+    clubs.addToWaitingList(
+      scheduleId: 's_late',
+      memberId: creatorId,
+      memberName: '안경현',
+    );
+    clubs.addToWaitingList(
+      scheduleId: 's_late',
+      memberId: waiterId,
+      memberName: '대기김',
+    );
+    clubs.adminSetAttendance(
+      scheduleId: 's_late',
+      memberId: leftoverId,
+      memberName: 'Jeongwon Lee',
       response: '불참',
     );
-    expect(
-      clubs.waitingListForSchedule('s_next')
-          .firstWhere((w) => w.memberId == extraB)
-          .status,
-      WaitingStatus.notified,
-      reason: '두 번째 결원은 아직 알림 안 받은 다음 대기자에게 간다',
+    clubs.adminSetAttendance(
+      scheduleId: 's_late',
+      memberId: waiterId,
+      memberName: '대기김',
+      response: '참석',
     );
+    expect(
+      clubs.scheduleById('s_late')!.responses.any(
+            (r) => r.memberId == waiterId && r.response == '참석',
+          ),
+      isTrue,
+    );
+    expect(
+      clubs.waitingListForSchedule('s_late').any((w) => w.memberId == waiterId),
+      isFalse,
+    );
+    expect(
+      clubs.respondToSchedule(scheduleId: 's_late', response: '참석'),
+      isFalse,
+      reason: '자리가 찼으면 늦은 대기자는 참석하면 안 된다',
+    );
+    expect(
+      clubs.waitingListForSchedule('s_late').any((w) => w.memberId == creatorId),
+      isTrue,
+      reason: '늦은 사람은 다시 등록하지 않고 대기에 남아야 한다',
+    );
+    expect(
+      clubs.scheduleById('s_late')!.responses.any(
+            (r) => r.memberId == creatorId && r.response == '참석',
+          ),
+      isFalse,
+    );
+  });
+
+  test('대기자가 불참하면 명단에서 뺀다', () {
+    clubs.addSchedule(sched('s_wout'));
+    clubs.addToWaitingList(
+      scheduleId: 's_wout',
+      memberId: creatorId,
+      memberName: '안경현',
+    );
+    expect(clubs.waitingListForSchedule('s_wout'), isNotEmpty);
+    expect(
+      clubs.respondToSchedule(scheduleId: 's_wout', response: '불참'),
+      isTrue,
+    );
+    expect(clubs.waitingListForSchedule('s_wout'), isEmpty);
   });
 
   test('이정원이 지난 일정에 참석했는데 포인트가 0이면 안 된다', () {

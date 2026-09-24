@@ -2604,6 +2604,8 @@ class ClubProvider extends ChangeNotifier with WidgetsBindingObserver {
     _waitingList
       ..clear()
       ..addAll(b.waitingList);
+    final knownScheduleIds = {for (final s in _schedules) s.id};
+    _waitingList.removeWhere((w) => knownScheduleIds.contains(w.scheduleId));
     _ingestWaitingFromSchedules();
     _dropConfirmedWaiters();
     _alimtalkSettings
@@ -5035,12 +5037,55 @@ class ClubProvider extends ChangeNotifier with WidgetsBindingObserver {
     return count;
   }
 
+  /// 서버 정원으로 참석을 받는다. 늦은 대기자는 false(명단 유지).
+  Future<bool> respondToScheduleLive({
+    required String scheduleId,
+    required String response,
+    String? memo,
+  }) async {
+    if (response == '참석') {
+      final idx = _schedules.indexWhere((s) => s.id == scheduleId);
+      if (idx == -1) return false;
+      final schedule = _schedules[idx];
+      final myId = currentMember?.id ?? currentUserId;
+      final prev = schedule.responses
+          .where((r) => r.memberId == myId)
+          .map((r) => r.response)
+          .firstOrNull;
+      if (prev != '참석' && schedule.effectiveCapacity > 0) {
+        final claimed = await ClubOpsSync.claimScheduleSeat(
+          clubId: schedule.clubId,
+          scheduleId: scheduleId,
+          year: schedule.roundDate.year,
+          memberId: myId,
+          memberName: currentUserName,
+          capacity: schedule.effectiveCapacity,
+        );
+        if (claimed == false) return false;
+        if (claimed == true) {
+          return respondToSchedule(
+            scheduleId: scheduleId,
+            response: response,
+            memo: memo,
+            skipCapacityCheck: true,
+          );
+        }
+      }
+    }
+    return respondToSchedule(
+      scheduleId: scheduleId,
+      response: response,
+      memo: memo,
+    );
+  }
+
   /// 참석 응답 등록/수정.
   /// 정원 초과 참석은 false를 반환(대기 등록은 UI에서 처리).
   bool respondToSchedule({
     required String scheduleId,
     required String response, // '참석' | '불참'
     String? memo,
+    bool skipCapacityCheck = false,
   }) {
     final idx = _schedules.indexWhere((s) => s.id == scheduleId);
     if (idx == -1) return false;
@@ -5055,6 +5100,7 @@ class ClubProvider extends ChangeNotifier with WidgetsBindingObserver {
 
     if (response == '참석' &&
         prev != '참석' &&
+        !skipCapacityCheck &&
         isAttendanceFull(scheduleId)) {
       return false;
     }
@@ -5075,11 +5121,9 @@ class ClubProvider extends ChangeNotifier with WidgetsBindingObserver {
     }
     _schedules[idx] = schedule.copyWith(responses: newResponses);
 
-    // 참석으로 확정되면 대기 명단에서 수락 처리
     if (response == '참석') {
       _acceptWaitingIfAny(scheduleId, myId);
-    } else {
-      // 불참/미정으로 바꾸면 대기 신청도 취소
+    } else if (response == '불참') {
       _cancelWaitingIfAny(scheduleId, myId);
     }
     // 참석 → 불참으로 바뀌면 자리 생김 → 대기자 알림
@@ -5209,7 +5253,7 @@ class ClubProvider extends ChangeNotifier with WidgetsBindingObserver {
 
     if (response == '참석') {
       _acceptWaitingIfAny(scheduleId, memberId);
-    } else {
+    } else if (response == '불참') {
       _cancelWaitingIfAny(scheduleId, memberId);
     }
     if (prev == '참석' && response == '불참') {
@@ -10327,8 +10371,8 @@ class ClubProvider extends ChangeNotifier with WidgetsBindingObserver {
   // ════════════════════════════════════════════════════════
   //  라운딩 대기 등록 시스템
   //  · 정원 있는 일정만. 마감 후 참석은 대기 등록
-  //  · 결원 시 자동 참석 없음. 아직 알림 안 받은 1번에게만 푸시
-  //  · 대기자가 참석으로 바꾸면 명단에서 즉시 제외
+  //  · 결원 시 자동 참석 없음. 대기자 전원에게 푸시
+  //  · 먼저 참석 누른 사람만 확정. 늦은 사람은 대기에 남음
   // ════════════════════════════════════════════════════════
 
   final List<WaitingEntry> _waitingList = [];
@@ -10427,7 +10471,7 @@ class ClubProvider extends ChangeNotifier with WidgetsBindingObserver {
       return;
     }
     _waitingList.add(WaitingEntry(
-      id: 'wl_${DateTime.now().millisecondsSinceEpoch}',
+      id: 'wl_${memberId}_${DateTime.now().microsecondsSinceEpoch}',
       scheduleId: scheduleId,
       memberId: memberId,
       memberName: memberName,
@@ -10446,50 +10490,49 @@ class ClubProvider extends ChangeNotifier with WidgetsBindingObserver {
     _persistImmediately();
   }
 
-  /// 아직 알림 안 받은 대기 1번에게만 푸시·인박스.
-  /// 자동 참석·「참석이 확정되었습니다」·12시간 만료는 없다.
+  /// 대기자 전원에게 푸시·인박스. 자동 참석·「참석이 확정되었습니다」는 없다.
   void notifyFirstWaiting(String scheduleId) {
     if (!scheduleUsesWaitlist(scheduleId)) return;
-    final waiters = waitingListForSchedule(scheduleId)
-        .where((w) => w.status == WaitingStatus.waiting)
-        .toList();
+    final waiters = waitingListForSchedule(scheduleId);
     if (waiters.isEmpty) return;
-    final firstWaiter = waiters.first;
-    final idx = _waitingList.indexWhere((w) => w.id == firstWaiter.id);
-    if (idx != -1) {
-      _waitingList[idx] = WaitingEntry(
-        id: firstWaiter.id,
-        scheduleId: firstWaiter.scheduleId,
-        memberId: firstWaiter.memberId,
-        memberName: firstWaiter.memberName,
-        registeredAt: firstWaiter.registeredAt,
-        status: WaitingStatus.notified,
-        notifiedAt: DateTime.now(),
+    final now = DateTime.now();
+    final schedule = scheduleById(scheduleId);
+    for (final waiter in waiters) {
+      final idx = _waitingList.indexWhere((w) => w.id == waiter.id);
+      if (idx != -1) {
+        _waitingList[idx] = WaitingEntry(
+          id: waiter.id,
+          scheduleId: waiter.scheduleId,
+          memberId: waiter.memberId,
+          memberName: waiter.memberName,
+          registeredAt: waiter.registeredAt,
+          status: WaitingStatus.notified,
+          notifiedAt: now,
+        );
+      }
+      final inboxId = _fcmInboxIdFor(waiter.memberId);
+      final target = inboxId.isNotEmpty ? inboxId : waiter.memberId;
+      final noti = AppNotification(
+        id: 'noti_wl_${waiter.id}_${now.millisecondsSinceEpoch}',
+        type: AppNotificationType.announcement,
+        clubId: schedule?.clubId ?? selectedClub.id,
+        clubName: selectedClub.name,
+        title: '참석이 가능해졌습니다',
+        body: '참석자 취소로 참석이 가능해졌습니다. 참석으로 변경해 주세요.',
+        createdAt: now,
+        targetId: scheduleId,
+        targetUserId: target,
+        isRead: false,
       );
+      addAppNotification(noti);
+      if (target.isNotEmpty) {
+        unawaited(ClubOpsSync.appendApplicantInbox(
+          authUserId: target,
+          notification: noti,
+        ));
+      }
     }
     _stampWaitingOntoSchedules();
-    final schedule = scheduleById(scheduleId);
-    final inboxId = _fcmInboxIdFor(firstWaiter.memberId);
-    final target = inboxId.isNotEmpty ? inboxId : firstWaiter.memberId;
-    final noti = AppNotification(
-      id: 'noti_wl_${DateTime.now().millisecondsSinceEpoch}',
-      type: AppNotificationType.announcement,
-      clubId: schedule?.clubId ?? selectedClub.id,
-      clubName: selectedClub.name,
-      title: '참석이 가능해졌습니다',
-      body: '참석자 취소로 참석이 가능해졌습니다. 참석으로 변경해 주세요.',
-      createdAt: DateTime.now(),
-      targetId: scheduleId,
-      targetUserId: target,
-      isRead: false,
-    );
-    addAppNotification(noti);
-    if (target.isNotEmpty) {
-      unawaited(ClubOpsSync.appendApplicantInbox(
-        authUserId: target,
-        notification: noti,
-      ));
-    }
     notifyListeners();
     _persistImmediately();
   }

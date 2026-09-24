@@ -6,6 +6,7 @@ import 'package:flutter/foundation.dart';
 
 import '../core/firebase/firestore_paths.dart';
 import '../di/app_dependencies.dart';
+import '../domain/services/attendance_seat.dart';
 import '../domain/services/demo_finance_strip.dart';
 import '../domain/services/roster_dedupe.dart';
 import '../models/club_model.dart';
@@ -119,11 +120,11 @@ class ClubOpsSync {
 
         // 이 폰에 없는 일정은 지우지 않는다. 예전 목록을 통째로 올리면
         // 다른 폰에서 방금 만든 일정이 서버에서 사라진다.
-        slice['schedules'] = mergeRowsById(
+        slice['schedules'] = capScheduleAttendance(mergeRowsById(
           local: slice['schedules'] as List? ?? const [],
           remote: remote['schedules'] as List? ?? const [],
           localWins: true,
-        );
+        ));
         slice['groupAssignments'] = mergeMaps(
           local: slice['groupAssignments'],
           remote: remote['groupAssignments'],
@@ -269,12 +270,180 @@ class ClubOpsSync {
     }
     return [
       ...others,
-      ...mergeRowsById(
+      ...capScheduleAttendance(mergeRowsById(
         local: localClub,
         remote: remoteClub,
         localWins: false,
-      ),
+      )),
     ];
+  }
+
+  /// 동시 참석이 정원보다 많으면 먼저 응답한 사람만 남긴다.
+  @visibleForTesting
+  static List<dynamic> capScheduleAttendance(List<dynamic> rows) {
+    return [
+      for (final raw in rows)
+        if (raw is Map)
+          AttendanceSeat.capScheduleMap(Map<String, dynamic>.from(raw))
+        else
+          raw,
+    ];
+  }
+
+  static List<dynamic> _dropWaiterRows(
+    List<dynamic> raw, {
+    required String memberId,
+    required String scheduleId,
+  }) {
+    return [
+      for (final e in raw)
+        if (e is! Map ||
+            '${e['memberId']}' != memberId ||
+            '${e['scheduleId']}' != scheduleId)
+          e,
+    ];
+  }
+
+  /// 서버 정원으로만 참석을 받는다. 자리가 없으면 false.
+  /// Firestore가 꺼져 있거나 일정이 아직 없으면 null(로컬 판단).
+  static Future<bool?> claimScheduleSeat({
+    required String clubId,
+    required String scheduleId,
+    required int year,
+    required String memberId,
+    required String memberName,
+    required int capacity,
+  }) async {
+    if (!_enabled ||
+        clubId.isEmpty ||
+        scheduleId.isEmpty ||
+        memberId.isEmpty) {
+      return null;
+    }
+    try {
+      final yearRef =
+          _db.doc(FirestorePaths.clubOpsScheduleYear(clubId, year));
+      final bundleRef = _db.doc(FirestorePaths.clubOpsBundle(clubId));
+      return await _db.runTransaction((tx) async {
+        final yearSnap = await tx.get(yearRef);
+        final bundleSnap = await tx.get(bundleRef);
+        final yearData = yearSnap.exists && yearSnap.data() != null
+            ? Map<String, dynamic>.from(yearSnap.data()!)
+            : null;
+        final bundleData = bundleSnap.exists && bundleSnap.data() != null
+            ? Map<String, dynamic>.from(bundleSnap.data()!)
+            : null;
+
+        final yearSchedules =
+            List<dynamic>.from(yearData?['schedules'] ?? const []);
+        final bundleSchedules =
+            List<dynamic>.from(bundleData?['schedules'] ?? const []);
+        final inYear = yearSchedules.indexWhere(
+          (e) => e is Map && '${e['id']}' == scheduleId,
+        );
+        final inBundle = bundleSchedules.indexWhere(
+          (e) => e is Map && '${e['id']}' == scheduleId,
+        );
+        if (inYear < 0 && inBundle < 0) return null;
+
+        final useYear = inYear >= 0;
+        final schedules = useYear ? yearSchedules : bundleSchedules;
+        final si = useYear ? inYear : inBundle;
+        final schedule = Map<String, dynamic>.from(schedules[si] as Map);
+        final responses = [
+          for (final r in (schedule['responses'] as List? ?? const []))
+            if (r is Map) Map<String, dynamic>.from(r),
+        ];
+        final already = responses.any(
+          (r) => r['memberId'] == memberId && r['response'] == '참석',
+        );
+        if (!already) {
+          final others = AttendanceSeat.attendingCount(
+            responses,
+            excludingMemberId: memberId,
+          );
+          if (!AttendanceSeat.canClaim(
+            attendingOthers: others,
+            capacity: capacity,
+          )) {
+            return false;
+          }
+          final now = DateTime.now().toIso8601String();
+          final row = <String, dynamic>{
+            'memberId': memberId,
+            'memberName': memberName,
+            'response': '참석',
+            'memo': null,
+            'companionMemberIds': const <String>[],
+            'respondedAt': now,
+          };
+          final ei = responses.indexWhere((r) => r['memberId'] == memberId);
+          if (ei >= 0) {
+            responses[ei] = {...responses[ei], ...row};
+          } else {
+            responses.add(row);
+          }
+          schedule['responses'] = responses;
+        }
+
+        final scheduleWait = [
+          for (final w in (schedule['waitingList'] as List? ?? const []))
+            if (w is Map && '${w['memberId']}' != memberId) w,
+        ];
+        schedule['waitingList'] = scheduleWait;
+        schedules[si] = schedule;
+
+        var yearWaiting = List<dynamic>.from(yearData?['waitingList'] ?? const []);
+        var bundleWaiting =
+            List<dynamic>.from(bundleData?['waitingList'] ?? const []);
+        yearWaiting = _dropWaiterRows(
+          yearWaiting,
+          memberId: memberId,
+          scheduleId: scheduleId,
+        );
+        bundleWaiting = _dropWaiterRows(
+          bundleWaiting,
+          memberId: memberId,
+          scheduleId: scheduleId,
+        );
+
+        if (useYear) {
+          tx.set(
+            yearRef,
+            {
+              'schedules': schedules,
+              'waitingList': yearWaiting,
+              'updatedAt': FieldValue.serverTimestamp(),
+            },
+            SetOptions(merge: true),
+          );
+          if (bundleData != null) {
+            tx.set(
+              bundleRef,
+              {
+                'waitingList': bundleWaiting,
+                'updatedAt': FieldValue.serverTimestamp(),
+              },
+              SetOptions(merge: true),
+            );
+          }
+        } else {
+          tx.set(
+            bundleRef,
+            {
+              'schedules': schedules,
+              'waitingList': bundleWaiting,
+              'updatedAt': FieldValue.serverTimestamp(),
+            },
+            SetOptions(merge: true),
+          );
+        }
+        return true;
+      });
+    } catch (e) {
+      debugPrint('[ClubOpsSync] claimScheduleSeat fail: $e');
+      return null;
+    }
   }
 
   /// 사진 Firestore 문서용 — 초대형 data URI는 메타만 남긴다.

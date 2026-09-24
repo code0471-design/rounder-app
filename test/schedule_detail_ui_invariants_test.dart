@@ -75,11 +75,11 @@ void main() {
     // 상세 화면·상세에서 여는 카드/시트가 있는 구간만 본다.
     // (일정 목록·등록 폼은 아직 그린을 쓴다 — 별도 작업)
     const ranges = [
-      [1103, 2046], // ScheduleDetailScreen 본문 + 응답 다이얼로그
-      [2357, 2658], // 응답 마감 · 대기 명단
-      [2659, 2895], // 참석 현황
-      [4948, 5341], // 조편성 카드
-      [5342, 5546], // 스코어 & 시상
+      [1155, 2119], // ScheduleDetailScreen 본문 + 응답 다이얼로그
+      [2430, 2690], // 응답 마감 · 대기 명단
+      [2691, 2959], // 참석 현황
+      [4964, 5365], // 조편성 카드
+      [5366, 5570], // 스코어 & 시상
     ];
 
     final offenders = <String>[];
@@ -144,10 +144,21 @@ void main() {
       reason: '불참 시 조편성 제외 안내가 사라지면 안 됨',
     );
     expect(
-      source.contains('대기 1번에게 앱 푸시'),
+      source.contains('대기자 전원에게 앱 푸시'),
       isTrue,
-      reason: '대기 1번 연락 방식이 불참 확인에 있어야 한다',
+      reason: '결원 시 대기자 전원에게 알린다는 안내가 불참 확인에 있어야 한다',
     );
+    expect(source.contains('대기 1번에게 앱 푸시'), isFalse,
+        reason: '대기 1번만 알리면 안 된다');
+    expect(
+      source.contains(
+        '이미 다른 회원이 참석 신청을 해서 자리가 없습니다. 대기 명단에 그대로 남아 있습니다.',
+      ),
+      isTrue,
+      reason: '늦은 대기자 얼럿이 있어야 한다',
+    );
+    expect(source.contains('respondToScheduleLive'), isTrue,
+        reason: '참석은 서버 정원으로 받아야 한다');
     expect(source.contains('provider.isAttendanceFull(schedule.id)'), isTrue,
         reason: '정원 마감은 effectiveCapacity로 봐야 대기가 열린다');
     expect(source.contains('maxCapacity ?? 9999'), isFalse,

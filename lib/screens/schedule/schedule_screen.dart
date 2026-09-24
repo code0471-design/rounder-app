@@ -639,6 +639,56 @@ class _AttChip extends StatelessWidget {
 }
 
 // 참석 응답 버튼
+Future<void> _applyAttendOrKeepWaitlist({
+  required BuildContext context,
+  required ClubProvider provider,
+  required String scheduleId,
+  required bool wasOnWaitlist,
+  required VoidCallback onFull,
+}) async {
+  final ok = await provider.respondToScheduleLive(
+    scheduleId: scheduleId,
+    response: '참석',
+  );
+  if (!context.mounted) return;
+  if (!ok) {
+    if (wasOnWaitlist || provider.myWaitingEntry(scheduleId) != null) {
+      _showWaitlistLateAlert(context);
+    } else {
+      onFull();
+    }
+    return;
+  }
+  ScaffoldMessenger.of(context).showSnackBar(
+    SnackBar(
+      content: const Text('참석으로 변경했습니다'),
+      backgroundColor: AppColors.charcoal,
+      behavior: SnackBarBehavior.floating,
+    ),
+  );
+}
+
+void _showWaitlistLateAlert(BuildContext context) {
+  showDialog<void>(
+    context: context,
+    builder: (ctx) => AlertDialog(
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
+      title: const Text('자리가 없습니다',
+          style: TextStyle(fontSize: 17, fontWeight: FontWeight.w700)),
+      content: const Text(
+        '이미 다른 회원이 참석 신청을 해서 자리가 없습니다. 대기 명단에 그대로 남아 있습니다.',
+        style: TextStyle(fontSize: 14, height: 1.6),
+      ),
+      actions: [
+        TextButton(
+          onPressed: () => Navigator.pop(ctx),
+          child: const Text('확인'),
+        ),
+      ],
+    ),
+  );
+}
+
 class _AttendButton extends StatelessWidget {
   final RoundSchedule schedule;
   final String? currentResponse;
@@ -743,7 +793,9 @@ class _AttendButton extends StatelessWidget {
                   onTap: () async {
                     final sheetCtx = context;
                     // 마감 여부 체크
+                    final onWait = provider.myWaitingEntry(schedule.id) != null;
                     final isFull = currentResponse != '참석' &&
+                        !onWait &&
                         provider.isAttendanceFull(schedule.id);
 
                     Navigator.of(sheetCtx, rootNavigator: true).pop();
@@ -753,13 +805,13 @@ class _AttendButton extends StatelessWidget {
                     }
                     final confirmed = await _showAttendConfirmDialog(sheetCtx, '참석');
                     if (confirmed == true) {
-                      provider.respondToSchedule(
-                          scheduleId: schedule.id, response: '참석');
-                      if (sheetCtx.mounted) {
-                        ScaffoldMessenger.of(sheetCtx).showSnackBar(
-                          _snack('참석으로 변경했습니다', AppColors.success),
-                        );
-                      }
+                      await _applyAttendOrKeepWaitlist(
+                        context: sheetCtx,
+                        provider: provider,
+                        scheduleId: schedule.id,
+                        wasOnWaitlist: onWait,
+                        onFull: () => _showAttendFullDialog(sheetCtx, provider),
+                      );
                     }
                   },
                 ),
@@ -917,7 +969,7 @@ class _AttendButton extends StatelessWidget {
             ),
             const SizedBox(height: 10),
             const Text(
-              '대기 1번에게 앱 푸시로 자리가 생겼다고 알립니다. 그 사람이 참석으로 응답하면 대신 들어옵니다.',
+              '대기자 전원에게 앱 푸시로 자리가 생겼다고 알립니다. 먼저 참석으로 바꾼 사람만 확정됩니다.',
               style: TextStyle(fontSize: 14, height: 1.55),
             ),
             if (notifyTreasurer) ...[
@@ -1447,24 +1499,22 @@ class ScheduleDetailScreen extends StatelessWidget {
                 child: GestureDetector(
                   onTap: () async {
                     if (label == '참석') {
+                      final onWait = provider.myWaitingEntry(schedule.id) != null;
                       if (currentResponse != '참석' &&
+                          !onWait &&
                           provider.isAttendanceFull(schedule.id)) {
                         _showWaitingDialog(context, provider);
                         return;
                       }
                       final ok = await _showAttendConfirmDialogCard(context);
                       if (ok == true) {
-                        provider.respondToSchedule(
-                            scheduleId: schedule.id, response: label);
-                        if (context.mounted) {
-                          ScaffoldMessenger.of(context).showSnackBar(
-                            SnackBar(
-                              content: const Text('참석으로 변경했습니다'),
-                              backgroundColor: AppColors.charcoal,
-                              behavior: SnackBarBehavior.floating,
-                            ),
-                          );
-                        }
+                        await _applyAttendOrKeepWaitlist(
+                          context: context,
+                          provider: provider,
+                          scheduleId: schedule.id,
+                          wasOnWaitlist: onWait,
+                          onFull: () => _showWaitingDialog(context, provider),
+                        );
                       }
                       return;
                     } else if (label == '불참') {
@@ -1566,16 +1616,22 @@ class ScheduleDetailScreen extends StatelessWidget {
                   icon: Icons.check_circle_outline,
                   color: AppColors.charcoal,
                   selected: current == '참석',
-                  onTap: () {
+                  onTap: () async {
                     // 정원 체크: 확정 참석자 수 vs 최대 정원
+                    final onWait = provider.myWaitingEntry(schedule.id) != null;
+                    Navigator.pop(context);
                     if (current != '참석' &&
+                        !onWait &&
                         provider.isAttendanceFull(schedule.id)) {
-                      Navigator.pop(context);
                       _showWaitingDialog(context, provider);
                     } else {
-                      provider.respondToSchedule(
-                          scheduleId: schedule.id, response: '참석');
-                      Navigator.pop(context);
+                      await _applyAttendOrKeepWaitlist(
+                        context: context,
+                        provider: provider,
+                        scheduleId: schedule.id,
+                        wasOnWaitlist: onWait,
+                        onFull: () => _showWaitingDialog(context, provider),
+                      );
                     }
                   },
                 ),
@@ -1711,7 +1767,7 @@ class ScheduleDetailScreen extends StatelessWidget {
             ),
             const SizedBox(height: 10),
             const Text(
-              '대기 1번에게 앱 푸시로 자리가 생겼다고 알립니다. 그 사람이 참석으로 응답하면 대신 들어옵니다.',
+              '대기자 전원에게 앱 푸시로 자리가 생겼다고 알립니다. 먼저 참석으로 바꾼 사람만 확정됩니다.',
               style: TextStyle(fontSize: 14, height: 1.55),
             ),
             if (notifyTreasurer) ...[
@@ -2369,7 +2425,7 @@ class _ReviewMemoCardState extends State<_ReviewMemoCard> {
 //  RSVP 마감 안내 + 대기 명단
 //  · 마감시간이 지나면 미응답자 알림이 자동 발송된다 (관리자는 즉시 재발송 가능)
 //  · 정원 마감 후 참석은 대기 등록. 결원 시 자동 참석 없음.
-//    아직 알림 안 받은 대기 1번에게만 푸시. 본인이 참석으로 바꿔야 확정
+//    대기자 전원에게 푸시. 먼저 참석 누른 사람만 확정
 // ════════════════════════════════════════════════════════════
 class _RsvpWaitingCard extends StatefulWidget {
   final RoundSchedule schedule;

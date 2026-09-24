@@ -24,6 +24,25 @@ void main() {
     );
   });
 
+  test('정원 초과 참석은 먼저 응답한 사람만 남긴다', () {
+    final capped = ClubOpsSync.capScheduleAttendance([
+      {
+        'id': 's1',
+        'teamCount': 1,
+        'responses': [
+          {'memberId': 'a', 'response': '참석', 'respondedAt': '2026-01-01'},
+          {'memberId': 'b', 'response': '참석', 'respondedAt': '2026-01-02'},
+          {'memberId': 'c', 'response': '참석', 'respondedAt': '2026-01-03'},
+          {'memberId': 'd', 'response': '참석', 'respondedAt': '2026-01-04'},
+          {'memberId': 'e', 'response': '참석', 'respondedAt': '2026-01-05'},
+        ],
+      },
+    ]);
+    final responses = (capped.first as Map)['responses'] as List;
+    expect(responses.length, 4);
+    expect(responses.any((r) => r['memberId'] == 'e'), isFalse);
+  });
+
   test('applyRemoteSlice merges schedules for same club', () {
     final local = ClubDataBundle(
       selectedClubIndex: 0,
