@@ -364,6 +364,25 @@ void main() {
     expect(source.contains('mainAxisSize: MainAxisSize.min,'), isTrue);
   });
 
+  test('일정 등록은 오늘·07:30이 기본이고 시계 다이얼을 쓰지 않는다', () {
+    expect(source.contains("now.add(const Duration(days: 7))"), isFalse,
+        reason: '오늘+7일로 열면 안 된다');
+    expect(source.contains('showDatePicker('), isFalse,
+        reason: '가로 스와이프 Material 달력이면 안 된다');
+    expect(source.contains('showTimePicker('), isFalse,
+        reason: '시계 다이얼이면 안 된다');
+    expect(source.contains('showRounderDatePicker'), isTrue);
+    expect(source.contains('showRounderTimePicker'), isTrue);
+    expect(
+      source.contains('_selectedDate = DateTime(now.year, now.month, now.day)'),
+      isTrue,
+      reason: '열자마자 오늘이 보여야 한다',
+    );
+    expect(source.contains('TimeOfDay(hour: 7, minute: 30)'), isTrue);
+    expect(source.contains('날짜를 선택하세요'), isFalse,
+        reason: '날짜를 안 골라도 오늘이 보여야 한다');
+  });
+
   test('일정 등록은 지난 날짜를 고를 수 있고 지난 탭으로 간다', () {
     expect(source.contains('DateTime(now.year - 2, 1, 1)'), isTrue,
         reason: '지난 날짜 firstDate가 막혀 있음');

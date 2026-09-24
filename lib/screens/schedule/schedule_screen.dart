@@ -12,6 +12,7 @@ import 'round_photo_widgets.dart';
 import '../../widgets/ad_banner.dart';
 import '../../widgets/golf_course_field.dart';
 import '../../utils/reservation_sms_parser.dart';
+import '../../utils/date_picker_utils.dart';
 import '../../widgets/reservation_sms_fill_banner.dart';
 import 'past_schedule_import_screen.dart';
 
@@ -3052,6 +3053,8 @@ class _ScheduleFormSheetState extends State<_ScheduleFormSheet> {
       _teamCount = edit.teamCount.clamp(1, 30);
       _capacityCtrl.text = '${_teamCount * 4}';
     } else {
+      final now = DateTime.now();
+      _selectedDate = DateTime(now.year, now.month, now.day);
       final clubTeams = widget.provider.selectedClub.teamCount;
       _teamCount = clubTeams > 0 ? clubTeams : 1;
       _capacityCtrl.text = '${_teamCount * 4}';
@@ -3065,7 +3068,7 @@ class _ScheduleFormSheetState extends State<_ScheduleFormSheet> {
       if (parsed.hour != null) {
         _teeTime = TimeOfDay(
           hour: parsed.hour!,
-          minute: parsed.minute ?? 0,
+          minute: snapTeeMinute(parsed.minute ?? 0),
         );
       }
       if (parsed.courseName != null && parsed.courseName!.trim().isNotEmpty) {
@@ -3206,13 +3209,9 @@ class _ScheduleFormSheetState extends State<_ScheduleFormSheet> {
                                   size: 18, color: AppColors.primary),
                               const SizedBox(width: 8),
                               Text(
-                                _selectedDate == null
-                                    ? '날짜를 선택하세요'
-                                    : _fmtDate(_selectedDate!),
-                                style: TextStyle(
-                                  color: _selectedDate == null
-                                      ? AppColors.textSecondary
-                                      : AppColors.textPrimary,
+                                _fmtDate(_selectedDate ?? DateTime.now()),
+                                style: const TextStyle(
+                                  color: AppColors.textPrimary,
                                   fontSize: 14,
                                 ),
                               ),
@@ -3241,7 +3240,7 @@ class _ScheduleFormSheetState extends State<_ScheduleFormSheet> {
                                   size: 18, color: AppColors.primary),
                               const SizedBox(width: 8),
                               Text(
-                                _teeTime.format(context),
+                                '${_teeTime.hour.toString().padLeft(2, '0')}:${_teeTime.minute.toString().padLeft(2, '0')}',
                                 style: const TextStyle(
                                     fontSize: 14,
                                     color: AppColors.textPrimary),
@@ -3377,35 +3376,23 @@ class _ScheduleFormSheetState extends State<_ScheduleFormSheet> {
     final now = DateTime.now();
     final first = DateTime(now.year - 2, 1, 1);
     final last = now.add(const Duration(days: 365));
-    var initial = _selectedDate ?? now.add(const Duration(days: 7));
+    var initial = _selectedDate ?? DateTime(now.year, now.month, now.day);
     if (initial.isBefore(first)) initial = first;
     if (initial.isAfter(last)) initial = last;
-    final picked = await showDatePicker(
+    final picked = await showRounderDatePicker(
       context: context,
       initialDate: initial,
       firstDate: first,
       lastDate: last,
-      locale: const Locale('ko', 'KR'),
-      builder: (ctx, child) => Theme(
-        data: Theme.of(ctx).copyWith(
-          colorScheme: const ColorScheme.light(primary: AppColors.primary),
-        ),
-        child: child!,
-      ),
+      helpText: '라운딩 날짜',
     );
     if (picked != null) setState(() => _selectedDate = picked);
   }
 
   Future<void> _pickTime() async {
-    final picked = await showTimePicker(
+    final picked = await showRounderTimePicker(
       context: context,
       initialTime: _teeTime,
-      builder: (ctx, child) => Theme(
-        data: Theme.of(ctx).copyWith(
-          colorScheme: const ColorScheme.light(primary: AppColors.primary),
-        ),
-        child: child!,
-      ),
     );
     if (picked != null) setState(() => _teeTime = picked);
   }
