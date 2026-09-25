@@ -178,6 +178,8 @@ void main() {
         File('lib/widgets/app_header.dart').readAsStringSync();
     expect(header.contains('_clubNameLeftInset'), isTrue,
         reason: '모임명은 공 엠블럼이 아니라 ROUNDER 글자 아래에 둔다');
+    expect(header.contains('Transform.translate'), isTrue,
+        reason: '로고와 모임명 사이가 원클럽처럼 붙어 있어야 한다');
     expect(header.contains('fontSize: 12'), isTrue);
   });
 

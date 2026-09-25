@@ -1421,11 +1421,11 @@ extension AutoAssignOptionX on AutoAssignOption {
   String get label {
     switch (this) {
       case AutoAssignOption.balanceHandicap:
-        return '평균타수/구력 밸런스';
+        return '평균타수 밸런스';
       case AutoAssignOption.pairCompanions:
         return '동반자 같은 조';
       case AutoAssignOption.avoidLastMonth:
-        return '직전 조 분리';
+        return '직전 모임 같은 조 분리';
       case AutoAssignOption.balanceGender:
         return '남녀 비율 균등';
       case AutoAssignOption.pairGuestReferrer:
@@ -1440,7 +1440,7 @@ extension AutoAssignOptionX on AutoAssignOption {
       case AutoAssignOption.pairCompanions:
         return '참석 신청 시 함께 신청한 지인·동반자를 같은 조에 배치합니다';
       case AutoAssignOption.avoidLastMonth:
-        return '직전 라운드에서 같은 조였던 멤버를 최대한 분리합니다';
+        return '직전 모임에서 같은 조였던 멤버를 최대한 분리합니다';
       case AutoAssignOption.balanceGender:
         return '각 조별 남녀 성비가 비슷해지도록 배치합니다';
       case AutoAssignOption.pairGuestReferrer:

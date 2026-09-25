@@ -33,7 +33,7 @@ void main() {
 
   test('초기화 후 빈 저장은 미확정, 다시 짜면 확정과 알림톡 얼럿', () {
     expect(source.contains("'초기화'"), isTrue);
-    expect(source.contains('onClear: () => _confirmClear(provider)'), isTrue);
+    expect(source.contains('_confirmClear(provider)'), isTrue);
     expect(source.contains('if (assigned == 0)'), isTrue);
     expect(source.contains('p.unfinalizeAssignment'), isTrue);
     expect(source.contains('AlimtalkUtils.promptGroupFinalize'), isTrue);

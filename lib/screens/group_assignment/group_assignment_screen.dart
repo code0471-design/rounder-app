@@ -48,6 +48,7 @@ class _GroupAssignmentScreenState extends State<GroupAssignmentScreen> {
     p.syncAssignmentTeamCountFromSchedule(widget.schedule.id);
     final assign = p.getOrCreateAssignment(widget.schedule.id);
     _selectedOptions.addAll(assign.selectedOptions);
+    _selectedOptions.remove(AutoAssignOption.pairCompanions);
     if (p.groupAssignment(widget.schedule.id) == null) {
       Future.microtask(() => p.saveAssignment(assign));
     }
@@ -111,7 +112,7 @@ class _GroupAssignmentScreenState extends State<GroupAssignmentScreen> {
           content: Text(
             assignedAfter == attendeeCount
                 ? '이미 모든 참석자가 배정되어 있습니다.'
-                : '배정할 빈 자리가 없거나 미배정 인원이 없습니다. 조 수를 늘리거나 초기화 후 다시 시도하세요.',
+                : '배정할 빈 자리가 없거나 미배정 인원이 없습니다. 팀 수를 늘리거나 초기화 후 다시 시도하세요.',
           ),
           backgroundColor: Colors.orange.shade700,
           behavior: SnackBarBehavior.floating,
@@ -141,6 +142,7 @@ class _GroupAssignmentScreenState extends State<GroupAssignmentScreen> {
   }
 
   void _onOptionToggled(ClubProvider p, AutoAssignOption opt) {
+    if (opt == AutoAssignOption.pairCompanions) return;
     setState(() {
       if (_selectedOptions.contains(opt)) {
         _selectedOptions.remove(opt);
@@ -291,20 +293,24 @@ class _GroupAssignmentScreenState extends State<GroupAssignmentScreen> {
                 maxLines: 1,
                 overflow: TextOverflow.ellipsis,
                 style: const TextStyle(
-                    color: Color(0xFF999999), fontSize: 11),
+                  color: Color(0xFF1A1A1A),
+                  fontSize: 16,
+                  fontWeight: FontWeight.w800,
+                  height: 1.15,
+                ),
               ),
               Row(
                 children: [
                   const Text('조편성',
                       style: TextStyle(
-                          color: Color(0xFF222222),
-                          fontSize: 18,
-                          fontWeight: FontWeight.w800)),
+                          color: Color(0xFF6B7280),
+                          fontSize: 12,
+                          fontWeight: FontWeight.w700)),
                   if (isFinalized) ...[
-                    const SizedBox(width: 8),
+                    const SizedBox(width: 6),
                     Container(
                       padding: const EdgeInsets.symmetric(
-                          horizontal: 8, vertical: 2),
+                          horizontal: 7, vertical: 1),
                       decoration: BoxDecoration(
                         color: AppColors.primary.withValues(alpha: 0.12),
                         borderRadius: BorderRadius.circular(20),
@@ -323,13 +329,21 @@ class _GroupAssignmentScreenState extends State<GroupAssignmentScreen> {
           actions: [
             if (canEdit)
               Padding(
-                padding: const EdgeInsets.only(right: 4),
-                child: TextButton(
+                padding: const EdgeInsets.only(right: 6),
+                child: OutlinedButton(
                   onPressed: () => _confirmClear(provider),
+                  style: OutlinedButton.styleFrom(
+                    foregroundColor: const Color(0xFFC62828),
+                    side: const BorderSide(color: Color(0xFFEF9A9A)),
+                    shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(20)),
+                    padding: const EdgeInsets.symmetric(horizontal: 12),
+                    minimumSize: const Size(0, 34),
+                    tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                  ),
                   child: const Text(
                     '초기화',
                     style: TextStyle(
-                      color: Color(0xFFC62828),
                       fontWeight: FontWeight.w800,
                       fontSize: 13,
                     ),
@@ -397,7 +411,14 @@ class _GroupAssignmentScreenState extends State<GroupAssignmentScreen> {
           controller: _scrollCtrl,
           slivers: [
 
-            // ── 조편성 방식 3가지 선택 (확정 전·수정 중) ──
+            if (canEdit)
+              SliverToBoxAdapter(
+                child: _TeamCountPanel(
+                  teamCount: assignment.teamCount,
+                  onChanged: (n) => _onTeamCountChanged(provider, n),
+                ),
+              ),
+
             if (canEdit)
               SliverToBoxAdapter(
                 child: _ModeSelector(
@@ -406,20 +427,19 @@ class _GroupAssignmentScreenState extends State<GroupAssignmentScreen> {
                 ),
               ),
 
-            // ── 컨트롤 패널 (조 수 + 자동배정 옵션: 모드에 따라) ──
-            if (canEdit)
+            if (canEdit && assignment.mode.usesAutoRules)
               SliverToBoxAdapter(
-                child: _ControlPanel(
+                child: _AutoOptionsPanel(
                   assignment: assignment,
                   selectedOptions: _selectedOptions,
-                  onTeamCountChanged: (n) =>
-                      _onTeamCountChanged(provider, n),
                   onOptionToggled: (opt) =>
                       _onOptionToggled(provider, opt),
                   onAutoAssign: () => _runAutoAssign(provider),
-                  onClear: () => _confirmClear(provider),
                 ),
               ),
+
+            if (canEdit && !assignment.mode.usesAutoRules)
+              const SliverToBoxAdapter(child: _ManualHint()),
 
             // ── 미배정 멤버 풀 (확정 전·수정 중만 표시) ──
             if (canEdit)
@@ -556,9 +576,8 @@ class _ModeSelector extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return Container(
-      color: Colors.white,
-      padding: const EdgeInsets.fromLTRB(14, 14, 14, 10),
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(14, 10, 14, 4),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
@@ -578,33 +597,45 @@ class _ModeSelector extends StatelessWidget {
               color: AppColors.textSecondary,
             ),
           ),
-          const SizedBox(height: 12),
+          const SizedBox(height: 10),
           ...GroupAssignmentMode.values.map((mode) {
             final isSelected = mode == selected;
             return Padding(
               padding: const EdgeInsets.only(bottom: 8),
               child: Material(
-                color: isSelected
-                    ? AppColors.primary.withValues(alpha: 0.08)
-                    : const Color(0xFFF7F8F9),
-                borderRadius: BorderRadius.circular(12),
+                color: Colors.white,
+                elevation: isSelected ? 2 : 0,
+                shadowColor: AppColors.primary.withValues(alpha: 0.18),
+                borderRadius: BorderRadius.circular(14),
                 child: InkWell(
                   onTap: () => onChanged(mode),
-                  borderRadius: BorderRadius.circular(12),
+                  borderRadius: BorderRadius.circular(14),
                   child: Container(
-                    padding: const EdgeInsets.fromLTRB(14, 12, 12, 12),
+                    padding: const EdgeInsets.fromLTRB(14, 13, 12, 13),
                     decoration: BoxDecoration(
-                      borderRadius: BorderRadius.circular(12),
+                      borderRadius: BorderRadius.circular(14),
                       border: Border.all(
                         color: isSelected
                             ? AppColors.primary
                             : const Color(0xFFE5E7EB),
-                        width: isSelected ? 1.5 : 1,
+                        width: isSelected ? 1.8 : 1,
                       ),
                     ),
                     child: Row(
                       children: [
-                        Text(mode.icon, style: const TextStyle(fontSize: 22)),
+                        Container(
+                          width: 40,
+                          height: 40,
+                          decoration: BoxDecoration(
+                            color: isSelected
+                                ? AppColors.primary.withValues(alpha: 0.1)
+                                : const Color(0xFFF3F4F6),
+                            borderRadius: BorderRadius.circular(10),
+                          ),
+                          alignment: Alignment.center,
+                          child: Text(mode.icon,
+                              style: const TextStyle(fontSize: 20)),
+                        ),
                         const SizedBox(width: 12),
                         Expanded(
                           child: Column(
@@ -620,7 +651,7 @@ class _ModeSelector extends StatelessWidget {
                                       : AppColors.textPrimary,
                                 ),
                               ),
-                              const SizedBox(height: 2),
+                              const SizedBox(height: 3),
                               Text(
                                 mode.description,
                                 style: const TextStyle(
@@ -655,277 +686,277 @@ class _ModeSelector extends StatelessWidget {
   }
 }
 
-// ─────────────────────────────────────────────
-//  컨트롤 패널 (조 수 + 자동배정 옵션)
-// ─────────────────────────────────────────────
-class _ControlPanel extends StatelessWidget {
-  final GroupAssignment assignment;
-  final Set<AutoAssignOption> selectedOptions;
-  final ValueChanged<int> onTeamCountChanged;
-  final ValueChanged<AutoAssignOption> onOptionToggled;
-  final VoidCallback onAutoAssign;
-  final VoidCallback onClear;
+const _kAutoOptions = [
+  AutoAssignOption.balanceHandicap,
+  AutoAssignOption.avoidLastMonth,
+  AutoAssignOption.balanceGender,
+  AutoAssignOption.pairGuestReferrer,
+];
 
-  const _ControlPanel({
-    required this.assignment,
-    required this.selectedOptions,
-    required this.onTeamCountChanged,
-    required this.onOptionToggled,
-    required this.onAutoAssign,
-    required this.onClear,
+class _TeamCountPanel extends StatelessWidget {
+  final int teamCount;
+  final ValueChanged<int> onChanged;
+
+  const _TeamCountPanel({
+    required this.teamCount,
+    required this.onChanged,
   });
 
   @override
   Widget build(BuildContext context) {
-    final showAuto = assignment.mode.usesAutoRules;
-
     return Container(
-      color: Colors.white,
-      margin: const EdgeInsets.only(top: 2),
-      padding: const EdgeInsets.fromLTRB(16, 14, 16, 12),
+      margin: const EdgeInsets.fromLTRB(14, 10, 14, 0),
+      padding: const EdgeInsets.fromLTRB(14, 12, 14, 12),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(14),
+        border: Border.all(color: const Color(0xFFE5E7EB)),
+      ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          // ── 조 수 선택 ──
-          Row(
-            children: [
-              const Icon(Icons.grid_view_rounded,
-                  size: 15, color: Color(0xFF546E7A)),
-              const SizedBox(width: 6),
-              const Text('조 수',
-                  style: TextStyle(
-                      fontSize: 13,
-                      fontWeight: FontWeight.w700,
-                      color: Color(0xFF37474F))),
-              const SizedBox(width: 12),
-              Expanded(
-                child: SingleChildScrollView(
-                  scrollDirection: Axis.horizontal,
-                  child: Row(
-                    // 1~30조 (모임/일정 팀 수 설정 반영)
-                    children: List.generate(30, (i) => i + 1).map((n) {
-                      final selected = n == assignment.teamCount;
-                      return GestureDetector(
-                        onTap: () => onTeamCountChanged(n),
-                        child: AnimatedContainer(
-                          duration: const Duration(milliseconds: 150),
-                          margin: const EdgeInsets.only(right: 6),
-                          width: 38,
-                          height: 38,
-                          decoration: BoxDecoration(
-                            color: selected
-                                ? AppColors.primary
-                                : const Color(0xFFF5F5F5),
-                            borderRadius: BorderRadius.circular(10),
-                            border: Border.all(
-                              color: selected
-                                  ? AppColors.primary
-                                  : const Color(0xFFE0E0E0),
-                              width: selected ? 0 : 1,
-                            ),
-                          ),
-                          child: Center(
-                            child: Text(
-                              '$n조',
-                              style: TextStyle(
-                                fontSize: 12,
-                                fontWeight: FontWeight.w700,
-                                color: selected
-                                    ? Colors.white
-                                    : const Color(0xFF78909C),
-                              ),
-                            ),
-                          ),
-                        ),
-                      );
-                    }).toList(),
-                  ),
-                ),
-              ),
-            ],
+          const Text(
+            '팀 수',
+            style: TextStyle(
+              fontSize: 14,
+              fontWeight: FontWeight.w800,
+              color: AppColors.textPrimary,
+            ),
           ),
-
-          if (showAuto) ...[
-            const SizedBox(height: 12),
-            const Divider(height: 1, color: Color(0xFFF0F4F8)),
-            const SizedBox(height: 12),
-
-            // ── 자동배정 옵션 ──
-            Container(
-              width: double.infinity,
-              padding: const EdgeInsets.fromLTRB(12, 12, 12, 10),
-              decoration: BoxDecoration(
-                color: const Color(0xFFFFF8E8),
-                borderRadius: BorderRadius.circular(14),
-                border: Border.all(color: const Color(0xFFE8D7A8), width: 1.4),
-              ),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  const Row(
-                    children: [
-                      Icon(Icons.auto_awesome, size: 18, color: Color(0xFFB8860B)),
-                      SizedBox(width: 6),
-                      Text(
-                        '자동배정 옵션',
+          const SizedBox(height: 8),
+          SingleChildScrollView(
+            scrollDirection: Axis.horizontal,
+            child: Row(
+              children: List.generate(30, (i) => i + 1).map((n) {
+                final selected = n == teamCount;
+                return GestureDetector(
+                  onTap: () => onChanged(n),
+                  child: AnimatedContainer(
+                    duration: const Duration(milliseconds: 150),
+                    margin: const EdgeInsets.only(right: 6),
+                    width: 38,
+                    height: 38,
+                    decoration: BoxDecoration(
+                      color: selected
+                          ? AppColors.primary
+                          : const Color(0xFFF5F5F5),
+                      borderRadius: BorderRadius.circular(10),
+                      border: Border.all(
+                        color: selected
+                            ? AppColors.primary
+                            : const Color(0xFFE0E0E0),
+                        width: selected ? 0 : 1,
+                      ),
+                    ),
+                    child: Center(
+                      child: Text(
+                        '$n팀',
                         style: TextStyle(
-                          fontSize: 15,
-                          fontWeight: FontWeight.w800,
-                          color: Color(0xFF5C4A12),
+                          fontSize: 12,
+                          fontWeight: FontWeight.w700,
+                          color: selected
+                              ? Colors.white
+                              : const Color(0xFF78909C),
                         ),
                       ),
-                    ],
-                  ),
-                  const SizedBox(height: 4),
-                  const Text(
-                    '적용할 규칙을 골라 주세요. 여러 개 선택할 수 있습니다.',
-                    style: TextStyle(
-                      fontSize: 12,
-                      height: 1.35,
-                      color: Color(0xFF7A5A18),
                     ),
                   ),
-                  const SizedBox(height: 10),
-                  ...AutoAssignOption.values.map((opt) {
-                    final sel = selectedOptions.contains(opt);
-                    return Padding(
-                      padding: const EdgeInsets.only(bottom: 8),
-                      child: Material(
-                        color: sel ? AppColors.primary : Colors.white,
+                );
+              }).toList(),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _AutoOptionsPanel extends StatelessWidget {
+  final GroupAssignment assignment;
+  final Set<AutoAssignOption> selectedOptions;
+  final ValueChanged<AutoAssignOption> onOptionToggled;
+  final VoidCallback onAutoAssign;
+
+  const _AutoOptionsPanel({
+    required this.assignment,
+    required this.selectedOptions,
+    required this.onOptionToggled,
+    required this.onAutoAssign,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final assignLabel = assignment.mode == GroupAssignmentMode.auto
+        ? '전체 자동 배정 실행'
+        : '빈 자리 자동 배정';
+
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(14, 8, 14, 8),
+      child: Column(
+        children: [
+          Container(
+            width: double.infinity,
+            padding: const EdgeInsets.fromLTRB(14, 14, 14, 12),
+            decoration: BoxDecoration(
+              color: Colors.white,
+              borderRadius: BorderRadius.circular(14),
+              border: Border.all(color: const Color(0xFFE5E7EB)),
+            ),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                const Text(
+                  '자동배정 옵션',
+                  style: TextStyle(
+                    fontSize: 14,
+                    fontWeight: FontWeight.w800,
+                    color: AppColors.textPrimary,
+                  ),
+                ),
+                const SizedBox(height: 4),
+                const Text(
+                  '적용할 규칙을 골라 주세요. 여러 개 선택할 수 있습니다.',
+                  style: TextStyle(
+                    fontSize: 12,
+                    height: 1.35,
+                    color: AppColors.textSecondary,
+                  ),
+                ),
+                const SizedBox(height: 10),
+                ..._kAutoOptions.map((opt) {
+                  final sel = selectedOptions.contains(opt);
+                  return Padding(
+                    padding: const EdgeInsets.only(bottom: 8),
+                    child: Material(
+                      color: sel ? AppColors.primary : const Color(0xFFF8F9FA),
+                      borderRadius: BorderRadius.circular(12),
+                      child: InkWell(
+                        onTap: () => onOptionToggled(opt),
                         borderRadius: BorderRadius.circular(12),
-                        child: InkWell(
-                          onTap: () => onOptionToggled(opt),
-                          borderRadius: BorderRadius.circular(12),
-                          child: Container(
-                            width: double.infinity,
-                            padding: const EdgeInsets.fromLTRB(12, 10, 12, 10),
-                            decoration: BoxDecoration(
-                              borderRadius: BorderRadius.circular(12),
-                              border: Border.all(
-                                color: sel
-                                    ? AppColors.primary
-                                    : const Color(0xFFD8C48A),
-                                width: sel ? 1.6 : 1,
+                        child: Container(
+                          width: double.infinity,
+                          padding: const EdgeInsets.fromLTRB(12, 10, 12, 10),
+                          decoration: BoxDecoration(
+                            borderRadius: BorderRadius.circular(12),
+                            border: Border.all(
+                              color: sel
+                                  ? AppColors.primary
+                                  : const Color(0xFFE5E7EB),
+                              width: sel ? 1.6 : 1,
+                            ),
+                          ),
+                          child: Row(
+                            children: [
+                              Text(opt.icon,
+                                  style: const TextStyle(fontSize: 20)),
+                              const SizedBox(width: 10),
+                              Expanded(
+                                child: Column(
+                                  crossAxisAlignment: CrossAxisAlignment.start,
+                                  children: [
+                                    Text(
+                                      opt.label,
+                                      style: TextStyle(
+                                        fontSize: 14,
+                                        fontWeight: FontWeight.w800,
+                                        color: sel
+                                            ? Colors.white
+                                            : AppColors.textPrimary,
+                                      ),
+                                    ),
+                                    const SizedBox(height: 2),
+                                    Text(
+                                      opt.description,
+                                      style: TextStyle(
+                                        fontSize: 11,
+                                        height: 1.3,
+                                        color: sel
+                                            ? Colors.white.withValues(alpha: 0.88)
+                                            : AppColors.textSecondary,
+                                      ),
+                                    ),
+                                  ],
+                                ),
                               ),
-                            ),
-                            child: Row(
-                              children: [
-                                Text(opt.icon,
-                                    style: const TextStyle(fontSize: 20)),
-                                const SizedBox(width: 10),
-                                Expanded(
-                                  child: Column(
-                                    crossAxisAlignment: CrossAxisAlignment.start,
-                                    children: [
-                                      Text(
-                                        opt.label,
-                                        style: TextStyle(
-                                          fontSize: 14,
-                                          fontWeight: FontWeight.w800,
-                                          color: sel
-                                              ? Colors.white
-                                              : AppColors.textPrimary,
-                                        ),
-                                      ),
-                                      const SizedBox(height: 2),
-                                      Text(
-                                        opt.description,
-                                        style: TextStyle(
-                                          fontSize: 11,
-                                          height: 1.3,
-                                          color: sel
-                                              ? Colors.white.withValues(alpha: 0.88)
-                                              : AppColors.textSecondary,
-                                        ),
-                                      ),
-                                    ],
-                                  ),
-                                ),
-                                const SizedBox(width: 8),
-                                Icon(
-                                  sel
-                                      ? Icons.check_box_rounded
-                                      : Icons.check_box_outline_blank_rounded,
-                                  size: 22,
-                                  color: sel
-                                      ? Colors.white
-                                      : const Color(0xFFB0B8C1),
-                                ),
-                              ],
-                            ),
+                              const SizedBox(width: 8),
+                              Icon(
+                                sel
+                                    ? Icons.check_box_rounded
+                                    : Icons.check_box_outline_blank_rounded,
+                                size: 22,
+                                color: sel
+                                    ? Colors.white
+                                    : const Color(0xFFB0B8C1),
+                              ),
+                            ],
                           ),
                         ),
                       ),
-                    );
-                  }),
-                ],
-              ),
+                    ),
+                  );
+                }),
+              ],
             ),
-
-            const SizedBox(height: 12),
-
-            // ── 자동 배정 버튼 ──
-            SizedBox(
-              width: double.infinity,
-              height: 44,
-              child: ElevatedButton.icon(
-                onPressed: onAutoAssign,
-                icon: const Icon(Icons.auto_awesome_rounded, size: 16),
-                label: Text(
-                  assignment.mode == GroupAssignmentMode.auto
-                      ? '전체 자동 배정 실행'
-                      : '빈 자리 자동 배정',
-                  style: const TextStyle(
-                      fontWeight: FontWeight.w700, fontSize: 14),
-                ),
-                style: ElevatedButton.styleFrom(
-                  backgroundColor: AppColors.primary,
-                  foregroundColor: Colors.white,
-                  shape: RoundedRectangleBorder(
-                      borderRadius: BorderRadius.circular(10)),
-                  elevation: 0,
-                ),
-              ),
-            ),
-          ] else ...[
-            const SizedBox(height: 12),
-            Container(
-              width: double.infinity,
-              padding: const EdgeInsets.all(12),
-              decoration: BoxDecoration(
-                color: AppColors.primary.withValues(alpha: 0.06),
-                borderRadius: BorderRadius.circular(10),
-              ),
-              child: const Text(
-                '참가자를 드래그하거나 슬롯을 탭해 직접 배정하세요.',
-                style: TextStyle(
-                  fontSize: 12,
-                  fontWeight: FontWeight.w600,
-                  color: AppColors.primary,
-                ),
-              ),
-            ),
-          ],
+          ),
           const SizedBox(height: 10),
           SizedBox(
             width: double.infinity,
-            height: 44,
-            child: OutlinedButton.icon(
-              onPressed: onClear,
-              icon: const Icon(Icons.refresh_rounded, size: 18),
-              label: const Text(
-                '초기화',
-                style: TextStyle(fontWeight: FontWeight.w800, fontSize: 14),
-              ),
-              style: OutlinedButton.styleFrom(
-                foregroundColor: const Color(0xFFC62828),
-                side: const BorderSide(color: Color(0xFFEF9A9A)),
+            height: 46,
+            child: ElevatedButton(
+              onPressed: onAutoAssign,
+              style: ElevatedButton.styleFrom(
+                backgroundColor: AppColors.primary,
+                foregroundColor: Colors.white,
                 shape: RoundedRectangleBorder(
-                    borderRadius: BorderRadius.circular(10)),
+                    borderRadius: BorderRadius.circular(12)),
+                elevation: 0,
+                padding: const EdgeInsets.symmetric(horizontal: 16),
+              ),
+              child: FittedBox(
+                fit: BoxFit.scaleDown,
+                child: Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    const Icon(Icons.auto_awesome_rounded, size: 18),
+                    const SizedBox(width: 8),
+                    Text(
+                      assignLabel,
+                      style: const TextStyle(
+                        fontWeight: FontWeight.w800,
+                        fontSize: 15,
+                      ),
+                    ),
+                  ],
+                ),
               ),
             ),
           ),
         ],
+      ),
+    );
+  }
+}
+
+class _ManualHint extends StatelessWidget {
+  const _ManualHint();
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      margin: const EdgeInsets.fromLTRB(14, 8, 14, 8),
+      width: double.infinity,
+      padding: const EdgeInsets.all(12),
+      decoration: BoxDecoration(
+        color: AppColors.primary.withValues(alpha: 0.06),
+        borderRadius: BorderRadius.circular(12),
+      ),
+      child: const Text(
+        '참가자를 드래그하거나 슬롯을 탭해 직접 배정하세요.',
+        style: TextStyle(
+          fontSize: 12,
+          fontWeight: FontWeight.w600,
+          color: AppColors.primary,
+        ),
       ),
     );
   }

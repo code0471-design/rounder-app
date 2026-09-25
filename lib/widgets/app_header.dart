@@ -71,13 +71,13 @@ class AppHeader extends StatelessWidget {
       child: SafeArea(
         bottom: false,
         child: Padding(
-          padding: const EdgeInsets.fromLTRB(12, 6, 8, 6),
+          padding: const EdgeInsets.fromLTRB(12, 4, 8, 4),
           child: Row(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
               if (leading != null) ...[
                 Padding(
-                  padding: const EdgeInsets.only(top: 4),
+                  padding: const EdgeInsets.only(top: 2),
                   child: leading!,
                 ),
                 const SizedBox(width: 2),
@@ -92,21 +92,24 @@ class AppHeader extends StatelessWidget {
                     onTap: onLogoTap,
                   ),
                   if ((title ?? '').trim().isNotEmpty)
-                    Padding(
-                      padding: EdgeInsets.only(top: 1, left: _clubNameLeftInset),
-                      child: ConstrainedBox(
-                        constraints: const BoxConstraints(maxWidth: 180),
-                        child: Text(
-                          title!.trim(),
-                          maxLines: 1,
-                          overflow: TextOverflow.ellipsis,
-                          textAlign: TextAlign.start,
-                          style: const TextStyle(
-                            fontSize: 12,
-                            fontWeight: FontWeight.w600,
-                            color: Color(0xFF6B7280),
-                            letterSpacing: -0.2,
-                            height: 1.2,
+                    Transform.translate(
+                      offset: const Offset(0, -6),
+                      child: Padding(
+                        padding: EdgeInsets.only(left: _clubNameLeftInset),
+                        child: ConstrainedBox(
+                          constraints: const BoxConstraints(maxWidth: 180),
+                          child: Text(
+                            title!.trim(),
+                            maxLines: 1,
+                            overflow: TextOverflow.ellipsis,
+                            textAlign: TextAlign.start,
+                            style: const TextStyle(
+                              fontSize: 12,
+                              fontWeight: FontWeight.w700,
+                              color: Color(0xFF4B5563),
+                              letterSpacing: -0.2,
+                              height: 1.0,
+                            ),
                           ),
                         ),
                       ),
