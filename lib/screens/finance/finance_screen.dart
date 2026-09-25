@@ -5,8 +5,10 @@ import '../../providers/club_provider.dart';
 import '../../theme/app_theme.dart';
 import '../../utils/avatar_image.dart';
 import '../../utils/dues_d1_schedule.dart';
+import '../../utils/dues_period_eligibility.dart';
 import '../../utils/finance_onboarding.dart';
 import 'dues_payment_screen.dart';
+import 'payment_reminder_sheet.dart';
 import 'treasurer_finance_onboarding_screen.dart';
 
 // ════════════════════════════════════════════════════════════
@@ -717,19 +719,30 @@ class _PaymentStatusTabState extends State<_PaymentStatusTab> {
         final viewYear = isAnnual
             ? (selected.year ?? selected.createdAt.year)
             : _year;
-        final payments = isMonthly
-            ? provider.paymentsOf(selected.id, year: viewYear, month: _month)
-            : provider.paymentsOf(selected.id, year: viewYear);
 
         // 회비 납부 대상은 정회원만. 게스트는 월·연·특별 모두 제외.
-        final members = provider.regularMembers;
-        final paidIds = payments.map((p) => p.memberId).toSet();
+        // 탈퇴 회원은 탈퇴 전 달·해만 목록에 남긴다.
+        final members = provider.duesRosterForPeriod(
+          type: selected.type,
+          year: viewYear,
+          month: isMonthly ? _month : null,
+        );
+        DuesChip chipOf(Member m) => provider.duesChipFor(
+              member: m,
+              setting: selected,
+              year: viewYear,
+              month: isMonthly ? _month : null,
+            );
+        final chips = {for (final m in members) m.id: chipOf(m)};
         final paidCount =
-            members.where((m) => paidIds.contains(m.id)).length;
-        final unpaidCount = members.length - paidCount;
-        final totalCount = members.length;
+            members.where((m) => chips[m.id] == DuesChip.paid).length;
+        final unpaidCount =
+            members.where((m) => chips[m.id] == DuesChip.unpaid).length;
+        final scheduledCount =
+            members.where((m) => chips[m.id] == DuesChip.scheduled).length;
+        final chargeable = paidCount + unpaidCount;
         final paidPct =
-            totalCount == 0 ? 0.0 : (paidCount / totalCount).clamp(0.0, 1.0);
+            chargeable == 0 ? 0.0 : (paidCount / chargeable).clamp(0.0, 1.0);
 
         // 기간 범위 밖인지 체크
         final isOutOfRange = isMonthly &&
@@ -938,7 +951,7 @@ class _PaymentStatusTabState extends State<_PaymentStatusTab> {
                               color: AppColors.textPrimary),
                         ),
                         Text(
-                          '$paidCount / $totalCount명 (${(paidPct * 100).round()}%)',
+                          '$paidCount / $chargeable명 (${(paidPct * 100).round()}%)',
                           style: const TextStyle(
                               fontSize: 13,
                               fontWeight: FontWeight.w600,
@@ -1034,6 +1047,11 @@ class _PaymentStatusTabState extends State<_PaymentStatusTab> {
                                     fontSize: 12,
                                     color: AppColors.danger,
                                     fontWeight: FontWeight.bold)),
+                            Text(' / 예정 $scheduledCount',
+                                style: const TextStyle(
+                                    fontSize: 12,
+                                    color: Color(0xFF9CA3AF),
+                                    fontWeight: FontWeight.bold)),
                           ]
                         else
                           const Text('납부 현황',
@@ -1042,10 +1060,21 @@ class _PaymentStatusTabState extends State<_PaymentStatusTab> {
                                   color: AppColors.textSecondary,
                                   fontWeight: FontWeight.bold)),
                         const Spacer(),
-                        const Text('회원 목록',
-                            style: TextStyle(
-                                fontSize: 12,
-                                color: AppColors.textSecondary)),
+                        if (widget.isAdmin)
+                          GestureDetector(
+                            onTap: () => showPaymentReminderSheet(
+                              context,
+                              provider,
+                              setting: selected,
+                              year: viewYear,
+                              month: isMonthly ? _month : null,
+                            ),
+                            child: const Text('독촉하기',
+                                style: TextStyle(
+                                    fontSize: 12,
+                                    fontWeight: FontWeight.w700,
+                                    color: Color(0xFF2563EB))),
+                          ),
                       ],
                     ),
                   ),
@@ -1058,7 +1087,9 @@ class _PaymentStatusTabState extends State<_PaymentStatusTab> {
                           Builder(
                             builder: (_) {
                               final eligible = members
-                                  .where((m) => !paidIds.contains(m.id))
+                                  .where((m) =>
+                                      chips[m.id] == DuesChip.unpaid &&
+                                      m.status != '탈퇴')
                                   .map((m) => m.id)
                                   .toSet();
                               final allOn = eligible.isNotEmpty &&
@@ -1116,7 +1147,8 @@ class _PaymentStatusTabState extends State<_PaymentStatusTab> {
                                     final selectedMembers = members
                                         .where((m) =>
                                             _bulkSelectedIds.contains(m.id) &&
-                                            !paidIds.contains(m.id))
+                                            chips[m.id] == DuesChip.unpaid &&
+                                            m.status != '탈퇴')
                                         .toList();
                                     if (selectedMembers.isEmpty) return;
                                     _showBulkPaymentDialog(
@@ -1140,7 +1172,10 @@ class _PaymentStatusTabState extends State<_PaymentStatusTab> {
                       ),
                     ),
                   ...members.map((m) {
-                    final paid = paidIds.contains(m.id);
+                    final chip = chips[m.id] ?? DuesChip.unpaid;
+                    final paid = chip == DuesChip.paid;
+                    final canCharge = chip == DuesChip.paid ||
+                        chip == DuesChip.unpaid;
                     // 나의 대기 중인 요청 조회
                     final myRequest = provider.myPendingRequest(
                       memberId: m.id,
@@ -1150,15 +1185,16 @@ class _PaymentStatusTabState extends State<_PaymentStatusTab> {
                     );
                     return _MemberPaymentTile(
                       member: m,
-                      paid: paid,
+                      chip: chip,
                       isAdmin: widget.isAdmin,
                       currentUserId: currentUserId,
                       pendingRequest: myRequest,
                       showBulkCheckbox: widget.isAdmin && !isOutOfRange,
                       bulkSelected: _bulkSelectedIds.contains(m.id),
-                      bulkEnabled: !paid,
+                      bulkEnabled:
+                          chip == DuesChip.unpaid && member.status != '탈퇴',
                       onBulkToggle: (v) {
-                        if (paid) return;
+                        if (chip != DuesChip.unpaid) return;
                         setState(() {
                           if (v) {
                             _bulkSelectedIds.add(m.id);
@@ -1167,7 +1203,7 @@ class _PaymentStatusTabState extends State<_PaymentStatusTab> {
                           }
                         });
                       },
-                      onToggle: isOutOfRange
+                      onToggle: !canCharge || isOutOfRange
                           ? null
                           : () => _showPaymentToggleDialog(
                                 context,
@@ -1178,7 +1214,7 @@ class _PaymentStatusTabState extends State<_PaymentStatusTab> {
                                 year: viewYear,
                                 month: isMonthly ? _month : null,
                               ),
-                      onRequestPayment: isOutOfRange
+                      onRequestPayment: !canCharge || isOutOfRange
                           ? null
                           : () => _showRequestSheet(
                                 context,
@@ -1787,20 +1823,44 @@ class _YearSelector extends StatelessWidget {
   }
 }
 
-// 납부/미납 칩 — 연한 파스텔 배경 없이 솔리드 색 + 흰 글자
+// 납부/미납/가입 전/예정 칩 — 연한 파스텔 배경 없이 솔리드 색 + 흰 글자
 Widget _duesPayStatusChip({
-  required bool paid,
+  required DuesChip chip,
   VoidCallback? onTap,
 }) {
-  final chip = AnimatedContainer(
+  final Color bg;
+  final String label;
+  switch (chip) {
+    case DuesChip.paid:
+      bg = AppColors.success;
+      label = '납부 ✓';
+      break;
+    case DuesChip.unpaid:
+      bg = AppColors.danger;
+      label = '미납';
+      break;
+    case DuesChip.beforeJoin:
+      bg = const Color(0xFF9CA3AF);
+      label = '가입 전';
+      break;
+    case DuesChip.scheduled:
+      bg = const Color(0xFF9CA3AF);
+      label = '예정';
+      break;
+    case DuesChip.hidden:
+      bg = const Color(0xFF9CA3AF);
+      label = '';
+      break;
+  }
+  final body = AnimatedContainer(
     duration: const Duration(milliseconds: 200),
     padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
     decoration: BoxDecoration(
-      color: paid ? AppColors.success : AppColors.danger,
+      color: bg,
       borderRadius: BorderRadius.circular(20),
     ),
     child: Text(
-      paid ? '납부 ✓' : '미납',
+      label,
       style: const TextStyle(
         fontSize: 11,
         fontWeight: FontWeight.w800,
@@ -1808,13 +1868,13 @@ Widget _duesPayStatusChip({
       ),
     ),
   );
-  if (onTap == null) return chip;
+  if (onTap == null) return body;
   return Material(
     color: Colors.transparent,
     child: InkWell(
       onTap: onTap,
       borderRadius: BorderRadius.circular(20),
-      child: chip,
+      child: body,
     ),
   );
 }
@@ -1827,7 +1887,7 @@ Widget _duesPayStatusChip({
 // ════════════════════════════════════════════════════════════
 class _MemberPaymentTile extends StatelessWidget {
   final Member member;
-  final bool paid;
+  final DuesChip chip;
   final bool isAdmin;
   final String currentUserId;       // 현재 로그인 사용자 ID
   final PaymentRequest? pendingRequest; // 이 회원의 대기 중인 요청 (있으면)
@@ -1840,7 +1900,7 @@ class _MemberPaymentTile extends StatelessWidget {
 
   const _MemberPaymentTile({
     required this.member,
-    required this.paid,
+    required this.chip,
     required this.isAdmin,
     required this.currentUserId,
     this.pendingRequest,
@@ -1854,15 +1914,19 @@ class _MemberPaymentTile extends StatelessWidget {
 
   // currentUserId (provider) == member.id 로 본인 확인
   bool get _isSelf => member.id == currentUserId;
+  bool get paid => chip == DuesChip.paid;
 
   @override
   Widget build(BuildContext context) {
     // 아바타 색상: 납부 완료 → 초록, 대기 중 → 주황, 미납 → 빨강
     Color avatarBg;
     Color avatarFg;
-    if (paid) {
+    if (chip == DuesChip.paid) {
       avatarBg = AppColors.success.withValues(alpha: 0.15);
       avatarFg = AppColors.success;
+    } else if (chip == DuesChip.beforeJoin || chip == DuesChip.scheduled) {
+      avatarBg = const Color(0xFF9CA3AF).withValues(alpha: 0.18);
+      avatarFg = const Color(0xFF6B7280);
     } else if (pendingRequest != null) {
       avatarBg = AppColors.warning.withValues(alpha: 0.15);
       avatarFg = AppColors.warning;
@@ -1925,9 +1989,7 @@ class _MemberPaymentTile extends StatelessWidget {
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
-                      Text(member.name,
-                          style: const TextStyle(
-                              fontSize: 13, fontWeight: FontWeight.w500)),
+                      _memberNameRow(),
                       Text(member.role,
                           style: const TextStyle(
                               fontSize: 11, color: AppColors.textSecondary)),
@@ -1949,8 +2011,7 @@ class _MemberPaymentTile extends StatelessWidget {
           : null,
       onTap: isAdmin ? onToggle : null,
       leading: avatar,
-      title: Text(member.name,
-          style: const TextStyle(fontSize: 13, fontWeight: FontWeight.w500)),
+      title: _memberNameRow(),
       subtitle: Text(member.role,
           style:
               const TextStyle(fontSize: 11, color: AppColors.textSecondary)),
@@ -1958,17 +2019,50 @@ class _MemberPaymentTile extends StatelessWidget {
     );
   }
 
+  Widget _memberNameRow() {
+    return Row(
+      children: [
+        Flexible(
+          child: Text(member.name,
+              maxLines: 1,
+              overflow: TextOverflow.ellipsis,
+              style: const TextStyle(
+                  fontSize: 13, fontWeight: FontWeight.w500)),
+        ),
+        if (member.status == '탈퇴') ...[
+          const SizedBox(width: 6),
+          Container(
+            padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+            decoration: BoxDecoration(
+              color: const Color(0xFF9CA3AF).withValues(alpha: 0.16),
+              borderRadius: BorderRadius.circular(8),
+            ),
+            child: const Text('탈퇴',
+                style: TextStyle(
+                    fontSize: 10,
+                    fontWeight: FontWeight.w700,
+                    color: Color(0xFF6B7280))),
+          ),
+        ],
+      ],
+    );
+  }
+
   Widget _buildTrailing(BuildContext context) {
     // ── 관리자: 납부✓/미납 직접 토글 ──
     if (isAdmin) {
-      return _duesPayStatusChip(paid: paid, onTap: onToggle);
+      return _duesPayStatusChip(chip: chip, onTap: onToggle);
+    }
+
+    if (chip == DuesChip.beforeJoin || chip == DuesChip.scheduled) {
+      return _duesPayStatusChip(chip: chip);
     }
 
     // ── 일반 회원(본인): 입금 확인 요청 버튼 / 대기 중 취소 ──
     if (_isSelf) {
       // 이미 납부 완료된 경우 → 상태 표시
       if (paid) {
-        return _duesPayStatusChip(paid: true);
+        return _duesPayStatusChip(chip: DuesChip.paid);
       }
 
       // 대기 중인 요청이 있을 때
@@ -2062,7 +2156,7 @@ class _MemberPaymentTile extends StatelessWidget {
       return Row(
         mainAxisSize: MainAxisSize.min,
         children: [
-          _duesPayStatusChip(paid: false),
+          _duesPayStatusChip(chip: DuesChip.unpaid),
           const SizedBox(width: 6),
           GestureDetector(
             onTap: onRequestPayment,
@@ -2163,7 +2257,7 @@ class _MemberPaymentTile extends StatelessWidget {
     }
 
     // ── 일반 회원(타인): 납부/미납 상태 표시만 ──
-    return _duesPayStatusChip(paid: paid);
+    return _duesPayStatusChip(chip: chip);
   }
 }
 

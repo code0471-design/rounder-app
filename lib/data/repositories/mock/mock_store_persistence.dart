@@ -171,6 +171,7 @@ abstract final class MockStorePersistence {
         'role': m.role,
         'handicap': m.handicap,
         'joinDate': m.joinDate?.toIso8601String(),
+        'leftAt': m.leftAt?.toIso8601String(),
         'status': m.status,
       };
 
@@ -184,6 +185,9 @@ abstract final class MockStorePersistence {
         handicap: (m['handicap'] as num?)?.toDouble(),
         joinDate: m['joinDate'] != null
             ? DateTime.tryParse(m['joinDate'] as String)
+            : null,
+        leftAt: m['leftAt'] != null
+            ? DateTime.tryParse(m['leftAt'] as String)
             : null,
         status: m['status'] as String? ?? '활성',
       );

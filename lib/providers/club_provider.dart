@@ -33,6 +33,7 @@ import '../services/shared_join_request_store.dart';
 import '../services/solapi_service.dart';
 import '../utils/d1_enqueue_policy.dart';
 import '../utils/dues_d1_schedule.dart';
+import '../utils/dues_period_eligibility.dart';
 import '../utils/past_schedule_import.dart';
 
 // ════════════════════════════════════════════════════════════
@@ -493,7 +494,7 @@ class ClubProvider extends ChangeNotifier with WidgetsBindingObserver {
         if (self != null && self.status != '탈퇴') {
           final i = _members.indexWhere((m) => m.id == 'mg1');
           if (i >= 0) {
-            _members[i] = _members[i].copyWith(status: '탈퇴');
+            _members[i] = _members[i].asLeft();
           }
         }
       }
@@ -3038,87 +3039,108 @@ class ClubProvider extends ChangeNotifier with WidgetsBindingObserver {
         return true;
       }).toList();
 
-  /// 특정 회비의 미납 회원 수. 게스트는 납부 대상이 아니다.
-  int unpaidCountForDuesSetting(DuesSetting setting, int year, int month) {
-    final members = regularMembers;
-    final paidIds = _duesPayments
-        .where((p) {
-          if (p.duesSettingId != setting.id) return false;
-          if (setting.type == DuesType.monthly) {
-            return p.paidAt.year == year && p.paidAt.month == month;
-          }
-          return p.paidAt.year == year;
-        })
-        .map((p) => p.memberId)
-        .toSet();
-    return members.where((m) => !paidIds.contains(m.id)).length;
-  }
-
-  /// 독촉하기 미납자. 월회비는 지난달 + (납부일이 지난) 이번달만.
-  List<DuesReminderUnpaidRow> reminderUnpaidMembers(
-    DuesSetting setting, {
+  /// 회비납부 탭 — 그 기간에 정회원이었던 사람. 탈퇴 후 달은 빠지고, 게스트는 없다.
+  List<Member> duesRosterForPeriod({
+    required DuesType type,
+    required int year,
+    int? month,
     DateTime? asOf,
   }) {
     final now = asOf ?? DateTime.now();
-    final members = regularMembers;
-    if (members.isEmpty) return const [];
-
-    if (setting.type != DuesType.monthly) {
-      final due = setting.dueDateFor();
-      final today = DateTime(now.year, now.month, now.day);
-      if (due != null && !today.isAfter(due)) return const [];
-      return [
-        for (final m in members)
-          if (setting.type == DuesType.special
-              ? !hasPaid(m.id, setting.id)
-              : !hasPaid(m.id, setting.id, year: now.year))
-            DuesReminderUnpaidRow(
+    return members
+        .where((m) => DuesPeriodEligibility.isVisible(
               member: m,
-              owesPreviousMonth: false,
-              owesCurrentMonth: true,
-            ),
-      ];
-    }
-
-    var prevY = now.year;
-    var prevM = now.month - 1;
-    if (prevM < 1) {
-      prevM = 12;
-      prevY--;
-    }
-    final thisOk =
-        _reminderMonthCollectable(setting, now.year, now.month, now);
-    final prevOk = _reminderMonthCollectable(setting, prevY, prevM, now);
-
-    final rows = <DuesReminderUnpaidRow>[];
-    for (final m in members) {
-      final owesPrev = prevOk &&
-          !hasPaid(m.id, setting.id, year: prevY, month: prevM);
-      final owesCur = thisOk &&
-          !hasPaid(m.id, setting.id, year: now.year, month: now.month);
-      if (!owesPrev && !owesCur) continue;
-      rows.add(DuesReminderUnpaidRow(
-        member: m,
-        owesPreviousMonth: owesPrev,
-        owesCurrentMonth: owesCur,
-      ));
-    }
-    return rows;
+              type: type,
+              year: year,
+              month: month,
+              asOf: now,
+            ))
+        .toList();
   }
 
-  /// 이번달은 납부 기준일이 지난 뒤에만 미납으로 본다.
-  bool _reminderMonthCollectable(
+  DuesChip duesChipFor({
+    required Member member,
+    required DuesSetting setting,
+    required int year,
+    int? month,
+    DateTime? asOf,
+  }) {
+    final now = asOf ?? DateTime.now();
+    return DuesPeriodEligibility.classify(
+      member: member,
+      type: setting.type,
+      year: year,
+      month: setting.type == DuesType.monthly ? month : null,
+      hasPaid: _hasPaidForSetting(member.id, setting, year, month),
+      asOf: now,
+    );
+  }
+
+  bool _hasPaidForSetting(
+    String memberId,
     DuesSetting setting,
     int year,
-    int month,
-    DateTime asOf,
+    int? month,
   ) {
-    if (!setting.isActiveForYearMonth(year, month)) return false;
-    final due = setting.dueDateFor(year: year, month: month);
-    final today = DateTime(asOf.year, asOf.month, asOf.day);
-    if (due != null) return today.isAfter(due);
-    final isCurrentMonth = year == asOf.year && month == asOf.month;
-    return !isCurrentMonth;
+    if (setting.type == DuesType.special) {
+      return hasPaid(memberId, setting.id);
+    }
+    if (setting.type == DuesType.monthly) {
+      return hasPaid(memberId, setting.id, year: year, month: month);
+    }
+    return hasPaid(memberId, setting.id, year: year);
+  }
+
+  /// 특정 회비의 미납 회원 수. 활성 정회원만. 가입 전·예정은 뺀다.
+  int unpaidCountForDuesSetting(DuesSetting setting, int year, int month,
+      {DateTime? asOf}) {
+    final now = asOf ?? DateTime.now();
+    return regularMembers
+        .where((m) =>
+            DuesPeriodEligibility.classify(
+              member: m,
+              type: setting.type,
+              year: year,
+              month: setting.type == DuesType.monthly ? month : null,
+              hasPaid: _hasPaidForSetting(m.id, setting, year, month),
+              asOf: now,
+            ) ==
+            DuesChip.unpaid)
+        .length;
+  }
+
+  /// 독촉하기 미납자. 지금 보고 있는 회비 + 그 월(월회비) / 그 해(연회비)만.
+  List<DuesReminderUnpaidRow> reminderUnpaidMembers(
+    DuesSetting setting, {
+    required int year,
+    int? month,
+    DateTime? asOf,
+  }) {
+    final now = asOf ?? DateTime.now();
+    final viewMonth = setting.type == DuesType.monthly ? month : null;
+    final label = setting.type == DuesType.monthly
+        ? '${viewMonth ?? now.month}월 미납'
+        : '$year년 미납';
+    final roster = duesRosterForPeriod(
+      type: setting.type,
+      year: year,
+      month: viewMonth,
+      asOf: now,
+    );
+    return [
+      for (final m in roster)
+        if (!DuesPeriodEligibility.isLeft(m) &&
+            DuesPeriodEligibility.classify(
+                  member: m,
+                  type: setting.type,
+                  year: year,
+                  month: viewMonth,
+                  hasPaid: _hasPaidForSetting(m.id, setting, year, viewMonth),
+                  asOf: now,
+                ) ==
+                DuesChip.unpaid)
+          DuesReminderUnpaidRow(member: m, periodLabel: label),
+    ];
   }
 
   /// 홈 회계 카드 미납 뱃지 — 기준: 이번 달 월회비(있으면), 복수 회비 시 라벨 보강
@@ -3163,25 +3185,31 @@ class ClubProvider extends ChangeNotifier with WidgetsBindingObserver {
     );
   }
 
-  /// 이달 회비 납부자 수 (홈·독촉용). 현재 납부 대상 회원만 센다.
-  /// 탈퇴·게스트 등 목록에 없는 납부 기록은 분자에 넣지 않는다.
-  int paidCountForMonth(int year, int month) {
+  /// 이달 회비 납부자 수 (홈용). 활성 정회원 중 그 기간 대상만.
+  /// 탈퇴·게스트·가입 전 납부 기록은 분자에 넣지 않는다.
+  int paidCountForMonth(int year, int month, {DateTime? asOf}) {
     final setting = currentHomeDuesSetting(year, month);
     if (setting == null) return 0;
-    final members = regularMembers;
-    final monthFilter = setting.type == DuesType.monthly ? month : null;
-    final paidIds = paymentsOf(setting.id, year: year, month: monthFilter)
-        .map((p) => p.memberId)
-        .toSet();
-    return members.where((m) => paidIds.contains(m.id)).length;
+    final now = asOf ?? DateTime.now();
+    return regularMembers
+        .where((m) =>
+            DuesPeriodEligibility.classify(
+              member: m,
+              type: setting.type,
+              year: year,
+              month: setting.type == DuesType.monthly ? month : null,
+              hasPaid: _hasPaidForSetting(m.id, setting, year, month),
+              asOf: now,
+            ) ==
+            DuesChip.paid)
+        .length;
   }
 
-  /// 이달 미납 회원 수 (활성 정회원 기준)
-  int unpaidCountForMonth(int year, int month) {
+  /// 이달 미납 회원 수 (활성 정회원, 가입 전·예정 제외)
+  int unpaidCountForMonth(int year, int month, {DateTime? asOf}) {
     final setting = currentHomeDuesSetting(year, month);
     if (setting == null) return 0;
-    final total = regularMembers.length;
-    return (total - paidCountForMonth(year, month)).clamp(0, total);
+    return unpaidCountForDuesSetting(setting, year, month, asOf: asOf);
   }
 
   /// 활성 회비 1건의 미납 건수 (회원×기간, 설정 생성~현재·밀린 달 포함)
@@ -3195,8 +3223,16 @@ class ClubProvider extends ChangeNotifier with WidgetsBindingObserver {
         var count = 0;
         for (final period in _expectedMonthlyPeriods(setting, now)) {
           for (final m in members) {
-            if (!hasPaid(m.id, setting.id,
-                year: period.year, month: period.month)) {
+            if (DuesPeriodEligibility.classify(
+                  member: m,
+                  type: DuesType.monthly,
+                  year: period.year,
+                  month: period.month,
+                  hasPaid: hasPaid(m.id, setting.id,
+                      year: period.year, month: period.month),
+                  asOf: now,
+                ) ==
+                DuesChip.unpaid) {
               count++;
             }
           }
@@ -3204,13 +3240,29 @@ class ClubProvider extends ChangeNotifier with WidgetsBindingObserver {
         return count;
       case DuesType.annual:
         if (setting.createdAt.year > now.year) return 0;
+        final y = setting.createdAt.year;
         return members
             .where((m) =>
-                !hasPaid(m.id, setting.id, year: setting.createdAt.year))
+                DuesPeriodEligibility.classify(
+                  member: m,
+                  type: DuesType.annual,
+                  year: y,
+                  hasPaid: hasPaid(m.id, setting.id, year: y),
+                  asOf: now,
+                ) ==
+                DuesChip.unpaid)
             .length;
       case DuesType.special:
         return members
-            .where((m) => !hasPaid(m.id, setting.id))
+            .where((m) =>
+                DuesPeriodEligibility.classify(
+                  member: m,
+                  type: DuesType.special,
+                  year: setting.createdAt.year,
+                  hasPaid: hasPaid(m.id, setting.id),
+                  asOf: now,
+                ) ==
+                DuesChip.unpaid)
             .length;
     }
   }
@@ -3228,8 +3280,16 @@ class ClubProvider extends ChangeNotifier with WidgetsBindingObserver {
             final amt =
                 s.amountForPeriod(year: period.year, month: period.month);
             for (final m in members) {
-              if (!hasPaid(m.id, s.id,
-                  year: period.year, month: period.month)) {
+              if (DuesPeriodEligibility.classify(
+                    member: m,
+                    type: DuesType.monthly,
+                    year: period.year,
+                    month: period.month,
+                    hasPaid: hasPaid(m.id, s.id,
+                        year: period.year, month: period.month),
+                    asOf: now,
+                  ) ==
+                  DuesChip.unpaid) {
                 total += amt;
               }
             }
@@ -3240,15 +3300,35 @@ class ClubProvider extends ChangeNotifier with WidgetsBindingObserver {
           if (y > now.year) continue;
           final members = regularMembers;
           final amt = s.amountForPeriod(year: y);
-          total +=
-              members.where((m) => !hasPaid(m.id, s.id, year: y)).length *
-                  amt;
+          total += members
+                  .where((m) =>
+                      DuesPeriodEligibility.classify(
+                        member: m,
+                        type: DuesType.annual,
+                        year: y,
+                        hasPaid: hasPaid(m.id, s.id, year: y),
+                        asOf: now,
+                      ) ==
+                      DuesChip.unpaid)
+                  .length *
+              amt;
           break;
         case DuesType.special:
           final members = regularMembers;
           final amt = s.amountForPeriod(
               year: s.createdAt.year, month: s.createdAt.month);
-          total += members.where((m) => !hasPaid(m.id, s.id)).length * amt;
+          total += members
+                  .where((m) =>
+                      DuesPeriodEligibility.classify(
+                        member: m,
+                        type: DuesType.special,
+                        year: s.createdAt.year,
+                        hasPaid: hasPaid(m.id, s.id),
+                        asOf: now,
+                      ) ==
+                      DuesChip.unpaid)
+                  .length *
+              amt;
           break;
       }
     }
@@ -8237,12 +8317,12 @@ class ClubProvider extends ChangeNotifier with WidgetsBindingObserver {
         if (mid == currentUserId ||
             mid == _persistAuthUserId ||
             leavingIds.contains(mid)) {
-          _members[i] = _members[i].copyWith(status: '탈퇴');
+          _members[i] = _members[i].asLeft();
         }
       } else if (mid == 'm_creator_$resolvedId' ||
           mid.startsWith('m_${resolvedId}_') ||
           mid == currentUserId) {
-        _members[i] = _members[i].copyWith(status: '탈퇴');
+        _members[i] = _members[i].asLeft();
       }
     }
 
@@ -8700,7 +8780,7 @@ class ClubProvider extends ChangeNotifier with WidgetsBindingObserver {
     final idx = _members.indexWhere((m) => m.id == memberId);
     if (idx == -1) return;
     if (_members[idx].status == '탈퇴') return;
-    _members[idx] = _members[idx].copyWith(status: '탈퇴');
+    _members[idx] = _members[idx].asLeft();
     // 강퇴와 같은 정책. 이게 없으면 원격 '활성' 행이 탈퇴를 되살린다.
     ClubOpsSync.markMemberRemoved(memberId);
     notifyListeners();

@@ -52,11 +52,12 @@ void main() {
     expect(finance.contains("const Text('납부 O'"), isFalse);
     expect(finance.contains('납부 \$paidCount'), isTrue);
     expect(
-      finance.contains('members.where((m) => paidIds.contains(m.id)).length'),
+      finance.contains('chips[m.id] == DuesChip.paid'),
       isTrue,
-      reason: '납부 인원은 현재 회원과 교집합이어야 함 (2/1·미납 -1 방지)',
+      reason: '납부 인원은 그 기간 칩이 납부인 사람만',
     );
     expect(finance.contains('미납 \$unpaidCount'), isTrue);
+    expect(finance.contains('예정 \$scheduledCount'), isTrue);
     expect(finance.contains('미납 \${totalCount - paidCount}'), isFalse,
         reason: '미납이 음수가 되면 안 됨');
     expect(finance.contains("Text('새 회비 만들기'"), isTrue,
@@ -149,14 +150,14 @@ void main() {
   });
 
   test('생성자 총무 직책을 명단 정회원이 깎지 않는다', () {
-    final start = provider.indexOf('void syncMyRoleFromMemberRoster()');
+    final start = provider.indexOf('bool _syncMyRoleFromRosterFor(');
     final end = provider.indexOf('//  라운딩 대기 등록 시스템', start);
     expect(start, greaterThan(0));
     expect(end, greaterThan(start));
     final fn = provider.substring(start, end);
     expect(fn.contains('isFreshClub(clubId) && isCreator'), isFalse,
         reason: 'fresh 표시만으로 생성자 총무를 정회원으로 내리면 안 된다');
-    expect(fn.contains('회장·총무'), isTrue);
+    expect(provider.contains('회장·총무 → 회장 유지'), isTrue);
     expect(fn.contains('if (!isCreator)'), isTrue,
         reason: '남의 모임 myRole 회장을 명단에 덮으면 목록·권한이 틀린다');
   });
@@ -258,10 +259,10 @@ void main() {
 
   test('납부·미납 칩은 파스텔이 아니라 솔리드 색이다', () {
     expect(finance.contains('Widget _duesPayStatusChip'), isTrue);
-    expect(
-      finance.contains('color: paid ? AppColors.success : AppColors.danger,'),
-      isTrue,
-    );
+    expect(finance.contains('bg = AppColors.success'), isTrue);
+    expect(finance.contains('bg = AppColors.danger'), isTrue);
+    expect(finance.contains("'가입 전'"), isTrue);
+    expect(finance.contains("'예정'"), isTrue);
     expect(
       finance.contains("color: Colors.white,"),
       isTrue,
@@ -278,23 +279,31 @@ void main() {
     expect(finance.contains('잔고 등록 완료!'), isFalse);
   });
 
-  test('독촉하기 미납자는 지난달과 납부일이 지난 이번달만', () {
+  test('독촉하기는 회비납부 탭의 그 월·해만이고 홈에는 없다', () {
     expect(provider.contains('List<DuesReminderUnpaidRow> reminderUnpaidMembers'),
         isTrue);
-    expect(provider.contains('_reminderMonthCollectable'), isTrue);
-    expect(provider.contains('today.isAfter(due)'), isTrue);
+    expect(provider.contains('_reminderMonthCollectable'), isFalse);
+    expect(provider.contains('duesRosterForPeriod'), isTrue);
+    expect(finance.contains('showPaymentReminderSheet'), isTrue);
+    expect(finance.contains("'독촉하기'"), isTrue);
+    expect(finance.contains("'회원 목록'"), isFalse);
+    expect(
+      File('lib/screens/finance/payment_reminder_sheet.dart')
+          .readAsStringSync()
+          .contains('모든 회원이 납부했습니다'),
+      isTrue,
+    );
     final room =
         File('lib/screens/club_room/club_room_screen.dart').readAsStringSync();
-    expect(room.contains('pv.reminderUnpaidMembers(_selectedDues!)'), isTrue);
-    expect(room.contains('p.paidAt.year == DateTime.now().year'), isFalse);
-    expect(room.contains('row.periodLabel'), isTrue);
+    expect(room.contains("'독촉하기'"), isFalse);
+    expect(room.contains('showPaymentReminderSheet'), isFalse);
   });
 
   test('게스트는 회비 납부 대상이 아니다', () {
     expect(finance.contains('연회비·특별회비는 전체 활성 회원'), isFalse);
     expect(finance.contains('게스트는 월·연·특별 모두 제외'), isTrue);
     expect(
-      finance.contains('final members = provider.regularMembers;'),
+      finance.contains('provider.duesRosterForPeriod('),
       isTrue,
     );
     expect(
@@ -329,8 +338,7 @@ void main() {
     expect(start, greaterThan(0));
     expect(end, greaterThan(start));
     final fn = provider.substring(start, end);
-    expect(fn.contains('members.where((m) => paidIds.contains(m.id)).length'),
-        isTrue);
+    expect(fn.contains('DuesChip.paid'), isTrue);
     expect(fn.contains('.toSet()\n        .length'), isFalse,
         reason: '탈퇴·게스트 납부까지 분자에 넣으면 2/1·200%가 된다');
   });
@@ -372,12 +380,12 @@ void main() {
     expect(finance.contains('_showBulkPaymentDialog'), isTrue,
         reason: '일괄 납부도 개별처럼 잔고 반영 여부를 물어야 한다');
     expect(finance.contains('잔고에 반영하지 않기'), isTrue);
-    expect(finance.contains('bulkEnabled: !paid'), isTrue);
+    expect(finance.contains('chip == DuesChip.unpaid &&'), isTrue);
     expect(finance.contains('opacity: bulkEnabled ? 1 : 0.32'), isTrue,
         reason: '이미 납부한 회원 체크박스는 흐려서 선택 불가로 보여야 한다');
     expect(finance.contains('value: bulkEnabled && bulkSelected'), isTrue,
         reason: '납부 완료 회원이 체크된 채로 비활성화되면 아직 되는 줄 안다');
-    expect(finance.contains('if (paid) return;'), isTrue);
+    expect(finance.contains('if (chip != DuesChip.unpaid) return;'), isTrue);
     expect(finance.contains('amountForPeriod'), isTrue,
         reason: '일괄 납부도 기간별 금액을 써야 200% 회비가 어긋나지 않는다');
     final start = finance.indexOf('_bulkSelectedIds.isEmpty');
@@ -386,7 +394,7 @@ void main() {
     expect(end, greaterThan(start));
     expect(finance.substring(start, end).contains('_showBulkPaymentDialog'),
         isTrue);
-    expect(finance.contains('final members = provider.regularMembers;'),
+    expect(finance.contains('provider.duesRosterForPeriod('),
         isTrue,
         reason: '일괄 납부 대상에 게스트가 들어가면 안 됨');
     expect(

@@ -1074,6 +1074,31 @@ void main() {
           reason: '남은 회원은 그대로여야 한다');
     });
 
+    test('탈퇴 행의 leftAt 은 원격 활성이 덮지 않는다', () {
+      ClubOpsSync.markMemberRemoved('m_c_test_left');
+      final leftAt = DateTime(2026, 8, 1);
+      final local = bundleWith([
+        Member(
+          id: 'm_c_test_left',
+          name: '박탈퇴',
+          gender: '남',
+          memberType: '정회원',
+          role: '일반',
+          joinDate: DateTime(2024, 1, 1),
+          status: '탈퇴',
+          leftAt: leftAt,
+        ),
+      ]);
+      final merged = ClubOpsSync.applyRemoteSlice(
+        local,
+        'c_test',
+        remoteWith([remoteMember('m_c_test_left', '박탈퇴', '활성')]),
+      );
+      final row = merged.members.firstWhere((m) => m.id == 'm_c_test_left');
+      expect(row.status, '탈퇴');
+      expect(row.leftAt, leftAt);
+    });
+
     test('로컬 강퇴 행이 있으면 상태를 지킨다 (기록 보존)', () {
       ClubOpsSync.markMemberRemoved('m_c_test_kicked');
       final local = bundleWith([

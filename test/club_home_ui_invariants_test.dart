@@ -105,14 +105,12 @@ void main() {
     // 겸직('회장·총무')·인수인계로 myRole이 어긋난 모임에서 버튼이 사라지던 문제
     expect(room.contains("['회장', '부회장', '총무']"), isFalse);
     expect(room.contains("['회장', '부회장']"), isFalse);
-    expect(room.contains('final canNudge = provider.isClubExecutive'), isTrue);
+    expect(room.contains('ClubMemberRole'), isTrue);
   });
 
-  test('독촉하기는 전월 미납과 같은 줄이다', () {
-    final unpaid = room.indexOf("'전월 미납 \$prevUnpaid명'");
-    final nudge = room.indexOf("'독촉하기'");
-    expect(unpaid, greaterThan(0));
-    expect(nudge, greaterThan(unpaid));
+  test('홈 회비 카드에 독촉하기가 없다', () {
+    expect(room.contains("'독촉하기'"), isFalse);
+    expect(room.contains("'전월 미납 \$prevUnpaid명'"), isTrue);
   });
 
   test('회비 카드 라벨은 진한 회색, 전월 미납은 항상 빨강', () {

@@ -202,6 +202,10 @@ class RosterDedupe {
       memberType: ClubMemberRole.memberTypeForRole(role),
       handicap: keep.handicap ?? extra.handicap,
       joinDate: keep.joinDate ?? extra.joinDate,
+      leftAt: keep.leftAt ?? extra.leftAt,
+      status: keep.status == '탈퇴' || extra.status == '탈퇴'
+          ? '탈퇴'
+          : keep.status,
       address:
           (keep.address == null || keep.address!.trim().isEmpty)
               ? extra.address

@@ -9,7 +9,8 @@ void main() {
 
   late ClubProvider clubs;
   late String unpaidId;
-  late String paidLastId;
+  late String septJoinId;
+  late String leftId;
   late DuesSetting monthly;
 
   setUpAll(() async {
@@ -26,7 +27,8 @@ void main() {
     );
     expect(ok, isTrue);
     unpaidId = 'm_${clubs.selectedClub.id}_unpaid';
-    paidLastId = 'm_${clubs.selectedClub.id}_paid_last';
+    septJoinId = 'm_${clubs.selectedClub.id}_sept';
+    leftId = 'm_${clubs.selectedClub.id}_left';
     clubs.addMember(Member(
       id: unpaidId,
       name: '미납자',
@@ -36,12 +38,22 @@ void main() {
       joinDate: DateTime(2026, 1, 1),
     ));
     clubs.addMember(Member(
-      id: paidLastId,
-      name: '지난달납부',
+      id: septJoinId,
+      name: '구월가입',
+      gender: '남',
+      memberType: '정회원',
+      role: '일반',
+      joinDate: DateTime(2026, 9, 1),
+    ));
+    clubs.addMember(Member(
+      id: leftId,
+      name: '탈퇴자',
       gender: '남',
       memberType: '정회원',
       role: '일반',
       joinDate: DateTime(2026, 1, 1),
+      status: '탈퇴',
+      leftAt: DateTime(2026, 9, 1),
     ));
     clubs.addMember(Member(
       id: 'm_${clubs.selectedClub.id}_guest',
@@ -63,60 +75,56 @@ void main() {
       dueDayOfMonth: 25,
     );
     clubs.addDuesSetting(monthly);
+  });
+
+  test('독촉은 지금 보는 그 월만이고 시작월부터 훑지 않는다', () {
+    final rows = clubs.reminderUnpaidMembers(
+      monthly,
+      year: 2026,
+      month: 9,
+      asOf: DateTime(2026, 9, 15),
+    );
+    expect(rows.any((r) => r.member.id == unpaidId), isTrue);
+    expect(rows.any((r) => r.member.id == septJoinId), isTrue);
+    expect(rows.every((r) => r.periodLabel == '9월 미납'), isTrue);
+    expect(rows.any((r) => r.member.memberType == '게스트'), isFalse);
+    expect(rows.any((r) => r.member.id == leftId), isFalse);
+  });
+
+  test('8월 독촉에 9월 가입자와 탈퇴월 회원은 없다', () {
+    final rows = clubs.reminderUnpaidMembers(
+      monthly,
+      year: 2026,
+      month: 8,
+      asOf: DateTime(2026, 9, 15),
+    );
+    expect(rows.any((r) => r.member.id == unpaidId), isTrue);
+    expect(rows.any((r) => r.member.id == septJoinId), isFalse);
+    expect(rows.any((r) => r.member.id == leftId), isFalse,
+        reason: '탈퇴 회원은 독촉 대상이 아니다');
+    expect(rows.every((r) => r.periodLabel == '8월 미납'), isTrue);
+  });
+
+  test('그 기간에 미납이 없으면 빈 목록이다', () {
     clubs.recordPayment(
-      memberId: paidLastId,
-      memberName: '지난달납부',
+      memberId: unpaidId,
+      memberName: '미납자',
       duesSettingId: monthly.id,
       amount: 30000,
       year: 2026,
-      month: 8,
+      month: 7,
     );
-  });
-
-  test('납부일 전에는 이번달 미납이 아니고 지난달 미납만 나온다', () {
     final rows = clubs.reminderUnpaidMembers(
       monthly,
+      year: 2026,
+      month: 7,
       asOf: DateTime(2026, 9, 15),
     );
-    final unpaid = rows.firstWhere((r) => r.member.id == unpaidId);
-    expect(unpaid.owesPreviousMonth, isTrue);
-    expect(unpaid.owesCurrentMonth, isFalse);
-    expect(unpaid.periodLabel, '지난달 미납');
-    expect(rows.any((r) => r.member.id == paidLastId), isFalse);
-    expect(rows.any((r) => r.member.memberType == '게스트'), isFalse);
+    expect(rows.any((r) => r.member.id == unpaidId), isFalse);
   });
 
-  test('납부일 당일에는 이번달을 미납으로 넣지 않는다', () {
-    final rows = clubs.reminderUnpaidMembers(
-      monthly,
-      asOf: DateTime(2026, 9, 25),
-    );
-    final unpaid = rows.firstWhere((r) => r.member.id == unpaidId);
-    expect(unpaid.owesPreviousMonth, isTrue);
-    expect(unpaid.owesCurrentMonth, isFalse);
-  });
-
-  test('납부일이 지난 뒤에는 지난달과 이번달 미납이 같이 나온다', () {
-    final rows = clubs.reminderUnpaidMembers(
-      monthly,
-      asOf: DateTime(2026, 9, 26),
-    );
-    final unpaid = rows.firstWhere((r) => r.member.id == unpaidId);
-    expect(unpaid.owesPreviousMonth, isTrue);
-    expect(unpaid.owesCurrentMonth, isTrue);
-    expect(unpaid.periodLabel, '지난달 · 이번달 미납');
-
-    final paidLast = rows.firstWhere((r) => r.member.id == paidLastId);
-    expect(paidLast.owesPreviousMonth, isFalse);
-    expect(paidLast.owesCurrentMonth, isTrue);
-    expect(paidLast.periodLabel, '이번달 미납');
-  });
-
-  test('지난달만 냈으면 그전 달 미납은 독촉 목록에 없다', () {
-    final rows = clubs.reminderUnpaidMembers(
-      monthly,
-      asOf: DateTime(2026, 9, 15),
-    );
-    expect(rows.any((r) => r.member.id == paidLastId), isFalse);
+  test('탈퇴 회원은 활성 정회원 목록에 다시 안 들어간다', () {
+    expect(clubs.regularMembers.any((m) => m.id == leftId), isFalse);
+    expect(clubs.activeMembers.any((m) => m.id == leftId), isFalse);
   });
 }

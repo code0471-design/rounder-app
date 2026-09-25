@@ -334,6 +334,7 @@ class Member {
   final String role;          // 회장, 부회장, 총무, 정회원(레거시:일반), 게스트
   final double? handicap;
   final DateTime? joinDate;
+  final DateTime? leftAt;     // 탈퇴일. 문서 삭제 없이 status: 탈퇴 + left_at
   final String? address;
   final String? memo;
   final String status;        // 활성, 탈퇴
@@ -378,6 +379,7 @@ class Member {
         role: role,
         handicap: handicap,
         joinDate: joinDate,
+        leftAt: leftAt,
         address: address,
         memo: memo,
         status: status,
@@ -397,6 +399,7 @@ class Member {
     required this.role,
     this.handicap,
     this.joinDate,
+    this.leftAt,
     this.address,
     this.memo,
     this.status = '활성',
@@ -430,6 +433,8 @@ class Member {
     double? handicap,
     bool clearHandicap = false,
     DateTime? joinDate,
+    DateTime? leftAt,
+    bool clearLeftAt = false,
     String? address,
     String? memo,
     String? status,
@@ -448,6 +453,7 @@ class Member {
       role: role ?? this.role,
       handicap: clearHandicap ? null : (handicap ?? this.handicap),
       joinDate: joinDate ?? this.joinDate,
+      leftAt: clearLeftAt ? null : (leftAt ?? this.leftAt),
       address: address ?? this.address,
       memo: memo ?? this.memo,
       status: status ?? this.status,
@@ -455,6 +461,12 @@ class Member {
       referrerName: referrerName ?? this.referrerName,
     );
   }
+
+  /// 문서는 남기고 탈퇴 처리. 이미 탈퇴일이 있으면 유지한다.
+  Member asLeft({DateTime? at}) => copyWith(
+        status: '탈퇴',
+        leftAt: leftAt ?? at ?? DateTime.now(),
+      );
 }
 
 // ────────────────────────────────────────────────────────────
@@ -943,23 +955,15 @@ class MonthUnpaidSummary {
   });
 }
 
-/// 독촉하기 미납자 한 줄. 월회비는 지난달·이번달만.
+/// 독촉하기 미납자 한 줄. 지금 보고 있는 회비의 그 월·해만.
 class DuesReminderUnpaidRow {
   final Member member;
-  final bool owesPreviousMonth;
-  final bool owesCurrentMonth;
+  final String periodLabel;
 
   const DuesReminderUnpaidRow({
     required this.member,
-    required this.owesPreviousMonth,
-    required this.owesCurrentMonth,
+    required this.periodLabel,
   });
-
-  String get periodLabel {
-    if (owesPreviousMonth && owesCurrentMonth) return '지난달 · 이번달 미납';
-    if (owesPreviousMonth) return '지난달 미납';
-    return '이번달 미납';
-  }
 }
 
 /// 납부 기록 (회원 1명 × 회비 1건)
