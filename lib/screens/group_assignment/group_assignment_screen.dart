@@ -1138,10 +1138,11 @@ class _GroupCard extends StatelessWidget {
       clipBehavior: Clip.antiAlias,
       child: Column(
         children: [
-          // ── 조 헤더 ──
+          // ── 조 헤더: 가운데 조 이름만 ──
           Container(
-            padding:
-                const EdgeInsets.symmetric(horizontal: 10, vertical: 10),
+            width: double.infinity,
+            padding: const EdgeInsets.symmetric(vertical: 12),
+            alignment: Alignment.center,
             decoration: BoxDecoration(
               gradient: LinearGradient(
                 colors: [color, color.withValues(alpha: 0.75)],
@@ -1149,64 +1150,15 @@ class _GroupCard extends StatelessWidget {
                 end: Alignment.centerRight,
               ),
             ),
-            child: Row(
-              children: [
-                // 조 번호 원
-                Container(
-                  width: 32,
-                  height: 32,
-                  decoration: BoxDecoration(
-                    color: Colors.white.withValues(alpha: 0.22),
-                    shape: BoxShape.circle,
-                  ),
-                  child: Center(
-                    child: Text(
-                      '${group.groupNumber}',
-                      style: const TextStyle(
-                          color: Colors.white,
-                          fontSize: 15,
-                          fontWeight: FontWeight.w900),
-                    ),
-                  ),
-                ),
-                const SizedBox(width: 8),
-                Expanded(
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Text(
-                        '${group.groupNumber}조',
-                        style: const TextStyle(
-                            color: Colors.white,
-                            fontSize: 14,
-                            fontWeight: FontWeight.w800),
-                      ),
-                      Text(
-                        '${group.filledCount}/${group.slots.length}명',
-                        style: TextStyle(
-                            color: Colors.white.withValues(alpha: 0.75),
-                            fontSize: 11),
-                      ),
-                    ],
-                  ),
-                ),
-                if (group.filledCount > 0)
-                  Container(
-                    padding: const EdgeInsets.symmetric(
-                        horizontal: 6, vertical: 2),
-                    decoration: BoxDecoration(
-                      color: Colors.white.withValues(alpha: 0.2),
-                      borderRadius: BorderRadius.circular(20),
-                    ),
-                    child: Text(
-                      '⌀${group.avgHandicap.toStringAsFixed(1)}',
-                      style: const TextStyle(
-                          color: Colors.white,
-                          fontSize: 9,
-                          fontWeight: FontWeight.w700),
-                    ),
-                  ),
-              ],
+            child: Text(
+              '${group.groupNumber}조',
+              style: const TextStyle(
+                color: Colors.white,
+                fontSize: 18,
+                fontWeight: FontWeight.w900,
+                letterSpacing: 0.3,
+                height: 1.1,
+              ),
             ),
           ),
 
@@ -1237,12 +1189,6 @@ class _GroupCard extends StatelessWidget {
               ],
             );
           }),
-
-          // ── 성별 분포 바 ──
-          if (group.filledCount > 0) ...[
-            const Divider(height: 1, color: Color(0xFFF5F5F5)),
-            _GenderBar(slots: group.slots, color: color),
-          ],
         ],
       ),
     );
@@ -1279,9 +1225,9 @@ class _SlotRow extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final rowH = compact ? 48.0 : 62.0;
-    final hPad = compact ? 8.0 : 16.0;
-    final avatar = compact ? 28.0 : 38.0;
+    final rowH = compact ? 54.0 : 64.0;
+    final hPad = compact ? 10.0 : 16.0;
+    final avatar = compact ? 32.0 : 40.0;
 
     if (slot.isEmpty) {
       // ── 빈 슬롯 ──
@@ -1365,10 +1311,11 @@ class _SlotRow extends StatelessWidget {
     }
 
     // ── 채워진 슬롯 ──
-    final genderIcon = slot.gender == '여' ? '♀' : '♂';
-    final genderColor = slot.gender == '여'
-        ? const Color(0xFFE91E63)
-        : AppColors.primaryLight;
+    final isFemale = slot.gender == '여';
+    final genderLabel = isFemale ? '여' : '남';
+    final genderColor = isFemale
+        ? const Color(0xFFEC4899)
+        : const Color(0xFF3B82F6);
 
     final rowContent = DragTarget<GroupSlot>(
       onWillAcceptWithDetails: (d) =>
@@ -1389,58 +1336,40 @@ class _SlotRow extends StatelessWidget {
           ),
           child: Row(
             children: [
-              // 아바타
               Container(
                 width: avatar,
                 height: avatar,
                 decoration: BoxDecoration(
-                  gradient: LinearGradient(
-                    colors: [
-                      groupColor.withValues(alpha: 0.18),
-                      groupColor.withValues(alpha: 0.08),
-                    ],
-                    begin: Alignment.topLeft,
-                    end: Alignment.bottomRight,
-                  ),
+                  color: genderColor,
                   shape: BoxShape.circle,
                 ),
                 child: Center(
                   child: Text(
-                    slot.memberName!.substring(0, 1),
+                    genderLabel,
                     style: TextStyle(
-                      color: groupColor,
+                      color: Colors.white,
                       fontWeight: FontWeight.w800,
-                      fontSize: compact ? 12 : 16,
+                      fontSize: compact ? 13 : 15,
                     ),
                   ),
                 ),
               ),
-              SizedBox(width: compact ? 6 : 12),
+              SizedBox(width: compact ? 8 : 12),
               Expanded(
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   mainAxisAlignment: MainAxisAlignment.center,
                   children: [
-                    Row(
-                      children: [
-                        Flexible(
-                          child: Text(
-                            slot.memberName!,
-                            style: TextStyle(
-                              fontWeight: FontWeight.w700,
-                              fontSize: compact ? 12 : 14,
-                              color: const Color(0xFF1C2B36),
-                            ),
-                            maxLines: 1,
-                            overflow: TextOverflow.ellipsis,
-                          ),
-                        ),
-                        const SizedBox(width: 3),
-                        Text(genderIcon,
-                            style: TextStyle(
-                                fontSize: compact ? 10 : 11,
-                                color: genderColor)),
-                      ],
+                    Text(
+                      slot.memberName!,
+                      style: TextStyle(
+                        fontWeight: FontWeight.w800,
+                        fontSize: compact ? 15 : 17,
+                        color: const Color(0xFF1C2B36),
+                        height: 1.15,
+                      ),
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
                     ),
                     if (slot.handicap != null && !compact)
                       Text(
@@ -1492,64 +1421,6 @@ class _SlotRow extends StatelessWidget {
       );
     }
     return rowContent;
-  }
-}
-
-// ─────────────────────────────────────────────
-//  성별 분포 바
-// ─────────────────────────────────────────────
-class _GenderBar extends StatelessWidget {
-  final List<GroupSlot> slots;
-  final Color color;
-  const _GenderBar({required this.slots, required this.color});
-
-  @override
-  Widget build(BuildContext context) {
-    final filled = slots.where((s) => s.isFilled).toList();
-    final males = filled.where((s) => s.gender == '남').length;
-    final females = filled.where((s) => s.gender == '여').length;
-    if (filled.isEmpty) return const SizedBox.shrink();
-
-    return Padding(
-      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
-      child: Row(
-        children: [
-          Text('♂ $males',
-              style: const TextStyle(
-                  fontSize: 10,
-                  fontWeight: FontWeight.w600,
-                  color: AppColors.primaryLight)),
-          const SizedBox(width: 6),
-          Expanded(
-            child: ClipRRect(
-              borderRadius: BorderRadius.circular(4),
-              child: Row(
-                children: [
-                  if (males > 0)
-                    Flexible(
-                      flex: males,
-                      child: Container(
-                          height: 5, color: AppColors.primaryLight),
-                    ),
-                  if (females > 0)
-                    Flexible(
-                      flex: females,
-                      child: Container(
-                          height: 5, color: const Color(0xFFE91E63)),
-                    ),
-                ],
-              ),
-            ),
-          ),
-          const SizedBox(width: 8),
-          Text('♀ $females',
-              style: const TextStyle(
-                  fontSize: 11,
-                  fontWeight: FontWeight.w600,
-                  color: Color(0xFFE91E63))),
-        ],
-      ),
-    );
   }
 }
 

@@ -42,6 +42,18 @@ void main() {
         reason: '본문 아래 초기화 버튼이 남아 있으면 안 된다');
   });
 
+  test('조 카드는 가운데 조명과 한글 성별 원만 보여 준다', () {
+    expect(source.contains("filledCount}/\${group.slots.length}명"), isFalse);
+    expect(source.contains('avgHandicap'), isFalse);
+    expect(source.contains('class _GenderBar'), isFalse);
+    expect(source.contains("alignment: Alignment.center"), isTrue);
+    expect(source.contains("fontSize: 18"), isTrue);
+    expect(source.contains("genderLabel = isFemale ? '여' : '남'"), isTrue);
+    expect(source.contains('0xFF3B82F6'), isTrue);
+    expect(source.contains('0xFFEC4899'), isTrue);
+    expect(source.contains("compact ? 15 : 17"), isTrue);
+  });
+
   test('헤더 일정명이 본문보다 크고 자동배정 글자는 스케일된다', () {
     expect(source.contains('schedule.displayTitle'), isTrue);
     expect(source.contains('fontSize: 16'), isTrue);
