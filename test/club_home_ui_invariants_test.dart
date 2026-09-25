@@ -22,6 +22,13 @@ void main() {
         reason: '참석현황은 파란 다음 일정과 한 덩어리다');
     expect(room.contains('0xFFF5F8FF'), isFalse,
         reason: '참석현황은 흰 하단이고 파란 바탕이 아니다');
+    expect(
+      room.contains(
+        'left: BorderSide(color: Color(0xFF3B6FE0), width: 1.5)',
+      ),
+      isTrue,
+      reason: '참석현황 흰 하단의 테두리는 파랑이다',
+    );
     expect(room.contains('ClipRRect('), isTrue);
     expect(
       room.contains('if (provider.upcomingSchedules.isNotEmpty) ...['),

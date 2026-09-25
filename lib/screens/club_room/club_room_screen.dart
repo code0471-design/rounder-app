@@ -1287,7 +1287,11 @@ class _AttendanceCard extends StatelessWidget {
                   ? BorderRadius.zero
                   : BorderRadius.circular(16),
               border: embedded
-                  ? null
+                  ? const Border(
+                      left: BorderSide(color: Color(0xFF3B6FE0), width: 1.5),
+                      right: BorderSide(color: Color(0xFF3B6FE0), width: 1.5),
+                      bottom: BorderSide(color: Color(0xFF3B6FE0), width: 1.5),
+                    )
                   : Border.all(color: _kHomeCardBorder, width: 1.5),
             ),
             child: Column(
