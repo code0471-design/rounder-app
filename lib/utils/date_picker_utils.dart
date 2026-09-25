@@ -36,6 +36,18 @@ String formatTeeTimeKo(int hour, int minute) {
   return '$period ${hour12From24(hour)}:${minute.toString().padLeft(2, '0')}';
 }
 
+/// 저장된 `07:30`을 홈 카드용 `오전 7:30`으로 바꾼다. 없으면 빈 문자열.
+String formatStoredTeeTimeKo(String raw) {
+  final t = raw.trim();
+  if (t.isEmpty) return '';
+  final parts = t.split(':');
+  if (parts.length < 2) return t;
+  final hour = int.tryParse(parts[0]);
+  final minute = int.tryParse(parts[1]);
+  if (hour == null || minute == null) return t;
+  return formatTeeTimeKo(hour.clamp(0, 23), clampTeeMinute(minute));
+}
+
 double rounderMonthScrollOffset({
   required DateTime firstDate,
   required DateTime lastDate,

@@ -29,6 +29,9 @@ void main() {
     expect(formatTeeTimeKo(19, 36), '오후 7:36');
     expect(formatTeeTimeKo(0, 5), '오전 12:05');
     expect(formatTeeTimeKo(12, 0), '오후 12:00');
+    expect(formatStoredTeeTimeKo('07:30'), '오전 7:30');
+    expect(formatStoredTeeTimeKo('19:36'), '오후 7:36');
+    expect(formatStoredTeeTimeKo(''), '');
   });
 
   test('달력 스크롤은 오늘이 속한 달 위치다', () {

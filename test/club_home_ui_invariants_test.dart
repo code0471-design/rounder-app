@@ -61,6 +61,8 @@ void main() {
     expect(room.contains('fontSize: 18'), isTrue);
     expect(room.contains('fontSize: 27'), isTrue);
     expect(room.contains("'팀수 \${nextSchedule.teamCount}'"), isTrue);
+    expect(room.contains('formatStoredTeeTimeKo(nextSchedule.teeTime)'), isTrue);
+    expect(room.contains('월 \${date.day}일 · \$tee'), isTrue);
   });
 
   test('일정 없는 홈 카드는 크게, 부제와 등록 버튼까지 보여 준다', () {

@@ -8,6 +8,7 @@ import '../../models/member_role.dart';
 import '../../providers/club_provider.dart';
 import '../../theme/app_theme.dart';
 import '../../utils/d_day_utils.dart';
+import '../../utils/date_picker_utils.dart';
 import '../../widgets/club_cover_mark.dart';
 import '../../widgets/empty_state.dart';
 import '../../widgets/app_card.dart';
@@ -1022,6 +1023,10 @@ class ClubHomeTab extends StatelessWidget {
     final place = nextSchedule.courseName.isNotEmpty
         ? nextSchedule.courseName
         : '장소 미정';
+    final tee = formatStoredTeeTimeKo(nextSchedule.teeTime);
+    final when = tee.isEmpty
+        ? '${date.month}월 ${date.day}일'
+        : '${date.month}월 ${date.day}일 · $tee';
 
     final card = Container(
       padding: const EdgeInsets.fromLTRB(16, 12, 14, 14),
@@ -1081,7 +1086,7 @@ class ClubHomeTab extends StatelessWidget {
                     ),
                     const SizedBox(height: 6),
                     Text(
-                      '$place · ${date.month}월 ${date.day}일',
+                      '$place · $when',
                       style: const TextStyle(
                           color: Color(0xFFD4DCF0),
                           fontSize: 13,
