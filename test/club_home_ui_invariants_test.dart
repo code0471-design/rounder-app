@@ -20,6 +20,8 @@ void main() {
     expect(room.contains("'참석 응답 · 명단 보기 >'"), isTrue);
     expect(room.contains('embedded: true'), isTrue,
         reason: '참석현황은 파란 다음 일정과 한 덩어리다');
+    expect(room.contains('0xFFF5F8FF'), isFalse,
+        reason: '참석현황은 흰 하단이고 파란 바탕이 아니다');
     expect(room.contains('ClipRRect('), isTrue);
     expect(
       room.contains('if (provider.upcomingSchedules.isNotEmpty) ...['),

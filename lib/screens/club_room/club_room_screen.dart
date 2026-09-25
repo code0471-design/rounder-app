@@ -1282,7 +1282,7 @@ class _AttendanceCard extends StatelessWidget {
           child: Container(
             padding: const EdgeInsets.fromLTRB(14, 14, 14, 14),
             decoration: BoxDecoration(
-              color: embedded ? const Color(0xFFF5F8FF) : Colors.white,
+              color: Colors.white,
               borderRadius: embedded
                   ? BorderRadius.zero
                   : BorderRadius.circular(16),
