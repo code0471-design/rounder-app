@@ -36,6 +36,15 @@ void main() {
     expect(room.contains('ClubCoverMark(club: club, size: 80)'), isTrue);
     expect(room.contains("label: '정회원 초대하기'"), isTrue);
     expect(room.contains("label: '게스트 초대하기'"), isTrue);
+    expect(room.contains('fillWidth: true'), isTrue,
+        reason: '초대 버튼은 다음 일정 카드 오른쪽까지 늘어나야 한다');
+    final findClub = room.indexOf("label: '다른 모임 찾기'");
+    expect(findClub, greaterThan(0));
+    expect(
+      room.substring(findClub, findClub + 280).contains('0xFF111827'),
+      isFalse,
+      reason: '다른 모임 찾기는 검정 채우기가 아니다',
+    );
     expect(room.contains('Icons.badge_outlined'), isFalse);
     expect(
       room.indexOf('ClubCoverMark(club: club, size: 80)'),

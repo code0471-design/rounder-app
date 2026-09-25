@@ -47,6 +47,7 @@ class _InviteChipButton extends StatelessWidget {
   final Color borderColor;
   final Color textColor;
   final VoidCallback onTap;
+  final bool fillWidth;
 
   const _InviteChipButton({
     required this.label,
@@ -54,6 +55,7 @@ class _InviteChipButton extends StatelessWidget {
     required this.borderColor,
     required this.textColor,
     required this.onTap,
+    this.fillWidth = false,
   });
 
   @override
@@ -61,7 +63,11 @@ class _InviteChipButton extends StatelessWidget {
     return GestureDetector(
       onTap: onTap,
       child: Container(
-        padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 6),
+        width: fillWidth ? double.infinity : null,
+        padding: EdgeInsets.symmetric(
+          horizontal: fillWidth ? 10 : 8,
+          vertical: fillWidth ? 8 : 6,
+        ),
         decoration: BoxDecoration(
           color: bgColor,
           borderRadius: BorderRadius.circular(8),
@@ -70,8 +76,10 @@ class _InviteChipButton extends StatelessWidget {
         child: Text(
           label,
           textAlign: TextAlign.center,
+          maxLines: 1,
+          overflow: TextOverflow.ellipsis,
           style: TextStyle(
-            fontSize: 10,
+            fontSize: fillWidth ? 11 : 10,
             fontWeight: FontWeight.w700,
             color: textColor,
             height: 1.1,
@@ -715,9 +723,9 @@ class ClubHomeTab extends StatelessWidget {
                                 const SizedBox(width: 8),
                                 _InviteChipButton(
                                   label: '다른 모임 찾기',
-                                  bgColor: const Color(0xFF111827),
-                                  borderColor: const Color(0xFF111827),
-                                  textColor: Colors.white,
+                                  bgColor: const Color(0xFFF3F4F6),
+                                  borderColor: const Color(0xFFD1D5DB),
+                                  textColor: const Color(0xFF4B5563),
                                   onTap: () => _goToPlatformHome(context),
                                 ),
                               ],
@@ -733,30 +741,36 @@ class ClubHomeTab extends StatelessWidget {
                             const SizedBox(height: 8),
                             Row(
                               children: [
-                                _InviteChipButton(
-                                  label: '정회원 초대하기',
-                                  bgColor: const Color(0xFF111827),
-                                  borderColor: const Color(0xFF111827),
-                                  textColor: Colors.white,
-                                  onTap: () => Navigator.push(
-                                    context,
-                                    MaterialPageRoute(
-                                      builder: (_) =>
-                                          InviteSendScreen(club: club),
+                                Expanded(
+                                  child: _InviteChipButton(
+                                    label: '정회원 초대하기',
+                                    bgColor: const Color(0xFF111827),
+                                    borderColor: const Color(0xFF111827),
+                                    textColor: Colors.white,
+                                    fillWidth: true,
+                                    onTap: () => Navigator.push(
+                                      context,
+                                      MaterialPageRoute(
+                                        builder: (_) =>
+                                            InviteSendScreen(club: club),
+                                      ),
                                     ),
                                   ),
                                 ),
                                 const SizedBox(width: 6),
-                                _InviteChipButton(
-                                  label: '게스트 초대하기',
-                                  bgColor: Colors.white,
-                                  borderColor: const Color(0xFF9CA3AF),
-                                  textColor: const Color(0xFF111827),
-                                  onTap: () => Navigator.push(
-                                    context,
-                                    MaterialPageRoute(
-                                      builder: (_) =>
-                                          GuestInviteFormScreen(club: club),
+                                Expanded(
+                                  child: _InviteChipButton(
+                                    label: '게스트 초대하기',
+                                    bgColor: Colors.white,
+                                    borderColor: const Color(0xFF9CA3AF),
+                                    textColor: const Color(0xFF111827),
+                                    fillWidth: true,
+                                    onTap: () => Navigator.push(
+                                      context,
+                                      MaterialPageRoute(
+                                        builder: (_) =>
+                                            GuestInviteFormScreen(club: club),
+                                      ),
                                     ),
                                   ),
                                 ),
