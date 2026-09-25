@@ -853,25 +853,6 @@ class ClubHomeTab extends StatelessWidget {
                   padding: const EdgeInsets.symmetric(horizontal: 16),
                   child: _buildNextRoundSection(context, provider),
                 ),
-                if (provider.upcomingSchedules.isNotEmpty) ...[
-                  const SizedBox(height: 12),
-                  Padding(
-                    padding: const EdgeInsets.symmetric(horizontal: 16),
-                    child: _AttendanceCard(
-                      provider: provider,
-                      onTap: () {
-                        final next = provider.nextUpcomingSchedule!;
-                        Navigator.push(
-                          context,
-                          MaterialPageRoute(
-                            builder: (_) =>
-                                ScheduleDetailScreen(schedule: next),
-                          ),
-                        );
-                      },
-                    ),
-                  ),
-                ],
                 const SizedBox(height: 12),
                 // 공식 후원사 섹션 (숨김)
                 // _OfficialSponsorsSection(clubId: club.id, club: club),
@@ -1043,10 +1024,9 @@ class ClubHomeTab extends StatelessWidget {
         : '${date.month}월 ${date.day}일 · $tee';
 
     final card = Container(
-      padding: const EdgeInsets.fromLTRB(16, 12, 14, 14),
-      decoration: BoxDecoration(
-        borderRadius: BorderRadius.circular(16),
-        gradient: const LinearGradient(
+      padding: const EdgeInsets.fromLTRB(16, 12, 14, 16),
+      decoration: const BoxDecoration(
+        gradient: LinearGradient(
           begin: Alignment.topLeft,
           end: Alignment.bottomRight,
           colors: [
@@ -1162,21 +1142,46 @@ class ClubHomeTab extends StatelessWidget {
       ),
     );
 
-    return Material(
-      color: Colors.transparent,
-      borderRadius: BorderRadius.circular(16),
-      child: InkWell(
-        borderRadius: BorderRadius.circular(16),
-        splashColor: Colors.white.withValues(alpha: 0.15),
-        highlightColor: Colors.white.withValues(alpha: 0.08),
-        onTap: () => Navigator.push(
-          context,
-          MaterialPageRoute(
-            builder: (_) =>
-                ScheduleDetailScreen(schedule: nextSchedule),
-          ),
+    void openDetail() {
+      Navigator.push(
+        context,
+        MaterialPageRoute(
+          builder: (_) => ScheduleDetailScreen(schedule: nextSchedule),
         ),
-        child: card,
+      );
+    }
+
+    return DecoratedBox(
+      decoration: BoxDecoration(
+        borderRadius: BorderRadius.circular(16),
+        boxShadow: [
+          BoxShadow(
+            color: const Color(0xFF16368F).withValues(alpha: 0.16),
+            blurRadius: 18,
+            offset: const Offset(0, 6),
+          ),
+        ],
+      ),
+      child: ClipRRect(
+        borderRadius: BorderRadius.circular(16),
+        child: Column(
+          children: [
+            Material(
+              color: Colors.transparent,
+              child: InkWell(
+                splashColor: Colors.white.withValues(alpha: 0.15),
+                highlightColor: Colors.white.withValues(alpha: 0.08),
+                onTap: openDetail,
+                child: card,
+              ),
+            ),
+            _AttendanceCard(
+              provider: provider,
+              embedded: true,
+              onTap: openDetail,
+            ),
+          ],
+        ),
       ),
     );
   }
@@ -1186,7 +1191,12 @@ class ClubHomeTab extends StatelessWidget {
 class _AttendanceCard extends StatelessWidget {
   final ClubProvider provider;
   final VoidCallback? onTap;
-  const _AttendanceCard({required this.provider, this.onTap});
+  final bool embedded;
+  const _AttendanceCard({
+    required this.provider,
+    this.onTap,
+    this.embedded = false,
+  });
 
   @override
   Widget build(BuildContext context) {
@@ -1272,9 +1282,13 @@ class _AttendanceCard extends StatelessWidget {
           child: Container(
             padding: const EdgeInsets.fromLTRB(14, 14, 14, 14),
             decoration: BoxDecoration(
-              color: Colors.white,
-              borderRadius: BorderRadius.circular(16),
-              border: Border.all(color: _kHomeCardBorder, width: 1.5),
+              color: embedded ? const Color(0xFFF5F8FF) : Colors.white,
+              borderRadius: embedded
+                  ? BorderRadius.zero
+                  : BorderRadius.circular(16),
+              border: embedded
+                  ? null
+                  : Border.all(color: _kHomeCardBorder, width: 1.5),
             ),
             child: Column(
               children: [

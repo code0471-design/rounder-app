@@ -18,7 +18,14 @@ void main() {
     expect(room.contains("'자세히 보기'"), isTrue);
     expect(room.contains('예정된 일정이 없습니다'), isTrue);
     expect(room.contains("'참석 응답 · 명단 보기 >'"), isTrue);
-    expect(room.contains('upcomingSchedules.isNotEmpty'), isTrue);
+    expect(room.contains('embedded: true'), isTrue,
+        reason: '참석현황은 파란 다음 일정과 한 덩어리다');
+    expect(room.contains('ClipRRect('), isTrue);
+    expect(
+      room.contains('if (provider.upcomingSchedules.isNotEmpty) ...['),
+      isFalse,
+      reason: '참석현황을 아래 별도 카드로 떼면 안 된다',
+    );
   });
 
   test('홈 현 회비 잔고는 월회비·연회비를 다르게 보여 준다', () {
