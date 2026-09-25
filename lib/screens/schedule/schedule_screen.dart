@@ -697,10 +697,11 @@ class _AttendButton extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final responded = currentResponse != null;
+    final answered =
+        currentResponse == '참석' || currentResponse == '불참';
     final isAttend = currentResponse == '참석';
     final isDecline = currentResponse == '불참';
-    final label = responded ? currentResponse! : '참석여부를 선택해주세요';
+    final label = answered ? currentResponse! : '참석여부를 선택해주세요';
 
     return GestureDetector(
       onTap: () => _showResponseSheet(context),
@@ -721,7 +722,7 @@ class _AttendButton extends StatelessWidget {
         child: Text(
           label,
           style: TextStyle(
-            fontSize: responded ? 13 : 11,
+            fontSize: answered ? 13 : 11,
             fontWeight: FontWeight.w800,
             color: isAttend
                 ? Colors.white
@@ -814,21 +815,6 @@ class _AttendButton extends StatelessWidget {
                         onFull: () => _showAttendFullDialog(sheetCtx, provider),
                       );
                     }
-                  },
-                ),
-                const SizedBox(width: 10),
-                _ResponseBtn(
-                  label: '미정',
-                  icon: Icons.help_outline,
-                  color: AppColors.warning,
-                  selected: currentResponse == '미정',
-                  onTap: () {
-                    provider.respondToSchedule(
-                        scheduleId: schedule.id, response: '미정');
-                    Navigator.of(context, rootNavigator: true).pop();
-                    ScaffoldMessenger.of(context).showSnackBar(
-                      _snack('미정으로 응답했습니다', AppColors.warning),
-                    );
                   },
                 ),
                 const SizedBox(width: 10),
@@ -1634,18 +1620,6 @@ class ScheduleDetailScreen extends StatelessWidget {
                         onFull: () => _showWaitingDialog(context, provider),
                       );
                     }
-                  },
-                ),
-                const SizedBox(width: 10),
-                _ResponseBtn(
-                  label: '미정',
-                  icon: Icons.help_outline,
-                  color: AppColors.warning,
-                  selected: current == '미정',
-                  onTap: () {
-                    provider.respondToSchedule(
-                        scheduleId: schedule.id, response: '미정');
-                    Navigator.pop(context);
                   },
                 ),
                 const SizedBox(width: 10),

@@ -113,6 +113,20 @@ void main() {
     expect(source.contains("children: ['참석', '불참']"), isTrue);
     expect(source.contains("['참석', '불참', '미정']"), isFalse,
         reason: '미정 3버튼 UI로 회귀');
+    expect(source.contains("label: '미정'"), isFalse,
+        reason: '미정은 선택지가 아니라 아직 답하지 않은 상태다');
+    expect(source.contains("response: '미정'"), isFalse);
+    expect(source.contains('미정으로 응답'), isFalse);
+    expect(
+      source.contains("currentResponse == '참석' || currentResponse == '불참'"),
+      isTrue,
+      reason: '예전에 저장된 미정은 미답변으로 보여야 한다',
+    );
+    final provider = File('lib/providers/club_provider.dart').readAsStringSync();
+    expect(
+      provider.contains("if (response != '참석' && response != '불참') return false;"),
+      isTrue,
+    );
   });
 
   test('일정 취소 확정은 dialogCtx로 먼저 pop 해야 한다', () {
@@ -315,8 +329,9 @@ void main() {
     expect(badge.contains('horizontal: 10, vertical: 6'), isTrue);
     expect(source.contains('calendar_today_outlined'), isFalse);
     expect(source.contains('class _AttendButton'), isTrue);
-    expect(source.contains("responded ? currentResponse! : '참석여부를 선택해주세요'"),
-        isTrue);
+    expect(source.contains("answered ? currentResponse! : '참석여부를 선택해주세요'"),
+        isTrue,
+        reason: '미정은 답한 것이 아니라 아직 고르지 않은 상태다');
     expect(source.contains("? '참석여부를 선택해주세요'"), isTrue,
         reason: '상세 내 응답도 미응답이 아니라 참석 선택을 안내해야 한다');
     expect(source.contains("responded ? currentResponse! : '미답변'"), isFalse);

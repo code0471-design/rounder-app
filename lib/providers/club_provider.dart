@@ -5122,6 +5122,7 @@ class ClubProvider extends ChangeNotifier with WidgetsBindingObserver {
     String? memo,
     bool skipCapacityCheck = false,
   }) {
+    if (response != '참석' && response != '불참') return false;
     final idx = _schedules.indexWhere((s) => s.id == scheduleId);
     if (idx == -1) return false;
     final schedule = _schedules[idx];
