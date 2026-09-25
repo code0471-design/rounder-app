@@ -128,5 +128,6 @@ void main() {
     expect(src.contains("['claimed_by_phone'] == true"), isTrue);
     expect(src.contains('_dropClubFromIndex(digits, clubId)'), isTrue);
     expect(src.contains("if (!await _clubExists(clubId))"), isTrue);
+    expect(src.contains('releasePhoneForUser'), isTrue);
   });
 }

@@ -13,6 +13,7 @@ import '../../providers/club_provider.dart';
 import '../../services/photo_compress_service.dart';
 import '../../theme/app_theme.dart';
 import '../../utils/avatar_image.dart';
+import '../../widgets/phone_otp_sheet.dart';
 import '../club_room/club_room_screen.dart';
 import '../members/my_role_change_screen.dart';
 
@@ -2163,6 +2164,11 @@ class _AccountSettingsTabState extends State<_AccountSettingsTab> {
                   keyboardType: TextInputType.phone,
                   decoration: fieldDeco('010-0000-0000'),
                 ),
+                const SizedBox(height: 6),
+                Text(
+                  '번호가 바뀌면 카카오 알림톡 인증번호를 받아야 저장됩니다',
+                  style: TextStyle(fontSize: 12, color: Colors.grey.shade600),
+                ),
                 const SizedBox(height: 14),
 
                 // ── 평균타수 ──
@@ -2223,11 +2229,10 @@ class _AccountSettingsTabState extends State<_AccountSettingsTab> {
                     Expanded(
                       flex: 2,
                       child: ElevatedButton(
-                    onPressed: () {
+                    onPressed: () async {
                       final newName = nameCtrl.text.trim();
                       final newPhone = phoneCtrl.text.trim();
                       final newAddress = addressCtrl.text.trim();
-                      // 정수 핸디만. 범위를 벗어나면 없는 것으로 둔다.
                       final rawHandicap = int.tryParse(handicapCtrl.text.trim());
                       final newHandicap =
                           (rawHandicap == null ||
@@ -2237,11 +2242,16 @@ class _AccountSettingsTabState extends State<_AccountSettingsTab> {
                               : rawHandicap.toDouble();
 
                       final newBio = bioCtrl.text.trim();
+                      final currentPhone = account?.phone ?? member.phone ?? '';
+                      final phoneChanged = !AuthProvider.isPhoneMissing(newPhone) &&
+                          !AuthProvider.samePhoneDigits(newPhone, currentPhone);
                       final updated = member.copyWith(
                         name: newName.isNotEmpty ? newName : member.name,
                         gender: selectedGender,
                         birthDate: selectedBirth,
-                        phone: newPhone.isNotEmpty ? newPhone : member.phone,
+                        phone: phoneChanged
+                            ? member.phone
+                            : (newPhone.isNotEmpty ? newPhone : member.phone),
                         address: newAddress.isNotEmpty ? newAddress : member.address,
                         handicap: newHandicap ?? member.handicap,
                         bio: newBio.isNotEmpty ? newBio : member.bio,
@@ -2251,10 +2261,9 @@ class _AccountSettingsTabState extends State<_AccountSettingsTab> {
                         clearPhoto: photoDataUrl == null,
                       );
                       provider.updateMember(updated);
-                      // 생년월일·평균타수·성별·사진은 계정(users/{id})에도 저장해서
-                      // 기기를 바꾸거나 다른 모임에 들어가도 유지되게 한다.
-                      // ignore: discarded_futures
-                      auth.updateGolfProfile(
+                      await auth.updateAccountProfile(
+                        name: newName.isNotEmpty ? newName : null,
+                        phone: phoneChanged ? null : newPhone,
                         birthDate: selectedBirth,
                         birthIsLunar: birthIsLunar,
                         handicap: newHandicap,
@@ -2265,23 +2274,60 @@ class _AccountSettingsTabState extends State<_AccountSettingsTab> {
                         birthDate: selectedBirth,
                         handicap: newHandicap,
                         gender: selectedGender,
-                        phone: newPhone.isNotEmpty ? newPhone : null,
+                        phone: phoneChanged
+                            ? null
+                            : (newPhone.isNotEmpty ? newPhone : null),
                         photoUrl: photoDataUrl,
                       );
                       Navigator.pop(sheetCtx);
-                      messenger.showSnackBar(
-                        SnackBar(
-                          content: const Row(children: [
-                            Icon(Icons.check_circle, color: Colors.white, size: 16),
-                            SizedBox(width: 8),
-                            Text('프로필이 업데이트되었습니다'),
-                          ]),
-                          backgroundColor: AppColors.success,
-                          behavior: SnackBarBehavior.floating,
-                          shape: RoundedRectangleBorder(
-                              borderRadius: BorderRadius.circular(10)),
-                        ),
-                      );
+                      var phoneSaved = !phoneChanged;
+                      var phoneBlocked = false;
+                      if (phoneChanged) {
+                        try {
+                          await auth.assertPhoneFreeForCurrentUser(newPhone);
+                          final verified = await showPhoneOtpSheet(
+                            context: context,
+                            phone: newPhone,
+                            name: newName.isNotEmpty ? newName : account?.name,
+                          );
+                          if (verified) {
+                            final user = await auth.attachPhoneToCurrentUser(
+                              phone: newPhone,
+                              name: newName.isNotEmpty ? newName : null,
+                              verifyMethod: VerifyMethod.sms,
+                            );
+                            if (user != null) {
+                              provider.syncAuthGolfProfile(phone: user.phone);
+                              phoneSaved = true;
+                            }
+                          }
+                        } on StateError catch (e) {
+                          phoneBlocked = true;
+                          messenger.showSnackBar(
+                            SnackBar(
+                              content: Text(e.message ?? '번호를 바꿀 수 없습니다'),
+                              backgroundColor: AppColors.danger,
+                            ),
+                          );
+                        }
+                      }
+                      if (!phoneBlocked) {
+                        messenger.showSnackBar(
+                          SnackBar(
+                            content: Row(children: [
+                              const Icon(Icons.check_circle, color: Colors.white, size: 16),
+                              const SizedBox(width: 8),
+                              Text(phoneSaved
+                                  ? '프로필이 업데이트되었습니다'
+                                  : '프로필은 저장됐고 번호는 그대로입니다'),
+                            ]),
+                            backgroundColor: AppColors.success,
+                            behavior: SnackBarBehavior.floating,
+                            shape: RoundedRectangleBorder(
+                                borderRadius: BorderRadius.circular(10)),
+                          ),
+                        );
+                      }
                     },
                         style: ElevatedButton.styleFrom(
                           backgroundColor: AppColors.primary,

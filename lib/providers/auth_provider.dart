@@ -10,6 +10,7 @@ import '../data/repositories/mock/mock_data_store.dart';
 import '../di/app_dependencies.dart';
 import '../models/user_model.dart';
 import '../services/firebase_auth_bridge.dart';
+import '../services/member_phone_index.dart';
 import '../services/push_notification_service.dart';
 import '../services/social_auth_service.dart';
 import '../services/solapi_service.dart';
@@ -64,6 +65,12 @@ class AuthProvider extends ChangeNotifier {
 
   static bool isPhoneMissing(String? phone) =>
       (phone ?? '').replaceAll(RegExp(r'[^0-9]'), '').length < 10;
+
+  static String phoneDigitsOf(String? phone) =>
+      (phone ?? '').replaceAll(RegExp(r'[^0-9]'), '');
+
+  static bool samePhoneDigits(String? a, String? b) =>
+      phoneDigitsOf(a) == phoneDigitsOf(b);
 
   // ── 자동로그인 설정 ──────────────────────────────────────
   bool _autoLogin = false;
@@ -358,7 +365,13 @@ class AuthProvider extends ChangeNotifier {
         remoteUserRead = true;
         final data = doc.data();
         if (data != null) {
-          remotePhone = formatPhone((data['phone'] as String?) ?? '');
+          // withdrawn 이면 members 에서 번호 복원 금지
+          final status = '${data['account_status'] ?? ''}';
+          if (status == 'withdrawn') {
+            remotePhone = '';
+          } else {
+            remotePhone = formatPhone((data['phone'] as String?) ?? '');
+          }
           final n = (data['name'] as String?)?.trim();
           if (n != null && n.isNotEmpty && !isPlaceholderName(n)) {
             remoteName = n;
@@ -377,7 +390,7 @@ class AuthProvider extends ChangeNotifier {
     }
 
     // Firestore를 읽었으면 그 번호가 비어 있어도 그대로 쓴다.
-    // (본사 인증 초기화 후 메모리/로컬에 남은 번호로 인증 화면을 건너뛰지 않게)
+    // 서버에 번호가 없으면 로컬에 남은 번호로 인증을 건너뛰지 않는다
     // 원격 조회 실패 시에만 메모리 번호를 쓴다.
     final resolvedPhone = remoteUserRead
         ? remotePhone
@@ -459,12 +472,9 @@ class AuthProvider extends ChangeNotifier {
     final trimmedName = name?.trim() ?? '';
     if (trimmedName.isNotEmpty && trimmedName.length < 2) return null;
 
-    // 다른 계정에 이미 쓰인 번호인지 확인
-    final occupied = findUserByPhone(formatted);
-    if (occupied != null && occupied.id != current.id) {
-      throw StateError('이미 다른 계정에 등록된 전화번호입니다.');
-    }
+    await assertPhoneFreeForCurrentUser(formatted);
 
+    final previousPhone = current.phone;
     final updated = current.copyWith(
       name: trimmedName.isNotEmpty ? trimmedName : null,
       phone: formatted,
@@ -489,14 +499,111 @@ class AuthProvider extends ChangeNotifier {
 
     await FirebaseAuthBridge.ensureSignedIn(updated);
     await _persistPlatformUser(updated);
-    await _propagatePhoneToClubMembers(updated);
+    await _propagatePhoneToClubMembers(
+      updated,
+      previousPhone: previousPhone,
+    );
 
     notifyListeners();
     return updated;
   }
 
-  /// users + 클럽 members 문서에 전화번호 반영
-  Future<void> _propagatePhoneToClubMembers(AppUser user) async {
+  /// 이미 다른 users 문서가 쓰는 번호면 저장하지 않는다.
+  Future<void> assertPhoneFreeForCurrentUser(String phone) async {
+    final current = _currentUser;
+    if (current == null) {
+      throw StateError('로그인이 필요합니다.');
+    }
+    final formatted = formatPhone(phone);
+    if (isAppStoreReviewPhone(formatted)) return;
+    final occupied = findUserByPhone(formatted);
+    if (occupied != null && occupied.id != current.id) {
+      throw StateError('이미 다른 계정에 등록된 전화번호입니다.');
+    }
+    try {
+      final deps = AppDependencies.instance;
+      if (!deps.isInitialized || deps.isOfflineMockMode) return;
+      final formattedSnap = await FirebaseFirestore.instance
+          .collection(FirestorePaths.users)
+          .where('phone', isEqualTo: formatted)
+          .limit(5)
+          .get();
+      for (final doc in formattedSnap.docs) {
+        if (doc.id != current.id) {
+          throw StateError('이미 다른 계정에 등록된 전화번호입니다.');
+        }
+      }
+    } catch (e) {
+      if (e is StateError) rethrow;
+      debugPrint('[AuthProvider] phone occupancy check skip: $e');
+    }
+  }
+
+  /// 이름·사진은 저장. 숫자가 다른 번호는 무시한다. OTP 성공 시에만 attach.
+  Future<AppUser?> updateAccountProfile({
+    String? name,
+    String? phone,
+    DateTime? birthDate,
+    bool? birthIsLunar,
+    double? handicap,
+    String? gender,
+    String? profileImageUrl,
+  }) async {
+    final current = _currentUser;
+    if (current == null) return null;
+
+    String? nextPhone;
+    if (phone != null &&
+        !isPhoneMissing(phone) &&
+        samePhoneDigits(phone, current.phone)) {
+      nextPhone = formatPhone(phone);
+    }
+
+    final trimmedName = name?.trim() ?? '';
+    return updateGolfProfile(
+      birthDate: birthDate,
+      birthIsLunar: birthIsLunar,
+      handicap: handicap,
+      gender: gender,
+      profileImageUrl: profileImageUrl,
+    ).then((golf) async {
+      final base = golf ?? current;
+      final updated = base.copyWith(
+        name: trimmedName.length >= 2 ? trimmedName : null,
+        phone: nextPhone,
+      );
+      final idx = _registeredUsers.indexWhere((u) => u.id == updated.id);
+      if (idx >= 0) {
+        _registeredUsers[idx] = updated;
+      } else {
+        _registeredUsers.add(updated);
+      }
+      _currentUser = updated;
+      notifyListeners();
+      await _persistPlatformUser(updated);
+      return updated;
+    });
+  }
+
+  bool _isOwnMemberDoc({
+    required Map<String, dynamic> data,
+    required String docId,
+    required String userId,
+  }) {
+    final id = data['id'] as String? ?? docId;
+    final owner = data['user_id'] as String? ?? data['userId'] as String?;
+    return id == userId ||
+        owner == userId ||
+        docId == userId ||
+        docId.endsWith('_$userId') ||
+        docId.endsWith('__$userId');
+  }
+
+  /// users + 클럽 members 문서에 전화번호 반영. 본인 행은 이미 번호가 있어도 덮는다.
+  Future<void> _propagatePhoneToClubMembers(
+    AppUser user, {
+    String? previousPhone,
+  }) async {
     if (_normalizePhone(user.phone).isEmpty) return;
     try {
       final deps = AppDependencies.instance;
@@ -514,34 +621,91 @@ class AuthProvider extends ChangeNotifier {
         return;
       }
 
-      // clubs/*/members 에서 동일 user id 문서 phone 보강
+      final prevDigits = phoneDigitsOf(previousPhone);
       final snap = await FirebaseFirestore.instance
           .collectionGroup(FirestorePaths.members)
           .get();
       final batch = FirebaseFirestore.instance.batch();
       var writes = 0;
+      final touchedClubs = <String>{};
       for (final doc in snap.docs) {
         final data = doc.data();
-        final id = data['id'] as String? ?? doc.id;
-        final userId = data['user_id'] as String? ?? data['userId'] as String?;
-        final match = id == user.id ||
-            userId == user.id ||
-            doc.id == user.id ||
-            doc.id.endsWith('_${user.id}');
-        if (!match) continue;
-        final existing = (data['phone'] as String?)?.trim() ?? '';
-        if (existing.replaceAll(RegExp(r'[^0-9]'), '').length >= 10) continue;
+        if (!_isOwnMemberDoc(
+          data: data,
+          docId: doc.id,
+          userId: user.id,
+        )) {
+          continue;
+        }
         batch.set(doc.reference, {
           'phone': user.phone,
           if (user.name.trim().isNotEmpty) 'name': user.name.trim(),
           'updated_at': FieldValue.serverTimestamp(),
         }, SetOptions(merge: true));
         writes++;
-        if (writes >= 40) break; // 안전 상한
+        final clubId = doc.reference.parent.parent?.id ?? '';
+        if (clubId.isNotEmpty) touchedClubs.add(clubId);
+        if (writes >= 40) break;
       }
       if (writes > 0) await batch.commit();
+      if (prevDigits.length >= 10) {
+        for (final clubId in touchedClubs) {
+          await MemberPhoneIndex.removeClub(prevDigits, clubId);
+        }
+        await MemberPhoneIndex.releasePhoneForUser(
+          userId: user.id,
+          phone: previousPhone,
+        );
+      }
     } catch (e) {
       debugPrint('[AuthProvider] propagate phone to members failed: $e');
+    }
+  }
+
+  Future<void> _wipeOwnRosterPhones(String userId, String oldPhone) async {
+    final digits = phoneDigitsOf(oldPhone);
+    try {
+      final deps = AppDependencies.instance;
+      if (!deps.isInitialized || deps.isOfflineMockMode) return;
+      final snap = await FirebaseFirestore.instance
+          .collectionGroup(FirestorePaths.members)
+          .get();
+      final batch = FirebaseFirestore.instance.batch();
+      var writes = 0;
+      final touchedClubs = <String>{};
+      for (final doc in snap.docs) {
+        if (!_isOwnMemberDoc(
+          data: doc.data(),
+          docId: doc.id,
+          userId: userId,
+        )) {
+          continue;
+        }
+        batch.set(
+          doc.reference,
+          {
+            'phone': FieldValue.delete(),
+            'updated_at': FieldValue.serverTimestamp(),
+          },
+          SetOptions(merge: true),
+        );
+        writes++;
+        final clubId = doc.reference.parent.parent?.id ?? '';
+        if (clubId.isNotEmpty) touchedClubs.add(clubId);
+        if (writes >= 40) break;
+      }
+      if (writes > 0) await batch.commit();
+      if (digits.length >= 10) {
+        for (final clubId in touchedClubs) {
+          await MemberPhoneIndex.removeClub(digits, clubId);
+        }
+        await MemberPhoneIndex.releasePhoneForUser(
+          userId: userId,
+          phone: oldPhone,
+        );
+      }
+    } catch (e) {
+      debugPrint('[AuthProvider] wipe roster phones skip: $e');
     }
   }
 
@@ -564,6 +728,7 @@ class AuthProvider extends ChangeNotifier {
       if (user != null &&
           deps.isInitialized &&
           !deps.isOfflineMockMode) {
+        await _wipeOwnRosterPhones(user.id, user.phone);
         await FirebaseFirestore.instance
             .collection(FirestorePaths.users)
             .doc(user.id)
@@ -947,7 +1112,6 @@ class AuthProvider extends ChangeNotifier {
     final data = <String, dynamic>{
       'name': user.name,
       'nickname': user.name,
-      'account_status': 'normal',
       'created_at': FieldValue.serverTimestamp(),
       'updated_at': FieldValue.serverTimestamp(),
     };
@@ -956,6 +1120,7 @@ class AuthProvider extends ChangeNotifier {
     }
     if (!isPhoneMissing(user.phone)) {
       data['phone'] = user.phone;
+      data['account_status'] = 'normal';
     }
     // 골프 프로필 — 기기 교체·재설치 후에도 살아 있어야 한다.
     // 빈 값으로 원격을 덮지 않도록 있을 때만 쓴다.

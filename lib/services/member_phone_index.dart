@@ -275,6 +275,37 @@ abstract final class MemberPhoneIndex {
   static Future<void> removeClub(String digits, String clubId) =>
       _dropClubFromIndex(digits, clubId);
 
+  /// 탈퇴·번호 변경 때 예전 번호를 색인에서 뺀다. 소셜 행은 잇지 않는다.
+  static Future<void> releasePhoneForUser({
+    required String userId,
+    required Object? phone,
+  }) async {
+    final digits = digitsOf(phone);
+    if (!_enabled || userId.trim().isEmpty || digits.isEmpty) return;
+    try {
+      final doc = await _db
+          .collection(FirestorePaths.memberPhoneIndex)
+          .doc(digits)
+          .get();
+      final clubs = doc.data()?['clubs'];
+      if (clubs is! Map) return;
+      for (final e in clubs.entries) {
+        final clubId = '${e.key}'.trim();
+        final memberId = '${e.value ?? ''}'.trim();
+        if (clubId.isEmpty || memberId.isEmpty) continue;
+        final ownSocial = isSocialAccountRosterId(clubId, memberId) &&
+            memberId.endsWith('_$userId');
+        final ownCreator = memberId == 'm_creator_$clubId';
+        final ownId = memberId == userId || memberId.endsWith('_$userId');
+        if (ownSocial || ownCreator || ownId) {
+          await _dropClubFromIndex(digits, clubId);
+        }
+      }
+    } catch (e) {
+      debugPrint('[MemberPhoneIndex] release $digits skip: $e');
+    }
+  }
+
   static Future<void> _dropClubFromIndex(String digits, String clubId) async {
     if (digits.isEmpty || clubId.isEmpty) return;
     try {
