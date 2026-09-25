@@ -353,7 +353,7 @@ class _MonthBlock extends StatelessWidget {
   }
 }
 
-/// 오전·오후 + 12시간. 분은 0–59. 시계 다이얼 금지.
+/// 오전·오후를 나란히 펼친다. 분은 자리별로 고른다. 시계 다이얼·분 그리드 스크롤 금지.
 Future<TimeOfDay?> showRounderTimePicker({
   required BuildContext context,
   required TimeOfDay initialTime,
@@ -361,7 +361,6 @@ Future<TimeOfDay?> showRounderTimePicker({
 }) {
   var hour = initialTime.hour.clamp(0, 23);
   var minute = clampTeeMinute(initialTime.minute);
-  var isPm = isAfternoonHour(hour);
 
   return showDialog<TimeOfDay>(
     context: context,
@@ -376,162 +375,149 @@ Future<TimeOfDay?> showRounderTimePicker({
             data: _pickerThemeData(dialogContext),
             child: StatefulBuilder(
               builder: (context, setState) {
-                final hour12 = hour12From24(hour);
-                return AlertDialog(
-                  backgroundColor: AppColors.background,
+                final tens = minute ~/ 10;
+                final ones = minute % 10;
+                return Dialog(
+                  backgroundColor: Colors.white,
                   surfaceTintColor: Colors.transparent,
                   insetPadding: const EdgeInsets.symmetric(
                     horizontal: 20,
-                    vertical: 24,
+                    vertical: 28,
                   ),
-                  title: const Text(
-                    '티오프 시간',
-                    style: TextStyle(
-                      fontSize: 18,
-                      fontWeight: FontWeight.w800,
-                    ),
+                  shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(20),
                   ),
-                  content: SizedBox(
-                    width: 320,
+                  child: ConstrainedBox(
+                    constraints: const BoxConstraints(maxWidth: 360),
                     child: SingleChildScrollView(
-                      child: Column(
+                      child: Padding(
+                        padding: const EdgeInsets.fromLTRB(18, 18, 18, 14),
+                        child: Column(
                         mainAxisSize: MainAxisSize.min,
                         crossAxisAlignment: CrossAxisAlignment.stretch,
                         children: [
-                          Container(
-                            padding: const EdgeInsets.symmetric(vertical: 16),
-                            decoration: BoxDecoration(
-                              color: AppColors.cream2,
-                              borderRadius: BorderRadius.circular(16),
-                            ),
-                            alignment: Alignment.center,
-                            child: Text(
-                              formatTeeTimeKo(hour, minute),
-                              style: const TextStyle(
-                                fontSize: 32,
-                                fontWeight: FontWeight.w800,
-                                letterSpacing: -0.6,
-                                color: AppColors.charcoal,
-                              ),
-                            ),
-                          ),
-                          const SizedBox(height: 14),
-                          _PeriodSwitch(
-                            isPm: isPm,
-                            onChanged: (nextPm) {
-                              setState(() {
-                                isPm = nextPm;
-                                hour = hour24From12(
-                                  hour12: hour12,
-                                  isPm: isPm,
-                                );
-                              });
-                            },
-                          ),
-                          const SizedBox(height: 18),
                           const Text(
-                            '시',
+                            '티오프',
                             style: TextStyle(
-                              fontSize: 13,
-                              fontWeight: FontWeight.w800,
+                              fontSize: 15,
+                              fontWeight: FontWeight.w600,
                               color: AppColors.textSecondary,
                             ),
                           ),
-                          const SizedBox(height: 8),
-                          GridView.count(
-                            shrinkWrap: true,
-                            physics: const NeverScrollableScrollPhysics(),
-                            crossAxisCount: 4,
-                            mainAxisSpacing: 8,
-                            crossAxisSpacing: 8,
-                            childAspectRatio: 1.55,
+                          const SizedBox(height: 6),
+                          Text(
+                            formatTeeTimeKo(hour, minute),
+                            textAlign: TextAlign.center,
+                            style: const TextStyle(
+                              fontSize: 26,
+                              fontWeight: FontWeight.w600,
+                              letterSpacing: -0.4,
+                              color: AppColors.charcoal,
+                              height: 1.15,
+                            ),
+                          ),
+                          const SizedBox(height: 16),
+                          Row(
+                            crossAxisAlignment: CrossAxisAlignment.start,
                             children: [
-                              for (final h in const [
-                                12,
-                                1,
-                                2,
-                                3,
-                                4,
-                                5,
-                                6,
-                                7,
-                                8,
-                                9,
-                                10,
-                                11,
-                              ])
-                                _TimeCell(
-                                  label: '$h',
-                                  selected: hour12 == h,
-                                  onTap: () => setState(() {
-                                    hour = hour24From12(
-                                      hour12: h,
-                                      isPm: isPm,
-                                    );
-                                  }),
+                              Expanded(
+                                child: _HourColumn(
+                                  title: '오전',
+                                  isPm: false,
+                                  selectedHour: hour,
+                                  onSelect: (next) =>
+                                      setState(() => hour = next),
                                 ),
+                              ),
+                              const SizedBox(width: 10),
+                              Expanded(
+                                child: _HourColumn(
+                                  title: '오후',
+                                  isPm: true,
+                                  selectedHour: hour,
+                                  onSelect: (next) =>
+                                      setState(() => hour = next),
+                                ),
+                              ),
                             ],
                           ),
-                          const SizedBox(height: 18),
+                          const SizedBox(height: 16),
                           const Text(
                             '분',
                             style: TextStyle(
-                              fontSize: 13,
-                              fontWeight: FontWeight.w800,
+                              fontSize: 12,
+                              fontWeight: FontWeight.w600,
                               color: AppColors.textSecondary,
                             ),
                           ),
                           const SizedBox(height: 8),
-                          Container(
-                            height: 188,
-                            padding: const EdgeInsets.fromLTRB(8, 8, 8, 4),
-                            decoration: BoxDecoration(
-                              color: AppColors.cream2,
-                              borderRadius: BorderRadius.circular(16),
+                          _DigitRow(
+                            label: '10분',
+                            values: const [0, 1, 2, 3, 4, 5],
+                            selected: tens,
+                            keyPrefix: 'tee_min_tens',
+                            onSelect: (v) => setState(
+                              () => minute = v * 10 + ones,
                             ),
-                            child: GridView.builder(
-                              key: const Key('tee_minute_grid'),
-                              itemCount: 60,
-                              gridDelegate:
-                                  const SliverGridDelegateWithFixedCrossAxisCount(
-                                crossAxisCount: 6,
-                                mainAxisSpacing: 6,
-                                crossAxisSpacing: 6,
-                                childAspectRatio: 1.35,
+                          ),
+                          const SizedBox(height: 8),
+                          _DigitRow(
+                            label: '1분',
+                            values: const [0, 1, 2, 3, 4, 5, 6, 7, 8, 9],
+                            selected: ones,
+                            keyPrefix: 'tee_min_ones',
+                            onSelect: (v) => setState(
+                              () => minute = tens * 10 + v,
+                            ),
+                          ),
+                          const SizedBox(height: 18),
+                          Row(
+                            children: [
+                              Expanded(
+                                child: TextButton(
+                                  onPressed: () =>
+                                      Navigator.of(context).pop(),
+                                  style: TextButton.styleFrom(
+                                    foregroundColor: AppColors.textSecondary,
+                                    textStyle: const TextStyle(
+                                      fontSize: 15,
+                                      fontWeight: FontWeight.w500,
+                                    ),
+                                  ),
+                                  child: const Text('취소'),
+                                ),
                               ),
-                              itemBuilder: (context, i) {
-                                return _TimeCell(
-                                  label: i.toString().padLeft(2, '0'),
-                                  selected: minute == i,
-                                  compact: true,
-                                  onTap: () => setState(() => minute = i),
-                                );
-                              },
-                            ),
+                              const SizedBox(width: 8),
+                              Expanded(
+                                child: FilledButton(
+                                  onPressed: () => Navigator.of(context).pop(
+                                    TimeOfDay(hour: hour, minute: minute),
+                                  ),
+                                  style: FilledButton.styleFrom(
+                                    backgroundColor: AppColors.charcoal,
+                                    foregroundColor: Colors.white,
+                                    elevation: 0,
+                                    padding: const EdgeInsets.symmetric(
+                                      vertical: 12,
+                                    ),
+                                    textStyle: const TextStyle(
+                                      fontSize: 15,
+                                      fontWeight: FontWeight.w600,
+                                    ),
+                                    shape: RoundedRectangleBorder(
+                                      borderRadius: BorderRadius.circular(12),
+                                    ),
+                                  ),
+                                  child: const Text('확인'),
+                                ),
+                              ),
+                            ],
                           ),
                         ],
                       ),
+                      ),
                     ),
                   ),
-                  actions: [
-                    TextButton(
-                      onPressed: () => Navigator.of(context).pop(),
-                      child: const Text('취소'),
-                    ),
-                    FilledButton(
-                      onPressed: () => Navigator.of(context).pop(
-                        TimeOfDay(hour: hour, minute: minute),
-                      ),
-                      style: FilledButton.styleFrom(
-                        backgroundColor: AppColors.charcoal,
-                        padding: const EdgeInsets.symmetric(
-                          horizontal: 20,
-                          vertical: 12,
-                        ),
-                      ),
-                      child: const Text('확인'),
-                    ),
-                  ],
                 );
               },
             ),
@@ -542,87 +528,120 @@ Future<TimeOfDay?> showRounderTimePicker({
   );
 }
 
-class _PeriodSwitch extends StatelessWidget {
-  final bool isPm;
-  final ValueChanged<bool> onChanged;
+const _kHour12s = [12, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11];
 
-  const _PeriodSwitch({
+class _HourColumn extends StatelessWidget {
+  final String title;
+  final bool isPm;
+  final int selectedHour;
+  final ValueChanged<int> onSelect;
+
+  const _HourColumn({
+    required this.title,
     required this.isPm,
-    required this.onChanged,
+    required this.selectedHour,
+    required this.onSelect,
   });
 
   @override
   Widget build(BuildContext context) {
-    return Container(
-      height: 48,
-      decoration: BoxDecoration(
-        color: AppColors.cream2,
-        borderRadius: BorderRadius.circular(14),
-      ),
-      padding: const EdgeInsets.all(4),
-      child: Row(
-        children: [
-          Expanded(
-            child: _PeriodTab(
-              label: '오전',
-              selected: !isPm,
-              onTap: () => onChanged(false),
-            ),
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        Text(
+          title,
+          textAlign: TextAlign.center,
+          style: const TextStyle(
+            fontSize: 13,
+            fontWeight: FontWeight.w600,
+            color: AppColors.textSecondary,
           ),
-          Expanded(
-            child: _PeriodTab(
-              label: '오후',
-              selected: isPm,
-              onTap: () => onChanged(true),
-            ),
-          ),
-        ],
-      ),
+        ),
+        const SizedBox(height: 8),
+        GridView.count(
+          shrinkWrap: true,
+          physics: const NeverScrollableScrollPhysics(),
+          crossAxisCount: 3,
+          mainAxisSpacing: 6,
+          crossAxisSpacing: 6,
+          childAspectRatio: 1.35,
+          children: [
+            for (final h12 in _kHour12s)
+              _PickCell(
+                key: Key(isPm ? 'tee_hour_pm_$h12' : 'tee_hour_am_$h12'),
+                label: '$h12',
+                selected: selectedHour ==
+                    hour24From12(hour12: h12, isPm: isPm),
+                onTap: () => onSelect(
+                  hour24From12(hour12: h12, isPm: isPm),
+                ),
+              ),
+          ],
+        ),
+      ],
     );
   }
 }
 
-class _PeriodTab extends StatelessWidget {
+class _DigitRow extends StatelessWidget {
   final String label;
-  final bool selected;
-  final VoidCallback onTap;
+  final List<int> values;
+  final int selected;
+  final String keyPrefix;
+  final ValueChanged<int> onSelect;
 
-  const _PeriodTab({
+  const _DigitRow({
     required this.label,
+    required this.values,
     required this.selected,
-    required this.onTap,
+    required this.keyPrefix,
+    required this.onSelect,
   });
 
   @override
   Widget build(BuildContext context) {
-    return Material(
-      color: selected ? AppColors.charcoal : Colors.transparent,
-      borderRadius: BorderRadius.circular(11),
-      child: InkWell(
-        onTap: onTap,
-        borderRadius: BorderRadius.circular(11),
-        child: Center(
+    return Row(
+      children: [
+        SizedBox(
+          width: 36,
           child: Text(
             label,
-            style: TextStyle(
-              fontSize: 16,
-              fontWeight: FontWeight.w800,
-              color: selected ? Colors.white : AppColors.textSecondary,
+            style: const TextStyle(
+              fontSize: 12,
+              fontWeight: FontWeight.w500,
+              color: AppColors.textTertiary,
             ),
           ),
         ),
-      ),
+        Expanded(
+          child: Wrap(
+            spacing: 4,
+            runSpacing: 4,
+            children: [
+              for (final v in values)
+                _PickCell(
+                  key: Key('${keyPrefix}_$v'),
+                  label: '$v',
+                  selected: selected == v,
+                  compact: true,
+                  onTap: () => onSelect(v),
+                ),
+            ],
+          ),
+        ),
+      ],
     );
   }
 }
 
-class _TimeCell extends StatelessWidget {
+class _PickCell extends StatelessWidget {
   final String label;
   final bool selected;
   final bool compact;
   final VoidCallback onTap;
 
-  const _TimeCell({
+  const _PickCell({
+    super.key,
     required this.label,
     required this.selected,
     required this.onTap,
@@ -631,27 +650,29 @@ class _TimeCell extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final radius = BorderRadius.circular(compact ? 8 : 10);
     return Material(
-      color: selected ? AppColors.charcoal : AppColors.surface,
-      borderRadius: BorderRadius.circular(compact ? 10 : 12),
+      color: selected ? AppColors.charcoal : const Color(0xFFF7F6F1),
+      borderRadius: radius,
       child: InkWell(
         onTap: onTap,
-        borderRadius: BorderRadius.circular(compact ? 10 : 12),
-        child: DecoratedBox(
+        borderRadius: radius,
+        child: Container(
+          width: compact ? 28 : null,
+          height: compact ? 32 : null,
+          alignment: Alignment.center,
           decoration: BoxDecoration(
-            borderRadius: BorderRadius.circular(compact ? 10 : 12),
-            border: selected
-                ? null
-                : Border.all(color: AppColors.sand),
+            borderRadius: radius,
+            border: Border.all(
+              color: selected ? AppColors.charcoal : const Color(0xFFE4E2D8),
+            ),
           ),
-          child: Center(
-            child: Text(
-              label,
-              style: TextStyle(
-                fontSize: compact ? 13 : 16,
-                fontWeight: FontWeight.w800,
-                color: selected ? Colors.white : AppColors.textPrimary,
-              ),
+          child: Text(
+            label,
+            style: TextStyle(
+              fontSize: compact ? 13 : 14,
+              fontWeight: selected ? FontWeight.w600 : FontWeight.w500,
+              color: selected ? Colors.white : AppColors.textPrimary,
             ),
           ),
         ),

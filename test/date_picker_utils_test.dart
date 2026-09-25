@@ -70,7 +70,13 @@ void main() {
     expect(source.contains("'오후'"), isTrue);
     expect(source.contains('for (var h = 0; h <= 23; h++)'), isFalse,
         reason: '24시간 칩은 오전·오후 12시간으로 나눈다');
-    expect(source.contains('itemCount: 60'), isTrue);
+    expect(source.contains('itemCount: 60'), isFalse,
+        reason: '60칸 분 그리드 스크롤은 쓰지 않는다');
+    expect(source.contains('tee_minute_grid'), isFalse);
+    expect(source.contains("'10분'"), isTrue);
+    expect(source.contains("'1분'"), isTrue);
+    expect(source.contains('tee_hour_am_'), isTrue);
+    expect(source.contains('tee_hour_pm_'), isTrue);
     expect(
       source.contains('[0, 10, 20, 30, 40, 50]'),
       isFalse,
@@ -133,14 +139,18 @@ void main() {
     expect(find.text('오전 7:30'), findsOneWidget);
     expect(find.text('오전'), findsWidgets);
     expect(find.text('오후'), findsWidgets);
-    expect(find.byKey(const Key('tee_minute_grid')), findsOneWidget);
-    await tester.tap(find.text('오후'));
+    expect(find.byKey(const Key('tee_hour_am_7')), findsOneWidget);
+    expect(find.byKey(const Key('tee_hour_pm_7')), findsOneWidget);
+    await tester.tap(find.byKey(const Key('tee_hour_pm_7')));
     await tester.pump();
     expect(find.text('오후 7:30'), findsOneWidget);
+    await tester.tap(find.byKey(const Key('tee_min_ones_6')));
+    await tester.pump();
+    expect(find.text('오후 7:36'), findsOneWidget);
 
     await tester.tap(find.text('확인'));
     await tester.pumpAndSettle();
     expect(picked?.hour, 19);
-    expect(picked?.minute, 30);
+    expect(picked?.minute, 36);
   });
 }
