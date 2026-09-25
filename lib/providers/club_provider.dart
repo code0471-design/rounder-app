@@ -8593,7 +8593,7 @@ class ClubProvider extends ChangeNotifier with WidgetsBindingObserver {
   }
 
   /// 마이페이지 직책 변경 — 명단·Club.myRole을 모임 단위로 확실히 반영
-  bool setMyRoleForClub(String clubId, String role) {
+  Future<bool> setMyRoleForClub(String clubId, String role) async {
     final roleEncoded = ClubMemberRole.encodeRoles(
       ClubMemberRole.splitRoles(role),
     );
@@ -8602,8 +8602,10 @@ class ClubProvider extends ChangeNotifier with WidgetsBindingObserver {
 
     selectClubById(clubId);
 
+    final rosterRole = myDisplayRoleFor(_myClubs[myIdx]);
     final wantsOfficer = ClubMemberRole.isOfficer(roleEncoded);
-    final alreadyOfficer = ClubMemberRole.isOfficer(_myClubs[myIdx].myRole);
+    final alreadyOfficer = ClubMemberRole.isOfficer(_myClubs[myIdx].myRole) ||
+        ClubMemberRole.isOfficer(rosterRole);
     if (wantsOfficer &&
         !alreadyOfficer &&
         !_iAmClubCreator(_myClubs[myIdx])) {
@@ -8621,6 +8623,7 @@ class ClubProvider extends ChangeNotifier with WidgetsBindingObserver {
     }
 
     if (me == null) {
+      if (!_iAmClubCreator(_myClubs[myIdx])) return false;
       me = _selfMember(
         id: creatorId,
         name: currentUserName,
@@ -8647,7 +8650,41 @@ class ClubProvider extends ChangeNotifier with WidgetsBindingObserver {
 
     notifyListeners();
     _persistImmediately();
+    await _persistMyRoleToServer(
+      clubId: clubId,
+      role: roleEncoded,
+      memberType: ClubMemberRole.memberTypeForRole(roleEncoded),
+      rosterMemberId: me.id,
+    );
     return true;
+  }
+
+  Future<void> _persistMyRoleToServer({
+    required String clubId,
+    required String role,
+    required String memberType,
+    required String rosterMemberId,
+  }) async {
+    final uid = (_persistAuthUserId ?? currentUserId).trim();
+    try {
+      await ClubOpsSync.pushClubOps(
+        clubId: clubId,
+        bundle: _exportBundle(),
+      );
+    } catch (e) {
+      debugPrint('[ClubProvider] role ops push skip: $e');
+    }
+    try {
+      await ClubOpsSync.upsertMemberRole(
+        clubId: clubId,
+        userId: uid,
+        role: role,
+        memberType: memberType,
+        rosterMemberId: rosterMemberId,
+      );
+    } catch (e) {
+      debugPrint('[ClubProvider] role member write skip: $e');
+    }
   }
 
   void changeMemberType(String memberId, String newType) {
@@ -10421,18 +10458,6 @@ class ClubProvider extends ChangeNotifier with WidgetsBindingObserver {
         return true;
       }
       return false;
-    }
-
-    // 생성자인데 양쪽 다 임원이 아니면 회장·총무로 되돌린다.
-    if (isCreator && !ClubMemberRole.isOfficer(role)) {
-      role = ClubMemberRole.encodeRoles(const [
-        ClubMemberRole.president,
-        ClubMemberRole.treasurer,
-      ]);
-      final mIdx = _members.indexWhere((m) => m.id == sourceId);
-      if (mIdx != -1) {
-        _members[mIdx] = _members[mIdx].copyWith(role: role);
-      }
     }
 
     if (_myClubs[myIdx].myRole == role) return false;

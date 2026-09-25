@@ -947,6 +947,49 @@ class ClubOpsSync {
     }
   }
 
+  /// 마이페이지 직책 저장. 있는 명단 문서만 고친다. 새 행을 만들지 않는다.
+  static Future<void> upsertMemberRole({
+    required String clubId,
+    required String userId,
+    required String role,
+    required String memberType,
+    String? rosterMemberId,
+  }) async {
+    if (!_enabled || clubId.isEmpty) return;
+    final uid = userId.trim();
+    final ids = <String>{
+      if (uid.isNotEmpty) uid,
+      if ((rosterMemberId ?? '').trim().isNotEmpty) rosterMemberId!.trim(),
+      if (uid.isNotEmpty) Member.rosterId(clubId, uid),
+    };
+    try {
+      for (final id in ids) {
+        final ref = _db.doc(FirestorePaths.clubMemberDoc(clubId, id));
+        final snap = await ref.get();
+        if (!snap.exists) continue;
+        await ref.set({
+          'role': role,
+          'member_type': memberType,
+          if (uid.isNotEmpty) 'user_id': uid,
+          'updated_at': FieldValue.serverTimestamp(),
+        }, SetOptions(merge: true));
+      }
+      if (uid.isNotEmpty) {
+        final mem = _db.doc(FirestorePaths.userMembershipDoc(uid, clubId));
+        final memSnap = await mem.get();
+        if (memSnap.exists) {
+          await mem.set({
+            'role': role,
+            'member_type': memberType,
+            'updated_at': FieldValue.serverTimestamp(),
+          }, SetOptions(merge: true));
+        }
+      }
+    } catch (e) {
+      debugPrint('[ClubOpsSync] member role upsert fail $clubId: $e');
+    }
+  }
+
   /// 명단 문서 삭제. 같은 사람이 두 줄일 때 옛 행을 서버에서도 지운다.
   /// 안 지우면 다음에 앱을 켤 때 서버 명단에서 다시 내려와 또 두 줄이 된다.
   static Future<void> deleteClubMemberDoc(

@@ -17,6 +17,7 @@ class MyRoleChangeScreen extends StatefulWidget {
 class _MyRoleChangeScreenState extends State<MyRoleChangeScreen> {
   Club? _selectedClub;
   final Set<String> _roles = {ClubMemberRole.regular};
+  final Set<String> _officerEligibleClubIds = {};
   bool _saving = false;
 
   String get _roleEncoded => ClubMemberRole.encodeRoles(_roles);
@@ -24,9 +25,19 @@ class _MyRoleChangeScreenState extends State<MyRoleChangeScreen> {
   void _pickClub(Club club, ClubProvider provider) {
     provider.selectClubById(club.id);
     final me = provider.currentMember;
-    final seed = me?.role ?? club.myRole;
+    final seed = me?.role ?? provider.myDisplayRoleFor(club);
+    if (ClubMemberRole.isOfficer(seed) ||
+        ClubMemberRole.isOfficer(club.myRole) ||
+        (club.creatorId.isNotEmpty &&
+            (club.creatorId == provider.currentUserId ||
+                club.creatorId == (provider.persistAuthUserId ?? '')))) {
+      _officerEligibleClubIds.add(club.id);
+    }
     setState(() {
-      _selectedClub = club;
+      _selectedClub = provider.myClubs
+              .where((c) => c.id == club.id)
+              .firstOrNull ??
+          club;
       _roles
         ..clear()
         ..addAll(ClubMemberRole.splitRoles(seed));
@@ -61,7 +72,7 @@ class _MyRoleChangeScreenState extends State<MyRoleChangeScreen> {
     final encoded = _roleEncoded;
     var ok = false;
     try {
-      ok = provider.setMyRoleForClub(club.id, encoded);
+      ok = await provider.setMyRoleForClub(club.id, encoded);
     } catch (e, st) {
       debugPrint('[MyRoleChange] save failed: $e\n$st');
       ok = false;
@@ -144,7 +155,7 @@ class _MyRoleChangeScreenState extends State<MyRoleChangeScreen> {
         const SizedBox(height: 12),
         ...clubs.map((club) {
           final role = ClubMemberRole.encodeRoles(
-            ClubMemberRole.splitRoles(club.myRole),
+            ClubMemberRole.splitRoles(provider.myDisplayRoleFor(club)),
           );
           return Container(
             margin: const EdgeInsets.only(bottom: 10),
@@ -180,7 +191,8 @@ class _MyRoleChangeScreenState extends State<MyRoleChangeScreen> {
 
   Widget _buildRoleEditor(ClubProvider provider) {
     final club = _selectedClub!;
-    final canPickOfficer = ClubMemberRole.isOfficer(club.myRole);
+    final canPickOfficer = _officerEligibleClubIds.contains(club.id) ||
+        ClubMemberRole.isOfficer(provider.myDisplayRoleFor(club));
     final options = [
       if (canPickOfficer) (ClubMemberRole.president, '회장'),
       if (canPickOfficer) (ClubMemberRole.vicePresident, '부회장'),
