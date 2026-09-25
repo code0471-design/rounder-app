@@ -76,6 +76,37 @@ void main() {
       );
     });
 
+    test('신청 문서 id는 jr_모임_계정 이다', () {
+      expect(
+        JoinRequestService.requestId('c_arena', 'kakao_a'),
+        'jr_c_arena_kakao_a',
+      );
+      expect(JoinRequestService.isJoinPushType('joinRequest'), isTrue);
+      expect(JoinRequestService.isJoinPushType('push_join_request'), isTrue);
+      expect(JoinRequestService.isJoinPushType(''), isFalse);
+    });
+
+    test('Club.myRole이 비어 있어도 명단 총무면 승인한다', () {
+      expect(
+        JoinRequestService.canApprove(
+          myRole: '',
+          creatorId: 'kakao_president',
+          reviewerId: 'kakao_treasurer',
+          memberRole: '총무',
+        ),
+        isTrue,
+      );
+      expect(
+        JoinRequestService.canApprove(
+          myRole: '정회원',
+          creatorId: 'kakao_president',
+          reviewerId: 'kakao_member',
+          memberRole: '정회원',
+        ),
+        isFalse,
+      );
+    });
+
     test('신청자는 승인할 수 없고 총무·회장만 승인한다', () {
       expect(
         JoinRequestService.canApprove(

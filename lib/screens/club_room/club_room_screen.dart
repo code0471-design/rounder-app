@@ -138,16 +138,25 @@ class _ClubRoomScreenState extends State<ClubRoomScreen> {
     WidgetsBinding.instance.addPostFrameCallback((_) async {
       if (!mounted) return;
       final p = context.read<ClubProvider>();
+      if (widget.openJoinRequests) {
+        // await 전에 건다. MembersScreen이 먼저 consume 하면 시트가 안 열린다.
+        p.requestOpenJoinRequests();
+      }
       p.selectClubById(widget.club.id);
       if (p.ensureCreatorMembers()) p.notifyListeners();
       // 직책 수정/인수인계 후 Club.myRole 불일치 복구
       p.syncMyRoleFromMemberRoster();
-      // 다른 계정 가입신청 → 총무 알림 동기화
-      await p.refreshJoinRequestInbox();
-      if (!mounted) return;
       if (widget.openJoinRequests) {
-        p.requestOpenJoinRequests();
+        await p.refreshJoinRequestsForClub(widget.club.id);
+        if (!mounted) return;
         openTab(3);
+        await Future<void>.delayed(const Duration(milliseconds: 80));
+        if (!mounted) return;
+        if (p.consumeOpenJoinRequests()) {
+          MembersScreen.showJoinRequestsSheet(context, p);
+        }
+      } else {
+        await p.refreshJoinRequestInbox();
       }
       if (!mounted) return;
       // 재무 탭이 막혀 있으면 홈으로
@@ -554,7 +563,24 @@ class _ClubRoomScreenState extends State<ClubRoomScreen> {
           ),
         ),
       ],
-      onNotificationTap: () => _showNotificationPanel(context, provider),
+      onNotificationTap: () async {
+        await provider.refreshJoinRequestInbox();
+        if (!mounted) return;
+        _showNotificationPanel(
+          context,
+          provider,
+          onJoinRequest: () {
+            openTab(3);
+            WidgetsBinding.instance.addPostFrameCallback((_) {
+              if (!mounted) return;
+              MembersScreen.showJoinRequestsSheet(
+                context,
+                context.read<ClubProvider>(),
+              );
+            });
+          },
+        );
+      },
       onProfileTap: () => AppHeader.openMyPage(context),
       notificationCount: unread,
     );
@@ -2645,10 +2671,12 @@ class _FinanceSummaryCard extends StatelessWidget {
   }
 }
 
-void _showNotificationPanel(BuildContext context, ClubProvider provider) {
+void _showNotificationPanel(
+  BuildContext context,
+  ClubProvider provider, {
+  VoidCallback? onJoinRequest,
+}) {
     final clubId = provider.selectedClub.id;
-    // 다른 계정에서 신청한 가입 알림을 열기 직전에 강제 동기화
-    unawaited(provider.refreshJoinRequestInbox());
 
     showModalBottomSheet(
       context: context,
@@ -2754,8 +2782,14 @@ void _showNotificationPanel(BuildContext context, ClubProvider provider) {
                               child: Material(
                                 color: Colors.transparent,
                                 child: InkWell(
-                                  onTap: () =>
-                                      prov.markNotificationRead(n.id),
+                                  onTap: () {
+                                    prov.markNotificationRead(n.id);
+                                    if (n.type ==
+                                        AppNotificationType.joinRequest) {
+                                      Navigator.pop(context);
+                                      onJoinRequest?.call();
+                                    }
+                                  },
                                   borderRadius:
                                       BorderRadius.circular(AppRadius.lg),
                                   child: Container(

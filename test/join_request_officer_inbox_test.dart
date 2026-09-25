@@ -27,6 +27,7 @@ void main() {
     expect(members.contains('if (provider.isClubExecutive)'), isTrue);
     expect(members.contains('if (pending.isNotEmpty)'), isTrue);
     expect(members.contains('consumeOpenJoinRequests'), isTrue);
+    expect(members.contains('showJoinRequestsSheet'), isTrue);
 
     final home = read('lib/screens/home/home_screen.dart');
     expect(home.contains('openJoinRequests: openJoins'), isTrue);

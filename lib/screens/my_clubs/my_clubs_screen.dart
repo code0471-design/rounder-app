@@ -167,7 +167,41 @@ class _MyClubsScreenState extends State<MyClubsScreen> {
     );
   }
 
-  void _openNotifications(BuildContext context, ClubProvider provider) {
+  void _openNotificationTarget(
+    BuildContext context,
+    ClubProvider provider,
+    AppNotification n,
+  ) {
+    provider.markNotificationRead(n.id);
+    Club? club;
+    for (final c in provider.myClubs) {
+      if (c.id == n.clubId) {
+        club = c;
+        break;
+      }
+    }
+    club ??= provider.selectedClubOrNull;
+    if (club == null) return;
+    provider.selectClubById(club.id);
+    final openJoins = n.type == AppNotificationType.joinRequest;
+    if (openJoins) provider.requestOpenJoinRequests();
+    Navigator.of(context).push(
+      MaterialPageRoute(
+        builder: (_) => ClubRoomScreen(
+          club: provider.selectedClub,
+          initialTab: openJoins ? 3 : 0,
+          openJoinRequests: openJoins,
+        ),
+      ),
+    );
+  }
+
+  Future<void> _openNotifications(
+    BuildContext context,
+    ClubProvider provider,
+  ) async {
+    await provider.refreshJoinRequestInbox();
+    if (!context.mounted) return;
     showModalBottomSheet(
       context: context,
       isScrollControlled: true,
@@ -259,8 +293,14 @@ class _MyClubsScreenState extends State<MyClubsScreen> {
                               const SizedBox(height: 10),
                           itemBuilder: (_, i) => _NotificationTile(
                             notification: notifs[i],
-                            onRead: () =>
-                                prov.markNotificationRead(notifs[i].id),
+                            onRead: () {
+                              Navigator.pop(ctx);
+                              _openNotificationTarget(
+                                context,
+                                prov,
+                                notifs[i],
+                              );
+                            },
                             onDelete: () =>
                                 prov.removeNotification(notifs[i].id),
                           ),

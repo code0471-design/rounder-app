@@ -1,4 +1,5 @@
 import 'dart:async';
+import 'dart:convert';
 
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_core/firebase_core.dart';
@@ -6,6 +7,8 @@ import 'package:firebase_messaging/firebase_messaging.dart';
 import 'package:flutter/foundation.dart';
 import 'package:flutter/widgets.dart';
 import 'package:flutter_local_notifications/flutter_local_notifications.dart';
+
+import '../domain/services/join_request_service.dart';
 
 import '../core/firebase/firestore_paths.dart';
 import '../firebase_options.dart';
@@ -44,6 +47,9 @@ abstract final class PushNotificationService {
   static bool _initialized = false;
   static bool _backgroundHandlerRegistered = false;
   static Future<void> Function()? onD1AlimtalkHint;
+  static void Function(String type, String clubId)? onOpenedFromPush;
+  static String? _pendingOpenType;
+  static String? _pendingOpenClubId;
 
   /// runApp 이전에 한 번 호출. 백그라운드 핸들러 등록용.
   static void registerBackgroundHandler() {
@@ -73,6 +79,9 @@ abstract final class PushNotificationService {
       );
       await _local.initialize(
         const InitializationSettings(android: androidInit, iOS: iosInit),
+        onDidReceiveNotificationResponse: (resp) {
+          handleOpenedPayload(resp.payload);
+        },
       );
 
       final androidPlugin = _local.resolvePlatformSpecificImplementation<
@@ -97,13 +106,27 @@ abstract final class PushNotificationService {
       FirebaseMessaging.onMessage.listen((msg) {
         final title = msg.notification?.title ?? msg.data['title'] ?? '라운더';
         final body = msg.notification?.body ?? msg.data['body'] ?? '';
-        unawaited(showLocal(title: title, body: body));
         final type = '${msg.data['type'] ?? ''}';
+        final clubId = '${msg.data['clubId'] ?? ''}';
+        unawaited(showLocal(
+          title: title,
+          body: body,
+          type: type,
+          clubId: clubId,
+        ));
         if (type == HqPushCatalog.d1Reminder ||
             type == HqPushCatalog.duesRequest) {
           unawaited(onD1AlimtalkHint?.call());
         }
       });
+
+      FirebaseMessaging.onMessageOpenedApp.listen((msg) {
+        handleOpenedData(msg.data);
+      });
+      final initial = await messaging.getInitialMessage();
+      if (initial != null) {
+        handleOpenedData(initial.data);
+      }
 
       _tokenSub ??= messaging.onTokenRefresh.listen((token) {
         unawaited(_saveToken(token, _boundIds));
@@ -603,9 +626,47 @@ abstract final class PushNotificationService {
   /// 같은 문구는 이 시간 안에 한 번만 보여 준다.
   static const _localDedupeWindow = Duration(seconds: 90);
 
+  static bool isJoinRequestType(String? type) =>
+      JoinRequestService.isJoinPushType(type);
+
+  static void handleOpenedPayload(String? payload) {
+    if (payload == null || payload.trim().isEmpty) return;
+    try {
+      final decoded = jsonDecode(payload);
+      if (decoded is Map) {
+        handleOpenedData(Map<String, dynamic>.from(decoded));
+      }
+    } catch (e) {
+      debugPrint('[Push] payload parse skip: $e');
+    }
+  }
+
+  static void handleOpenedData(Map<String, dynamic> data) {
+    final type = '${data['type'] ?? ''}';
+    final clubId = '${data['clubId'] ?? ''}';
+    if (type.isEmpty && clubId.isEmpty) return;
+    if (onOpenedFromPush != null) {
+      onOpenedFromPush!(type, clubId);
+      return;
+    }
+    _pendingOpenType = type;
+    _pendingOpenClubId = clubId;
+  }
+
+  static ({String type, String clubId})? consumePendingOpen() {
+    final type = _pendingOpenType;
+    final clubId = _pendingOpenClubId;
+    if (type == null && (clubId == null || clubId.isEmpty)) return null;
+    _pendingOpenType = null;
+    _pendingOpenClubId = null;
+    return (type: type ?? '', clubId: clubId ?? '');
+  }
+
   static Future<void> showLocal({
     required String title,
     required String body,
+    String? type,
+    String? clubId,
   }) async {
     if (kIsWeb) return;
     final key = '$title|$body';
@@ -618,6 +679,10 @@ abstract final class PushNotificationService {
     _lastLocalKey = key;
     _lastLocalAt = now;
     try {
+      final payload = jsonEncode({
+        'type': type ?? '',
+        'clubId': clubId ?? '',
+      });
       await _local.show(
         now.millisecondsSinceEpoch.remainder(100000),
         title,
@@ -631,6 +696,7 @@ abstract final class PushNotificationService {
           ),
           iOS: DarwinNotificationDetails(),
         ),
+        payload: payload,
       );
     } catch (e) {
       debugPrint('[Push] local show skip: $e');
@@ -681,7 +747,14 @@ abstract final class PushNotificationService {
                 if (!_appInForeground) continue;
                 final title = change.doc.data()?['title']?.toString() ?? '라운더';
                 final body = change.doc.data()?['body']?.toString() ?? '';
-                unawaited(showLocal(title: title, body: body));
+                final type = change.doc.data()?['type']?.toString() ?? '';
+                final clubId = change.doc.data()?['clubId']?.toString() ?? '';
+                unawaited(showLocal(
+                  title: title,
+                  body: body,
+                  type: type,
+                  clubId: clubId,
+                ));
               }
             },
             onError: (e) => debugPrint('[Push] inbox listen skip: $e'),

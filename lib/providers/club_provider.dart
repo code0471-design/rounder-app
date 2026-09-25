@@ -5594,26 +5594,27 @@ class ClubProvider extends ChangeNotifier with WidgetsBindingObserver {
     return hasActiveTreasurer(clubId);
   }
 
-  bool _canReviewJoin(JoinRequest req) {
-    final aliases = clubIdAliases(req.clubId);
-    final club = _myClubs.where((c) => aliases.contains(c.id)).firstOrNull;
-    final reviewer = _persistAuthUserId ?? currentUserId;
+  bool _canReviewClub(String clubId) {
+    final aliases = clubIdAliases(clubId);
+    final club = _myClubs.where((c) => aliases.contains(c.id)).firstOrNull ??
+        _allClubs.where((c) => aliases.contains(c.id)).firstOrNull;
+    if (club == null) return false;
     String memberRole = '';
-    if (club != null) {
-      for (final m in membersForClub(club.id)) {
-        if (_isMyRosterRowFor(club, m.id)) {
-          memberRole = m.role;
-          break;
-        }
+    for (final m in membersForClub(club.id)) {
+      if (_isMyRosterRowFor(club, m.id)) {
+        memberRole = m.role;
+        break;
       }
     }
     return JoinRequestService.canApprove(
-      myRole: club?.myRole ?? '',
-      creatorId: club?.creatorId,
-      reviewerId: reviewer,
+      myRole: club.myRole,
+      creatorId: club.creatorId,
+      reviewerId: _persistAuthUserId ?? currentUserId,
       memberRole: memberRole,
     );
   }
+
+  bool _canReviewJoin(JoinRequest req) => _canReviewClub(req.clubId);
 
   /// 내 모임 기준으로 볼 수 있는 알림인지
   bool canSeeNotification(AppNotification n) {
@@ -5639,7 +5640,7 @@ class ClubProvider extends ChangeNotifier with WidgetsBindingObserver {
                     _userIdsMatch(c.creatorId, _persistAuthUserId)));
         return created;
       }
-      return ClubMemberRole.canApproveJoins(_myClubs[idx].myRole);
+      return _canReviewClub(_myClubs[idx].id);
     }
 
     // 본인 대상 알림(모임 초대 등) — 아직 모임에 없어도 표시·푸시 수신
@@ -5683,7 +5684,7 @@ class ClubProvider extends ChangeNotifier with WidgetsBindingObserver {
     // 가입 대기건이 알림 객체 없이 남아 있어도 뱃지 표시
     var pending = 0;
     for (final c in _myClubs) {
-      if (!ClubMemberRole.canApproveJoins(c.myRole)) continue;
+      if (!_canReviewClub(c.id)) continue;
       pending += unreadNotificationCountFor(c.id);
     }
     return pending;
@@ -5700,7 +5701,7 @@ class ClubProvider extends ChangeNotifier with WidgetsBindingObserver {
 
     final idx = _myClubs.indexWhere((c) => c.id == clubId);
     if (idx == -1) return 0;
-    if (!ClubMemberRole.canApproveJoins(_myClubs[idx].myRole)) return 0;
+    if (!_canReviewClub(clubId)) return 0;
 
     // 메모리/공유 대기열에 신청이 있으면 배지 표시 (알림 유실 보정)
     final pending = pendingRequestsOf(clubId).length;
@@ -7322,7 +7323,7 @@ class ClubProvider extends ChangeNotifier with WidgetsBindingObserver {
       }
     }
     final req = JoinRequest(
-      id: 'jr_${DateTime.now().millisecondsSinceEpoch}',
+      id: JoinRequestService.requestId(clubId, applicantId),
       clubId: clubId,
       userId: applicantId,
       userName: userName ?? currentUserName,
@@ -7353,6 +7354,9 @@ class ClubProvider extends ChangeNotifier with WidgetsBindingObserver {
       );
     } catch (e) {
       debugPrint('[ClubProvider] firestore join submit: $e');
+      if (!AppDependencies.instance.isOfflineMockMode) {
+        return false;
+      }
     }
     await publishJoinRequestToOfficer(req);
     return true;
@@ -7626,22 +7630,13 @@ class ClubProvider extends ChangeNotifier with WidgetsBindingObserver {
   }
 
   /// 총무 화면 진입 시 호출 — Firestore 대기열 → 알림 강제 동기화
+  ///
+  /// `Club.myRole` 이 비어 있거나 정회원이어도 읽기를 건너뛰지 않는다.
+  /// 승인 가능 여부는 명단 직책(`_canReviewClub`)으로 본다.
   Future<void> refreshJoinRequestInbox() async {
-    if (!AppDependencies.instance.isOfflineMockMode) {
+    if (AppDependencies.instance.isInitialized) {
       for (final club in _myClubs) {
-        final canApprove = ClubMemberRole.canApproveJoins(club.myRole) ||
-            _userIdsMatch(club.creatorId, currentUserId) ||
-            _userIdsMatch(club.creatorId, _persistAuthUserId);
-        if (!canApprove) continue;
-        try {
-          final remote = await AppDependencies.instance.joinRequestRepository
-              .fetchPendingForClub(club.id);
-          for (final req in remote) {
-            _ingestPendingJoinRequest(req);
-          }
-        } catch (e) {
-          debugPrint('[ClubProvider] fetch pending join skip ${club.id}: $e');
-        }
+        await _pullPendingJoinRequestsForClub(club.id);
       }
     }
     await mergeSharedJoinRequests();
@@ -7653,6 +7648,35 @@ class ClubProvider extends ChangeNotifier with WidgetsBindingObserver {
     }
     notifyListeners();
     _persistImmediately();
+  }
+
+  /// 그 모임 서버 신청을 다시 읽는다. 시트를 열기 전에 호출한다.
+  Future<void> refreshJoinRequestsForClub(String clubId) async {
+    final id = clubId.trim();
+    if (id.isEmpty) return;
+    if (AppDependencies.instance.isInitialized) {
+      await _pullPendingJoinRequestsForClub(id);
+    }
+    await mergeSharedJoinRequests();
+    for (final req in List<JoinRequest>.from(_joinRequests)) {
+      if (req.status == JoinRequestStatus.pending &&
+          clubIdAliases(id).contains(req.clubId)) {
+        _ingestPendingJoinRequest(req);
+      }
+    }
+    notifyListeners();
+  }
+
+  Future<void> _pullPendingJoinRequestsForClub(String clubId) async {
+    try {
+      final remote = await AppDependencies.instance.joinRequestRepository
+          .fetchPendingForClub(clubId);
+      for (final req in remote) {
+        _ingestPendingJoinRequest(req);
+      }
+    } catch (e) {
+      debugPrint('[ClubProvider] fetch pending join skip $clubId: $e');
+    }
   }
 
   /// 내가 넣은 가입 신청 취소 (seed↔legacy · user alias 포함)
@@ -8100,14 +8124,31 @@ class ClubProvider extends ChangeNotifier with WidgetsBindingObserver {
       debugPrint('[ClubProvider] rejectRequest blocked — not an officer');
       return;
     }
-    _joinRequests[idx] = req.copyWith(
+    final rejected = req.copyWith(
       status: JoinRequestStatus.rejected,
       reviewedBy: currentUserName,
       reviewedAt: DateTime.now(),
     );
+    _joinRequests[idx] = rejected;
     AppDependencies.instance.mockDataStore
         ?.removePendingJoinRequest(requestId);
     unawaited(SharedJoinRequestStore.remove(requestId));
+    unawaited(() async {
+      try {
+        await AppDependencies.instance.joinRequestRepository.rejectJoinRequest(
+          clubId: rejected.clubId,
+          requestId: rejected.id,
+          reviewedBy: _persistAuthUserId ?? currentUserId,
+        );
+      } catch (e) {
+        debugPrint('[ClubProvider] reject join remote skip: $e');
+      }
+      try {
+        await ClubOpsSync.upsertClubJoinRequest(rejected);
+      } catch (e) {
+        debugPrint('[ClubProvider] reject join ops skip: $e');
+      }
+    }());
     final club = _allClubs.where((c) => c.id == req.clubId).firstOrNull ??
         _myClubs.where((c) => c.id == req.clubId).firstOrNull;
     _notifyHqPush(

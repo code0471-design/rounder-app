@@ -10,6 +10,20 @@ class JoinOfficer {
 
 /// 가입 신청 / 승인 권한 — 순수 함수
 abstract final class JoinRequestService {
+  /// 원클럽과 같은 신청 문서 id. `jr_{모임id}_{신청자계정id}`
+  static String requestId(String clubId, String userId) {
+    final c = clubId.trim();
+    final u = userId.trim();
+    if (c.isEmpty || u.isEmpty) return '';
+    return 'jr_${c}_$u';
+  }
+
+  /// FCM data.type. 제목만 있는 푸시는 홈만 연다.
+  static bool isJoinPushType(String? type) {
+    final t = (type ?? '').trim();
+    return t == 'joinRequest' || t == 'push_join_request';
+  }
+
   static bool canSubmit({
     required bool isMember,
     required bool hasPendingRequest,

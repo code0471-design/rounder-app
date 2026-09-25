@@ -183,6 +183,7 @@ class ClubDetailController extends ChangeNotifier {
         userPhotoUrl: user.profileImageUrl,
         userBirthDate: user.birthDate,
         message: message,
+        requestId: JoinRequestService.requestId(club.id, user.id),
       );
       _isMember = false;
       _myPendingRequest =

@@ -15,6 +15,21 @@ const _kMemberCardBorder = Color(0xFFB0B7C3);
 class MembersScreen extends StatefulWidget {
   const MembersScreen({super.key});
 
+  /// 원클럽과 같은 가입 신청 목록 시트. 새 승인 화면을 만들지 않는다.
+  static void showJoinRequestsSheet(
+    BuildContext context,
+    ClubProvider provider,
+  ) {
+    showModalBottomSheet(
+      context: context,
+      isScrollControlled: true,
+      backgroundColor: AppColors.surface,
+      shape: const RoundedRectangleBorder(
+          borderRadius: BorderRadius.vertical(top: Radius.circular(20))),
+      builder: (_) => _JoinRequestSheet(provider: provider),
+    );
+  }
+
   @override
   State<MembersScreen> createState() => _MembersScreenState();
 }
@@ -35,10 +50,10 @@ class _MembersScreenState extends State<MembersScreen>
     WidgetsBinding.instance.addPostFrameCallback((_) async {
       if (!mounted) return;
       final provider = context.read<ClubProvider>();
-      await provider.refreshJoinRequestInbox();
+      await provider.refreshJoinRequestsForClub(provider.selectedClub.id);
       if (!mounted) return;
       if (provider.consumeOpenJoinRequests()) {
-        _showJoinRequests(context, provider);
+        MembersScreen.showJoinRequestsSheet(context, provider);
       }
     });
   }
@@ -951,15 +966,7 @@ class _MembersScreenState extends State<MembersScreen>
   // 가입 신청 목록 시트
   // ────────────────────────────────
   void _showJoinRequests(BuildContext context, ClubProvider provider) {
-    showModalBottomSheet(
-      context: context,
-      isScrollControlled: true,
-      backgroundColor: AppColors.surface,
-      shape: const RoundedRectangleBorder(
-          borderRadius: BorderRadius.vertical(top: Radius.circular(20))),
-      builder: (_) =>
-          _JoinRequestSheet(provider: provider),
-    );
+    MembersScreen.showJoinRequestsSheet(context, provider);
   }
 }
 

@@ -10,11 +10,13 @@ import '../config/invite_links.dart';
 import '../models/club_model.dart';
 import '../models/user_model.dart';
 import '../navigation/app_navigator.dart';
+import '../domain/services/join_request_service.dart';
 import '../providers/auth_provider.dart';
 import '../providers/club_provider.dart';
 import '../screens/club_room/club_room_screen.dart';
 import '../screens/invite/invite_landing_screen.dart';
 import 'pending_invite_store.dart';
+import 'push_notification_service.dart';
 
 /// 알림톡/푸시 앱링크 진입
 ///
@@ -33,6 +35,8 @@ class DeepLinkService {
   final AppLinks _appLinks = AppLinks();
   StreamSubscription<Uri>? _sub;
   Uri? _pending;
+  String? _pendingPushType;
+  String? _pendingPushClubId;
   bool _started = false;
   bool _ready = false;
   bool _inviteNavLock = false;
@@ -46,6 +50,13 @@ class DeepLinkService {
   Future<void> start() async {
     if (_started || kIsWeb) return;
     _started = true;
+    PushNotificationService.onOpenedFromPush = (type, clubId) {
+      queuePushOpen(type: type, clubId: clubId);
+    };
+    final leftover = PushNotificationService.consumePendingOpen();
+    if (leftover != null) {
+      queuePushOpen(type: leftover.type, clubId: leftover.clubId);
+    }
 
     try {
       final initial = await _appLinks.getInitialLink();
@@ -91,6 +102,45 @@ class DeepLinkService {
   void onAppReady() {
     _ready = true;
     unawaited(_flushPending());
+    unawaited(_flushPendingPush());
+  }
+
+  void queuePushOpen({required String type, required String clubId}) {
+    _pendingPushType = type;
+    _pendingPushClubId = clubId;
+    if (_ready) unawaited(_flushPendingPush());
+  }
+
+  Future<void> _flushPendingPush() async {
+    final type = _pendingPushType;
+    final clubId = _pendingPushClubId ?? '';
+    if (type == null && clubId.isEmpty) return;
+    _pendingPushType = null;
+    _pendingPushClubId = null;
+    if (!JoinRequestService.isJoinPushType(type) || clubId.isEmpty) {
+      debugPrint('[DeepLink] push open skip type=$type clubId=$clubId');
+      return;
+    }
+    final ctx = AppNavigator.context;
+    if (ctx == null) {
+      _pendingPushType = type;
+      _pendingPushClubId = clubId;
+      return;
+    }
+    final auth = ctx.read<AuthProvider>();
+    if (!auth.isLoggedIn || auth.needsPhoneNumber) {
+      _pendingPushType = type;
+      _pendingPushClubId = clubId;
+      return;
+    }
+    final clubs = ctx.read<ClubProvider>();
+    await _openClubRoom(
+      ctx,
+      clubs,
+      clubId: clubId,
+      initialTab: 3,
+      openJoinRequests: true,
+    );
   }
 
   Future<void> _flushPending() async {
@@ -331,6 +381,7 @@ class DeepLinkService {
     required int initialTab,
     String? openScheduleId,
     bool openGroupAssignment = false,
+    bool openJoinRequests = false,
   }) async {
     final club = _resolveClub(clubs, clubId);
     if (club == null) {
@@ -366,6 +417,7 @@ class DeepLinkService {
           openGroupAssignment: openGroupAssignment,
           openNearestSchedule:
               initialTab == scheduleTab || openGroupAssignment,
+          openJoinRequests: openJoinRequests,
         ),
       ),
     );
