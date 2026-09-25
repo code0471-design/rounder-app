@@ -1192,7 +1192,7 @@ class _PaymentStatusTabState extends State<_PaymentStatusTab> {
                       showBulkCheckbox: widget.isAdmin && !isOutOfRange,
                       bulkSelected: _bulkSelectedIds.contains(m.id),
                       bulkEnabled:
-                          chip == DuesChip.unpaid && member.status != '탈퇴',
+                          chip == DuesChip.unpaid && m.status != '탈퇴',
                       onBulkToggle: (v) {
                         if (chip != DuesChip.unpaid) return;
                         setState(() {

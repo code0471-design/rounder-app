@@ -381,6 +381,9 @@ void main() {
         reason: '일괄 납부도 개별처럼 잔고 반영 여부를 물어야 한다');
     expect(finance.contains('잔고에 반영하지 않기'), isTrue);
     expect(finance.contains('chip == DuesChip.unpaid &&'), isTrue);
+    expect(finance.contains("m.status != '탈퇴'"), isTrue,
+        reason: '일괄 선택 줄에서 member. 를 쓰면 컴파일이 깨진다');
+    expect(finance.contains("member.status != '탈퇴'"), isFalse);
     expect(finance.contains('opacity: bulkEnabled ? 1 : 0.32'), isTrue,
         reason: '이미 납부한 회원 체크박스는 흐려서 선택 불가로 보여야 한다');
     expect(finance.contains('value: bulkEnabled && bulkSelected'), isTrue,
