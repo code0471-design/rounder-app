@@ -7907,12 +7907,12 @@ class ClubProvider extends ChangeNotifier with WidgetsBindingObserver {
   /// `Club.myRole` 이 비어 있거나 정회원이어도 읽기를 건너뛰지 않는다.
   /// 승인 가능 여부는 명단 직책(`_canReviewClub`)으로 본다.
   Future<void> refreshJoinRequestInbox() async {
+    await mergeSharedJoinRequests();
     if (AppDependencies.instance.isInitialized) {
       await Future.wait(
         _myClubs.map((c) => _pullPendingJoinRequestsForClub(c.id)),
       );
     }
-    await mergeSharedJoinRequests();
     // 이미 _joinRequests에만 있고 알림이 없는 건도 보정
     for (final req in List<JoinRequest>.from(_joinRequests)) {
       if (req.status == JoinRequestStatus.pending) {
@@ -7927,10 +7927,10 @@ class ClubProvider extends ChangeNotifier with WidgetsBindingObserver {
   Future<void> refreshJoinRequestsForClub(String clubId) async {
     final id = clubId.trim();
     if (id.isEmpty) return;
+    await mergeSharedJoinRequests();
     if (AppDependencies.instance.isInitialized) {
       await _pullPendingJoinRequestsForClub(id);
     }
-    await mergeSharedJoinRequests();
     for (final req in List<JoinRequest>.from(_joinRequests)) {
       if (req.status == JoinRequestStatus.pending &&
           clubIdAliases(id).contains(req.clubId)) {
@@ -7938,6 +7938,51 @@ class ClubProvider extends ChangeNotifier with WidgetsBindingObserver {
       }
     }
     notifyListeners();
+    _persistImmediately();
+  }
+
+  /// 서버에 없는 내 가입신청중을 폰 로컬에서 지운다.
+  /// [onlyClubIds]가 있으면 그 모임만. 비어 있으면 지우지 않는다(조회 실패).
+  void dropMyPendingNotOnServer(
+    Iterable<String> serverPendingClubIds, {
+    Iterable<String>? onlyClubIds,
+  }) {
+    if (onlyClubIds != null && onlyClubIds.isEmpty) return;
+    final keep = <String>{};
+    for (final id in serverPendingClubIds) {
+      keep.addAll(clubIdAliases(id));
+    }
+    final only = onlyClubIds == null
+        ? null
+        : {for (final id in onlyClubIds) ...clubIdAliases(id)};
+    _dropMyPendingWhere(
+      (r) => (only == null || only.contains(r.clubId)) && !keep.contains(r.clubId),
+    );
+  }
+
+  /// 그 모임에 대한 내 로컬 가입신청중만 지운다.
+  void dropMyPendingForClub(String clubId) {
+    final aliases = clubIdAliases(clubId);
+    _dropMyPendingWhere((r) => aliases.contains(r.clubId));
+  }
+
+  void _dropMyPendingWhere(bool Function(JoinRequest r) clubMatch) {
+    final stale = _joinRequests
+        .where((r) =>
+            r.status == JoinRequestStatus.pending &&
+            (_userIdsMatch(r.userId, currentUserId) ||
+                _userIdsMatch(r.userId, _persistAuthUserId)) &&
+            clubMatch(r))
+        .toList();
+    if (stale.isEmpty) return;
+    for (final r in stale) {
+      _joinRequests.removeWhere((x) => x.id == r.id);
+      _appNotifications.removeWhere((n) =>
+          n.type == AppNotificationType.joinRequest && n.targetId == r.id);
+      unawaited(SharedJoinRequestStore.remove(r.id));
+    }
+    notifyListeners();
+    _persistImmediately();
   }
 
   Future<void> _pullPendingJoinRequestsForClub(String clubId) async {
@@ -7945,6 +7990,20 @@ class ClubProvider extends ChangeNotifier with WidgetsBindingObserver {
       final remote = await AppDependencies.instance.joinRequestRepository
           .fetchPendingForClub(clubId)
           .timeout(const Duration(seconds: 4));
+      final remoteIds = {for (final r in remote) r.id};
+      final aliases = clubIdAliases(clubId);
+      final stale = _joinRequests
+          .where((r) =>
+              aliases.contains(r.clubId) &&
+              r.status == JoinRequestStatus.pending &&
+              !remoteIds.contains(r.id))
+          .toList();
+      for (final r in stale) {
+        _joinRequests.removeWhere((x) => x.id == r.id);
+        _appNotifications.removeWhere((n) =>
+            n.type == AppNotificationType.joinRequest && n.targetId == r.id);
+        await SharedJoinRequestStore.remove(r.id);
+      }
       for (final req in remote) {
         _ingestPendingJoinRequest(req);
       }

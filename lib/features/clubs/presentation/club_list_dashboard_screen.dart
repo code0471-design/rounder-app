@@ -57,11 +57,16 @@ class _ClubListDashboardScreenState extends State<ClubListDashboardScreen> {
       }
       await context.read<ClubListController>().load(userId: userId);
       if (!mounted) return;
+      final listCtrl = context.read<ClubListController>();
+      context.read<ClubProvider>().dropMyPendingNotOnServer(
+            listCtrl.pendingClubIds,
+            onlyClubIds: listCtrl.checkedPendingClubIds,
+          );
       final mine = <String>{
         ...context.read<ClubProvider>().myClubs.map((c) => c.id),
         if (bootstrap != null) ...bootstrap.myClubs.map((c) => c.id),
       };
-      context.read<ClubListController>().updateMembershipHints(
+      listCtrl.updateMembershipHints(
             myClubIds: mine,
           );
     });
@@ -238,15 +243,9 @@ class _ClubListDashboardScreenState extends State<ClubListDashboardScreen> {
                   itemCount: clubs.length,
                   itemBuilder: (_, i) => _ClubListCard(
                     club: clubs[i],
-                    isPending: controller.hasPendingRequest(clubs[i].id) ||
-                        legacyProvider.hasPendingRequest(clubs[i].id) ||
-                        legacyProvider.hasPendingRequest(
-                            ClubProvider.legacyClubIdFor(clubs[i].id)),
+                    isPending: controller.hasPendingRequest(clubs[i].id),
                     isMine: !legacyProvider.hasLeftClub(clubs[i].id) &&
-                        !(controller.hasPendingRequest(clubs[i].id) ||
-                            legacyProvider.hasPendingRequest(clubs[i].id) ||
-                            legacyProvider.hasPendingRequest(
-                                ClubProvider.legacyClubIdFor(clubs[i].id))) &&
+                        !controller.hasPendingRequest(clubs[i].id) &&
                         (legacyProvider.isMyClub(clubs[i].id) ||
                             controller.isMyClub(clubs[i].id)),
                     onTap: () => openClubDetail(context, club: clubs[i]),

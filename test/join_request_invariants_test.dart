@@ -22,6 +22,15 @@ void main() {
     expect(src.contains('loginAccountIdOf'), isTrue);
     expect(src.contains('resultInboxItemId'), isTrue);
     expect(src.contains('uniquePendingByUser'), isTrue);
+    expect(src.contains('dropMyPendingForClub'), isTrue);
+    expect(src.contains('dropMyPendingNotOnServer'), isTrue);
+    final inboxAt = src.indexOf('Future<void> refreshJoinRequestInbox()');
+    expect(
+      src.indexOf('await mergeSharedJoinRequests();', inboxAt) <
+          src.indexOf('_pullPendingJoinRequestsForClub(c.id)', inboxAt),
+      isTrue,
+      reason: '공유 로컬을 서버 pull 뒤에 다시 넣으면 지운 신청이 살아난다',
+    );
     expect(
       src.contains("joinOwned"),
       isTrue,
@@ -90,11 +99,28 @@ void main() {
     );
     expect(dash.contains('legacyProvider.submitJoinRequest'), isTrue);
     expect(
+      dash.contains('controller.state == ClubDetailLoadState.loaded'),
+      isTrue,
+      reason: '서버에 없는 신청을 폰 로컬 때문에 가입신청중으로 두면 안 된다',
+    );
+    expect(
       dash.contains('controller.submitJoinRequest'),
       isFalse,
       reason: '대시보드가 저장과 푸시를 각각 부르면 푸시가 두 번 나간다',
     );
     expect(dash.contains('legacyProvider.approveRequest'), isTrue);
+    expect(dash.contains('dropMyPendingForClub'), isTrue);
+    expect(dash.contains('serverConfirmedNoPending'), isTrue);
+
+    final listDash = read(
+      'lib/features/clubs/presentation/club_list_dashboard_screen.dart',
+    );
+    expect(
+      listDash.contains('legacyProvider.hasPendingRequest(clubs[i].id)'),
+      isFalse,
+      reason: '목록의 가입신청중은 서버 조회만 본다',
+    );
+    expect(listDash.contains('dropMyPendingNotOnServer'), isTrue);
 
     final home = read('lib/screens/home/home_screen.dart');
     expect(home.contains('openJoinRequests: openJoins'), isTrue);

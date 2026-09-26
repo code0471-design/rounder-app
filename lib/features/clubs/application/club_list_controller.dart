@@ -25,6 +25,7 @@ class ClubListController extends ChangeNotifier {
   final JoinRequestRepository? _joinRequestRepository;
   Set<String> _myClubIds;
   Set<String> _pendingClubIds;
+  Set<String> _checkedPendingClubIds = {};
 
   ClubListLoadState _state = ClubListLoadState.idle;
   List<Club> _clubs = [];
@@ -71,6 +72,9 @@ class ClubListController extends ChangeNotifier {
 
   bool isMyClub(String clubId) => _myClubIds.contains(clubId);
   bool hasPendingRequest(String clubId) => _pendingClubIds.contains(clubId);
+  Set<String> get pendingClubIds => Set.unmodifiable(_pendingClubIds);
+  Set<String> get checkedPendingClubIds =>
+      Set.unmodifiable(_checkedPendingClubIds);
 
   /// 내 모임·가입 신청 상태 동기화 (상세 화면 복귀 후 호출)
   Future<void> syncMembershipState(String userId) async {
@@ -80,15 +84,18 @@ class ClubListController extends ChangeNotifier {
     _myClubIds = myClubs.map((c) => c.id).toSet();
 
     final pending = <String>{};
+    final checked = <String>{};
     for (final club in _clubs) {
       try {
         final req = await joinRepo.fetchPendingForUser(club.id, userId);
+        checked.add(club.id);
         if (req != null) pending.add(club.id);
       } catch (e) {
         debugPrint('[ClubListController] pending skip ${club.id}: $e');
       }
     }
     _pendingClubIds = pending;
+    _checkedPendingClubIds = checked;
     notifyListeners();
   }
 

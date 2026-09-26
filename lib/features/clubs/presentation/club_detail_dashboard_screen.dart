@@ -75,10 +75,12 @@ class ClubDetailDashboardScreen extends StatelessWidget {
         }();
         final left = legacyProvider.hasLeftClub(club.id);
         // 탈퇴 후 재신청은 left여도 pending으로 보여야 함
-        final isPending = controller.isPending ||
-            legacyProvider.hasPendingRequest(club.id) ||
-            legacyProvider.hasPendingRequest(
-                ClubProvider.legacyClubIdFor(club.id));
+        final isPending = controller.state == ClubDetailLoadState.loaded
+            ? controller.isPending
+            : (controller.isPending ||
+                legacyProvider.hasPendingRequest(club.id) ||
+                legacyProvider.hasPendingRequest(
+                    ClubProvider.legacyClubIdFor(club.id)));
         // Firestore 모임은 controller.isMember만 신뢰 (legacy isMyClub 오판으로
         // 가입 버튼이 내 모임 진입으로 바뀌는 문제 방지)
         final isLegacyDemo = RegExp(r'^c[1-5]$').hasMatch(club.id) ||
@@ -94,6 +96,11 @@ class ClubDetailDashboardScreen extends StatelessWidget {
             (isMine &&
                 ClubMemberRole.isOfficer(club.myRole));
 
+        if (controller.serverConfirmedNoPending) {
+          WidgetsBinding.instance.addPostFrameCallback((_) {
+            legacyProvider.dropMyPendingForClub(club.id);
+          });
+        }
         if (left && controller.isMember) {
           WidgetsBinding.instance.addPostFrameCallback((_) {
             if (controller.isMember) controller.allowRejoinAfterLeave();

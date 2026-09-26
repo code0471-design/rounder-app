@@ -27,6 +27,7 @@ class ClubDetailController extends ChangeNotifier {
   List<JoinRequest> _pendingRequests = [];
   String? _errorMessage;
   bool _actionInProgress = false;
+  bool _pendingLookupSucceeded = false;
 
   ClubDetailLoadState get state => _state;
   Club? get club => _club;
@@ -37,6 +38,8 @@ class ClubDetailController extends ChangeNotifier {
   bool get actionInProgress => _actionInProgress;
 
   bool get isPending => _myPendingRequest != null;
+  bool get serverConfirmedNoPending =>
+      _pendingLookupSucceeded && _myPendingRequest == null;
   bool get isAdmin =>
       _club != null && JoinRequestService.isAdminRole(_club!.myRole);
 
@@ -66,11 +69,13 @@ class ClubDetailController extends ChangeNotifier {
       }
 
       _isMember = await _clubRepository.isUserMember(clubId, userId);
+      _pendingLookupSucceeded = false;
       try {
         _myPendingRequest =
             await _joinRequestRepository.fetchPendingForUser(clubId, userId);
+        _pendingLookupSucceeded = true;
       } catch (_) {
-        _myPendingRequest = null;
+        // 조회가 깨지면 로컬 대기 표시를 지우지 않는다.
       }
 
       if (_isMember && isAdmin) {
