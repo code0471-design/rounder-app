@@ -1728,7 +1728,14 @@ class ClubProvider extends ChangeNotifier with WidgetsBindingObserver {
       final old = _members.where((m) => m.id == oldId).firstOrNull;
       if (old == null) continue;
       final keepIdx = _members.indexWhere((m) => m.id == myId);
-      _members[keepIdx] = RosterDedupe.mergeMember(_members[keepIdx], old);
+      final club = _clubById(clubId);
+      _members[keepIdx] = RosterDedupe.mergeMember(
+        _members[keepIdx],
+        old,
+        notBefore: club == null
+            ? MemberJoinDate.createdAtFromClubId(clubId)
+            : MemberJoinDate.resolvedClubCreatedAt(club),
+      );
       _members.removeWhere((m) => m.id == oldId);
       ClubOpsSync.markMemberRemoved(oldId);
       // 서버 명단에도 남아 있으면 다음 실행에서 다시 내려온다
@@ -1779,7 +1786,14 @@ class ClubProvider extends ChangeNotifier with WidgetsBindingObserver {
     final mineIdx = _members.indexWhere((m) => m.id == myId);
     if (mineIdx >= 0) {
       // 내 행이 이미 있다 → 방장 자리에 있던 복사본은 내 행으로 합친다.
-      _members[mineIdx] = RosterDedupe.mergeMember(_members[mineIdx], seatRow);
+      final club = _clubById(clubId);
+      _members[mineIdx] = RosterDedupe.mergeMember(
+        _members[mineIdx],
+        seatRow,
+        notBefore: club == null
+            ? MemberJoinDate.createdAtFromClubId(clubId)
+            : MemberJoinDate.resolvedClubCreatedAt(club),
+      );
       _members.removeAt(seatIdx);
     } else {
       _members[seatIdx] = seatRow.withId(myId);
@@ -1855,15 +1869,15 @@ class ClubProvider extends ChangeNotifier with WidgetsBindingObserver {
         _members.add(row);
         changed = true;
       } else if (_members[idx].id != id) {
-        _members[idx] = _preferLocalMemberProfile(row, _members[idx]);
+        _members[idx] = _preferLocalMemberProfile(row, _members[idx], clubId);
         changed = true;
       } else if (isPlaceholderMemberName(_members[idx].name) &&
           row.name.trim().isNotEmpty &&
           !isPlaceholderMemberName(row.name)) {
-        _members[idx] = _preferLocalMemberProfile(row, _members[idx]);
+        _members[idx] = _preferLocalMemberProfile(row, _members[idx], clubId);
         changed = true;
       } else {
-        final kept = _preferLocalMemberProfile(row, _members[idx]);
+        final kept = _preferLocalMemberProfile(row, _members[idx], clubId);
         if ((kept.photoUrl ?? '') != (_members[idx].photoUrl ?? '') ||
             (kept.phone ?? '') != (_members[idx].phone ?? '')) {
           _members[idx] = kept;
@@ -6578,7 +6592,11 @@ class ClubProvider extends ChangeNotifier with WidgetsBindingObserver {
     final ids = _identityIdsFor(club, m);
     DateTime? best;
     void consider(DateTime? d) {
-      best = MemberJoinDate.keepEarlier(best, d);
+      best = MemberJoinDate.keepEarlier(
+        best,
+        d,
+        notBefore: MemberJoinDate.resolvedClubCreatedAt(club),
+      );
     }
 
     for (final a in _activities) {
@@ -6594,15 +6612,6 @@ class ClubProvider extends ChangeNotifier with WidgetsBindingObserver {
         continue;
       }
       consider(r.reviewedAt);
-    }
-    for (final id in ids) {
-      for (final e in _pointEvents[id] ?? const <MembershipPointEvent>[]) {
-        consider(e.date);
-      }
-    }
-    for (final p in _duesPayments) {
-      if (!ids.contains(p.memberId)) continue;
-      consider(p.paidAt);
     }
     return best;
   }
@@ -8627,15 +8636,27 @@ class ClubProvider extends ChangeNotifier with WidgetsBindingObserver {
     );
   }
 
-  Member _preferLocalMemberProfile(Member incoming, Member local) {
+  Member _preferLocalMemberProfile(
+    Member incoming,
+    Member local,
+    String clubId,
+  ) {
     final inPhoto = (incoming.photoUrl ?? '').trim();
     final inPhone = (incoming.phone ?? '').trim();
+    final club = _clubById(clubId);
+    final open = club == null
+        ? MemberJoinDate.createdAtFromClubId(clubId)
+        : MemberJoinDate.resolvedClubCreatedAt(club);
     return incoming.copyWith(
       photoUrl: inPhoto.isNotEmpty ? incoming.photoUrl : local.photoUrl,
       phone: inPhone.isNotEmpty ? incoming.phone : local.phone,
       birthDate: incoming.birthDate ?? local.birthDate,
       handicap: incoming.handicap ?? local.handicap,
-      joinDate: MemberJoinDate.keepEarlier(local.joinDate, incoming.joinDate),
+      joinDate: MemberJoinDate.keepEarlier(
+        local.joinDate,
+        incoming.joinDate,
+        notBefore: open,
+      ),
     );
   }
 

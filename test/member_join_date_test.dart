@@ -88,6 +88,41 @@ void main() {
     );
   });
 
+  test('개설일보다 앞선 가입일은 버리고 초대일을 쓴다', () {
+    final club = Club(
+      id: arenaId,
+      name: '아레나 골프회',
+      myRole: '정회원',
+      memberCount: 2,
+      creatorId: 'kakao_host',
+      createdAt: arenaOpen,
+    );
+    final lee = Member(
+      id: 'm_${arenaId}_lee',
+      name: '이정원',
+      gender: '남',
+      memberType: '정회원',
+      role: '정회원',
+      joinDate: DateTime(2026, 7, 22),
+    );
+    expect(
+      MemberJoinDate.repair(
+        member: lee,
+        club: club,
+        evidenceAt: DateTime(2026, 9, 20),
+      ),
+      DateTime(2026, 9, 20),
+    );
+    expect(
+      MemberJoinDate.keepEarlier(
+        DateTime(2026, 7, 22),
+        DateTime(2026, 9, 20),
+        notBefore: arenaOpen,
+      ),
+      DateTime(2026, 9, 20),
+    );
+  });
+
   test('있는 가입일을 오늘로 덮지 않는다', () {
     final existing = DateTime(2026, 9, 12);
     expect(

@@ -38,11 +38,32 @@ abstract final class MemberJoinDate {
     return false;
   }
 
+  /// 모임 개설일보다 앞선 가입일은 없는 것과 같다.
+  static DateTime? onOrAfterClub(DateTime? date, DateTime? clubCreatedAt) {
+    if (date == null) return null;
+    if (clubCreatedAt == null) return date;
+    final day = DateTime(date.year, date.month, date.day);
+    final open = DateTime(
+      clubCreatedAt.year,
+      clubCreatedAt.month,
+      clubCreatedAt.day,
+    );
+    if (day.isBefore(open)) return null;
+    return date;
+  }
+
   /// 둘 다 있으면 더 이른 날. 한쪽만 있으면 그 값. 오늘을 지어내지 않는다.
-  static DateTime? keepEarlier(DateTime? existing, DateTime? incoming) {
-    if (existing == null) return incoming;
-    if (incoming == null) return existing;
-    return existing.isBefore(incoming) ? existing : incoming;
+  /// 개설일보다 앞선 값은 버린다.
+  static DateTime? keepEarlier(
+    DateTime? existing,
+    DateTime? incoming, {
+    DateTime? notBefore,
+  }) {
+    final a = onOrAfterClub(existing, notBefore);
+    final b = onOrAfterClub(incoming, notBefore);
+    if (a == null) return b;
+    if (b == null) return a;
+    return a.isBefore(b) ? a : b;
   }
 
   static DateTime? earliest(Iterable<DateTime?> dates) {
@@ -75,7 +96,7 @@ abstract final class MemberJoinDate {
     if (isCreatorRow(memberId: member.id, club: club)) {
       return created;
     }
-    return keepEarlier(member.joinDate, evidenceAt);
+    return keepEarlier(member.joinDate, evidenceAt, notBefore: created);
   }
 
   static DateTime? fromMemberMap(Map<dynamic, dynamic> m) {
@@ -85,12 +106,13 @@ abstract final class MemberJoinDate {
   /// merge 대상 map 에 더 이른 가입일을 남긴다.
   static void writeEarlierInto(
     Map<dynamic, dynamic> target,
-    Iterable<Map<dynamic, dynamic>?> sources,
-  ) {
+    Iterable<Map<dynamic, dynamic>?> sources, {
+    DateTime? notBefore,
+  }) {
     DateTime? best;
     for (final src in sources) {
       if (src == null) continue;
-      best = keepEarlier(best, fromMemberMap(src));
+      best = keepEarlier(best, fromMemberMap(src), notBefore: notBefore);
     }
     if (best == null) return;
     if (target.containsKey('join_date') ||

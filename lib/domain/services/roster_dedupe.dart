@@ -65,8 +65,9 @@ class RosterDedupe {
     }
 
     var keep = creator;
+    final open = MemberJoinDate.createdAtFromClubId(clubId);
     for (final extra in drop.values) {
-      keep = mergeMember(keep, extra);
+      keep = mergeMember(keep, extra, notBefore: open);
     }
     return RosterDedupeResult(
       members: [
@@ -181,10 +182,31 @@ class RosterDedupe {
     if (keep['birthDate'] == null && extra['birthDate'] != null) {
       keep['birthDate'] = extra['birthDate'];
     }
-    MemberJoinDate.writeEarlierInto(keep, [keep, extra]);
+    MemberJoinDate.writeEarlierInto(
+      keep,
+      [keep, extra],
+      notBefore: _clubOpenFromKeep(keep),
+    );
   }
 
-  static Member mergeMember(Member keep, Member extra) {
+  static DateTime? _clubOpenFromKeep(Map<String, dynamic> keep) {
+    final id = '${keep['id'] ?? ''}';
+    if (id.startsWith('m_creator_')) {
+      return MemberJoinDate.createdAtFromClubId(id.substring('m_creator_'.length));
+    }
+    if (id.startsWith('m_c_')) {
+      final rest = id.substring(2);
+      final cut = rest.indexOf('_', 2);
+      if (cut > 0) return MemberJoinDate.createdAtFromClubId(rest.substring(0, cut));
+    }
+    return null;
+  }
+
+  static Member mergeMember(
+    Member keep,
+    Member extra, {
+    DateTime? notBefore,
+  }) {
     final name = _preferName(extra.name, keep.name) ? extra.name : keep.name;
     final role = ClubMemberRole.isOfficer(keep.role)
         ? keep.role
@@ -203,7 +225,11 @@ class RosterDedupe {
       role: role,
       memberType: ClubMemberRole.memberTypeForRole(role),
       handicap: keep.handicap ?? extra.handicap,
-      joinDate: MemberJoinDate.keepEarlier(keep.joinDate, extra.joinDate),
+      joinDate: MemberJoinDate.keepEarlier(
+        keep.joinDate,
+        extra.joinDate,
+        notBefore: notBefore,
+      ),
       leftAt: keep.leftAt ?? extra.leftAt,
       status: keep.status == '탈퇴' || extra.status == '탈퇴'
           ? '탈퇴'
@@ -276,7 +302,11 @@ class RosterDedupe {
       for (final extra in ranked.skip(1)) {
         final keepIdx = next.indexWhere((m) => m.id == keep.id);
         if (keepIdx < 0) continue;
-        keep = mergeMember(next[keepIdx], extra);
+        keep = mergeMember(
+          next[keepIdx],
+          extra,
+          notBefore: MemberJoinDate.createdAtFromClubId(clubId),
+        );
         next[keepIdx] = keep;
         next.removeWhere((m) => m.id == extra.id);
         remap[extra.id] = keep.id;

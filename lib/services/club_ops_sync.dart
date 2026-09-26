@@ -88,6 +88,7 @@ class ClubOpsSync {
           local: localMembers,
           remote: remoteMembers,
           remoteWins: false,
+          clubCreatedAt: MemberJoinDate.createdAtFromClubId(clubId),
         );
         slice['members'] = _remapCreatorAuthMemberIds(
           slice['members'] as List? ?? const [],
@@ -1327,6 +1328,7 @@ class ClubOpsSync {
       local: encoded['members'] as List? ?? const [],
       remote: _asDynamicMaps(remote['members']),
       remoteWins: true,
+      clubCreatedAt: MemberJoinDate.createdAtFromClubId(clubId),
     );
     final creatorUserId = _creatorUserIdFromEncoded(encoded, clubId);
     encoded['members'] = _remapCreatorAuthMemberIds(
@@ -1527,6 +1529,7 @@ class ClubOpsSync {
     required List local,
     required List remote,
     required bool remoteWins,
+    DateTime? clubCreatedAt,
   }) {
     final merged =
         remoteWins ? _mergeById(local, remote) : _mergeById(remote, local);
@@ -1563,6 +1566,7 @@ class ClubOpsSync {
       MemberJoinDate.writeEarlierInto(
         e,
         [localByJoin[id], remoteByJoin[id], e],
+        notBefore: clubCreatedAt,
       );
     }
     if (_removedMemberIds.isEmpty) return merged;
