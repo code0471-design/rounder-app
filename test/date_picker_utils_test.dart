@@ -29,6 +29,11 @@ void main() {
     expect(formatTeeTimeKo(19, 36), '오후 7:36');
     expect(formatTeeTimeKo(0, 5), '오전 12:05');
     expect(formatTeeTimeKo(12, 0), '오후 12:00');
+    expect(formatTeeTimeConfirmKo(13, 13), '오후 1시 13분');
+    expect(formatTeeTimeConfirmKo(7, 30), '오전 7시 30분');
+    expect(formatTeeTimeConfirmKo(19, 36), '오후 7시 36분');
+    expect(formatTeeTimeConfirmKo(0, 5), '오전 12시 5분');
+    expect(formatTeeTimeConfirmKo(12, 0), '오후 12시 0분');
     expect(formatStoredTeeTimeKo('07:30'), '오전 7:30');
     expect(formatStoredTeeTimeKo('19:36'), '오후 7:36');
     expect(formatStoredTeeTimeKo(''), '');
@@ -81,6 +86,14 @@ void main() {
     expect(source.contains('tee_hour_am_'), isFalse);
     expect(source.contains('tee_hour_pm_'), isFalse);
     expect(source.contains('GridView.count'), isFalse);
+    expect(source.contains('formatTeeTimeConfirmKo'), isTrue);
+    expect(source.contains('시 \${clampTeeMinute(minute)}분'), isTrue);
+    expect(source.contains("'분 확인'"), isFalse);
+    expect(
+      source.contains(r"'${formatTeeTimeConfirmKo(hour, minute)} 확인'"),
+      isTrue,
+      reason: '휠 아래는 오후 1시 13분 확인처럼 고른 시간을 눌러 확정한다',
+    );
     expect(
       source.contains('[0, 10, 20, 30, 40, 50]'),
       isFalse,
@@ -145,6 +158,7 @@ void main() {
     expect(find.text('오후'), findsWidgets);
     expect(find.text('7'), findsWidgets);
     expect(find.text('30'), findsWidgets);
+    expect(find.text('오전 7시 30분 확인'), findsOneWidget);
 
     await tester.tap(find.byKey(const Key('tee_period_pm')));
     await tester.pumpAndSettle();
@@ -154,7 +168,8 @@ void main() {
     );
     await tester.pumpAndSettle();
 
-    await tester.tap(find.text('확인'));
+    expect(find.text('오후 7시 36분 확인'), findsOneWidget);
+    await tester.tap(find.text('오후 7시 36분 확인'));
     await tester.pumpAndSettle();
     expect(picked?.hour, 19);
     expect(picked?.minute, 36);

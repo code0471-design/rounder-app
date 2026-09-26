@@ -36,6 +36,12 @@ String formatTeeTimeKo(int hour, int minute) {
   return '$period ${hour12From24(hour)}:${minute.toString().padLeft(2, '0')}';
 }
 
+/// 휠 아래 확정 문구. 예: 오후 1시 13분
+String formatTeeTimeConfirmKo(int hour, int minute) {
+  final period = isAfternoonHour(hour) ? '오후' : '오전';
+  return '$period ${hour12From24(hour)}시 ${clampTeeMinute(minute)}분';
+}
+
 /// 저장된 `07:30`을 홈 카드용 `오전 7:30`으로 바꾼다. 없으면 빈 문자열.
 String formatStoredTeeTimeKo(String raw) {
   final t = raw.trim();
@@ -473,48 +479,43 @@ Future<TimeOfDay?> showRounderTimePicker({
                               ],
                             ),
                           ),
-                          const SizedBox(height: 16),
-                          Row(
-                            children: [
-                              Expanded(
-                                child: TextButton(
-                                  onPressed: () =>
-                                      Navigator.of(context).pop(),
-                                  style: TextButton.styleFrom(
-                                    foregroundColor: AppColors.textSecondary,
-                                    textStyle: const TextStyle(
-                                      fontSize: 15,
-                                      fontWeight: FontWeight.w500,
-                                    ),
-                                  ),
-                                  child: const Text('취소'),
+                          const SizedBox(height: 18),
+                          SizedBox(
+                            width: double.infinity,
+                            child: FilledButton(
+                              onPressed: () => Navigator.of(context).pop(
+                                TimeOfDay(hour: hour, minute: minute),
+                              ),
+                              style: FilledButton.styleFrom(
+                                backgroundColor: AppColors.charcoal,
+                                foregroundColor: Colors.white,
+                                elevation: 0,
+                                padding: const EdgeInsets.symmetric(
+                                  vertical: 16,
+                                ),
+                                textStyle: const TextStyle(
+                                  fontSize: 18,
+                                  fontWeight: FontWeight.w800,
+                                ),
+                                shape: RoundedRectangleBorder(
+                                  borderRadius: BorderRadius.circular(12),
                                 ),
                               ),
-                              const SizedBox(width: 8),
-                              Expanded(
-                                child: FilledButton(
-                                  onPressed: () => Navigator.of(context).pop(
-                                    TimeOfDay(hour: hour, minute: minute),
-                                  ),
-                                  style: FilledButton.styleFrom(
-                                    backgroundColor: AppColors.charcoal,
-                                    foregroundColor: Colors.white,
-                                    elevation: 0,
-                                    padding: const EdgeInsets.symmetric(
-                                      vertical: 12,
-                                    ),
-                                    textStyle: const TextStyle(
-                                      fontSize: 15,
-                                      fontWeight: FontWeight.w600,
-                                    ),
-                                    shape: RoundedRectangleBorder(
-                                      borderRadius: BorderRadius.circular(12),
-                                    ),
-                                  ),
-                                  child: const Text('확인'),
-                                ),
+                              child: Text(
+                                '${formatTeeTimeConfirmKo(hour, minute)} 확인',
                               ),
-                            ],
+                            ),
+                          ),
+                          TextButton(
+                            onPressed: () => Navigator.of(context).pop(),
+                            style: TextButton.styleFrom(
+                              foregroundColor: AppColors.textSecondary,
+                              textStyle: const TextStyle(
+                                fontSize: 14,
+                                fontWeight: FontWeight.w500,
+                              ),
+                            ),
+                            child: const Text('취소'),
                           ),
                         ],
                       ),
