@@ -37,6 +37,23 @@ abstract final class JoinRequestService {
     return approved ? '${id}_ok' : '${id}_no';
   }
 
+  /// 가입 푸시함은 `jr_` 고정 id 만. 자동 id 문서는 FCM 을 다시 쏜다.
+  static bool isFixedJoinInboxItemId(String? itemId, String? type) {
+    final id = (itemId ?? '').trim();
+    if (id.isEmpty || !id.startsWith('jr_')) return false;
+    if (isJoinResultPushType(type)) {
+      return id.endsWith('_ok') || id.endsWith('_no');
+    }
+    if (isJoinPushType(type) || type == null || type.trim().isEmpty) {
+      return !id.endsWith('_ok') && !id.endsWith('_no');
+    }
+    return false;
+  }
+
+  /// 이미 있는 푸시함 문서는 덮어도 FCM 을 다시 보내면 안 된다.
+  static bool shouldCreateJoinInboxDoc({required bool alreadyExists}) =>
+      !alreadyExists;
+
   static bool canSubmit({
     required bool isMember,
     required bool hasPendingRequest,

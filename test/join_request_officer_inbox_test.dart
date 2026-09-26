@@ -16,6 +16,11 @@ void main() {
     expect(src.contains('ClubOpsSync.appendOfficerInbox'), isTrue);
     expect(src.contains("notifySelf: true"), isTrue);
     expect(src.contains('itemId: req.id'), isTrue);
+    expect(src.contains('already pending join skip publish'), isTrue);
+    expect(
+      src.contains('await publishJoinRequestToOfficer(existing)'),
+      isFalse,
+    );
     expect(src.contains('loginAccountIdOf'), isTrue);
     expect(
       src.contains('fetchPendingForClub'),

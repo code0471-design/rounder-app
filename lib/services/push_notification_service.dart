@@ -239,11 +239,24 @@ abstract final class PushNotificationService {
       final col = FirebaseFirestore.instance
           .collection(FirestorePaths.pushInboxItems(id));
       final fixed = itemId?.trim() ?? '';
-      if (fixed.isNotEmpty) {
-        await col.doc(fixed).set(data, SetOptions(merge: true));
-      } else {
-        await col.add(data);
+      final joinType = JoinRequestService.isJoinPushType(type) ||
+          JoinRequestService.isJoinResultPushType(type);
+      if (joinType &&
+          !JoinRequestService.isFixedJoinInboxItemId(fixed, type)) {
+        debugPrint('[Push] enqueue skip join without itemId');
+        return;
       }
+      if (fixed.isNotEmpty) {
+        final ref = col.doc(fixed);
+        final existing = await ref.get();
+        if (existing.exists) {
+          debugPrint('[Push] enqueue skip existing $id/$fixed');
+          return;
+        }
+        await ref.set(data);
+        return;
+      }
+      await col.add(data);
     } catch (e) {
       debugPrint('[Push] enqueue skip: $e');
     }

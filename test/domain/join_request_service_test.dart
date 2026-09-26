@@ -128,6 +128,38 @@ void main() {
       expect(unique.map((r) => r.id), ['jr_c_beauty_kakao_jang', 'jr_c_beauty_google_lee']);
     });
 
+    test('가입 푸시함은 이미 있으면 만들지 않는다', () {
+      expect(
+        JoinRequestService.shouldCreateJoinInboxDoc(alreadyExists: false),
+        isTrue,
+      );
+      expect(
+        JoinRequestService.shouldCreateJoinInboxDoc(alreadyExists: true),
+        isFalse,
+      );
+      expect(
+        JoinRequestService.isFixedJoinInboxItemId(
+          'jr_c_arena_kakao_a',
+          'push_join_request',
+        ),
+        isTrue,
+      );
+      expect(
+        JoinRequestService.isFixedJoinInboxItemId(
+          '3aaevYR9cF68MqPxXNYG',
+          'push_join_request',
+        ),
+        isFalse,
+      );
+      expect(
+        JoinRequestService.isFixedJoinInboxItemId(
+          'jr_c_arena_kakao_a_ok',
+          'push_join_result',
+        ),
+        isTrue,
+      );
+    });
+
     test('신청 문서 id는 jr_모임_계정 이다', () {
       expect(
         JoinRequestService.requestId('c_arena', 'kakao_a'),

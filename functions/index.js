@@ -52,6 +52,21 @@ exports.sendPushOnInbox = onDocumentCreated(
     if (!data) return;
 
     const userId = event.params.userId;
+    const itemId = String(event.params.itemId || "");
+    const type = String(data.type || "");
+    const joinApply = type === "push_join_request" || type === "joinRequest";
+    const joinResult =
+      type === "push_join_result" ||
+      type === "joinApproved" ||
+      type === "joinResult";
+    if (joinApply && (!itemId.startsWith("jr_") || itemId.endsWith("_ok") || itemId.endsWith("_no"))) {
+      console.log("skip join inbox not jr_", userId, itemId);
+      return;
+    }
+    if (joinResult && !(itemId.endsWith("_ok") || itemId.endsWith("_no"))) {
+      console.log("skip join result inbox not jr_", userId, itemId);
+      return;
+    }
     const tokenSnap = await getFirestore().doc(`fcm_tokens/${userId}`).get();
     const token = tokenSnap.data()?.token;
     if (!token) {

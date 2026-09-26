@@ -19,6 +19,12 @@ void main() {
     expect(src.contains('JoinRequestService.requestId'), isTrue);
     expect(src.contains('fetchPendingForClub'), isTrue);
     expect(src.contains('itemId: req.id'), isTrue);
+    expect(src.contains('already pending join skip publish'), isTrue);
+    expect(
+      src.contains('await publishJoinRequestToOfficer(existing)'),
+      isFalse,
+      reason: '이미 pending 인데 publish 를 다시 부르면 푸시가 또 간다',
+    );
     expect(src.contains('loginAccountIdOf'), isTrue);
     expect(src.contains('resultInboxItemId'), isTrue);
     expect(src.contains('uniquePendingByUser'), isTrue);
@@ -80,7 +86,12 @@ void main() {
 
     final push = read('lib/services/push_notification_service.dart');
     expect(push.contains('String? itemId'), isTrue);
-    expect(push.contains('SetOptions(merge: true)'), isTrue);
+    expect(push.contains('enqueue skip existing'), isTrue);
+    expect(push.contains('enqueue skip join without itemId'), isTrue);
+    expect(push.contains('existing.exists'), isTrue);
+
+    final fn = read('functions/index.js');
+    expect(fn.contains('skip join inbox not jr_'), isTrue);
   });
 
   test('총무 알림함 type=joinRequest 이고 계정 id로 보낸다', () {
