@@ -165,7 +165,7 @@ class _ClubRoomScreenState extends State<ClubRoomScreen> {
           MembersScreen.showJoinRequestsSheet(context, p);
         }
       } else {
-        await p.refreshJoinRequestInbox();
+        unawaited(p.refreshJoinRequestInbox());
       }
       if (!mounted) return;
       // 재무 탭이 막혀 있으면 홈으로
@@ -572,9 +572,7 @@ class _ClubRoomScreenState extends State<ClubRoomScreen> {
           ),
         ),
       ],
-      onNotificationTap: () async {
-        await provider.refreshJoinRequestInbox();
-        if (!mounted) return;
+      onNotificationTap: () {
         _showNotificationPanel(
           context,
           provider,
@@ -589,6 +587,7 @@ class _ClubRoomScreenState extends State<ClubRoomScreen> {
             });
           },
         );
+        unawaited(provider.refreshJoinRequestInbox());
       },
       onProfileTap: () => AppHeader.openMyPage(context),
       notificationCount: unread,

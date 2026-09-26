@@ -105,6 +105,11 @@ void main() {
     expect(my.contains('_openNotificationTarget'), isTrue);
 
     final room = read('lib/screens/club_room/club_room_screen.dart');
+    expect(
+      room.contains('await provider.refreshJoinRequestInbox()'),
+      isFalse,
+      reason: '알림 종을 서버 동기화 뒤에 열면 한참 걸리거나 안 열린다',
+    );
     expect(room.contains('MembersScreen.showJoinRequestsSheet'), isTrue);
     expect(room.contains('refreshJoinRequestsForClub'), isTrue);
     expect(room.contains('openTab(3)'), isTrue);

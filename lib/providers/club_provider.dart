@@ -7906,9 +7906,9 @@ class ClubProvider extends ChangeNotifier with WidgetsBindingObserver {
   /// 승인 가능 여부는 명단 직책(`_canReviewClub`)으로 본다.
   Future<void> refreshJoinRequestInbox() async {
     if (AppDependencies.instance.isInitialized) {
-      for (final club in _myClubs) {
-        await _pullPendingJoinRequestsForClub(club.id);
-      }
+      await Future.wait(
+        _myClubs.map((c) => _pullPendingJoinRequestsForClub(c.id)),
+      );
     }
     await mergeSharedJoinRequests();
     // 이미 _joinRequests에만 있고 알림이 없는 건도 보정
@@ -7941,7 +7941,8 @@ class ClubProvider extends ChangeNotifier with WidgetsBindingObserver {
   Future<void> _pullPendingJoinRequestsForClub(String clubId) async {
     try {
       final remote = await AppDependencies.instance.joinRequestRepository
-          .fetchPendingForClub(clubId);
+          .fetchPendingForClub(clubId)
+          .timeout(const Duration(seconds: 4));
       for (final req in remote) {
         _ingestPendingJoinRequest(req);
       }

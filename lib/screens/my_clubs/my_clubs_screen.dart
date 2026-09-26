@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import '../../di/app_dependencies.dart';
@@ -200,8 +202,6 @@ class _MyClubsScreenState extends State<MyClubsScreen> {
     BuildContext context,
     ClubProvider provider,
   ) async {
-    await provider.refreshJoinRequestInbox();
-    if (!context.mounted) return;
     showModalBottomSheet(
       context: context,
       isScrollControlled: true,
@@ -312,6 +312,7 @@ class _MyClubsScreenState extends State<MyClubsScreen> {
         ),
       ),
     );
+    unawaited(provider.refreshJoinRequestInbox());
   }
 }
 

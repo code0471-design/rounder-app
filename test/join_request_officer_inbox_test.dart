@@ -31,6 +31,12 @@ void main() {
     expect(members.contains('consumeOpenJoinRequests'), isTrue);
     expect(members.contains('showJoinRequestsSheet'), isTrue);
 
+    final room = read('lib/screens/club_room/club_room_screen.dart');
+    expect(
+      room.contains('await provider.refreshJoinRequestInbox()'),
+      isFalse,
+    );
+
     final home = read('lib/screens/home/home_screen.dart');
     expect(home.contains('openJoinRequests: openJoins'), isTrue);
     expect(home.contains('initialTab: openJoins ? 3 : 0'), isTrue);
