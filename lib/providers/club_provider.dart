@@ -2957,10 +2957,12 @@ class ClubProvider extends ChangeNotifier with WidgetsBindingObserver {
   /// 특정 모임의 대기중 신청 (seed↔legacy 별칭 포함)
   List<JoinRequest> pendingRequestsOf(String clubId) {
     final clubs = clubIdAliases(clubId);
-    return _joinRequests
-        .where((r) =>
-            clubs.contains(r.clubId) && r.status == JoinRequestStatus.pending)
-        .toList();
+    return JoinRequestService.uniquePendingByUser(
+      _joinRequests
+          .where((r) =>
+              clubs.contains(r.clubId) && r.status == JoinRequestStatus.pending)
+          .toList(),
+    );
   }
 
   /// 내가 관리자인 모임들의 전체 대기 건수 (알림 배지용)

@@ -21,6 +21,7 @@ void main() {
     expect(src.contains('itemId: req.id'), isTrue);
     expect(src.contains('loginAccountIdOf'), isTrue);
     expect(src.contains('resultInboxItemId'), isTrue);
+    expect(src.contains('uniquePendingByUser'), isTrue);
     expect(
       src.contains("joinOwned"),
       isTrue,

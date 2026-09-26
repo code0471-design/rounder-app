@@ -1,3 +1,4 @@
+import '../../models/club_model.dart';
 import '../../models/member_role.dart';
 
 /// 가입 알림을 받을 운영진 계정. 명단 행 id 가 아니라 계정 id.
@@ -41,6 +42,33 @@ abstract final class JoinRequestService {
     required bool hasPendingRequest,
   }) =>
       !isMember && !hasPendingRequest;
+
+  /// 같은 사람이 에러로 여러 장을 넣어도 대기 목록에는 1건만 보여 준다.
+  /// 서버 문서를 지우지 않는다. `jr_` 고정 id 를 우선한다.
+  static List<JoinRequest> uniquePendingByUser(List<JoinRequest> requests) {
+    final byUser = <String, JoinRequest>{};
+    for (final r in requests) {
+      if (r.status != JoinRequestStatus.pending) continue;
+      final uid = r.userId.trim();
+      if (uid.isEmpty) continue;
+      final prev = byUser[uid];
+      if (prev == null) {
+        byUser[uid] = r;
+        continue;
+      }
+      final rFixed = r.id.startsWith('jr_');
+      final pFixed = prev.id.startsWith('jr_');
+      if (rFixed && !pFixed) {
+        byUser[uid] = r;
+      } else if (rFixed == pFixed &&
+          r.requestedAt.isAfter(prev.requestedAt)) {
+        byUser[uid] = r;
+      }
+    }
+    final out = byUser.values.toList()
+      ..sort((a, b) => b.requestedAt.compareTo(a.requestedAt));
+    return out;
+  }
 
   static bool isAdminRole(String role) => ClubMemberRole.isOfficer(role);
 

@@ -1,5 +1,6 @@
 import 'package:flutter_test/flutter_test.dart';
 import 'package:golf_rounder/domain/services/join_request_service.dart';
+import 'package:golf_rounder/models/club_model.dart';
 
 void main() {
   group('JoinRequestService', () {
@@ -88,6 +89,43 @@ void main() {
         ),
         ['kakao_creator'],
       );
+    });
+
+    test('같은 사람 대기 신청은 1건만 남긴다', () {
+      final a = JoinRequest(
+        id: 'auto1',
+        clubId: 'c_beauty',
+        userId: 'google_lee',
+        userName: '이정원',
+        userGender: '남',
+        requestedAt: DateTime(2026, 9, 22, 12, 49, 55),
+      );
+      final b = JoinRequest(
+        id: 'auto2',
+        clubId: 'c_beauty',
+        userId: 'google_lee',
+        userName: '이정원',
+        userGender: '남',
+        requestedAt: DateTime(2026, 9, 22, 12, 49, 56),
+      );
+      final fixed = JoinRequest(
+        id: 'jr_c_beauty_google_lee',
+        clubId: 'c_beauty',
+        userId: 'google_lee',
+        userName: '이정원',
+        userGender: '남',
+        requestedAt: DateTime(2026, 9, 22, 12, 49, 50),
+      );
+      final other = JoinRequest(
+        id: 'jr_c_beauty_kakao_jang',
+        clubId: 'c_beauty',
+        userId: 'kakao_jang',
+        userName: '장창현',
+        userGender: '남',
+        requestedAt: DateTime(2026, 9, 26),
+      );
+      final unique = JoinRequestService.uniquePendingByUser([a, b, fixed, other]);
+      expect(unique.map((r) => r.id), ['jr_c_beauty_kakao_jang', 'jr_c_beauty_google_lee']);
     });
 
     test('신청 문서 id는 jr_모임_계정 이다', () {

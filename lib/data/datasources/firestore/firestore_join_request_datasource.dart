@@ -25,18 +25,20 @@ class FirestoreJoinRequestDataSource {
             .where('status', isEqualTo: pending)
             .orderBy('requested_at', descending: true)
             .get();
-        return snap.docs
-            .map((d) => JoinRequestMapper.fromFirestore(d, clubId: clubId))
-            .toList();
+        return JoinRequestService.uniquePendingByUser(
+          snap.docs
+              .map((d) => JoinRequestMapper.fromFirestore(d, clubId: clubId))
+              .toList(),
+        );
       } on FirebaseException catch (e) {
         if (e.code != 'failed-precondition') rethrow;
         final snap =
             await _requests(clubId).where('status', isEqualTo: pending).get();
-        final list = snap.docs
-            .map((d) => JoinRequestMapper.fromFirestore(d, clubId: clubId))
-            .toList();
-        list.sort((a, b) => b.requestedAt.compareTo(a.requestedAt));
-        return list;
+        return JoinRequestService.uniquePendingByUser(
+          snap.docs
+              .map((d) => JoinRequestMapper.fromFirestore(d, clubId: clubId))
+              .toList(),
+        );
       }
     } on FirebaseException catch (e) {
       throw NetworkDataException('가입 신청 목록 조회 실패', cause: e);
