@@ -1614,6 +1614,7 @@ class ClubProvider extends ChangeNotifier with WidgetsBindingObserver {
 
   /// 모임 → 소속 계정. 푸시 대상은 명단 행이 아니라 이 계정들이다.
   final Map<String, List<ClubMemberAccount>> _clubAccounts = {};
+  final Map<String, List<JoinOfficer>> _joinOfficersByClub = {};
 
   /// 그 모임 생성자가 아닌 장창현 소셜 행은 테스터 폰에도 안 남긴다.
   /// 로컬만 가리면 서버 명단을 받는 다른 폰에는 그대로 보인다.
@@ -5696,32 +5697,37 @@ class ClubProvider extends ChangeNotifier with WidgetsBindingObserver {
     } catch (e) {
       debugPrint('[ClubProvider] join officer accounts skip: $e');
     }
-    final hasOfficer = byId.values.any((o) => ClubMemberRole.isOfficer(o.role));
-    if (!hasOfficer) {
-      try {
-        final remote = await AppDependencies.instance.memberRepository
-            .fetchMembers(clubId)
-            .timeout(const Duration(seconds: 8));
-        for (final m in remote) {
-          if (m.status != '활성') continue;
-          add(JoinOfficer(
-            userId: JoinRequestService.accountIdOf(
-              clubId: clubId,
-              memberOrUserId: m.id,
-              creatorId: creatorId,
-            ),
-            role: m.role,
-          ));
-        }
-      } catch (e) {
-        debugPrint('[ClubProvider] join officer members skip: $e');
+    // 소속이 회장이어도 명단이 총무면 총무에게 보낸다.
+    // user_memberships 만 보고 명단 읽기를 건너뛰면 방장으로 오인한다.
+    try {
+      final remote = await AppDependencies.instance.memberRepository
+          .fetchMembers(clubId)
+          .timeout(const Duration(seconds: 8));
+      for (final m in remote) {
+        if (m.status != '활성') continue;
+        add(JoinOfficer(
+          userId: JoinRequestService.accountIdOf(
+            clubId: clubId,
+            memberOrUserId: m.id,
+            creatorId: creatorId,
+          ),
+          role: m.role,
+        ));
       }
+    } catch (e) {
+      debugPrint('[ClubProvider] join officer members skip: $e');
     }
     if (byId.isEmpty) addLocal();
+    _joinOfficersByClub[clubId] = byId.values.toList();
     return byId.values.toList();
   }
 
   bool _joinNotifyHasTreasurer(String clubId) {
+    final officers = _joinOfficersByClub[clubId];
+    if (officers != null &&
+        officers.any((o) => ClubMemberRole.isTreasurer(o.role))) {
+      return true;
+    }
     final accounts = _clubAccounts[clubId];
     if (accounts != null &&
         accounts.any((a) => ClubMemberRole.isTreasurer(a.role))) {

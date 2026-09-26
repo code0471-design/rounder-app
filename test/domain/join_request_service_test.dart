@@ -56,6 +56,20 @@ void main() {
       );
     });
 
+    test('같은 사람이 소속은 회장·명단은 총무여도 총무로 보낸다', () {
+      expect(
+        JoinRequestService.notifyAccountIds(
+          officers: const [
+            JoinOfficer(userId: 'kakao_5044456654', role: '회장'),
+            JoinOfficer(userId: 'kakao_5044456654', role: '총무'),
+          ],
+          creatorId: 'kakao_5044456654',
+          clubId: 'c_arena',
+        ),
+        ['kakao_5044456654'],
+      );
+    });
+
     test('총무가 없으면 회장, 둘 다 없으면 생성자에게 보낸다', () {
       expect(
         JoinRequestService.notifyAccountIds(

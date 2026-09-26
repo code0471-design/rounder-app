@@ -20,6 +20,12 @@ void main() {
     expect(src.contains('fetchPendingForClub'), isTrue);
     expect(src.contains('itemId: req.id'), isTrue);
     expect(src.contains('loginAccountIdOf'), isTrue);
+    expect(src.contains('join officer members skip'), isTrue);
+    expect(
+      src.contains('if (!hasOfficer)'),
+      isFalse,
+      reason: '소속이 회장이어도 명단 총무를 읽어야 한다',
+    );
     expect(
       src.contains('if (inboxId.isEmpty || _isSelfTarget(inboxId)) continue'),
       isFalse,
