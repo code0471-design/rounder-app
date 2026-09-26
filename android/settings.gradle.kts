@@ -25,3 +25,17 @@ plugins {
 }
 
 include(":app")
+
+// play_install_referrer 가 자기 classpath 로 AGP 8.13 을 또 받으면
+// Codemagic 이 dl.google.com 에서 잘린다. 루트 9.0.1 을 재사용한다.
+gradle.beforeProject {
+    if (name != "play_install_referrer") return@beforeProject
+    val classpath = runCatching { buildscript.configurations.getByName("classpath") }
+        .getOrNull() ?: return@beforeProject
+    classpath.resolutionStrategy.eachDependency {
+        if (requested.group == "com.android.tools.build" &&
+            requested.name == "gradle") {
+            useVersion("9.0.1")
+        }
+    }
+}
