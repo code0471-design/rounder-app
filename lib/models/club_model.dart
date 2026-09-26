@@ -812,6 +812,66 @@ class DuesSetting {
     return isMonthInPeriod(m);
   }
 
+  static ({int year, int month}) shiftYearMonth(int year, int month, int delta) {
+    final key = year * 12 + month + delta;
+    return (year: (key - 1) ~/ 12, month: (key - 1) % 12 + 1);
+  }
+
+  /// 특별회비는 납부 기준일의 연·월만. 연회비는 설정 연도.
+  int get pinnedDueYear {
+    if (type == DuesType.special) return dueDate?.year ?? createdAt.year;
+    if (type == DuesType.annual) return year ?? createdAt.year;
+    return createdAt.year;
+  }
+
+  int get pinnedDueMonth {
+    if (type == DuesType.special) return dueDate?.month ?? createdAt.month;
+    return createdAt.month;
+  }
+
+  /// [dir] +1 다음 납부월, -1 이전. 기간 밖이면 null.
+  ({int year, int month})? duesNavStep(int y, int m, int dir) {
+    if (type != DuesType.monthly || dir == 0) return null;
+    final sign = dir > 0 ? 1 : -1;
+    for (var i = 1; i <= 36; i++) {
+      final t = shiftYearMonth(y, m, sign * i);
+      if (isActiveForYearMonth(t.year, t.month)) return t;
+    }
+    return null;
+  }
+
+  bool canNavigateDuesPrev(int y, int m) => duesNavStep(y, m, -1) != null;
+
+  bool canNavigateDuesNext(int y, int m) => duesNavStep(y, m, 1) != null;
+
+  /// 기간 밖이면 가장 가까운 납부월로 붙인다.
+  ({int year, int month}) clampDuesView(int y, int m) {
+    if (type != DuesType.monthly) return (year: y, month: m);
+    if (isActiveForYearMonth(y, m)) return (year: y, month: m);
+    final sYear = startYear ?? createdAt.year;
+    final sMonth = startMonth ?? 1;
+    final key = y * 12 + m;
+    final startKey = sYear * 12 + sMonth;
+    if (key < startKey) return (year: sYear, month: sMonth);
+    if (endYear != null) {
+      final eMonth = endMonth ?? 12;
+      final endKey = endYear! * 12 + eMonth;
+      if (key > endKey) return (year: endYear!, month: eMonth);
+    }
+    final sM = startMonth ?? 1;
+    final eM = endMonth ?? 12;
+    if (m < sM) {
+      if (y > sYear && isActiveForYearMonth(y - 1, eM)) {
+        return (year: y - 1, month: eM);
+      }
+      if (isActiveForYearMonth(y, sM)) return (year: y, month: sM);
+    }
+    if (m > eM && isActiveForYearMonth(y, eM)) {
+      return (year: y, month: eM);
+    }
+    return (year: sYear, month: sMonth);
+  }
+
   /// 특정 연/월에 적용되는 금액 (변경 이력 기준 — 미납분은 과거 금액 유지)
   int amountForPeriod({required int year, int month = 1}) {
     if (amountHistory.isEmpty) return amount;

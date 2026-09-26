@@ -713,25 +713,33 @@ class _PaymentStatusTabState extends State<_PaymentStatusTab> {
         final selected = settings.firstWhere((s) => s.id == _selectedDuesId,
             orElse: () => settings.first);
 
-        // 월회비: 월 단위 / 특별회비: 연 단위 / 연회비: 설정에 적힌 연도 고정
+        // 월회비: 설정 기간 안의 달만 / 특별회비: 기준일 그 달만 / 연회비: 설정 연도
         final isMonthly = selected.type == DuesType.monthly;
         final isAnnual = selected.type == DuesType.annual;
+        final isSpecial = selected.type == DuesType.special;
+        final clamped = isMonthly
+            ? selected.clampDuesView(_year, _month)
+            : (
+                year: isSpecial ? selected.pinnedDueYear : _year,
+                month: isSpecial ? selected.pinnedDueMonth : _month,
+              );
         final viewYear = isAnnual
             ? (selected.year ?? selected.createdAt.year)
-            : _year;
+            : clamped.year;
+        final viewMonth = clamped.month;
 
         // 회비 납부 대상은 정회원만. 게스트는 월·연·특별 모두 제외.
         // 탈퇴 회원은 탈퇴 전 달·해만 목록에 남긴다.
         final members = provider.duesRosterForPeriod(
           type: selected.type,
           year: viewYear,
-          month: isMonthly ? _month : null,
+          month: isMonthly ? viewMonth : null,
         );
         DuesChip chipOf(Member m) => provider.duesChipFor(
               member: m,
               setting: selected,
               year: viewYear,
-              month: isMonthly ? _month : null,
+              month: isMonthly ? viewMonth : null,
             );
         final chips = {for (final m in members) m.id: chipOf(m)};
         final paidCount =
@@ -743,10 +751,6 @@ class _PaymentStatusTabState extends State<_PaymentStatusTab> {
         final chargeable = paidCount + unpaidCount;
         final paidPct =
             chargeable == 0 ? 0.0 : (paidCount / chargeable).clamp(0.0, 1.0);
-
-        // 기간 범위 밖인지 체크
-        final isOutOfRange = isMonthly &&
-            !selected.isMonthInPeriod(_month);
 
         return ListView(
           padding: const EdgeInsets.fromLTRB(16, 16, 16, 80),
@@ -825,10 +829,13 @@ class _PaymentStatusTabState extends State<_PaymentStatusTab> {
                       setState(() {
                         _selectedDuesId = s.id;
                         _bulkSelectedIds.clear();
-                        // 월회비 선택 시 현재 월이 기간 내인지 확인 후 조정
-                        if (s.type == DuesType.monthly &&
-                            !s.isMonthInPeriod(_month)) {
-                          _month = s.startMonth ?? DateTime.now().month;
+                        if (s.type == DuesType.monthly) {
+                          final next = s.clampDuesView(_year, _month);
+                          _year = next.year;
+                          _month = next.month;
+                        } else if (s.type == DuesType.special) {
+                          _year = s.pinnedDueYear;
+                          _month = s.pinnedDueMonth;
                         }
                       });
                     },
@@ -903,30 +910,34 @@ class _PaymentStatusTabState extends State<_PaymentStatusTab> {
             // ── 기간 선택 ──
             if (isMonthly)
               _MonthSelector(
-                year: _year,
-                month: _month,
-                minMonth: selected.startMonth,
-                maxMonth: selected.endMonth,
-                onChanged: (y, m) => setState(() {
-                  _year = y;
-                  _month = m;
-                  _bulkSelectedIds.clear();
-                }),
+                year: viewYear,
+                month: viewMonth,
+                showPrev: selected.canNavigateDuesPrev(viewYear, viewMonth),
+                showNext: selected.canNavigateDuesNext(viewYear, viewMonth),
+                onChanged: (y, m) {
+                  final dir =
+                      (y * 12 + m).compareTo(viewYear * 12 + viewMonth);
+                  final stepped =
+                      selected.duesNavStep(viewYear, viewMonth, dir);
+                  if (stepped == null) return;
+                  setState(() {
+                    _year = stepped.year;
+                    _month = stepped.month;
+                    _bulkSelectedIds.clear();
+                  });
+                },
               ),
-            if (selected.type == DuesType.special)
-              _YearSelector(
-                year: _year,
-                onChanged: (y) => setState(() {
-                  _year = y;
-                  _bulkSelectedIds.clear();
-                }),
+            if (isSpecial)
+              _MonthSelector(
+                year: viewYear,
+                month: viewMonth,
+                showPrev: false,
+                showNext: false,
               ),
-            if (isMonthly || selected.type == DuesType.special)
-              const SizedBox(height: 14),
+            if (isMonthly || isSpecial) const SizedBox(height: 14),
 
             // ── 납부율 요약 ──
-            if (!isOutOfRange)
-              Container(
+            Container(
                 padding: const EdgeInsets.all(16),
                 decoration: BoxDecoration(
                   color: const Color(0xFFFFFEFC),
@@ -941,10 +952,10 @@ class _PaymentStatusTabState extends State<_PaymentStatusTab> {
                       children: [
                         Text(
                           isMonthly
-                              ? '$_year년 $_month월 납부현황'
+                              ? '$viewYear년 $viewMonth월 납부현황'
                               : isAnnual
                                   ? '납부현황'
-                                  : '$_year년 납부현황',
+                                  : '$viewYear년 $viewMonth월 납부현황',
                           style: const TextStyle(
                               fontSize: 13,
                               fontWeight: FontWeight.bold,
@@ -989,31 +1000,6 @@ class _PaymentStatusTabState extends State<_PaymentStatusTab> {
                               color: AppColors.primary),
                         ),
                       ],
-                    ),
-                  ],
-                ),
-              ),
-
-            if (isOutOfRange)
-              Container(
-                padding: const EdgeInsets.all(16),
-                decoration: BoxDecoration(
-                  color: AppColors.warning.withValues(alpha: 0.08),
-                  borderRadius: BorderRadius.circular(14),
-                  border: Border.all(
-                      color: AppColors.warning.withValues(alpha: 0.3)),
-                ),
-                child: Row(
-                  children: [
-                    const Icon(Icons.calendar_month_outlined,
-                        color: AppColors.warning, size: 20),
-                    const SizedBox(width: 10),
-                    Expanded(
-                      child: Text(
-                        '$_month월은 납부 기간(${selected.startMonth ?? 1}월~${selected.endMonth ?? 12}월) 밖입니다.',
-                        style: const TextStyle(
-                            fontSize: 13, color: AppColors.warning),
-                      ),
                     ),
                   ],
                 ),
@@ -1067,7 +1053,7 @@ class _PaymentStatusTabState extends State<_PaymentStatusTab> {
                               provider,
                               setting: selected,
                               year: viewYear,
-                              month: isMonthly ? _month : null,
+                              month: isMonthly ? viewMonth : null,
                             ),
                             child: const Text('독촉하기',
                                 style: TextStyle(
@@ -1079,7 +1065,7 @@ class _PaymentStatusTabState extends State<_PaymentStatusTab> {
                     ),
                   ),
                   const Divider(height: 1, color: AppColors.divider),
-                  if (widget.isAdmin && !isOutOfRange)
+                  if (widget.isAdmin)
                     Padding(
                       padding: const EdgeInsets.fromLTRB(4, 4, 12, 4),
                       child: Row(
@@ -1157,7 +1143,7 @@ class _PaymentStatusTabState extends State<_PaymentStatusTab> {
                                       members: selectedMembers,
                                       setting: selected,
                                       year: viewYear,
-                                      month: isMonthly ? _month : null,
+                                      month: isMonthly ? viewMonth : null,
                                     );
                                   },
                             style: ElevatedButton.styleFrom(
@@ -1181,7 +1167,7 @@ class _PaymentStatusTabState extends State<_PaymentStatusTab> {
                       memberId: m.id,
                       duesSettingId: selected.id,
                       year: viewYear,
-                      month: isMonthly ? _month : null,
+                      month: isMonthly ? viewMonth : null,
                     );
                     return _MemberPaymentTile(
                       member: m,
@@ -1189,7 +1175,7 @@ class _PaymentStatusTabState extends State<_PaymentStatusTab> {
                       isAdmin: widget.isAdmin,
                       currentUserId: currentUserId,
                       pendingRequest: myRequest,
-                      showBulkCheckbox: widget.isAdmin && !isOutOfRange,
+                      showBulkCheckbox: widget.isAdmin,
                       bulkSelected: _bulkSelectedIds.contains(m.id),
                       bulkEnabled:
                           chip == DuesChip.unpaid && m.status != '탈퇴',
@@ -1203,7 +1189,7 @@ class _PaymentStatusTabState extends State<_PaymentStatusTab> {
                           }
                         });
                       },
-                      onToggle: !canCharge || isOutOfRange
+                      onToggle: !canCharge
                           ? null
                           : () => _showPaymentToggleDialog(
                                 context,
@@ -1212,16 +1198,16 @@ class _PaymentStatusTabState extends State<_PaymentStatusTab> {
                                 paid: paid,
                                 setting: selected,
                                 year: viewYear,
-                                month: isMonthly ? _month : null,
+                                month: isMonthly ? viewMonth : null,
                               ),
-                      onRequestPayment: !canCharge || isOutOfRange
+                      onRequestPayment: !canCharge
                           ? null
                           : () => _showRequestSheet(
                                 context,
                                 provider,
                                 m,
                                 selected,
-                                isMonthly ? _month : null,
+                                isMonthly ? viewMonth : null,
                                 viewYear,
                               ),
                     );
@@ -1661,28 +1647,43 @@ class _PaymentStatusTabState extends State<_PaymentStatusTab> {
 }
 
 // ════════════════════════════════════════════════════════════
-//  월 선택기 (납부 기간 제한 표시)
+//  월 선택기 (기간 끝에서는 화살표를 숨긴다)
 // ════════════════════════════════════════════════════════════
 class _MonthSelector extends StatelessWidget {
   final int year;
   final int month;
-  final int? minMonth;
-  final int? maxMonth;
-  final void Function(int y, int m) onChanged;
+  final bool showPrev;
+  final bool showNext;
+  final void Function(int y, int m)? onChanged;
 
   const _MonthSelector({
     required this.year,
     required this.month,
-    required this.onChanged,
-    this.minMonth,
-    this.maxMonth,
+    this.onChanged,
+    this.showPrev = true,
+    this.showNext = true,
   });
+
+  void _goPrev() {
+    if (onChanged == null) return;
+    if (month == 1) {
+      onChanged!(year - 1, 12);
+    } else {
+      onChanged!(year, month - 1);
+    }
+  }
+
+  void _goNext() {
+    if (onChanged == null) return;
+    if (month == 12) {
+      onChanged!(year + 1, 1);
+    } else {
+      onChanged!(year, month + 1);
+    }
+  }
 
   @override
   Widget build(BuildContext context) {
-    final isOutOfRange = (minMonth != null && month < minMonth!) ||
-        (maxMonth != null && month > maxMonth!);
-
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
       decoration: BoxDecoration(
@@ -1696,80 +1697,44 @@ class _MonthSelector extends StatelessWidget {
           ),
         ],
       ),
-      child: Column(
-        mainAxisSize: MainAxisSize.min,
+      child: Row(
+        mainAxisAlignment: MainAxisAlignment.spaceBetween,
         children: [
-          Row(
-            mainAxisAlignment: MainAxisAlignment.spaceBetween,
-            children: [
-              IconButton(
-                padding: EdgeInsets.zero,
-                constraints:
-                    const BoxConstraints(minWidth: 32, minHeight: 32),
-                icon: const Icon(Icons.chevron_left,
-                    color: AppColors.primary),
-                onPressed: () {
-                  if (month == 1) {
-                    onChanged(year - 1, 12);
-                  } else {
-                    onChanged(year, month - 1);
-                  }
-                },
-              ),
-              Column(
-                children: [
-                  Text(
-                    '$year년 $month월',
-                    style: TextStyle(
-                        fontSize: 15,
-                        fontWeight: FontWeight.bold,
-                        color: isOutOfRange
-                            ? AppColors.textSecondary
-                            : AppColors.textPrimary),
-                  ),
-                  if (minMonth != null || maxMonth != null)
-                    Text(
-                      '납부 기간: ${minMonth ?? 1}월~${maxMonth ?? 12}월',
-                      style: TextStyle(
-                          fontSize: 9,
-                          color: isOutOfRange
-                              ? AppColors.warning
-                              : AppColors.textSecondary),
-                    ),
-                ],
-              ),
-              IconButton(
-                padding: EdgeInsets.zero,
-                constraints:
-                    const BoxConstraints(minWidth: 32, minHeight: 32),
-                icon: const Icon(Icons.chevron_right,
-                    color: AppColors.primary),
-                onPressed: () {
-                  if (month == 12) {
-                    onChanged(year + 1, 1);
-                  } else {
-                    onChanged(year, month + 1);
-                  }
-                },
-              ),
-            ],
+          SizedBox(
+            width: 32,
+            height: 32,
+            child: showPrev
+                ? IconButton(
+                    padding: EdgeInsets.zero,
+                    constraints:
+                        const BoxConstraints(minWidth: 32, minHeight: 32),
+                    icon: const Icon(Icons.chevron_left,
+                        color: AppColors.primary),
+                    onPressed: _goPrev,
+                  )
+                : null,
           ),
-          // 기간 밖 월 경고
-          if (isOutOfRange)
-            Container(
-              margin: const EdgeInsets.only(top: 4),
-              padding:
-                  const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
-              decoration: BoxDecoration(
-                color: AppColors.warning.withValues(alpha: 0.1),
-                borderRadius: BorderRadius.circular(8),
-              ),
-              child: Text(
-                '납부 기간(${minMonth ?? 1}월~${maxMonth ?? 12}월)에 포함되지 않는 달입니다',
-                style:
-                    const TextStyle(fontSize: 10, color: AppColors.warning),
-              ),
-            ),
+          Text(
+            '$year년 $month월',
+            style: const TextStyle(
+                fontSize: 15,
+                fontWeight: FontWeight.bold,
+                color: AppColors.textPrimary),
+          ),
+          SizedBox(
+            width: 32,
+            height: 32,
+            child: showNext
+                ? IconButton(
+                    padding: EdgeInsets.zero,
+                    constraints:
+                        const BoxConstraints(minWidth: 32, minHeight: 32),
+                    icon: const Icon(Icons.chevron_right,
+                        color: AppColors.primary),
+                    onPressed: _goNext,
+                  )
+                : null,
+          ),
         ],
       ),
     );

@@ -90,10 +90,17 @@ void main() {
     );
     expect(tab.contains('if (!isMonthly)'), isFalse,
         reason: '연회비에도 < 2026 > 이 있으면 회비 칩과 연도가 겹친다');
-    expect(tab.contains('selected.type == DuesType.special'), isTrue);
+    expect(tab.contains('_YearSelector('), isFalse,
+        reason: '특별회비는 기준일 그 달만 두고 연도 화살표를 두지 않는다');
+    expect(tab.contains('isSpecial'), isTrue);
     expect(tab.contains('isAnnual'), isTrue);
     expect(tab.contains('viewYear'), isTrue);
     expect(tab.contains("? '납부현황'"), isTrue);
+    expect(tab.contains('canNavigateDuesPrev'), isTrue);
+    expect(tab.contains('canNavigateDuesNext'), isTrue);
+    expect(tab.contains('isMonthInPeriod'), isFalse,
+        reason: '달만 보면 2027년 1월이 납부기간 밖으로 틀린다');
+    expect(tab.contains('납부 기간('), isFalse);
   });
 
   test('잔고 카드는 좌우 1:1이다 (왼쪽이 넓지 않다)', () {
