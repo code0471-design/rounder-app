@@ -1,4 +1,5 @@
 import '../models/club_model.dart';
+import '../utils/member_join_date.dart';
 
 /// ClubProvider 전체 상태 스냅샷
 class ClubDataBundle {
@@ -253,7 +254,8 @@ class ClubDataCodec {
         industry: j['industry'] as String? ?? '기타',
         teamCount: j['teamCount'] as int? ?? 4,
         description: j['description'] as String? ?? '',
-        createdAt: _parseDt(j['createdAt']),
+        createdAt: _parseDt(j['createdAt']) ??
+            MemberJoinDate.createdAtFromClubId(j['id'] as String? ?? ''),
       );
 
   static Map<String, dynamic> encodeJoinRequest(JoinRequest r) =>

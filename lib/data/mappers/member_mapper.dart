@@ -29,7 +29,7 @@ abstract final class MemberMapper {
         memberType: data['member_type'] as String? ?? '정회원',
         role: data['role'] as String? ?? '일반',
         handicap: _asDouble(data['handicap']),
-        joinDate: _asDateTime(data['join_date']) ?? DateTime.now(),
+        joinDate: _asDateTime(data['join_date']) ?? _asDateTime(data['joinDate']),
         leftAt: _asDateTime(data['left_at']) ?? _asDateTime(data['leftAt']),
         address: data['address'] as String?,
         memo: data['memo'] as String?,
@@ -40,7 +40,15 @@ abstract final class MemberMapper {
     }
   }
 
-  static Map<String, dynamic> toMap(Member member) {
+  static bool hasStoredJoinDate(Map<String, dynamic>? data) {
+    if (data == null) return false;
+    return data['join_date'] != null || data['joinDate'] != null;
+  }
+
+  static Map<String, dynamic> toMap(
+    Member member, {
+    bool writeJoinDate = true,
+  }) {
     final photo = (member.photoUrl ?? '').trim();
     final photoFits = photo.isNotEmpty &&
         !(photo.startsWith('data:') &&
@@ -56,7 +64,8 @@ abstract final class MemberMapper {
         'member_type': member.memberType,
         'role': member.role,
         'handicap': member.handicap,
-        'join_date': member.joinDate?.toIso8601String(),
+        if (writeJoinDate && member.joinDate != null)
+          'join_date': member.joinDate!.toIso8601String(),
         'left_at': member.leftAt?.toIso8601String(),
         'address': member.address,
         'memo': member.memo,

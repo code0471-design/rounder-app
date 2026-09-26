@@ -118,10 +118,15 @@ class FirestoreClubDataSource {
         SetOptions(merge: true),
       );
 
-      final memberData = MemberMapper.toMap(creatorMember);
+      final creatorRef = _db.doc(FirestorePaths.clubMemberDoc(club.id, userId));
+      final existingCreator = await creatorRef.get();
+      final memberData = MemberMapper.toMap(
+        creatorMember,
+        writeJoinDate: !MemberMapper.hasStoredJoinDate(existingCreator.data()),
+      );
       memberData['user_id'] = userId;
       batch.set(
-        _db.doc(FirestorePaths.clubMemberDoc(club.id, userId)),
+        creatorRef,
         memberData,
         SetOptions(merge: true),
       );
@@ -335,7 +340,12 @@ class FirestoreClubDataSource {
           _db.doc(FirestorePaths.userMembershipDoc(userId, clubId));
       final clubRef = _db.doc(FirestorePaths.clubDoc(clubId));
 
-      final memberData = MemberMapper.toMap(member);
+      final existingMember = await memberRef.get();
+      final existingMembership = await membershipRef.get();
+      final memberData = MemberMapper.toMap(
+        member,
+        writeJoinDate: !MemberMapper.hasStoredJoinDate(existingMember.data()),
+      );
       memberData['user_id'] = userId;
       if (member.referrerId != null) {
         memberData['referrer_id'] = member.referrerId;
@@ -352,7 +362,7 @@ class FirestoreClubDataSource {
           'club_id': clubId,
           'role': member.role,
           'member_type': member.memberType,
-          'joined_at': FieldValue.serverTimestamp(),
+          if (!existingMembership.exists) 'joined_at': FieldValue.serverTimestamp(),
           'updated_at': FieldValue.serverTimestamp(),
           'via_invite': true,
         },

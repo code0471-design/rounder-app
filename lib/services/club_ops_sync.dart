@@ -10,6 +10,7 @@ import '../domain/services/attendance_seat.dart';
 import '../domain/services/demo_finance_strip.dart';
 import '../domain/services/roster_dedupe.dart';
 import '../models/club_model.dart';
+import '../utils/member_join_date.dart';
 import 'club_data_codec.dart';
 import 'club_ops_overflow.dart';
 import 'member_phone_index.dart';
@@ -1538,6 +1539,18 @@ class ClubOpsSync {
         localPhoto[id] = url;
       }
     }
+    final localByJoin = <String, Map<String, dynamic>>{};
+    final remoteByJoin = <String, Map<String, dynamic>>{};
+    for (final e in local) {
+      if (e is! Map) continue;
+      final id = e['id'] as String?;
+      if (id != null) localByJoin[id] = Map<String, dynamic>.from(e);
+    }
+    for (final e in remote) {
+      if (e is! Map) continue;
+      final id = e['id'] as String?;
+      if (id != null) remoteByJoin[id] = Map<String, dynamic>.from(e);
+    }
     for (final e in merged) {
       if (e is! Map) continue;
       final id = e['id'] as String?;
@@ -1547,6 +1560,10 @@ class ClubOpsSync {
       if (remoteUrl.isEmpty && kept != null) {
         e['photoUrl'] = kept;
       }
+      MemberJoinDate.writeEarlierInto(
+        e,
+        [localByJoin[id], remoteByJoin[id], e],
+      );
     }
     if (_removedMemberIds.isEmpty) return merged;
 

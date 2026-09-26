@@ -2,6 +2,7 @@ import 'package:cloud_firestore/cloud_firestore.dart';
 
 import '../../core/errors/data_exception.dart';
 import '../../models/club_model.dart';
+import '../../utils/member_join_date.dart';
 
 /// Club ↔ Firestore 문서 변환 (UI·Provider와 분리)
 abstract final class ClubMapper {
@@ -41,7 +42,7 @@ abstract final class ClubMapper {
         teamCount: _asInt(data['team_count'] ?? data['teamCount'], fallback: 4),
         description: data['description'] as String? ?? '',
         createdAt: _asDateTime(data['created_at'] ?? data['createdAt']) ??
-            DateTime.now(),
+            MemberJoinDate.createdAtFromClubId(id),
       );
     } catch (e) {
       throw ParseDataException('Failed to parse club $id', cause: e);

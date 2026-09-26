@@ -112,6 +112,8 @@ class FirestoreJoinRequestDataSource {
         ),
       );
 
+      final existingMember = await memberRef.get();
+      final existingMembership = await membershipRef.get();
       final member = Member(
         id: request.userId,
         name: request.userName,
@@ -125,7 +127,10 @@ class FirestoreJoinRequestDataSource {
         joinDate: DateTime.now(),
         status: '활성',
       );
-      final memberData = MemberMapper.toMap(member);
+      final memberData = MemberMapper.toMap(
+        member,
+        writeJoinDate: !MemberMapper.hasStoredJoinDate(existingMember.data()),
+      );
       memberData['user_id'] = request.userId;
       batch.set(memberRef, memberData, SetOptions(merge: true));
 
@@ -134,7 +139,7 @@ class FirestoreJoinRequestDataSource {
         'club_id': clubId,
         'role': role,
         'member_type': memberType,
-        'joined_at': FieldValue.serverTimestamp(),
+        if (!existingMembership.exists) 'joined_at': FieldValue.serverTimestamp(),
         'updated_at': FieldValue.serverTimestamp(),
       }, SetOptions(merge: true));
 

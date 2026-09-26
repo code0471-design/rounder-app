@@ -1,5 +1,6 @@
 import '../../models/club_model.dart';
 import '../../models/member_role.dart';
+import '../../utils/member_join_date.dart';
 
 class RosterDedupeResult {
   final List<Member> members;
@@ -180,6 +181,7 @@ class RosterDedupe {
     if (keep['birthDate'] == null && extra['birthDate'] != null) {
       keep['birthDate'] = extra['birthDate'];
     }
+    MemberJoinDate.writeEarlierInto(keep, [keep, extra]);
   }
 
   static Member mergeMember(Member keep, Member extra) {
@@ -201,7 +203,7 @@ class RosterDedupe {
       role: role,
       memberType: ClubMemberRole.memberTypeForRole(role),
       handicap: keep.handicap ?? extra.handicap,
-      joinDate: keep.joinDate ?? extra.joinDate,
+      joinDate: MemberJoinDate.keepEarlier(keep.joinDate, extra.joinDate),
       leftAt: keep.leftAt ?? extra.leftAt,
       status: keep.status == '탈퇴' || extra.status == '탈퇴'
           ? '탈퇴'

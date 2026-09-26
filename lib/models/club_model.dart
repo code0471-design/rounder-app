@@ -216,6 +216,7 @@ class Club {
     int? teamCount,
     String? description,
     String? creatorId,
+    DateTime? createdAt,
   }) {
     return Club(
       id: id,
@@ -236,7 +237,7 @@ class Club {
       industry: industry ?? this.industry,
       teamCount: teamCount ?? this.teamCount,
       description: description ?? this.description,
-      createdAt: createdAt,
+      createdAt: createdAt ?? this.createdAt,
     );
   }
 }

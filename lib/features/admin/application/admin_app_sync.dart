@@ -384,19 +384,13 @@ abstract final class AdminAppSync {
             m.id.startsWith('m_${c.id}_') ||
             (c.creatorId.isNotEmpty && m.id == c.creatorId);
         if (!belongs) continue;
+        final isCreator = m.id == 'm_creator_${c.id}' ||
+            (c.creatorId.isNotEmpty &&
+                (m.id == c.creatorId ||
+                    m.id == Member.rosterId(c.id, c.creatorId)));
         final withJoin = m.joinDate != null
             ? m
-            : Member(
-                id: m.id,
-                name: m.name,
-                gender: m.gender,
-                phone: m.phone,
-                memberType: m.memberType,
-                role: m.role,
-                handicap: m.handicap,
-                joinDate: c.createdAt,
-                status: m.status,
-              );
+            : (isCreator ? m.copyWith(joinDate: c.createdAt) : m);
         store.addMember(
           clubId: c.id,
           member: withJoin,

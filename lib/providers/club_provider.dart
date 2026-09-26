@@ -34,6 +34,7 @@ import '../services/solapi_service.dart';
 import '../utils/d1_enqueue_policy.dart';
 import '../utils/dues_d1_schedule.dart';
 import '../utils/dues_period_eligibility.dart';
+import '../utils/member_join_date.dart';
 import '../utils/past_schedule_import.dart';
 
 // ════════════════════════════════════════════════════════════
@@ -164,7 +165,7 @@ class ClubProvider extends ChangeNotifier with WidgetsBindingObserver {
       memberType: memberType,
       role: role,
       handicap: inherit?.handicap ?? _accountHandicap,
-      joinDate: joinDate ?? inherit?.joinDate ?? DateTime.now(),
+      joinDate: joinDate ?? inherit?.joinDate,
       status: '활성',
       referrerId: referrerId ?? inherit?.referrerId,
       referrerName: referrerName ?? inherit?.referrerName,
@@ -1802,6 +1803,9 @@ class ClubProvider extends ChangeNotifier with WidgetsBindingObserver {
   @visibleForTesting
   void importBundleForTest(ClubDataBundle b) => _importBundle(b);
 
+  @visibleForTesting
+  void addActivityForTest(ActivityItem item) => _activities.insert(0, item);
+
   Future<void> _mergeRemoteRoster(String clubId, List<Member> remote) async {
     if (clubId.isEmpty || remote.isEmpty) return;
     var creatorUserId = (_clubById(clubId)?.creatorId ?? '').trim();
@@ -2658,6 +2662,7 @@ class ClubProvider extends ChangeNotifier with WidgetsBindingObserver {
     pruneDuplicateRosterRows();
     _scrubSeedAuthorNames();
     _repairCopiedIdentityOnLegacyM1Rows();
+    repairRosterJoinDates();
     _syncSelfDisplayName();
     _backfillMissingAttendancePoints();
   }
@@ -6389,7 +6394,7 @@ class ClubProvider extends ChangeNotifier with WidgetsBindingObserver {
       name: currentUserName,
       memberType: ClubMemberRole.memberTypeForRole(roleEncoded),
       role: roleEncoded,
-      joinDate: DateTime.now(),
+      joinDate: newClub.createdAt,
     );
     _members.add(creatorMember);
     // 방금 만든 모임의 명단 ID(m_creator_<id>)로도 FCM 토큰을 등록한다.
@@ -6516,8 +6521,109 @@ class ClubProvider extends ChangeNotifier with WidgetsBindingObserver {
     }
     if (pruneDuplicateRosterRows()) changed = true;
     if (_repairCopiedIdentityOnLegacyM1Rows()) changed = true;
+    if (repairRosterJoinDates()) changed = true;
     if (changed) _persistImmediately();
     return changed;
+  }
+
+  /// 덮인 가입일을 모임 개설일·실제 초대/승인 근거로 되돌린다.
+  /// 모임장은 개설일. 다른 회원은 있는 값보다 이른 가입 근거만 쓴다.
+  bool repairRosterJoinDates() {
+    var changed = false;
+    for (var i = 0; i < _myClubs.length; i++) {
+      final resolved = MemberJoinDate.resolvedClubCreatedAt(_myClubs[i]);
+      if (resolved != _myClubs[i].createdAt) {
+        _myClubs[i] = _myClubs[i].copyWith(createdAt: resolved);
+        changed = true;
+      }
+    }
+    for (var i = 0; i < _allClubs.length; i++) {
+      final resolved = MemberJoinDate.resolvedClubCreatedAt(_allClubs[i]);
+      if (resolved != _allClubs[i].createdAt) {
+        _allClubs[i] = _allClubs[i].copyWith(createdAt: resolved);
+        changed = true;
+      }
+    }
+    final clubs = <Club>[
+      ..._myClubs,
+      for (final c in _allClubs)
+        if (!_myClubs.any((x) => x.id == c.id)) c,
+    ];
+    for (final club in clubs) {
+      if (_legacyMockClubIds.contains(club.id)) continue;
+      if (SampleClubFilter.isSample(id: club.id, name: club.name)) continue;
+      for (var i = 0; i < _members.length; i++) {
+        final m = _members[i];
+        if (!_memberBelongsToClub(m, club)) continue;
+        final next = MemberJoinDate.repair(
+          member: m,
+          club: club,
+          evidenceAt: _joinDateEvidence(club, m),
+        );
+        if (_sameJoinInstant(m.joinDate, next)) continue;
+        _members[i] = m.copyWith(joinDate: next);
+        changed = true;
+      }
+    }
+    return changed;
+  }
+
+  bool _memberBelongsToClub(Member m, Club club) {
+    return m.id == 'm_creator_${club.id}' ||
+        m.id.startsWith('m_${club.id}_') ||
+        (club.creatorId.isNotEmpty && m.id == club.creatorId);
+  }
+
+  DateTime? _joinDateEvidence(Club club, Member m) {
+    final ids = _identityIdsFor(club, m);
+    DateTime? best;
+    void consider(DateTime? d) {
+      best = MemberJoinDate.keepEarlier(best, d);
+    }
+
+    for (final a in _activities) {
+      if (a.activityType != 'join') continue;
+      if (!ids.contains(a.memberId)) continue;
+      consider(a.timestamp);
+    }
+    for (final r in _joinRequests) {
+      if (r.clubId != club.id) continue;
+      if (r.status != JoinRequestStatus.approved) continue;
+      if (!ids.contains(r.userId) &&
+          !ids.contains(Member.rosterId(club.id, r.userId))) {
+        continue;
+      }
+      consider(r.reviewedAt);
+    }
+    for (final id in ids) {
+      for (final e in _pointEvents[id] ?? const <MembershipPointEvent>[]) {
+        consider(e.date);
+      }
+    }
+    for (final p in _duesPayments) {
+      if (!ids.contains(p.memberId)) continue;
+      consider(p.paidAt);
+    }
+    return best;
+  }
+
+  Set<String> _identityIdsFor(Club club, Member m) {
+    final ids = <String>{m.id};
+    final prefix = 'm_${club.id}_';
+    if (m.id.startsWith(prefix)) {
+      ids.add(m.id.substring(prefix.length));
+    }
+    if (m.id == 'm_creator_${club.id}' && club.creatorId.trim().isNotEmpty) {
+      ids.add(club.creatorId.trim());
+      ids.add(Member.rosterId(club.id, club.creatorId.trim()));
+    }
+    return ids;
+  }
+
+  bool _sameJoinInstant(DateTime? a, DateTime? b) {
+    if (identical(a, b)) return true;
+    if (a == null || b == null) return a == b;
+    return a.toUtc().millisecondsSinceEpoch == b.toUtc().millisecondsSinceEpoch;
   }
 
   /// 내 명단 행에 박힌 데모 이름('홍길동' 등)을 실제 계정 이름으로 되돌린다.
@@ -6846,7 +6952,8 @@ class ClubProvider extends ChangeNotifier with WidgetsBindingObserver {
       name: orphan?.name ?? currentUserName,
       memberType: ClubMemberRole.memberTypeForRole(role),
       role: role,
-      joinDate: orphan?.joinDate ?? DateTime.now(),
+      joinDate: orphan?.joinDate ??
+          (iAmCreator ? club?.createdAt : null),
       referrerId: orphan?.referrerId,
       referrerName: orphan?.referrerName,
       inherit: orphan,
@@ -7587,14 +7694,16 @@ class ClubProvider extends ChangeNotifier with WidgetsBindingObserver {
 
     club ??= await readServerClub();
 
+    final existingRow = _members.where((m) => m.id == rosterId).firstOrNull;
     final member = _selfMember(
       id: rosterId,
       name: userName,
       memberType: memberType,
       role: role,
-      joinDate: DateTime.now(),
+      joinDate: existingRow?.joinDate ?? DateTime.now(),
       referrerId: referrerId,
       referrerName: referrerName,
+      inherit: existingRow,
     );
 
     try {
@@ -8085,8 +8194,10 @@ class ClubProvider extends ChangeNotifier with WidgetsBindingObserver {
 
     // 명단은 신청한 그 모임에만 쌓는다. 총무가 다른 모임을 보고 있어도
     // selectedClub 이 아니라 req.clubId 로 붙인다. 로컬 필터용 rosterId.
+    final rosterId = Member.rosterId(req.clubId, req.userId);
+    final existingRow = _members.where((m) => m.id == rosterId).firstOrNull;
     final newMember = Member(
-      id: Member.rosterId(req.clubId, req.userId),
+      id: rosterId,
       name: req.userName,
       gender: req.userGender,
       memberType: assignedType,
@@ -8095,7 +8206,7 @@ class ClubProvider extends ChangeNotifier with WidgetsBindingObserver {
       phone: req.userPhone,
       photoUrl: req.userPhotoUrl,
       birthDate: req.userBirthDate,
-      joinDate: DateTime.now(),
+      joinDate: existingRow?.joinDate ?? DateTime.now(),
       status: '활성',
       referrerId: req.referrerId,
       referrerName: req.referrerName,
@@ -8524,6 +8635,7 @@ class ClubProvider extends ChangeNotifier with WidgetsBindingObserver {
       phone: inPhone.isNotEmpty ? incoming.phone : local.phone,
       birthDate: incoming.birthDate ?? local.birthDate,
       handicap: incoming.handicap ?? local.handicap,
+      joinDate: MemberJoinDate.keepEarlier(local.joinDate, incoming.joinDate),
     );
   }
 
