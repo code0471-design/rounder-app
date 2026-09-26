@@ -308,6 +308,7 @@ class MemberDetailScreen extends StatelessWidget {
       schedules: provider.schedules,
       clubId: clubId,
       memberId: member.id,
+      joinDate: member.joinDate,
     );
 
     final now = DateTime.now();

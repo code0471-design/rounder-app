@@ -26,10 +26,12 @@ class AttendanceStats {
   static const empty = AttendanceStats(attended: 0, finished: 0);
 
   /// [schedules] 중 [clubId] 모임의 지난 라운딩을 기준으로 [memberId] 참석을 센다.
+  /// [joinDate]가 있으면 그 날부터의 지난 일정만 분모에 넣는다.
   static AttendanceStats forMember({
     required Iterable<RoundSchedule> schedules,
     required String clubId,
     required String memberId,
+    DateTime? joinDate,
   }) {
     if (memberId.isEmpty) return empty;
 
@@ -39,6 +41,7 @@ class AttendanceStats {
       if (s.clubId != clubId) continue;
       if (s.status == ScheduleStatus.cancelled) continue;
       if (!s.isPast) continue;
+      if (!_isOnOrAfterJoin(s.roundDate, joinDate)) continue;
       finished++;
       final came = s.responses.any(
         (r) => r.memberId == memberId && r.response == '참석',
@@ -46,5 +49,12 @@ class AttendanceStats {
       if (came) attended++;
     }
     return AttendanceStats(attended: attended, finished: finished);
+  }
+
+  static bool _isOnOrAfterJoin(DateTime roundDate, DateTime? joinDate) {
+    if (joinDate == null) return true;
+    final r = DateTime(roundDate.year, roundDate.month, roundDate.day);
+    final j = DateTime(joinDate.year, joinDate.month, joinDate.day);
+    return !r.isBefore(j);
   }
 }

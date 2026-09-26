@@ -158,6 +158,39 @@ void main() {
       expect(rate(1, 7).ratePercent, 13); // 12.5 → 13 (round half up)
     });
 
+    test('가입일 이전 지난 일정은 참석률에 넣지 않는다', () {
+      final joined = DateTime.now().subtract(const Duration(days: 20));
+      final beforeJoin = DateTime.now().subtract(const Duration(days: 40));
+      final afterJoin = DateTime.now().subtract(const Duration(days: 10));
+      final stats = AttendanceStats.forMember(
+        schedules: [
+          _schedule(id: 's1', date: beforeJoin, responses: [_res('m1', '불참')]),
+          _schedule(id: 's2', date: afterJoin, responses: [_res('m1', '참석')]),
+          _schedule(id: 's3', date: joined, responses: [_res('m1', '참석')]),
+        ],
+        clubId: 'c1',
+        memberId: 'm1',
+        joinDate: joined,
+      );
+      expect(stats.attended, 2);
+      expect(stats.finished, 2, reason: '가입 전 일정은 분모에서도 뺀다');
+      expect(stats.ratePercent, 100);
+    });
+
+    test('가입일이 없으면 지난 일정을 모두 센다', () {
+      final older = DateTime.now().subtract(const Duration(days: 80));
+      final stats = AttendanceStats.forMember(
+        schedules: [
+          _schedule(id: 's1', date: older, responses: [_res('m1', '불참')]),
+          _schedule(id: 's2', date: past, responses: [_res('m1', '참석')]),
+        ],
+        clubId: 'c1',
+        memberId: 'm1',
+      );
+      expect(stats.finished, 2);
+      expect(stats.attended, 1);
+    });
+
     test('응답을 안 한 지난 라운딩도 분모에 들어간다', () {
       // '지난 일정 기준' 이므로 무응답도 안 간 것으로 본다.
       final stats = AttendanceStats.forMember(
@@ -190,6 +223,8 @@ void main() {
       // 화면이 자체 계산으로 돌아가면 위 규칙이 무력화된다.
       final detail = _read('lib/screens/members/member_detail_screen.dart');
       expect(detail.contains('AttendanceStats.forMember('), isTrue);
+      expect(detail.contains('joinDate: member.joinDate'), isTrue,
+          reason: '가입일 이전 지난 일정이 참석률 분모에 들어가면 안 된다');
       expect(detail.contains('stats.attended'), isTrue);
       expect(detail.contains('총 \${stats.attended}회'), isTrue);
       expect(detail.contains('stats.ratePercent'), isTrue);
