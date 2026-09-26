@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 
+import '../../../domain/services/join_request_service.dart';
 import '../../../models/club_model.dart';
 import '../../../models/member_role.dart';
 import '../../../providers/auth_provider.dart';
@@ -120,6 +121,7 @@ class ClubDetailDashboardScreen extends StatelessWidget {
                       _JoinRequestsCard(
                         pending: pending,
                         controller: controller,
+                        legacyProvider: legacyProvider,
                       ),
                     const SizedBox(height: 32),
                   ],
@@ -354,46 +356,36 @@ class _JoinBar extends StatelessWidget {
                 controller.allowRejoinAfterLeave();
               }
 
-              // Firestore 가입 신청을 우선 — legacy isMyClub 오판으로 조용히 실패하던 문제 방지
-              var ok = await controller.submitJoinRequest(
-                user: user,
+              // 저장·총무 알림함·FCM은 ClubProvider 한 경로만 탄다.
+              final ok = await legacyProvider.submitJoinRequest(
+                clubId: club.id,
                 message: message,
-                allowRejoin: allowRejoin,
+                userId: user.id,
+                userName: user.name,
+                handicap: user.handicap,
               );
-              final pending = controller.myPendingRequest;
-              if (pending != null) {
-                await legacyProvider.publishJoinRequestToOfficer(pending);
-                ok = true;
-              }
-              if (!ok) {
-                final legacyId = ClubProvider.legacyClubIdFor(club.id);
-                final legacyOk = await legacyProvider.submitJoinRequest(
-                  clubId: legacyId,
-                  message: message,
-                  userId: user.id,
-                  userName: user.name,
-                  handicap: user.handicap,
+              if (ok) {
+                final mine = legacyProvider
+                    .pendingRequestsOf(club.id)
+                    .where((r) => r.userId == user.id)
+                    .firstOrNull;
+                controller.markJoinPending(
+                  mine ??
+                      JoinRequest(
+                        id: JoinRequestService.requestId(club.id, user.id),
+                        clubId: club.id,
+                        userId: user.id,
+                        userName: user.name,
+                        userGender: (user.gender != null &&
+                                user.gender!.isNotEmpty)
+                            ? user.gender!
+                            : '남',
+                        userHandicap: user.handicap,
+                        userPhone: user.phone,
+                        message: message,
+                        requestedAt: DateTime.now(),
+                      ),
                 );
-                ok = legacyOk ||
-                    legacyProvider.hasPendingRequest(legacyId) ||
-                    legacyProvider.hasPendingRequest(club.id);
-                if (ok) {
-                  final pending = legacyProvider.pendingRequestsOf(legacyId);
-                  JoinRequest? mine;
-                  for (final r in pending) {
-                    if (r.userId == user.id ||
-                        r.userId == 'user_guest' ||
-                        r.userId == 'mg1') {
-                      mine = r;
-                      break;
-                    }
-                  }
-                  if (mine != null) {
-                    controller.markJoinPending(mine);
-                  } else {
-                    await controller.load(clubId: club.id, userId: user.id);
-                  }
-                }
               }
 
               if (!dialogCtx.mounted) return;
@@ -737,10 +729,12 @@ class _InfoCardState extends State<_InfoCard> {
 class _JoinRequestsCard extends StatelessWidget {
   final List<JoinRequest> pending;
   final ClubDetailController controller;
+  final ClubProvider legacyProvider;
 
   const _JoinRequestsCard({
     required this.pending,
     required this.controller,
+    required this.legacyProvider,
   });
 
   Future<void> _approveWithRole(
@@ -799,12 +793,16 @@ class _JoinRequestsCard extends StatelessWidget {
       ),
     );
     if (confirmed != true || !context.mounted) return;
-    final ok = await controller.approveRequest(
-      request,
+    final ok = await legacyProvider.approveRequest(
+      request.id,
       memberType: role == '게스트' ? '게스트' : '정회원',
       role: role,
-      reviewedBy: reviewer,
+      request: request,
     );
+    if (ok) {
+      final uid = context.read<AuthProvider>().currentUser?.id ?? '';
+      await controller.load(clubId: request.clubId, userId: uid);
+    }
     if (context.mounted && ok) {
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
@@ -859,10 +857,20 @@ class _JoinRequestsCard extends StatelessWidget {
                     onPressed: controller.actionInProgress
                         ? null
                         : () async {
-                            final ok = await controller.rejectRequest(
-                              req,
-                              reviewedBy: reviewer,
+                            final ok = await legacyProvider.rejectRequest(
+                              req.id,
+                              request: req,
                             );
+                            if (ok) {
+                              await controller.load(
+                                clubId: req.clubId,
+                                userId: context
+                                        .read<AuthProvider>()
+                                        .currentUser
+                                        ?.id ??
+                                    '',
+                              );
+                            }
                             if (context.mounted && ok) {
                               ScaffoldMessenger.of(context).showSnackBar(
                                 SnackBar(

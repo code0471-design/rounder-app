@@ -2035,9 +2035,6 @@ class ClubProvider extends ChangeNotifier with WidgetsBindingObserver {
             : currentUserId,
         isRead: false,
       ),
-      hqPushTypeId: HqPushCatalog.joinRequest,
-      notifySelf: true,
-      enqueuePush: false,
     );
   }
 
@@ -5737,6 +5734,15 @@ class ClubProvider extends ChangeNotifier with WidgetsBindingObserver {
   }
 
   bool _canReviewClub(String clubId) {
+    final me = (_persistAuthUserId ?? currentUserId).trim();
+    final officers = _joinOfficersByClub[clubId];
+    if (officers != null) {
+      for (final o in officers) {
+        if (o.userId == me && ClubMemberRole.canApproveJoins(o.role)) {
+          return true;
+        }
+      }
+    }
     final aliases = clubIdAliases(clubId);
     final club = _myClubs.where((c) => aliases.contains(c.id)).firstOrNull ??
         _allClubs.where((c) => aliases.contains(c.id)).firstOrNull;
@@ -5751,7 +5757,7 @@ class ClubProvider extends ChangeNotifier with WidgetsBindingObserver {
     return JoinRequestService.canApprove(
       myRole: club.myRole,
       creatorId: club.creatorId,
-      reviewerId: _persistAuthUserId ?? currentUserId,
+      reviewerId: me,
       memberRole: memberRole,
     );
   }
@@ -5903,22 +5909,25 @@ class ClubProvider extends ChangeNotifier with WidgetsBindingObserver {
     bool notifySelf = false,
     bool enqueuePush = true,
   }) {
-    if (hqPushTypeId != null && !HqPushCatalog.isEnabledSync(hqPushTypeId)) {
-      debugPrint('[Push] skipped disabled $hqPushTypeId');
-      return;
-    }
+    // 가입 신청/결과는 publish·approve 가 고정 id 로 1장만 넣는다.
+    final joinOwned = n.type == AppNotificationType.joinRequest ||
+        n.type == AppNotificationType.joinApproved ||
+        JoinRequestService.isJoinPushType(hqPushTypeId) ||
+        JoinRequestService.isJoinResultPushType(hqPushTypeId);
     _appNotifications.insert(0, n);
     final target = n.targetUserId;
-    if (enqueuePush && target != null && target.isNotEmpty) {
+    if (enqueuePush &&
+        !joinOwned &&
+        target != null &&
+        target.isNotEmpty) {
+      if (hqPushTypeId != null && !HqPushCatalog.isEnabledSync(hqPushTypeId)) {
+        debugPrint('[Push] skipped disabled $hqPushTypeId');
+        notifyListeners();
+        return;
+      }
       final isSelf = _isSelfTarget(target);
       if (!isSelf || notifySelf) {
-        final enqueueId = JoinRequestService.isJoinPushType(hqPushTypeId) ||
-                n.type == AppNotificationType.joinRequest
-            ? JoinRequestService.loginAccountIdOf(
-                clubId: n.clubId,
-                memberOrUserId: target,
-              )
-            : _fcmInboxIdFor(target);
+        final enqueueId = _fcmInboxIdFor(target);
         if (enqueueId.isNotEmpty) {
           unawaited(PushNotificationService.enqueue(
             targetUserId: enqueueId,
@@ -5926,10 +5935,6 @@ class ClubProvider extends ChangeNotifier with WidgetsBindingObserver {
             body: n.body,
             type: hqPushTypeId ?? n.type.name,
             clubId: n.clubId,
-            itemId: (JoinRequestService.isJoinPushType(hqPushTypeId) ||
-                    n.type == AppNotificationType.joinRequest)
-                ? n.targetId
-                : null,
           ));
         }
         if (notifySelf && isSelf) {
@@ -8246,17 +8251,26 @@ class ClubProvider extends ChangeNotifier with WidgetsBindingObserver {
   //  Actions — Approve / Reject Join Request
   // ════════════════════════════════════════════════════════
   /// 가입 승인 — 직책 지정(회장/부회장/총무/정회원/게스트) + 권한 자동 세팅
-  void approveRequest(
+  Future<bool> approveRequest(
     String requestId, {
     String memberType = ClubMemberRole.regular,
     String role = ClubMemberRole.regular,
-  }) {
-    final idx = _joinRequests.indexWhere((r) => r.id == requestId);
-    if (idx == -1) return;
+    JoinRequest? request,
+  }) async {
+    var idx = _joinRequests.indexWhere((r) => r.id == requestId);
+    if (idx == -1 && request != null && request.id == requestId) {
+      _joinRequests.add(request);
+      idx = _joinRequests.length - 1;
+    }
+    if (idx == -1) {
+      debugPrint('[ClubProvider] approveRequest missing $requestId');
+      return false;
+    }
     final req = _joinRequests[idx];
+    await _joinOfficerAccounts(req.clubId);
     if (!_canReviewJoin(req)) {
       debugPrint('[ClubProvider] approveRequest blocked — not an officer');
-      return;
+      return false;
     }
 
     final assignedRole = ClubMemberRole.roleForMemberType(memberType, role);
@@ -8308,11 +8322,15 @@ class ClubProvider extends ChangeNotifier with WidgetsBindingObserver {
       timestamp: DateTime.now(),
     ));
 
-    // 신청자에게 승인 알림 — 누르면 신청한 그 모임으로 들어간다.
+    _appNotifications.removeWhere(
+      (n) =>
+          n.type == AppNotificationType.joinRequest && n.targetId == req.id,
+    );
+
     final club = _allClubs.where((c) => c.id == req.clubId).firstOrNull ??
         _myClubs.where((c) => c.id == req.clubId).firstOrNull;
     final approvedNoti = AppNotification(
-      id: 'noti_approved_${req.id}',
+      id: JoinRequestService.resultInboxItemId(req.id, approved: true),
       type: AppNotificationType.joinApproved,
       clubId: req.clubId,
       clubName: club?.name ?? '모임',
@@ -8320,27 +8338,24 @@ class ClubProvider extends ChangeNotifier with WidgetsBindingObserver {
       body: '${club?.name ?? '모임'} 가입이 승인되었습니다 ($assignedRole)',
       createdAt: DateTime.now(),
       targetId: req.id,
-      targetUserId: _fcmInboxIdFor(req.userId),
+      targetUserId: JoinRequestService.loginAccountIdOf(
+        clubId: req.clubId,
+        memberOrUserId: req.userId,
+      ),
       isRead: false,
     );
-    addAppNotification(
-      approvedNoti,
-      hqPushTypeId: HqPushCatalog.joinResult,
-      notifySelf: false,
-    );
 
-    // 탈퇴 이력 있으면 신청자 계정에서 해제 + 내 모임 복구
     unawaited(_clearLeftClubForApplicant(req.userId, req.clubId));
-
-    unawaited(_persistApprovedJoin(
+    await _persistApprovedJoin(
       request: _joinRequests[idx],
       memberType: assignedType,
       role: assignedRole,
       approvedNoti: approvedNoti,
-    ));
+    );
 
     notifyListeners();
     _persistImmediately();
+    return true;
   }
 
   Future<void> _persistApprovedJoin({
@@ -8365,10 +8380,27 @@ class ClubProvider extends ChangeNotifier with WidgetsBindingObserver {
       debugPrint('[ClubProvider] approve join ops skip: $e');
     }
     try {
-      await ClubOpsSync.appendApplicantInbox(
-        authUserId: request.userId,
-        notification: approvedNoti,
+      final applicant = JoinRequestService.loginAccountIdOf(
+        clubId: request.clubId,
+        memberOrUserId: request.userId,
       );
+      if (applicant.isNotEmpty) {
+        await ClubOpsSync.appendApplicantInbox(
+          authUserId: applicant,
+          notification: approvedNoti,
+        );
+        unawaited(PushNotificationService.enqueue(
+          targetUserId: applicant,
+          title: approvedNoti.title,
+          body: approvedNoti.body,
+          type: HqPushCatalog.joinResult,
+          clubId: request.clubId,
+          itemId: JoinRequestService.resultInboxItemId(
+            request.id,
+            approved: true,
+          ),
+        ));
+      }
     } catch (e) {
       debugPrint('[ClubProvider] approve applicant inbox skip: $e');
     }
@@ -8384,13 +8416,21 @@ class ClubProvider extends ChangeNotifier with WidgetsBindingObserver {
     await _recountOfficialMemberCount(request.clubId);
   }
 
-  void rejectRequest(String requestId) {
-    final idx = _joinRequests.indexWhere((r) => r.id == requestId);
-    if (idx == -1) return;
+  Future<bool> rejectRequest(String requestId, {JoinRequest? request}) async {
+    var idx = _joinRequests.indexWhere((r) => r.id == requestId);
+    if (idx == -1 && request != null && request.id == requestId) {
+      _joinRequests.add(request);
+      idx = _joinRequests.length - 1;
+    }
+    if (idx == -1) {
+      debugPrint('[ClubProvider] rejectRequest missing $requestId');
+      return false;
+    }
     final req = _joinRequests[idx];
+    await _joinOfficerAccounts(req.clubId);
     if (!_canReviewJoin(req)) {
       debugPrint('[ClubProvider] rejectRequest blocked — not an officer');
-      return;
+      return false;
     }
     final rejected = req.copyWith(
       status: JoinRequestStatus.rejected,
@@ -8398,43 +8438,66 @@ class ClubProvider extends ChangeNotifier with WidgetsBindingObserver {
       reviewedAt: DateTime.now(),
     );
     _joinRequests[idx] = rejected;
+    _appNotifications.removeWhere(
+      (n) =>
+          n.type == AppNotificationType.joinRequest && n.targetId == req.id,
+    );
     AppDependencies.instance.mockDataStore
         ?.removePendingJoinRequest(requestId);
     unawaited(SharedJoinRequestStore.remove(requestId));
-    unawaited(() async {
-      try {
-        await AppDependencies.instance.joinRequestRepository.rejectJoinRequest(
-          clubId: rejected.clubId,
-          requestId: rejected.id,
-          reviewedBy: _persistAuthUserId ?? currentUserId,
-        );
-      } catch (e) {
-        debugPrint('[ClubProvider] reject join remote skip: $e');
-      }
-      try {
-        await ClubOpsSync.upsertClubJoinRequest(rejected);
-      } catch (e) {
-        debugPrint('[ClubProvider] reject join ops skip: $e');
-      }
-    }());
+    try {
+      await AppDependencies.instance.joinRequestRepository.rejectJoinRequest(
+        clubId: rejected.clubId,
+        requestId: rejected.id,
+        reviewedBy: _persistAuthUserId ?? currentUserId,
+      );
+    } catch (e) {
+      debugPrint('[ClubProvider] reject join remote skip: $e');
+    }
+    try {
+      await ClubOpsSync.upsertClubJoinRequest(rejected);
+    } catch (e) {
+      debugPrint('[ClubProvider] reject join ops skip: $e');
+    }
     final club = _allClubs.where((c) => c.id == req.clubId).firstOrNull ??
         _myClubs.where((c) => c.id == req.clubId).firstOrNull;
-    _notifyHqPush(
-      typeId: HqPushCatalog.joinResult,
-      userIds: [req.userId],
-      appType: AppNotificationType.announcement,
+    final applicant = JoinRequestService.loginAccountIdOf(
       clubId: req.clubId,
-      clubName: club?.name ?? '모임',
-      vars: {
-        '이름': req.userName,
-        '모임명': club?.name ?? '모임',
-        '결과': '거절',
-      },
-      targetId: req.id,
-      notifySelf: true,
+      memberOrUserId: req.userId,
     );
+    if (applicant.isNotEmpty) {
+      final noti = AppNotification(
+        id: JoinRequestService.resultInboxItemId(req.id, approved: false),
+        type: AppNotificationType.announcement,
+        clubId: req.clubId,
+        clubName: club?.name ?? '모임',
+        title: '가입 거절',
+        body: '${club?.name ?? '모임'} 가입이 거절되었습니다',
+        createdAt: DateTime.now(),
+        targetId: req.id,
+        targetUserId: applicant,
+        isRead: false,
+      );
+      try {
+        await ClubOpsSync.appendApplicantInbox(
+          authUserId: applicant,
+          notification: noti,
+        );
+      } catch (e) {
+        debugPrint('[ClubProvider] reject applicant inbox skip: $e');
+      }
+      unawaited(PushNotificationService.enqueue(
+        targetUserId: applicant,
+        title: noti.title,
+        body: noti.body,
+        type: HqPushCatalog.joinResult,
+        clubId: req.clubId,
+        itemId: noti.id,
+      ));
+    }
     notifyListeners();
     _persistImmediately();
+    return true;
   }
 
   void _updateMemberCount(String clubId, int delta) {

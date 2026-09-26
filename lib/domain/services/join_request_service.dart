@@ -24,6 +24,18 @@ abstract final class JoinRequestService {
     return t == 'joinRequest' || t == 'push_join_request';
   }
 
+  static bool isJoinResultPushType(String? type) {
+    final t = (type ?? '').trim();
+    return t == 'push_join_result' || t == 'joinApproved' || t == 'joinResult';
+  }
+
+  /// 승인/거절 푸시함 문서. 재시도해도 1장.
+  static String resultInboxItemId(String requestId, {required bool approved}) {
+    final id = requestId.trim();
+    if (id.isEmpty) return '';
+    return approved ? '${id}_ok' : '${id}_no';
+  }
+
   static bool canSubmit({
     required bool isMember,
     required bool hasPendingRequest,

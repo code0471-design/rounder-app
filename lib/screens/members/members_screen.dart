@@ -1483,22 +1483,28 @@ class _JoinRequestCardState extends State<_JoinRequestCard> {
                       TextStyle(color: AppColors.textSecondary)),
             ),
             ElevatedButton(
-              onPressed: () {
+              onPressed: () async {
                 final role = ClubMemberRole.roleForMemberType(
                     _memberType, _roleEncoded);
-                widget.provider.approveRequest(
+                final ok = await widget.provider.approveRequest(
                   widget.request.id,
                   memberType:
                       ClubMemberRole.memberTypeForRole(role),
                   role: role,
+                  request: widget.request,
                 );
+                if (!context.mounted) return;
                 Navigator.pop(context);
-                widget.onApproved();
+                if (ok) widget.onApproved();
                 ScaffoldMessenger.of(context).showSnackBar(
                   SnackBar(
                     content: Text(
-                        '${widget.request.userName}님이 $_memberType으로 승인되었습니다'),
-                    backgroundColor: AppColors.primary,
+                      ok
+                          ? '${widget.request.userName}님이 $_memberType으로 승인되었습니다'
+                          : '승인하지 못했습니다. 총무 권한을 확인해 주세요.',
+                    ),
+                    backgroundColor:
+                        ok ? AppColors.primary : AppColors.danger,
                     behavior: SnackBarBehavior.floating,
                   ),
                 );
@@ -1534,14 +1540,21 @@ class _JoinRequestCardState extends State<_JoinRequestCard> {
             child: const Text('취소'),
           ),
           ElevatedButton(
-            onPressed: () {
-              widget.provider.rejectRequest(widget.request.id);
+            onPressed: () async {
+              final ok = await widget.provider.rejectRequest(
+                widget.request.id,
+                request: widget.request,
+              );
+              if (!context.mounted) return;
               Navigator.pop(context);
-              widget.onApproved();
+              if (ok) widget.onApproved();
               ScaffoldMessenger.of(context).showSnackBar(
                 SnackBar(
                   content: Text(
-                      '${widget.request.userName}님의 신청을 거절했습니다'),
+                    ok
+                        ? '${widget.request.userName}님의 신청을 거절했습니다'
+                        : '거절하지 못했습니다. 총무 권한을 확인해 주세요.',
+                  ),
                   backgroundColor: AppColors.danger,
                   behavior: SnackBarBehavior.floating,
                 ),

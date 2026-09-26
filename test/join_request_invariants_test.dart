@@ -20,6 +20,12 @@ void main() {
     expect(src.contains('fetchPendingForClub'), isTrue);
     expect(src.contains('itemId: req.id'), isTrue);
     expect(src.contains('loginAccountIdOf'), isTrue);
+    expect(src.contains('resultInboxItemId'), isTrue);
+    expect(
+      src.contains("joinOwned"),
+      isTrue,
+      reason: '가입 푸시는 publish/approve 한 경로만 큐에 넣는다',
+    );
     expect(src.contains('join officer members skip'), isTrue);
     expect(
       src.contains('if (!hasOfficer)'),
@@ -78,6 +84,17 @@ void main() {
   });
 
   test('푸시/알림 탭 → 회원 탭 3 + openJoinRequests / showJoinRequestsSheet', () {
+    final dash = read(
+      'lib/features/clubs/presentation/club_detail_dashboard_screen.dart',
+    );
+    expect(dash.contains('legacyProvider.submitJoinRequest'), isTrue);
+    expect(
+      dash.contains('controller.submitJoinRequest'),
+      isFalse,
+      reason: '대시보드가 저장과 푸시를 각각 부르면 푸시가 두 번 나간다',
+    );
+    expect(dash.contains('legacyProvider.approveRequest'), isTrue);
+
     final home = read('lib/screens/home/home_screen.dart');
     expect(home.contains('openJoinRequests: openJoins'), isTrue);
     expect(home.contains('initialTab: openJoins ? 3 : 0'), isTrue);

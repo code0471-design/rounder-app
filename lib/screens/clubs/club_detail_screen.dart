@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import '../../models/club_model.dart';
@@ -421,18 +423,25 @@ class _JoinRequestTile extends StatelessWidget {
               child: const Text('취소'),
             ),
             ElevatedButton(
-              onPressed: () {
-                provider.approveRequest(
+              onPressed: () async {
+                final ok = await provider.approveRequest(
                   req.id,
                   memberType: role == '게스트' ? '게스트' : '정회원',
                   role: role,
+                  request: req,
                 );
+                if (!dCtx.mounted) return;
                 Navigator.pop(dCtx);
+                if (!context.mounted) return;
                 ScaffoldMessenger.of(context).showSnackBar(
                   SnackBar(
                     content: Text(
-                        '${req.userName}님을 $role으로 승인했습니다.'),
-                    backgroundColor: AppColors.success,
+                      ok
+                          ? '${req.userName}님을 $role으로 승인했습니다.'
+                          : '승인하지 못했습니다. 총무 권한을 확인해 주세요.',
+                    ),
+                    backgroundColor:
+                        ok ? AppColors.success : AppColors.danger,
                     behavior: SnackBarBehavior.floating,
                     shape: RoundedRectangleBorder(
                         borderRadius: BorderRadius.circular(10)),
@@ -448,7 +457,7 @@ class _JoinRequestTile extends StatelessWidget {
   }
 
   void _reject(BuildContext ctx) {
-    provider.rejectRequest(req.id);
+    unawaited(provider.rejectRequest(req.id, request: req));
     ScaffoldMessenger.of(context).showSnackBar(
       SnackBar(
         content: Text('${req.userName}님의 신청을 거절했습니다.'),

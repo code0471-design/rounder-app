@@ -98,6 +98,14 @@ void main() {
       expect(JoinRequestService.isJoinPushType('joinRequest'), isTrue);
       expect(JoinRequestService.isJoinPushType('push_join_request'), isTrue);
       expect(JoinRequestService.isJoinPushType(''), isFalse);
+      expect(
+        JoinRequestService.resultInboxItemId('jr_c_a_kakao_b', approved: true),
+        'jr_c_a_kakao_b_ok',
+      );
+      expect(
+        JoinRequestService.isJoinResultPushType('push_join_result'),
+        isTrue,
+      );
     });
 
     test('명단 행은 로그인 계정으로만 접고 같은 사람은 한 번만 보낸다', () {
