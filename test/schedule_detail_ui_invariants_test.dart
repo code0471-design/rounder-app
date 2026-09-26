@@ -332,6 +332,9 @@ void main() {
     expect(badge.contains('horizontal: 10, vertical: 6'), isTrue);
     expect(source.contains('calendar_today_outlined'), isFalse);
     expect(source.contains('class _AttendButton'), isTrue);
+    expect(source.contains("selected: display == '불참'"), isFalse,
+        reason: '_AttendButton 시트에 display가 있으면 릴리스 컴파일이 깨진다');
+    expect(source.contains("selected: currentResponse == '불참'"), isTrue);
     expect(source.contains("answered ? currentResponse! : '참석여부를 선택해주세요'"),
         isTrue,
         reason: '미정은 답한 것이 아니라 아직 고르지 않은 상태다');

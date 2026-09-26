@@ -150,6 +150,8 @@ workflows:
             grep -n -A 25 "What went wrong" /tmp/rounder_aab.log || true
             echo "===== FAILURE lines ====="
             grep -n -E "FAILURE:|AAR metadata|Execution failed|error:" /tmp/rounder_aab.log | tail -n 40 || true
+            echo "===== Dart compile ====="
+            grep -n -E "Error:|Error -|Undefined name|lib/.+\.dart:[0-9]+" /tmp/rounder_aab.log | tail -n 40 || true
           fi
           exit $status
     artifacts:

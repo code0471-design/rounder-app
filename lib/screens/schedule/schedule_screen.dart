@@ -869,7 +869,7 @@ class _AttendButton extends StatelessWidget {
                   label: '불참',
                   icon: Icons.cancel_outlined,
                   color: AppColors.danger,
-                  selected: display == '불참',
+                  selected: currentResponse == '불참',
                   onTap: () async {
                     final sheetCtx = context;
                     Navigator.of(sheetCtx, rootNavigator: true).pop();
