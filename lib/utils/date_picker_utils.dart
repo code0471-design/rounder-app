@@ -353,7 +353,9 @@ class _MonthBlock extends StatelessWidget {
   }
 }
 
-/// 오전·오후를 나란히 펼친다. 분은 자리별로 고른다. 시계 다이얼·분 그리드 스크롤 금지.
+/// 갤럭시 알람처럼 오전·시·분을 세로 휠로 고른다. 시계 다이얼·분 그리드 금지.
+const kRounderAlarmWheelExtent = 56.0;
+
 Future<TimeOfDay?> showRounderTimePicker({
   required BuildContext context,
   required TimeOfDay initialTime,
@@ -375,13 +377,13 @@ Future<TimeOfDay?> showRounderTimePicker({
             data: _pickerThemeData(dialogContext),
             child: StatefulBuilder(
               builder: (context, setState) {
-                final tens = minute ~/ 10;
-                final ones = minute % 10;
+                final isPm = isAfternoonHour(hour);
+                final hour12 = hour12From24(hour);
                 return Dialog(
-                  backgroundColor: Colors.white,
+                  backgroundColor: const Color(0xFFF7F7F7),
                   surfaceTintColor: Colors.transparent,
                   insetPadding: const EdgeInsets.symmetric(
-                    horizontal: 20,
+                    horizontal: 28,
                     vertical: 28,
                   ),
                   shape: RoundedRectangleBorder(
@@ -389,88 +391,89 @@ Future<TimeOfDay?> showRounderTimePicker({
                   ),
                   child: ConstrainedBox(
                     constraints: const BoxConstraints(maxWidth: 360),
-                    child: SingleChildScrollView(
-                      child: Padding(
-                        padding: const EdgeInsets.fromLTRB(18, 18, 18, 14),
-                        child: Column(
+                    child: Padding(
+                      padding: const EdgeInsets.fromLTRB(8, 20, 8, 14),
+                      child: Column(
                         mainAxisSize: MainAxisSize.min,
-                        crossAxisAlignment: CrossAxisAlignment.stretch,
                         children: [
                           const Text(
                             '티오프',
                             style: TextStyle(
-                              fontSize: 15,
-                              fontWeight: FontWeight.w600,
-                              color: AppColors.textSecondary,
-                            ),
-                          ),
-                          const SizedBox(height: 6),
-                          Text(
-                            formatTeeTimeKo(hour, minute),
-                            textAlign: TextAlign.center,
-                            style: const TextStyle(
-                              fontSize: 26,
-                              fontWeight: FontWeight.w600,
-                              letterSpacing: -0.4,
-                              color: AppColors.charcoal,
-                              height: 1.15,
-                            ),
-                          ),
-                          const SizedBox(height: 16),
-                          Row(
-                            crossAxisAlignment: CrossAxisAlignment.start,
-                            children: [
-                              Expanded(
-                                child: _HourColumn(
-                                  title: '오전',
-                                  isPm: false,
-                                  selectedHour: hour,
-                                  onSelect: (next) =>
-                                      setState(() => hour = next),
-                                ),
-                              ),
-                              const SizedBox(width: 10),
-                              Expanded(
-                                child: _HourColumn(
-                                  title: '오후',
-                                  isPm: true,
-                                  selectedHour: hour,
-                                  onSelect: (next) =>
-                                      setState(() => hour = next),
-                                ),
-                              ),
-                            ],
-                          ),
-                          const SizedBox(height: 16),
-                          const Text(
-                            '분',
-                            style: TextStyle(
-                              fontSize: 12,
+                              fontSize: 14,
                               fontWeight: FontWeight.w600,
                               color: AppColors.textSecondary,
                             ),
                           ),
                           const SizedBox(height: 8),
-                          _DigitRow(
-                            label: '10분',
-                            values: const [0, 1, 2, 3, 4, 5],
-                            selected: tens,
-                            keyPrefix: 'tee_min_tens',
-                            onSelect: (v) => setState(
-                              () => minute = v * 10 + ones,
+                          SizedBox(
+                            height: kRounderAlarmWheelExtent * 3,
+                            child: Row(
+                              children: [
+                                Expanded(
+                                  flex: 4,
+                                  child: _AlarmWheel(
+                                    key: const Key('tee_period_wheel'),
+                                    labels: const ['오전', '오후'],
+                                    selectedIndex: isPm ? 1 : 0,
+                                    looping: false,
+                                    itemKeys: const [
+                                      Key('tee_period_am'),
+                                      Key('tee_period_pm'),
+                                    ],
+                                    onSelected: (i) => setState(() {
+                                      hour = hour24From12(
+                                        hour12: hour12From24(hour),
+                                        isPm: i == 1,
+                                      );
+                                    }),
+                                  ),
+                                ),
+                                Expanded(
+                                  flex: 3,
+                                  child: _AlarmWheel(
+                                    key: const Key('tee_hour_wheel'),
+                                    labels: [
+                                      for (var h = 1; h <= 12; h++) '$h',
+                                    ],
+                                    selectedIndex: hour12 == 12 ? 11 : hour12 - 1,
+                                    onSelected: (i) => setState(() {
+                                      final next12 = i + 1;
+                                      hour = hour24From12(
+                                        hour12: next12,
+                                        isPm: isAfternoonHour(hour),
+                                      );
+                                    }),
+                                  ),
+                                ),
+                                const SizedBox(
+                                  width: 10,
+                                  child: Text(
+                                    ':',
+                                    textAlign: TextAlign.center,
+                                    style: TextStyle(
+                                      fontSize: 34,
+                                      fontWeight: FontWeight.w700,
+                                      height: 1,
+                                      color: Color(0xFF111111),
+                                    ),
+                                  ),
+                                ),
+                                Expanded(
+                                  flex: 3,
+                                  child: _AlarmWheel(
+                                    key: const Key('tee_min_wheel'),
+                                    labels: [
+                                      for (var m = 0; m <= 59; m++) '$m',
+                                    ],
+                                    selectedIndex: minute,
+                                    onSelected: (i) =>
+                                        setState(() => minute = i),
+                                  ),
+                                ),
+                              ],
                             ),
                           ),
-                          const SizedBox(height: 8),
-                          _DigitRow(
-                            label: '1분',
-                            values: const [0, 1, 2, 3, 4, 5, 6, 7, 8, 9],
-                            selected: ones,
-                            keyPrefix: 'tee_min_ones',
-                            onSelect: (v) => setState(
-                              () => minute = tens * 10 + v,
-                            ),
-                          ),
-                          const SizedBox(height: 18),
+                          const SizedBox(height: 16),
                           Row(
                             children: [
                               Expanded(
@@ -515,7 +518,6 @@ Future<TimeOfDay?> showRounderTimePicker({
                           ),
                         ],
                       ),
-                      ),
                     ),
                   ),
                 );
@@ -528,154 +530,110 @@ Future<TimeOfDay?> showRounderTimePicker({
   );
 }
 
-const _kHour12s = [12, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11];
+class _AlarmWheel extends StatefulWidget {
+  final List<String> labels;
+  final int selectedIndex;
+  final ValueChanged<int> onSelected;
+  final bool looping;
+  final List<Key>? itemKeys;
 
-class _HourColumn extends StatelessWidget {
-  final String title;
-  final bool isPm;
-  final int selectedHour;
-  final ValueChanged<int> onSelect;
-
-  const _HourColumn({
-    required this.title,
-    required this.isPm,
-    required this.selectedHour,
-    required this.onSelect,
+  const _AlarmWheel({
+    super.key,
+    required this.labels,
+    required this.selectedIndex,
+    required this.onSelected,
+    this.looping = true,
+    this.itemKeys,
   });
 
   @override
+  State<_AlarmWheel> createState() => _AlarmWheelState();
+}
+
+class _AlarmWheelState extends State<_AlarmWheel> {
+  static const _loops = 40;
+  late final FixedExtentScrollController _ctrl;
+  late int _index;
+
+  int get _count => widget.labels.length;
+
+  int _base() => widget.looping ? (_loops ~/ 2) * _count : 0;
+
+  @override
+  void initState() {
+    super.initState();
+    _index = widget.selectedIndex.clamp(0, _count - 1);
+    _ctrl = FixedExtentScrollController(initialItem: _base() + _index);
+  }
+
+  @override
+  void didUpdateWidget(covariant _AlarmWheel oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (oldWidget.selectedIndex != widget.selectedIndex) {
+      _index = widget.selectedIndex.clamp(0, _count - 1);
+      final target = _base() + _index;
+      if (_ctrl.hasClients && _ctrl.selectedItem % _count != _index) {
+        _ctrl.jumpToItem(target);
+      }
+    }
+  }
+
+  @override
+  void dispose() {
+    _ctrl.dispose();
+    super.dispose();
+  }
+
+  @override
   Widget build(BuildContext context) {
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.stretch,
-      children: [
-        Text(
-          title,
-          textAlign: TextAlign.center,
-          style: const TextStyle(
-            fontSize: 13,
-            fontWeight: FontWeight.w600,
-            color: AppColors.textSecondary,
-          ),
-        ),
-        const SizedBox(height: 8),
-        GridView.count(
-          shrinkWrap: true,
-          physics: const NeverScrollableScrollPhysics(),
-          crossAxisCount: 3,
-          mainAxisSpacing: 6,
-          crossAxisSpacing: 6,
-          childAspectRatio: 1.35,
-          children: [
-            for (final h12 in _kHour12s)
-              _PickCell(
-                key: Key(isPm ? 'tee_hour_pm_$h12' : 'tee_hour_am_$h12'),
-                label: '$h12',
-                selected: selectedHour ==
-                    hour24From12(hour12: h12, isPm: isPm),
-                onTap: () => onSelect(
-                  hour24From12(hour12: h12, isPm: isPm),
+    final itemCount = widget.looping ? _count * _loops : _count;
+    return ListWheelScrollView.useDelegate(
+      controller: _ctrl,
+      itemExtent: kRounderAlarmWheelExtent,
+      perspective: 0.002,
+      diameterRatio: 8,
+      physics: const FixedExtentScrollPhysics(),
+      onSelectedItemChanged: (i) {
+        final next = i % _count;
+        if (next == _index) return;
+        setState(() => _index = next);
+        widget.onSelected(next);
+      },
+      childDelegate: ListWheelChildBuilderDelegate(
+        childCount: itemCount,
+        builder: (context, i) {
+          final value = i % _count;
+          final selected = value == _index;
+          final label = widget.labels[value];
+          final itemKey = widget.itemKeys != null && i < _count
+              ? widget.itemKeys![value]
+              : null;
+          return GestureDetector(
+            key: itemKey,
+            behavior: HitTestBehavior.opaque,
+            onTap: () {
+              if (value == _index) return;
+              _ctrl.animateToItem(
+                widget.looping ? _base() + value : value,
+                duration: const Duration(milliseconds: 180),
+                curve: Curves.easeOut,
+              );
+            },
+            child: Center(
+              child: Text(
+                label,
+                style: TextStyle(
+                  fontSize: selected ? 34 : 26,
+                  fontWeight: selected ? FontWeight.w700 : FontWeight.w400,
+                  height: 1,
+                  color: selected
+                      ? const Color(0xFF111111)
+                      : const Color(0xFFC4C4C4),
                 ),
               ),
-          ],
-        ),
-      ],
-    );
-  }
-}
-
-class _DigitRow extends StatelessWidget {
-  final String label;
-  final List<int> values;
-  final int selected;
-  final String keyPrefix;
-  final ValueChanged<int> onSelect;
-
-  const _DigitRow({
-    required this.label,
-    required this.values,
-    required this.selected,
-    required this.keyPrefix,
-    required this.onSelect,
-  });
-
-  @override
-  Widget build(BuildContext context) {
-    return Row(
-      children: [
-        SizedBox(
-          width: 36,
-          child: Text(
-            label,
-            style: const TextStyle(
-              fontSize: 12,
-              fontWeight: FontWeight.w500,
-              color: AppColors.textTertiary,
             ),
-          ),
-        ),
-        Expanded(
-          child: Wrap(
-            spacing: 4,
-            runSpacing: 4,
-            children: [
-              for (final v in values)
-                _PickCell(
-                  key: Key('${keyPrefix}_$v'),
-                  label: '$v',
-                  selected: selected == v,
-                  compact: true,
-                  onTap: () => onSelect(v),
-                ),
-            ],
-          ),
-        ),
-      ],
-    );
-  }
-}
-
-class _PickCell extends StatelessWidget {
-  final String label;
-  final bool selected;
-  final bool compact;
-  final VoidCallback onTap;
-
-  const _PickCell({
-    super.key,
-    required this.label,
-    required this.selected,
-    required this.onTap,
-    this.compact = false,
-  });
-
-  @override
-  Widget build(BuildContext context) {
-    final radius = BorderRadius.circular(compact ? 8 : 10);
-    return Material(
-      color: selected ? AppColors.charcoal : const Color(0xFFF7F6F1),
-      borderRadius: radius,
-      child: InkWell(
-        onTap: onTap,
-        borderRadius: radius,
-        child: Container(
-          width: compact ? 28 : null,
-          height: compact ? 32 : null,
-          alignment: Alignment.center,
-          decoration: BoxDecoration(
-            borderRadius: radius,
-            border: Border.all(
-              color: selected ? AppColors.charcoal : const Color(0xFFE4E2D8),
-            ),
-          ),
-          child: Text(
-            label,
-            style: TextStyle(
-              fontSize: compact ? 13 : 14,
-              fontWeight: selected ? FontWeight.w600 : FontWeight.w500,
-              color: selected ? Colors.white : AppColors.textPrimary,
-            ),
-          ),
-        ),
+          );
+        },
       ),
     );
   }

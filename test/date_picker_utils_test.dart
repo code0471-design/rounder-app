@@ -73,10 +73,14 @@ void main() {
     expect(source.contains('itemCount: 60'), isFalse,
         reason: '60칸 분 그리드 스크롤은 쓰지 않는다');
     expect(source.contains('tee_minute_grid'), isFalse);
-    expect(source.contains("'10분'"), isTrue);
-    expect(source.contains("'1분'"), isTrue);
-    expect(source.contains('tee_hour_am_'), isTrue);
-    expect(source.contains('tee_hour_pm_'), isTrue);
+    expect(source.contains('ListWheelScrollView'), isTrue);
+    expect(source.contains('class _AlarmWheel'), isTrue);
+    expect(source.contains("'10분'"), isFalse,
+        reason: '분은 자리 칩이 아니라 알람 휠이다');
+    expect(source.contains("'1분'"), isFalse);
+    expect(source.contains('tee_hour_am_'), isFalse);
+    expect(source.contains('tee_hour_pm_'), isFalse);
+    expect(source.contains('GridView.count'), isFalse);
     expect(
       source.contains('[0, 10, 20, 30, 40, 50]'),
       isFalse,
@@ -116,7 +120,7 @@ void main() {
     expect(find.text('${now.day}'), findsWidgets);
   });
 
-  testWidgets('시간 선택은 오전 오후를 바꾸고 분은 그대로 고른다', (tester) async {
+  testWidgets('시간 선택은 알람 휠에서 오전 오후와 분을 고른다', (tester) async {
     TimeOfDay? picked;
     await tester.pumpWidget(
       MaterialApp(
@@ -136,17 +140,19 @@ void main() {
     await tester.tap(find.text('open'));
     await tester.pumpAndSettle();
 
-    expect(find.text('오전 7:30'), findsOneWidget);
+    expect(find.byType(ListWheelScrollView), findsNWidgets(3));
     expect(find.text('오전'), findsWidgets);
     expect(find.text('오후'), findsWidgets);
-    expect(find.byKey(const Key('tee_hour_am_7')), findsOneWidget);
-    expect(find.byKey(const Key('tee_hour_pm_7')), findsOneWidget);
-    await tester.tap(find.byKey(const Key('tee_hour_pm_7')));
-    await tester.pump();
-    expect(find.text('오후 7:30'), findsOneWidget);
-    await tester.tap(find.byKey(const Key('tee_min_ones_6')));
-    await tester.pump();
-    expect(find.text('오후 7:36'), findsOneWidget);
+    expect(find.text('7'), findsWidgets);
+    expect(find.text('30'), findsWidgets);
+
+    await tester.tap(find.byKey(const Key('tee_period_pm')));
+    await tester.pumpAndSettle();
+    await tester.drag(
+      find.byKey(const Key('tee_min_wheel')),
+      Offset(0, -kRounderAlarmWheelExtent * 6),
+    );
+    await tester.pumpAndSettle();
 
     await tester.tap(find.text('확인'));
     await tester.pumpAndSettle();
