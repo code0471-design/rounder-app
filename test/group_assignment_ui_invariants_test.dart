@@ -54,6 +54,15 @@ void main() {
     expect(source.contains("compact ? 15 : 17"), isTrue);
   });
 
+  test('팀 수·방식·자동배정은 홈과 같은 굵기 테두리 카드다', () {
+    expect(source.contains('_groupSectionCard()'), isTrue);
+    expect(source.contains('Color(0xFF9CA3AF)'), isTrue);
+    expect(source.contains('width: 1.5'), isTrue);
+    expect(source.contains("border: Border.all(color: const Color(0xFFE5E7EB))"),
+        isFalse,
+        reason: '연한 테두리면 카드가 글씨 나열처럼 보인다');
+  });
+
   test('헤더 일정명이 본문보다 크고 자동배정 글자는 스케일된다', () {
     expect(source.contains('schedule.displayTitle'), isTrue);
     expect(source.contains('fontSize: 16'), isTrue);

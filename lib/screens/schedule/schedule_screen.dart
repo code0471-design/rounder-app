@@ -5047,8 +5047,8 @@ class _GroupViewBannerCard extends StatelessWidget {
           borderRadius: BorderRadius.circular(16),
           // 다른 카드와 같은 테두리·그림자. 조편성만 튀지 않게 한다.
           border: Border.all(
-            color: isFinalized ? AppColors.goldDeep : AppColors.divider,
-            width: isFinalized ? 1.5 : 1,
+            color: AppColors.cardLine,
+            width: 1.5,
           ),
           boxShadow: [
             BoxShadow(

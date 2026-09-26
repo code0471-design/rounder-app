@@ -562,6 +562,14 @@ class _GroupAssignmentScreenState extends State<GroupAssignmentScreen> {
   }
 }
 
+const Color _kGroupCardLine = Color(0xFF9CA3AF);
+
+BoxDecoration _groupSectionCard() => BoxDecoration(
+      color: Colors.white,
+      borderRadius: BorderRadius.circular(16),
+      border: Border.all(color: _kGroupCardLine, width: 1.5),
+    );
+
 // ─────────────────────────────────────────────
 //  조편성 방식 3가지 선택
 // ─────────────────────────────────────────────
@@ -576,8 +584,10 @@ class _ModeSelector extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return Padding(
-      padding: const EdgeInsets.fromLTRB(14, 10, 14, 4),
+    return Container(
+      margin: const EdgeInsets.fromLTRB(14, 10, 14, 4),
+      padding: const EdgeInsets.fromLTRB(14, 14, 14, 8),
+      decoration: _groupSectionCard(),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
@@ -617,8 +627,8 @@ class _ModeSelector extends StatelessWidget {
                       border: Border.all(
                         color: isSelected
                             ? AppColors.primary
-                            : const Color(0xFFE5E7EB),
-                        width: isSelected ? 1.8 : 1,
+                            : _kGroupCardLine,
+                        width: isSelected ? 1.8 : 1.2,
                       ),
                     ),
                     child: Row(
@@ -707,11 +717,7 @@ class _TeamCountPanel extends StatelessWidget {
     return Container(
       margin: const EdgeInsets.fromLTRB(14, 10, 14, 0),
       padding: const EdgeInsets.fromLTRB(14, 12, 14, 12),
-      decoration: BoxDecoration(
-        color: Colors.white,
-        borderRadius: BorderRadius.circular(14),
-        border: Border.all(color: const Color(0xFFE5E7EB)),
-      ),
+      decoration: _groupSectionCard(),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
@@ -797,11 +803,7 @@ class _AutoOptionsPanel extends StatelessWidget {
           Container(
             width: double.infinity,
             padding: const EdgeInsets.fromLTRB(14, 14, 14, 12),
-            decoration: BoxDecoration(
-              color: Colors.white,
-              borderRadius: BorderRadius.circular(14),
-              border: Border.all(color: const Color(0xFFE5E7EB)),
-            ),
+            decoration: _groupSectionCard(),
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [

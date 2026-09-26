@@ -24,10 +24,17 @@ void main() {
         reason: '참석현황은 흰 하단이고 파란 바탕이 아니다');
     expect(
       room.contains(
-        'left: BorderSide(color: Color(0xFF3B6FE0), width: 1.5)',
+        'border: Border.all(color: const Color(0xFF3B6FE0), width: 1.5)',
       ),
       isTrue,
-      reason: '참석현황 흰 하단의 테두리는 파랑이다',
+      reason: '다음 일정+참석 한 카드의 테두리는 모서리까지 파랑이다',
+    );
+    expect(
+      room.contains(
+        'left: BorderSide(color: Color(0xFF3B6FE0), width: 1.5)',
+      ),
+      isFalse,
+      reason: '좌우하만 그리면 아래 모서리가 잘린다',
     );
     expect(room.contains('ClipRRect('), isTrue);
     expect(
@@ -88,6 +95,9 @@ void main() {
     expect(room.contains("'팀수 \${nextSchedule.teamCount}'"), isTrue);
     expect(room.contains('formatStoredTeeTimeKo(nextSchedule.teeTime)'), isTrue);
     expect(room.contains('월 \${date.day}일 · \$tee'), isTrue);
+    expect(room.contains('                      when,'), isTrue,
+        reason: '장소와 시간을 한 줄에 넣으면 시간이 잘린다');
+    expect(room.contains(r"'$place · $when'"), isFalse);
   });
 
   test('일정 없는 홈 카드는 크게, 부제와 등록 버튼까지 보여 준다', () {

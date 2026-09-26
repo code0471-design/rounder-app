@@ -1080,7 +1080,17 @@ class ClubHomeTab extends StatelessWidget {
                     ),
                     const SizedBox(height: 6),
                     Text(
-                      '$place · $when',
+                      place,
+                      style: const TextStyle(
+                          color: Color(0xFFD4DCF0),
+                          fontSize: 13,
+                          fontWeight: FontWeight.w500),
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                    ),
+                    const SizedBox(height: 2),
+                    Text(
+                      when,
                       style: const TextStyle(
                           color: Color(0xFFD4DCF0),
                           fontSize: 13,
@@ -1154,6 +1164,7 @@ class ClubHomeTab extends StatelessWidget {
     return DecoratedBox(
       decoration: BoxDecoration(
         borderRadius: BorderRadius.circular(16),
+        border: Border.all(color: const Color(0xFF3B6FE0), width: 1.5),
         boxShadow: [
           BoxShadow(
             color: const Color(0xFF16368F).withValues(alpha: 0.16),
@@ -1163,7 +1174,7 @@ class ClubHomeTab extends StatelessWidget {
         ],
       ),
       child: ClipRRect(
-        borderRadius: BorderRadius.circular(16),
+        borderRadius: BorderRadius.circular(14.5),
         child: Column(
           children: [
             Material(
@@ -1287,11 +1298,7 @@ class _AttendanceCard extends StatelessWidget {
                   ? BorderRadius.zero
                   : BorderRadius.circular(16),
               border: embedded
-                  ? const Border(
-                      left: BorderSide(color: Color(0xFF3B6FE0), width: 1.5),
-                      right: BorderSide(color: Color(0xFF3B6FE0), width: 1.5),
-                      bottom: BorderSide(color: Color(0xFF3B6FE0), width: 1.5),
-                    )
+                  ? null
                   : Border.all(color: _kHomeCardBorder, width: 1.5),
             ),
             child: Column(
