@@ -1167,9 +1167,19 @@ class ClubHomeTab extends StatelessWidget {
         border: Border.all(color: const Color(0xFF3B6FE0), width: 1.5),
         boxShadow: [
           BoxShadow(
-            color: const Color(0xFF16368F).withValues(alpha: 0.16),
+            color: Colors.black.withValues(alpha: 0.20),
+            blurRadius: 4,
+            offset: const Offset(0, 2),
+          ),
+          BoxShadow(
+            color: const Color(0xFF16368F).withValues(alpha: 0.34),
             blurRadius: 18,
-            offset: const Offset(0, 6),
+            offset: const Offset(0, 10),
+          ),
+          BoxShadow(
+            color: Colors.black.withValues(alpha: 0.14),
+            blurRadius: 32,
+            offset: const Offset(0, 16),
           ),
         ],
       ),
