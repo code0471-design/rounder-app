@@ -177,6 +177,50 @@ void main() {
       expect(stats.ratePercent, 100);
     });
 
+    test('지난 일정 내 결과는 미답변을 불참, 가입 전을 가입전으로 본다', () {
+      final joined = DateTime(2026, 6, 1);
+      expect(
+        AttendanceStats.pastMyLabel(
+          roundDate: DateTime(2026, 5, 10),
+          joinDate: joined,
+          response: '참석',
+        ),
+        '가입전',
+      );
+      expect(
+        AttendanceStats.pastMyLabel(
+          roundDate: DateTime(2026, 6, 1),
+          joinDate: joined,
+          response: '참석',
+        ),
+        '참석',
+      );
+      expect(
+        AttendanceStats.pastMyLabel(
+          roundDate: DateTime(2026, 7, 1),
+          joinDate: joined,
+          response: null,
+        ),
+        '불참',
+      );
+      expect(
+        AttendanceStats.pastMyLabel(
+          roundDate: DateTime(2026, 7, 1),
+          joinDate: joined,
+          response: '미정',
+        ),
+        '불참',
+      );
+      expect(
+        AttendanceStats.pastMyLabel(
+          roundDate: DateTime(2026, 7, 1),
+          joinDate: joined,
+          response: '불참',
+        ),
+        '불참',
+      );
+    });
+
     test('가입일이 없으면 지난 일정을 모두 센다', () {
       final older = DateTime.now().subtract(const Duration(days: 80));
       final stats = AttendanceStats.forMember(

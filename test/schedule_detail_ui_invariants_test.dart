@@ -342,6 +342,11 @@ void main() {
     expect(source.contains("responded ? currentResponse! : '응답하기'"), isFalse);
     expect(source.contains('_ScheduleDateTile(date: d, isPast: false)'), isTrue,
         reason: '지난 일정도 예정과 같은 네이비 날짜 타일');
+    expect(source.contains('class _PastMyAttendBadge'), isTrue);
+    expect(source.contains('AttendanceStats.pastMyLabel'), isTrue);
+    expect(source.contains("'가입전'"), isTrue);
+    expect(source.contains('if (!isPast) _buildMyResponseCard'), isFalse,
+        reason: '지난 일정도 내 참석·불참·가입전을 보여야 한다');
     expect(
       source.contains("color: isPast ? AppColors.inkSoft : AppColors.ink,"),
       isFalse,

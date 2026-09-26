@@ -13,6 +13,7 @@ import '../../widgets/ad_banner.dart';
 import '../../widgets/golf_course_field.dart';
 import '../../utils/reservation_sms_parser.dart';
 import '../../utils/date_picker_utils.dart';
+import '../../domain/services/attendance_stats.dart';
 import '../../widgets/reservation_sms_fill_banner.dart';
 import 'past_schedule_import_screen.dart';
 
@@ -475,6 +476,15 @@ class _ScheduleCard extends StatelessWidget {
                           currentResponse:
                               prov.myResponse(schedule.id)?.response,
                         ),
+                      ] else ...[
+                        const SizedBox(width: 8),
+                        _PastMyAttendBadge(
+                          label: AttendanceStats.pastMyLabel(
+                            roundDate: latest.roundDate,
+                            joinDate: prov.currentMember?.joinDate,
+                            response: prov.myResponse(latest.id)?.response,
+                          ),
+                        ),
                       ],
                     ],
                   );
@@ -609,6 +619,43 @@ class _AttChip2 extends StatelessWidget {
         '$label $count',
         style: TextStyle(
             fontSize: 11, fontWeight: FontWeight.w700, color: color),
+      ),
+    );
+  }
+}
+
+class _PastMyAttendBadge extends StatelessWidget {
+  final String label;
+  const _PastMyAttendBadge({required this.label});
+
+  @override
+  Widget build(BuildContext context) {
+    final isAttend = label == '참석';
+    final isDecline = label == '불참';
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
+      decoration: BoxDecoration(
+        color: isAttend ? const Color(0xFF111827) : Colors.white,
+        borderRadius: BorderRadius.circular(10),
+        border: isAttend
+            ? null
+            : Border.all(
+                color: isDecline
+                    ? const Color(0xFFE53935)
+                    : const Color(0xFF9CA3AF),
+              ),
+      ),
+      child: Text(
+        label,
+        style: TextStyle(
+          fontSize: 13,
+          fontWeight: FontWeight.w800,
+          color: isAttend
+              ? Colors.white
+              : isDecline
+                  ? const Color(0xFFE53935)
+                  : const Color(0xFF6B7280),
+        ),
       ),
     );
   }
@@ -822,7 +869,7 @@ class _AttendButton extends StatelessWidget {
                   label: '불참',
                   icon: Icons.cancel_outlined,
                   color: AppColors.danger,
-                  selected: currentResponse == '불참',
+                  selected: display == '불참',
                   onTap: () async {
                     final sheetCtx = context;
                     Navigator.of(sheetCtx, rootNavigator: true).pop();
@@ -1348,9 +1395,14 @@ class ScheduleDetailScreen extends StatelessWidget {
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
                       // ── ① 내 응답 상태 카드 (최상단) ──
-                      if (!isPast) _buildMyResponseCard(context, provider, myRes),
+                      _buildMyResponseCard(
+                        context,
+                        provider,
+                        myRes,
+                        isPast: isPast,
+                      ),
 
-                      if (!isPast) const SizedBox(height: 16),
+                      const SizedBox(height: 16),
 
                       // ── ② 홀인원보험 배너 (런칭 광고 OFF — 복구 금지)
                       // if (!isPast) _InsuranceBannerCard(schedule: schedule),
@@ -1401,16 +1453,26 @@ class ScheduleDetailScreen extends StatelessWidget {
   }
 
   Widget _buildMyResponseCard(
-      BuildContext context, ClubProvider provider, AttendanceResponse? myRes) {
-    final responded = myRes != null;
+      BuildContext context, ClubProvider provider, AttendanceResponse? myRes,
+      {required bool isPast}) {
     final currentResponse = myRes?.response;
-    final statusColor = !responded
-        ? AppColors.textTertiary
-        : currentResponse == '참석'
-            ? AppColors.goldDeep
-            : currentResponse == '불참'
-                ? AppColors.danger
-                : AppColors.textTertiary;
+    final display = isPast
+        ? AttendanceStats.pastMyLabel(
+            roundDate: schedule.roundDate,
+            joinDate: provider.currentMember?.joinDate,
+            response: currentResponse,
+          )
+        : ((currentResponse == null || currentResponse == '미정')
+            ? '참석여부를 선택해주세요'
+            : currentResponse!);
+    final responded = isPast
+        ? display == '참석' || display == '불참' || display == '가입전'
+        : currentResponse == '참석' || currentResponse == '불참';
+    final statusColor = display == '참석'
+        ? AppColors.goldDeep
+        : display == '불참'
+            ? AppColors.danger
+            : AppColors.textTertiary;
 
     return Container(
       padding: const EdgeInsets.fromLTRB(16, 14, 14, 14),
@@ -1437,9 +1499,9 @@ class ScheduleDetailScreen extends StatelessWidget {
             ),
             child: Icon(
               responded
-                  ? (currentResponse == '참석'
+                  ? (display == '참석'
                       ? Icons.check_circle
-                      : currentResponse == '불참'
+                      : display == '불참'
                           ? Icons.cancel
                           : Icons.help)
                   : Icons.check_circle_outline,
@@ -1463,9 +1525,7 @@ class ScheduleDetailScreen extends StatelessWidget {
               ),
               const SizedBox(height: 2),
               Text(
-                (!responded || currentResponse == '미정')
-                    ? '참석여부를 선택해주세요'
-                    : currentResponse!,
+                display,
                 style: TextStyle(
                   fontSize: 15,
                   fontWeight: FontWeight.w800,
@@ -1475,6 +1535,7 @@ class ScheduleDetailScreen extends StatelessWidget {
             ],
           ),
           ),
+          if (!isPast)
           Row(
             mainAxisSize: MainAxisSize.min,
             children: ['참석', '불참'].map((label) {

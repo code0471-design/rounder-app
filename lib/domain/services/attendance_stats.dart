@@ -51,6 +51,17 @@ class AttendanceStats {
     return AttendanceStats(attended: attended, finished: finished);
   }
 
+  /// 지난 일정에서 내 결과. 미답변·미정은 불참, 가입 전은 가입전.
+  static String pastMyLabel({
+    required DateTime roundDate,
+    DateTime? joinDate,
+    String? response,
+  }) {
+    if (!_isOnOrAfterJoin(roundDate, joinDate)) return '가입전';
+    if (response == '참석') return '참석';
+    return '불참';
+  }
+
   static bool _isOnOrAfterJoin(DateTime roundDate, DateTime? joinDate) {
     if (joinDate == null) return true;
     final r = DateTime(roundDate.year, roundDate.month, roundDate.day);
