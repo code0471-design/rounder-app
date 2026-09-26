@@ -2,6 +2,7 @@ import 'package:cloud_firestore/cloud_firestore.dart';
 
 import '../../../core/errors/data_exception.dart';
 import '../../../core/firebase/firestore_paths.dart';
+import '../../../domain/services/join_request_service.dart';
 import '../../../models/club_model.dart';
 import '../../mappers/join_request_mapper.dart';
 import '../../mappers/member_mapper.dart';
@@ -18,13 +19,25 @@ class FirestoreJoinRequestDataSource {
 
   Future<List<JoinRequest>> fetchPendingForClub(String clubId) async {
     try {
-      final snap = await _requests(clubId)
-          .where('status', isEqualTo: JoinRequestStatus.pending.name)
-          .orderBy('requested_at', descending: true)
-          .get();
-      return snap.docs
-          .map((d) => JoinRequestMapper.fromFirestore(d, clubId: clubId))
-          .toList();
+      final pending = JoinRequestStatus.pending.name;
+      try {
+        final snap = await _requests(clubId)
+            .where('status', isEqualTo: pending)
+            .orderBy('requested_at', descending: true)
+            .get();
+        return snap.docs
+            .map((d) => JoinRequestMapper.fromFirestore(d, clubId: clubId))
+            .toList();
+      } on FirebaseException catch (e) {
+        if (e.code != 'failed-precondition') rethrow;
+        final snap =
+            await _requests(clubId).where('status', isEqualTo: pending).get();
+        final list = snap.docs
+            .map((d) => JoinRequestMapper.fromFirestore(d, clubId: clubId))
+            .toList();
+        list.sort((a, b) => b.requestedAt.compareTo(a.requestedAt));
+        return list;
+      }
     } on FirebaseException catch (e) {
       throw NetworkDataException('가입 신청 목록 조회 실패', cause: e);
     }
@@ -35,13 +48,28 @@ class FirestoreJoinRequestDataSource {
     String userId,
   ) async {
     try {
-      final snap = await _requests(clubId)
-          .where('user_id', isEqualTo: userId)
-          .where('status', isEqualTo: JoinRequestStatus.pending.name)
-          .limit(1)
-          .get();
-      if (snap.docs.isEmpty) return null;
-      return JoinRequestMapper.fromFirestore(snap.docs.first, clubId: clubId);
+      final id = JoinRequestService.requestId(clubId, userId);
+      if (id.isNotEmpty) {
+        final doc = await _requests(clubId).doc(id).get();
+        if (doc.exists) {
+          final mapped =
+              JoinRequestMapper.fromFirestore(doc, clubId: clubId);
+          if (mapped.status == JoinRequestStatus.pending) return mapped;
+          return null;
+        }
+      }
+      try {
+        final snap = await _requests(clubId)
+            .where('user_id', isEqualTo: userId)
+            .where('status', isEqualTo: JoinRequestStatus.pending.name)
+            .limit(1)
+            .get();
+        if (snap.docs.isEmpty) return null;
+        return JoinRequestMapper.fromFirestore(snap.docs.first, clubId: clubId);
+      } on FirebaseException catch (e) {
+        if (e.code != 'failed-precondition') rethrow;
+        return null;
+      }
     } on FirebaseException catch (e) {
       throw NetworkDataException('내 가입 신청 조회 실패', cause: e);
     }
@@ -60,13 +88,22 @@ class FirestoreJoinRequestDataSource {
     String? requestId,
   }) async {
     try {
-      final existing = await fetchPendingForUser(clubId, userId);
-      if (existing != null) {
-        throw const NetworkDataException('이미 가입 신청 중입니다');
+      final id = (requestId != null && requestId.trim().isNotEmpty)
+          ? requestId.trim()
+          : JoinRequestService.requestId(clubId, userId);
+      if (id.isNotEmpty) {
+        final existingDoc = await _requests(clubId).doc(id).get();
+        if (existingDoc.exists) {
+          final existing =
+              JoinRequestMapper.fromFirestore(existingDoc, clubId: clubId);
+          if (existing.status == JoinRequestStatus.pending) {
+            return existingDoc.id;
+          }
+        }
       }
 
-      final doc = (requestId != null && requestId.trim().isNotEmpty)
-          ? _requests(clubId).doc(requestId.trim())
+      final doc = id.isNotEmpty
+          ? _requests(clubId).doc(id)
           : _requests(clubId).doc();
       await doc.set(JoinRequestMapper.toSubmitMap(
         userId: userId,

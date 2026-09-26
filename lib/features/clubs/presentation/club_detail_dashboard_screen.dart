@@ -360,10 +360,10 @@ class _JoinBar extends StatelessWidget {
                 message: message,
                 allowRejoin: allowRejoin,
               );
-              if (ok && controller.myPendingRequest != null) {
-                await legacyProvider.publishJoinRequestToOfficer(
-                  controller.myPendingRequest!,
-                );
+              final pending = controller.myPendingRequest;
+              if (pending != null) {
+                await legacyProvider.publishJoinRequestToOfficer(pending);
+                ok = true;
               }
               if (!ok) {
                 final legacyId = ClubProvider.legacyClubIdFor(club.id);

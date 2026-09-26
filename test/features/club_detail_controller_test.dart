@@ -140,17 +140,8 @@ class _FakeJoinRequestRepository implements JoinRequestRepository {
     String? requestId,
   }) async {
     submitCount++;
-    pendingForUser = JoinRequest(
-      id: 'jr1',
-      clubId: clubId,
-      userId: userId,
-      userName: userName,
-      userGender: userGender,
-      userHandicap: userHandicap,
-      message: message,
-      requestedAt: DateTime(2025, 1, 1),
-    );
-    return 'jr1';
+    pendingForUser = null;
+    return requestId ?? 'jr1';
   }
 }
 
@@ -201,6 +192,8 @@ void main() {
       expect(joinRepo.submitCount, 1);
       expect(controller.isPending, isTrue);
       expect(controller.canSubmitJoin, isFalse);
+      expect(controller.myPendingRequest?.id, 'jr_c1_u1');
+      expect(joinRepo.pendingForUser, isNull);
     });
 
     test('admin load fetches pending requests', () async {

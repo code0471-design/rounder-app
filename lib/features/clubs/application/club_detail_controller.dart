@@ -66,12 +66,20 @@ class ClubDetailController extends ChangeNotifier {
       }
 
       _isMember = await _clubRepository.isUserMember(clubId, userId);
-      _myPendingRequest =
-          await _joinRequestRepository.fetchPendingForUser(clubId, userId);
+      try {
+        _myPendingRequest =
+            await _joinRequestRepository.fetchPendingForUser(clubId, userId);
+      } catch (_) {
+        _myPendingRequest = null;
+      }
 
       if (_isMember && isAdmin) {
-        _pendingRequests =
-            await _joinRequestRepository.fetchPendingForClub(clubId);
+        try {
+          _pendingRequests =
+              await _joinRequestRepository.fetchPendingForClub(clubId);
+        } catch (_) {
+          _pendingRequests = [];
+        }
       } else {
         _pendingRequests = [];
       }
@@ -171,6 +179,7 @@ class ClubDetailController extends ChangeNotifier {
     notifyListeners();
 
     try {
+      final requestId = JoinRequestService.requestId(club.id, user.id);
       await _joinRequestRepository.submitJoinRequest(
         clubId: club.id,
         userId: user.id,
@@ -183,11 +192,25 @@ class ClubDetailController extends ChangeNotifier {
         userPhotoUrl: user.profileImageUrl,
         userBirthDate: user.birthDate,
         message: message,
-        requestId: JoinRequestService.requestId(club.id, user.id),
+        requestId: requestId,
       );
       _isMember = false;
-      _myPendingRequest =
-          await _joinRequestRepository.fetchPendingForUser(club.id, user.id);
+      // 저장 직후 복합 쿼리가 깨져도 임원 알림함·FCM을 건너뛰면 안 된다.
+      _myPendingRequest = JoinRequest(
+        id: requestId.isNotEmpty ? requestId : 'jr_${club.id}_${user.id}',
+        clubId: club.id,
+        userId: user.id,
+        userName: user.name,
+        userGender: (user.gender != null && user.gender!.isNotEmpty)
+            ? user.gender!
+            : '남',
+        userHandicap: user.handicap,
+        userPhone: user.phone,
+        userPhotoUrl: user.profileImageUrl,
+        userBirthDate: user.birthDate,
+        message: message,
+        requestedAt: DateTime.now(),
+      );
       _actionInProgress = false;
       notifyListeners();
       return true;

@@ -47,6 +47,12 @@ abstract final class PushNotificationService {
   static bool _initialized = false;
   static bool _backgroundHandlerRegistered = false;
   static Future<void> Function()? onD1AlimtalkHint;
+  static void Function({
+    required String inboxId,
+    required String title,
+    required String body,
+    required String clubId,
+  })? onRemoteD1Inbox;
   static void Function(String type, String clubId)? onOpenedFromPush;
   static String? _pendingOpenType;
   static String? _pendingOpenClubId;
@@ -114,8 +120,8 @@ abstract final class PushNotificationService {
           type: type,
           clubId: clubId,
         ));
-        if (type == HqPushCatalog.d1Reminder ||
-            type == HqPushCatalog.duesRequest) {
+        // D-1 푸시가 왔다고 알림톡을 다시 보내면, 앱을 켜 둔 사람만 두 통이 간다.
+        if (type == HqPushCatalog.duesRequest) {
           unawaited(onD1AlimtalkHint?.call());
         }
       });
@@ -217,20 +223,27 @@ abstract final class PushNotificationService {
     required String body,
     String? type,
     String? clubId,
+    String? itemId,
   }) async {
     if (!HqRemoteSettings.available) return;
     final id = targetUserId.trim();
     if (id.isEmpty) return;
     try {
-      await FirebaseFirestore.instance
-          .collection(FirestorePaths.pushInboxItems(id))
-          .add({
+      final data = {
         'title': title,
         'body': body,
         'type': type ?? '',
         'clubId': clubId ?? '',
         'createdAt': FieldValue.serverTimestamp(),
-      });
+      };
+      final col = FirebaseFirestore.instance
+          .collection(FirestorePaths.pushInboxItems(id));
+      final fixed = itemId?.trim() ?? '';
+      if (fixed.isNotEmpty) {
+        await col.doc(fixed).set(data, SetOptions(merge: true));
+      } else {
+        await col.add(data);
+      }
     } catch (e) {
       debugPrint('[Push] enqueue skip: $e');
     }
@@ -329,7 +342,6 @@ abstract final class PushNotificationService {
         'whenText': whenText ?? '',
         'place': place ?? '',
         'clubName': clubName,
-        'alimtalkSent': false,
         'updatedAt': FieldValue.serverTimestamp(),
       }, SetOptions(merge: true));
       await _deleteD1AliasDocs(
@@ -737,7 +749,20 @@ abstract final class PushNotificationService {
                 if (change.type != DocumentChangeType.added) continue;
                 final docId = change.doc.id;
                 if (!_seenInbox.add(docId)) continue;
-                final created = change.doc.data()?['createdAt'];
+                final data = change.doc.data();
+                final title = data?['title']?.toString() ?? '라운더';
+                final body = data?['body']?.toString() ?? '';
+                final type = data?['type']?.toString() ?? '';
+                final clubId = data?['clubId']?.toString() ?? '';
+                if (type == HqPushCatalog.d1Reminder) {
+                  onRemoteD1Inbox?.call(
+                    inboxId: docId,
+                    title: title,
+                    body: body,
+                    clubId: clubId,
+                  );
+                }
+                final created = data?['createdAt'];
                 if (created is Timestamp) {
                   final age = DateTime.now().difference(created.toDate());
                   if (age.inSeconds > 8) continue;
@@ -745,10 +770,6 @@ abstract final class PushNotificationService {
                 // 앱이 화면에 없으면 FCM 알림을 OS가 이미 띄웠다.
                 // 여기서 또 띄우면 같은 알림이 두 번 온다.
                 if (!_appInForeground) continue;
-                final title = change.doc.data()?['title']?.toString() ?? '라운더';
-                final body = change.doc.data()?['body']?.toString() ?? '';
-                final type = change.doc.data()?['type']?.toString() ?? '';
-                final clubId = change.doc.data()?['clubId']?.toString() ?? '';
                 unawaited(showLocal(
                   title: title,
                   body: body,

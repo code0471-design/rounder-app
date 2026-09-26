@@ -40,31 +40,72 @@ abstract final class JoinRequestService {
           ? ClubMemberRole.treasurer
           : ClubMemberRole.president;
 
+  /// 로그인 계정 id. 명단 행(`m_{모임}_{uid}`, `m_creator_…`)은 푸시함에 쓰지 않는다.
+  static bool isLoginAccountId(String id) {
+    final t = id.trim();
+    return t.startsWith('kakao_') ||
+        t.startsWith('google_') ||
+        t.startsWith('apple_');
+  }
+
   /// `m_{clubId}_{uid}` 명단 행이면 계정 id, 아니면 그대로.
   static String accountIdOf({
     required String clubId,
     required String memberOrUserId,
+    String? creatorId,
   }) {
     final raw = memberOrUserId.trim();
-    if (raw.isEmpty || clubId.trim().isEmpty) return raw;
-    final prefix = 'm_${clubId.trim()}_';
-    if (raw.startsWith(prefix) && raw.length > prefix.length) {
-      return raw.substring(prefix.length);
+    if (raw.isEmpty) return raw;
+    if (isLoginAccountId(raw)) return raw;
+    final c = clubId.trim();
+    if (c.isNotEmpty) {
+      final prefix = 'm_${c}_';
+      if (raw.startsWith(prefix) && raw.length > prefix.length) {
+        return raw.substring(prefix.length);
+      }
+      if (raw == 'm_creator_$c') {
+        final cid = creatorId?.trim() ?? '';
+        return isLoginAccountId(cid) ? cid : '';
+      }
+    }
+    if (raw.startsWith('m_creator_')) {
+      final cid = creatorId?.trim() ?? '';
+      return isLoginAccountId(cid) ? cid : '';
     }
     return raw;
   }
 
+  /// 푸시함·user_ops 에 쓸 로그인 계정. 접히지 않으면 빈 문자열.
+  static String loginAccountIdOf({
+    required String clubId,
+    required String memberOrUserId,
+    String? creatorId,
+  }) {
+    final folded = accountIdOf(
+      clubId: clubId,
+      memberOrUserId: memberOrUserId,
+      creatorId: creatorId,
+    );
+    return isLoginAccountId(folded) ? folded : '';
+  }
+
   /// 가입 알림 수신 계정. 총무 전원 → 없으면 회장 → 없으면 생성자.
   /// 신청자 기기 로컬 명단이 비어 있어도 서버 소속 계정만으로 고른다.
+  /// 같은 사람은 한 번만, 명단 행 id 는 보내지 않는다.
   static List<String> notifyAccountIds({
     required List<JoinOfficer> officers,
     String? creatorId,
+    String clubId = '',
   }) {
     final seen = <String>{};
     List<String> pick(bool Function(String role) pred) {
       final out = <String>[];
       for (final o in officers) {
-        final uid = o.userId.trim();
+        final uid = loginAccountIdOf(
+          clubId: clubId,
+          memberOrUserId: o.userId,
+          creatorId: creatorId,
+        );
         if (uid.isEmpty || !pred(o.role) || !seen.add(uid)) continue;
         out.add(uid);
       }
@@ -79,7 +120,11 @@ abstract final class JoinRequestService {
     );
     if (presidents.isNotEmpty) return presidents;
 
-    final creator = creatorId?.trim() ?? '';
+    final creator = loginAccountIdOf(
+      clubId: clubId,
+      memberOrUserId: creatorId ?? '',
+      creatorId: creatorId,
+    );
     if (creator.isNotEmpty) return [creator];
     return const [];
   }

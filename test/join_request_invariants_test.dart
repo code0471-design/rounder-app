@@ -18,11 +18,47 @@ void main() {
     expect(src.contains('joinRequestRepository.submitJoinRequest'), isTrue);
     expect(src.contains('JoinRequestService.requestId'), isTrue);
     expect(src.contains('fetchPendingForClub'), isTrue);
+    expect(src.contains('itemId: req.id'), isTrue);
+    expect(src.contains('loginAccountIdOf'), isTrue);
+    expect(
+      src.contains('if (inboxId.isEmpty || _isSelfTarget(inboxId)) continue'),
+      isFalse,
+      reason: '신청자 기기에서 임원 알림함을 건너뛰면 방장 알림함이 비어 있다',
+    );
     expect(
       src.contains('if (!canApprove) continue'),
       isFalse,
       reason: 'Club.myRole 이 정회원이라고 서버 신청 읽기를 건너뛰면 총무 시트가 비어 있다',
     );
+  });
+
+  test('신청 쿼리 인덱스가 있고 문서 id로 내 신청을 읽는다', () {
+    final indexes = read('firestore.indexes.json');
+    expect(indexes.contains('"status"'), isTrue);
+    expect(indexes.contains('"requested_at"'), isTrue);
+    expect(indexes.contains('"user_id"'), isTrue);
+
+    final ds = read(
+      'lib/data/datasources/firestore/firestore_join_request_datasource.dart',
+    );
+    expect(ds.contains('JoinRequestService.requestId'), isTrue);
+    expect(ds.contains("e.code != 'failed-precondition'"), isTrue);
+
+    final controller = read(
+      'lib/features/clubs/application/club_detail_controller.dart',
+    );
+    expect(
+      controller.contains(
+        'await _joinRequestRepository.fetchPendingForUser(club.id, user.id)',
+      ),
+      isFalse,
+      reason: '저장 직후 fetchPending 실패로 임원 알림을 건너뛰면 안 된다',
+    );
+    expect(controller.contains('_myPendingRequest = JoinRequest('), isTrue);
+
+    final push = read('lib/services/push_notification_service.dart');
+    expect(push.contains('String? itemId'), isTrue);
+    expect(push.contains('SetOptions(merge: true)'), isTrue);
   });
 
   test('총무 알림함 type=joinRequest 이고 계정 id로 보낸다', () {

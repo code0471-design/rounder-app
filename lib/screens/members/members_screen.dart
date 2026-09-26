@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import '../../models/club_model.dart';
@@ -20,6 +22,7 @@ class MembersScreen extends StatefulWidget {
     BuildContext context,
     ClubProvider provider,
   ) {
+    unawaited(provider.refreshJoinRequestsForClub(provider.selectedClub.id));
     showModalBottomSheet(
       context: context,
       isScrollControlled: true,
@@ -1208,6 +1211,17 @@ class _JoinRequestSheet extends StatefulWidget {
 }
 
 class _JoinRequestSheetState extends State<_JoinRequestSheet> {
+  @override
+  void initState() {
+    super.initState();
+    WidgetsBinding.instance.addPostFrameCallback((_) async {
+      await widget.provider.refreshJoinRequestsForClub(
+        widget.provider.selectedClub.id,
+      );
+      if (mounted) setState(() {});
+    });
+  }
+
   @override
   Widget build(BuildContext context) {
     final pending = widget.provider.pendingRequestsOf(

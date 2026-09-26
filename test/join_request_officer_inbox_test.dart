@@ -15,6 +15,8 @@ void main() {
     expect(src.contains('ClubOpsSync.upsertClubJoinRequest'), isTrue);
     expect(src.contains('ClubOpsSync.appendOfficerInbox'), isTrue);
     expect(src.contains("notifySelf: true"), isTrue);
+    expect(src.contains('itemId: req.id'), isTrue);
+    expect(src.contains('loginAccountIdOf'), isTrue);
     expect(
       src.contains('fetchPendingForClub'),
       isTrue,

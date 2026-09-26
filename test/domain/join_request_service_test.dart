@@ -86,6 +86,35 @@ void main() {
       expect(JoinRequestService.isJoinPushType(''), isFalse);
     });
 
+    test('명단 행은 로그인 계정으로만 접고 같은 사람은 한 번만 보낸다', () {
+      const clubId = 'c_arena';
+      expect(
+        JoinRequestService.notifyAccountIds(
+          officers: const [
+            JoinOfficer(
+              userId: 'm_c_arena_kakao_treasurer',
+              role: '총무',
+            ),
+            JoinOfficer(userId: 'kakao_treasurer', role: '총무'),
+            JoinOfficer(userId: 'm_creator_c_arena', role: '회장'),
+          ],
+          creatorId: 'kakao_president',
+          clubId: clubId,
+        ),
+        ['kakao_treasurer'],
+      );
+      expect(
+        JoinRequestService.loginAccountIdOf(
+          clubId: clubId,
+          memberOrUserId: 'm_creator_c_arena',
+          creatorId: 'kakao_president',
+        ),
+        'kakao_president',
+      );
+      expect(JoinRequestService.isLoginAccountId('m_c_arena_kakao_a'), isFalse);
+      expect(JoinRequestService.isLoginAccountId('kakao_a'), isTrue);
+    });
+
     test('Club.myRole이 비어 있어도 명단 총무면 승인한다', () {
       expect(
         JoinRequestService.canApprove(

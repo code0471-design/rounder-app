@@ -81,8 +81,12 @@ class ClubListController extends ChangeNotifier {
 
     final pending = <String>{};
     for (final club in _clubs) {
-      final req = await joinRepo.fetchPendingForUser(club.id, userId);
-      if (req != null) pending.add(club.id);
+      try {
+        final req = await joinRepo.fetchPendingForUser(club.id, userId);
+        if (req != null) pending.add(club.id);
+      } catch (e) {
+        debugPrint('[ClubListController] pending skip ${club.id}: $e');
+      }
     }
     _pendingClubIds = pending;
     notifyListeners();

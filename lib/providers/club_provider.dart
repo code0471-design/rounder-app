@@ -2026,12 +2026,17 @@ class ClubProvider extends ChangeNotifier with WidgetsBindingObserver {
         createdAt: normalized.requestedAt,
         targetId: normalized.id,
         targetUserId: notifyTarget != null
-            ? _fcmInboxIdFor(notifyTarget, clubId: clubId)
+            ? JoinRequestService.loginAccountIdOf(
+                clubId: clubId,
+                memberOrUserId: notifyTarget,
+                creatorId: club?.creatorId,
+              )
             : currentUserId,
         isRead: false,
       ),
       hqPushTypeId: HqPushCatalog.joinRequest,
       notifySelf: true,
+      enqueuePush: false,
     );
   }
 
@@ -5535,6 +5540,7 @@ class ClubProvider extends ChangeNotifier with WidgetsBindingObserver {
         for (final a in _clubAccounts[clubId] ?? const <ClubMemberAccount>[])
           JoinOfficer(userId: a.userId, role: a.role),
       ],
+      clubId: clubId,
     );
     if (fromAccounts.isNotEmpty) return fromAccounts.first;
 
@@ -5598,20 +5604,41 @@ class ClubProvider extends ChangeNotifier with WidgetsBindingObserver {
   /// 신청자 기기의 로컬 명단이 아니라 서버 소속·명단으로 총무(없으면 회장) 계정을 고른다.
   Future<List<String>> _resolveJoinNotifyAccountIds(String clubId) async {
     final officers = await _joinOfficerAccounts(clubId);
-    final club = _allClubs.where((c) => c.id == clubId).firstOrNull ??
+    var club = _allClubs.where((c) => c.id == clubId).firstOrNull ??
         _myClubs.where((c) => c.id == clubId).firstOrNull;
+    if ((club == null || club.creatorId.trim().isEmpty) &&
+        AppDependencies.instance.isInitialized &&
+        !AppDependencies.instance.isOfflineMockMode) {
+      try {
+        final remote = await AppDependencies.instance.clubRepository
+            .fetchClubById(clubId, userId: _persistAuthUserId ?? currentUserId)
+            .timeout(const Duration(seconds: 8));
+        if (remote != null) club = remote;
+      } catch (e) {
+        debugPrint('[ClubProvider] join notify club skip: $e');
+      }
+    }
     final ids = JoinRequestService.notifyAccountIds(
       officers: officers,
       creatorId: club?.creatorId,
+      clubId: clubId,
     );
     if (ids.isNotEmpty) return ids;
     final fallback = joinRequestNotifyTargetId(clubId);
-    if (fallback == null || fallback.isEmpty) return const [];
-    final inbox = _fcmInboxIdFor(fallback, clubId: clubId);
-    return [if (inbox.isNotEmpty) inbox else fallback];
+    final login = JoinRequestService.loginAccountIdOf(
+      clubId: clubId,
+      memberOrUserId: fallback ?? '',
+      creatorId: club?.creatorId,
+    );
+    return [if (login.isNotEmpty) login];
   }
 
   Future<List<JoinOfficer>> _joinOfficerAccounts(String clubId) async {
+    final creatorId = [..._myClubs, ..._allClubs]
+            .where((c) => c.id == clubId)
+            .firstOrNull
+            ?.creatorId ??
+        '';
     final byId = <String, JoinOfficer>{};
     void add(JoinOfficer officer) {
       final uid = officer.userId.trim();
@@ -5637,6 +5664,7 @@ class ClubProvider extends ChangeNotifier with WidgetsBindingObserver {
           userId: JoinRequestService.accountIdOf(
             clubId: clubId,
             memberOrUserId: m.id,
+            creatorId: creatorId,
           ),
           role: m.role,
         ));
@@ -5655,7 +5683,14 @@ class ClubProvider extends ChangeNotifier with WidgetsBindingObserver {
       if (accounts.isNotEmpty) {
         _clubAccounts[clubId] = accounts;
         for (final a in accounts) {
-          add(JoinOfficer(userId: a.userId, role: a.role));
+          add(JoinOfficer(
+            userId: JoinRequestService.accountIdOf(
+              clubId: clubId,
+              memberOrUserId: a.userId,
+              creatorId: creatorId,
+            ),
+            role: a.role,
+          ));
         }
       }
     } catch (e) {
@@ -5673,6 +5708,7 @@ class ClubProvider extends ChangeNotifier with WidgetsBindingObserver {
             userId: JoinRequestService.accountIdOf(
               clubId: clubId,
               memberOrUserId: m.id,
+              creatorId: creatorId,
             ),
             role: m.role,
           ));
@@ -5859,6 +5895,7 @@ class ClubProvider extends ChangeNotifier with WidgetsBindingObserver {
     AppNotification n, {
     String? hqPushTypeId,
     bool notifySelf = false,
+    bool enqueuePush = true,
   }) {
     if (hqPushTypeId != null && !HqPushCatalog.isEnabledSync(hqPushTypeId)) {
       debugPrint('[Push] skipped disabled $hqPushTypeId');
@@ -5866,17 +5903,29 @@ class ClubProvider extends ChangeNotifier with WidgetsBindingObserver {
     }
     _appNotifications.insert(0, n);
     final target = n.targetUserId;
-    if (target != null && target.isNotEmpty) {
+    if (enqueuePush && target != null && target.isNotEmpty) {
       final isSelf = _isSelfTarget(target);
       if (!isSelf || notifySelf) {
-        final enqueueId = _fcmInboxIdFor(target);
-        unawaited(PushNotificationService.enqueue(
-          targetUserId: enqueueId,
-          title: n.title,
-          body: n.body,
-          type: hqPushTypeId ?? n.type.name,
-          clubId: n.clubId,
-        ));
+        final enqueueId = JoinRequestService.isJoinPushType(hqPushTypeId) ||
+                n.type == AppNotificationType.joinRequest
+            ? JoinRequestService.loginAccountIdOf(
+                clubId: n.clubId,
+                memberOrUserId: target,
+              )
+            : _fcmInboxIdFor(target);
+        if (enqueueId.isNotEmpty) {
+          unawaited(PushNotificationService.enqueue(
+            targetUserId: enqueueId,
+            title: n.title,
+            body: n.body,
+            type: hqPushTypeId ?? n.type.name,
+            clubId: n.clubId,
+            itemId: (JoinRequestService.isJoinPushType(hqPushTypeId) ||
+                    n.type == AppNotificationType.joinRequest)
+                ? n.targetId
+                : null,
+          ));
+        }
         if (notifySelf && isSelf) {
           unawaited(PushNotificationService.showLocal(
             title: n.title,
@@ -7595,14 +7644,12 @@ class ClubProvider extends ChangeNotifier with WidgetsBindingObserver {
     final officerIds = await _resolveJoinNotifyAccountIds(req.clubId);
     final inboxIds = <String>{};
     for (final raw in officerIds) {
-      final inbox = raw.isEmpty
-          ? ''
-          : _fcmInboxIdFor(raw, clubId: req.clubId);
-      if (inbox.isNotEmpty) {
-        inboxIds.add(inbox);
-      } else if (raw.isNotEmpty) {
-        inboxIds.add(raw);
-      }
+      final inbox = JoinRequestService.loginAccountIdOf(
+        clubId: req.clubId,
+        memberOrUserId: raw,
+        creatorId: club?.creatorId,
+      );
+      if (inbox.isNotEmpty) inboxIds.add(inbox);
     }
     final notifyRole = _joinNotifyHasTreasurer(req.clubId)
         ? ClubMemberRole.treasurer
@@ -7625,7 +7672,7 @@ class ClubProvider extends ChangeNotifier with WidgetsBindingObserver {
     await ClubOpsSync.upsertClubJoinRequest(req);
     var delivered = false;
     for (final inboxId in inboxIds) {
-      if (inboxId.isEmpty || _isSelfTarget(inboxId)) continue;
+      if (inboxId.isEmpty) continue;
       delivered = true;
       await ClubOpsSync.appendOfficerInbox(
         authUserId: inboxId,
@@ -7638,16 +7685,30 @@ class ClubProvider extends ChangeNotifier with WidgetsBindingObserver {
         body: '${req.userName}님이 ${club?.name ?? '모임'} 가입을 신청했습니다',
         type: HqPushCatalog.joinRequest,
         clubId: req.clubId,
+        itemId: req.id,
       ));
     }
-    if (!delivered && primaryInbox.isNotEmpty) {
-      unawaited(PushNotificationService.enqueue(
-        targetUserId: primaryInbox,
-        title: noti.title,
-        body: '${req.userName}님이 ${club?.name ?? '모임'} 가입을 신청했습니다',
-        type: HqPushCatalog.joinRequest,
+    if (!delivered) {
+      final creatorInbox = JoinRequestService.loginAccountIdOf(
         clubId: req.clubId,
-      ));
+        memberOrUserId: club?.creatorId ?? '',
+        creatorId: club?.creatorId,
+      );
+      if (creatorInbox.isNotEmpty) {
+        await ClubOpsSync.appendOfficerInbox(
+          authUserId: creatorInbox,
+          notification: noti,
+          request: req,
+        );
+        unawaited(PushNotificationService.enqueue(
+          targetUserId: creatorInbox,
+          title: noti.title,
+          body: '${req.userName}님이 ${club?.name ?? '모임'} 가입을 신청했습니다',
+          type: HqPushCatalog.joinRequest,
+          clubId: req.clubId,
+          itemId: req.id,
+        ));
+      }
     }
 
     AppDependencies.instance.mockDataStore?.upsertPendingJoinRequest(req);
