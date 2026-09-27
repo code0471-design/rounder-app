@@ -9,6 +9,7 @@ import '../../services/csv_download.dart';
 import '../../services/member_roster_csv.dart';
 import '../../theme/app_theme.dart';
 import '../../utils/avatar_image.dart';
+import '../../utils/season_ranking.dart';
 import 'member_detail_screen.dart';
 import 'treasurer_transfer_screen.dart';
 
@@ -395,11 +396,18 @@ class _MembersScreenState extends State<MembersScreen>
                                   fontWeight: FontWeight.w700,
                                   color: AppColors.ink)),
                         ),
-                        Text('${entry.value}P',
-                            style: const TextStyle(
-                                fontSize: 14,
-                                fontWeight: FontWeight.w800,
-                                color: Color(0xFF2563EB))),
+                        GestureDetector(
+                          onTap: () => _showPointHistoryPopup(
+                            provider,
+                            memberId: entry.key,
+                            year: DateTime.now().year,
+                          ),
+                          child: Text('${entry.value}P',
+                              style: const TextStyle(
+                                  fontSize: 14,
+                                  fontWeight: FontWeight.w800,
+                                  color: Color(0xFF2563EB))),
+                        ),
                       ],
                     ),
                   ),
@@ -427,6 +435,8 @@ class _MembersScreenState extends State<MembersScreen>
         builder: (ctx, setSheet) {
           final years = provider.rankingYearsAvailable();
           final ranking = provider.memberPointsRankingForYear(year);
+          final closed = provider.isSeasonClosed(year);
+          final nowYear = DateTime.now().year;
           return DraggableScrollableSheet(
             expand: false,
             initialChildSize: 0.6,
@@ -464,7 +474,11 @@ class _MembersScreenState extends State<MembersScreen>
                               DropdownMenuItem(
                                 value: y,
                                 child: Text(
-                                  '$y년',
+                                  SeasonRanking.yearLabel(
+                                    y,
+                                    nowYear: nowYear,
+                                    closed: provider.isSeasonClosed(y),
+                                  ),
                                   style: const TextStyle(
                                     fontSize: 14,
                                     fontWeight: FontWeight.w700,
@@ -526,30 +540,56 @@ class _MembersScreenState extends State<MembersScreen>
                                       fontSize: 14)),
                               subtitle: Text(memberObj?.role ?? '',
                                   style: const TextStyle(fontSize: 11)),
-                              trailing: Container(
-                                padding: const EdgeInsets.symmetric(
-                                    horizontal: 12, vertical: 4),
-                                decoration: BoxDecoration(
-                                  color: rank <= 3
-                                      ? const Color(0xFF1A237E)
-                                          .withValues(alpha: 0.1)
-                                      : AppColors.background,
-                                  borderRadius: BorderRadius.circular(20),
+                              trailing: GestureDetector(
+                                onTap: () => _showPointHistoryPopup(
+                                  provider,
+                                  memberId: memberId,
+                                  year: year,
                                 ),
-                                child: Text(
-                                  '$pts P',
-                                  style: TextStyle(
-                                    fontWeight: FontWeight.bold,
+                                child: Container(
+                                  padding: const EdgeInsets.symmetric(
+                                      horizontal: 12, vertical: 4),
+                                  decoration: BoxDecoration(
                                     color: rank <= 3
                                         ? const Color(0xFF1A237E)
-                                        : AppColors.textPrimary,
-                                    fontSize: 14,
+                                            .withValues(alpha: 0.1)
+                                        : AppColors.background,
+                                    borderRadius: BorderRadius.circular(20),
+                                  ),
+                                  child: Text(
+                                    '$pts P',
+                                    style: TextStyle(
+                                      fontWeight: FontWeight.bold,
+                                      color: rank <= 3
+                                          ? const Color(0xFF1A237E)
+                                          : AppColors.textPrimary,
+                                      fontSize: 14,
+                                    ),
                                   ),
                                 ),
                               ),
                             );
                           },
                         ),
+                ),
+                Padding(
+                  padding: const EdgeInsets.fromLTRB(16, 8, 16, 0),
+                  child: SizedBox(
+                    width: double.infinity,
+                    child: OutlinedButton(
+                      onPressed: closed
+                          ? null
+                          : () => _confirmSeasonClose(
+                                ctx,
+                                provider,
+                                year,
+                                setSheet,
+                              ),
+                      child: Text(
+                        SeasonRanking.closeButtonLabel(year, closed: closed),
+                      ),
+                    ),
+                  ),
                 ),
                 Container(
                   margin: const EdgeInsets.all(16),
@@ -567,11 +607,11 @@ class _MembersScreenState extends State<MembersScreen>
                               fontWeight: FontWeight.bold,
                               color: AppColors.textSecondary)),
                       SizedBox(height: 6),
-                      _PointGuideRow(label: '라운딩 참석', pts: '+10 P'),
-                      _PointGuideRow(label: '회비 정시납부', pts: '+5 P'),
+                      _PointGuideRow(label: '일정 참석', pts: '+10 P'),
+                      _PointGuideRow(label: '회비 정시 납부', pts: '+5 P'),
                       _PointGuideRow(label: '공지 댓글 (글당 1회)', pts: '+2 P'),
                       _PointGuideRow(
-                          label: '노쇼', pts: '-10 P', negative: true),
+                          label: '댓글 삭제', pts: '-2 P', negative: true),
                     ],
                   ),
                 ),
@@ -581,6 +621,89 @@ class _MembersScreenState extends State<MembersScreen>
         },
       ),
     );
+  }
+
+  void _showPointHistoryPopup(
+    ClubProvider provider, {
+    required String memberId,
+    required int year,
+  }) {
+    final name = provider.memberById(memberId)?.name ?? memberId;
+    final events = provider.membershipPointHistory(memberId, year: year);
+    showDialog<void>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: Text('$name'),
+        content: events.isEmpty
+            ? Text(SeasonRanking.historyEmptyMessage(year))
+            : SizedBox(
+                width: double.maxFinite,
+                child: ListView(
+                  shrinkWrap: true,
+                  children: [
+                    for (final e in events)
+                      Padding(
+                        padding: const EdgeInsets.symmetric(vertical: 6),
+                        child: Text(
+                          SeasonRanking.historyLine(e),
+                          style: const TextStyle(fontSize: 14, height: 1.4),
+                        ),
+                      ),
+                  ],
+                ),
+              ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(ctx),
+            child: const Text('닫기'),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Future<void> _confirmSeasonClose(
+    BuildContext sheetCtx,
+    ClubProvider provider,
+    int year,
+    void Function(void Function()) setSheet,
+  ) async {
+    if (provider.isSeasonClosed(year)) return;
+    if (!provider.isClubExecutive) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('임원만 가능합니다')),
+      );
+      return;
+    }
+    final ok = await showDialog<bool>(
+      context: sheetCtx,
+      builder: (ctx) => AlertDialog(
+        title: const Text('확정할래요?'),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(ctx, false),
+            child: const Text('취소'),
+          ),
+          TextButton(
+            onPressed: () => Navigator.pop(ctx, true),
+            child: const Text('확정'),
+          ),
+        ],
+      ),
+    );
+    if (ok != true) return;
+    final result = provider.closeSeasonRanking(year);
+    if (result == SeasonCloseOutcome.officerOnly) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('임원만 가능합니다')),
+      );
+      return;
+    }
+    if (result == SeasonCloseOutcome.ok) {
+      setSheet(() {});
+    }
   }
 
   // ────────────────────────────────

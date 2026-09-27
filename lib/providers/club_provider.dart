@@ -36,6 +36,7 @@ import '../utils/dues_d1_schedule.dart';
 import '../utils/dues_period_eligibility.dart';
 import '../utils/member_join_date.dart';
 import '../utils/past_schedule_import.dart';
+import '../utils/season_ranking.dart';
 
 // ════════════════════════════════════════════════════════════
 //  ClubProvider
@@ -928,6 +929,8 @@ class ClubProvider extends ChangeNotifier with WidgetsBindingObserver {
                 pointEvents: bundle.pointEvents.map(
                   (k, v) => MapEntry(k, List<MembershipPointEvent>.from(v)),
                 ),
+                seasonLocks: Map<String, SeasonRankingLock>.from(
+                    bundle.seasonLocks),
                 awardRecords: List<AwardRecord>.from(bundle.awardRecords),
                 roundScores: List<RoundScoreRecord>.from(bundle.roundScores),
                 thankYouMessages:
@@ -2501,6 +2504,7 @@ class ClubProvider extends ChangeNotifier with WidgetsBindingObserver {
         pointEvents: _pointEvents.map(
           (k, v) => MapEntry(k, List<MembershipPointEvent>.from(v)),
         ),
+        seasonLocks: Map<String, SeasonRankingLock>.from(_seasonLocks),
         awardRecords: List<AwardRecord>.from(_awardRecords),
         roundScores: List<RoundScoreRecord>.from(_roundScores),
         thankYouMessages: List<ThankYouMessage>.from(_thankYouMessages),
@@ -2654,6 +2658,9 @@ class ClubProvider extends ChangeNotifier with WidgetsBindingObserver {
     _pointEvents
       ..clear()
       ..addAll(b.pointEvents);
+    _seasonLocks
+      ..clear()
+      ..addAll(b.seasonLocks);
     _awardRecords
       ..clear()
       ..addAll(b.awardRecords);
@@ -8215,6 +8222,8 @@ class ClubProvider extends ChangeNotifier with WidgetsBindingObserver {
           pointEvents: saved.pointEvents.map(
             (k, v) => MapEntry(k, List<MembershipPointEvent>.from(v)),
           ),
+          seasonLocks:
+              Map<String, SeasonRankingLock>.from(saved.seasonLocks),
           awardRecords: List<AwardRecord>.from(saved.awardRecords),
           roundScores: List<RoundScoreRecord>.from(saved.roundScores),
           thankYouMessages: List<ThankYouMessage>.from(saved.thankYouMessages),
@@ -8300,6 +8309,7 @@ class ClubProvider extends ChangeNotifier with WidgetsBindingObserver {
         pointEvents: saved.pointEvents.map(
           (k, v) => MapEntry(k, List<MembershipPointEvent>.from(v)),
         ),
+        seasonLocks: Map<String, SeasonRankingLock>.from(saved.seasonLocks),
         awardRecords: List<AwardRecord>.from(saved.awardRecords),
         roundScores: List<RoundScoreRecord>.from(saved.roundScores),
         thankYouMessages: List<ThankYouMessage>.from(saved.thankYouMessages),
@@ -10130,6 +10140,7 @@ class ClubProvider extends ChangeNotifier with WidgetsBindingObserver {
 
   // 포인트 이벤트 기록 (memberId → 이벤트 목록)
   final Map<String, List<MembershipPointEvent>> _pointEvents = {};
+  final Map<String, SeasonRankingLock> _seasonLocks = {};
 
   /// 같은 사람의 포인트 키 (auth id / m_creator 혼용 보정).
   ///
@@ -10201,12 +10212,84 @@ class ClubProvider extends ChangeNotifier with WidgetsBindingObserver {
       memberPointsRankingForYear(DateTime.now().year);
 
   List<MapEntry<String, int>> memberPointsRankingForYear(int year) {
+    final lock = seasonLockFor(year);
+    if (lock != null) {
+      final rows = [...lock.ranks]
+        ..sort((a, b) => a.rank.compareTo(b.rank));
+      return [for (final r in rows) MapEntry(r.memberId, r.points)];
+    }
+    return _livePointsRankingForYear(year);
+  }
+
+  List<MapEntry<String, int>> _livePointsRankingForYear(int year) {
     final result = <MapEntry<String, int>>[];
     for (final m in activeMembers) {
       result.add(MapEntry(m.id, getMembershipPoints(m.id, year: year)));
     }
     result.sort((a, b) => b.value.compareTo(a.value));
     return result;
+  }
+
+  SeasonRankingLock? seasonLockFor(int year, {String? clubId}) {
+    final id = clubId ?? (_myClubs.isEmpty ? '' : selectedClub.id);
+    if (id.isEmpty) return null;
+    return _seasonLocks[SeasonRanking.lockKey(id, year)];
+  }
+
+  bool isSeasonClosed(int year, {String? clubId}) =>
+      seasonLockFor(year, clubId: clubId) != null;
+
+  bool canAwardMembershipPoint(DateTime date, {String? clubId}) =>
+      !isSeasonClosed(date.year, clubId: clubId);
+
+  List<MembershipPointEvent> membershipPointHistory(
+    String memberId, {
+    int? year,
+  }) {
+    final y = year ?? DateTime.now().year;
+    final out = <MembershipPointEvent>[];
+    final seen = <String>{};
+    for (final key in _membershipPointKeysFor(memberId)) {
+      for (final e in _pointEvents[key] ?? const <MembershipPointEvent>[]) {
+        if (e.date.year != y) continue;
+        final nk =
+            '${e.type.name}|${e.points}|${e.desc}|${e.date.millisecondsSinceEpoch}';
+        if (!seen.add(nk)) continue;
+        out.add(e);
+      }
+    }
+    out.sort((a, b) => b.date.compareTo(a.date));
+    return out;
+  }
+
+  SeasonCloseOutcome closeSeasonRanking(int year) {
+    if (!isClubExecutive) return SeasonCloseOutcome.officerOnly;
+    if (_myClubs.isEmpty) return SeasonCloseOutcome.alreadyClosed;
+    final clubId = selectedClub.id;
+    if (isSeasonClosed(year, clubId: clubId)) {
+      return SeasonCloseOutcome.alreadyClosed;
+    }
+    final live = _livePointsRankingForYear(year);
+    final ranks = <SeasonRankingRow>[];
+    for (var i = 0; i < live.length; i++) {
+      final member = memberById(live[i].key);
+      ranks.add(SeasonRankingRow(
+        memberId: live[i].key,
+        name: member?.name ?? live[i].key,
+        points: live[i].value,
+        rank: i + 1,
+      ));
+    }
+    final lock = SeasonRankingLock(
+      clubId: clubId,
+      year: year,
+      closedAt: DateTime.now(),
+      ranks: ranks,
+    );
+    _seasonLocks[lock.key] = lock;
+    notifyListeners();
+    _persistImmediately();
+    return SeasonCloseOutcome.ok;
   }
 
   Member? memberById(String memberId) {
@@ -10395,6 +10478,7 @@ class ClubProvider extends ChangeNotifier with WidgetsBindingObserver {
     required String desc,
     required DateTime date,
   }) {
+    if (!canAwardMembershipPoint(date)) return;
     _pointEvents.putIfAbsent(memberId, () => []);
     _pointEvents[memberId]!.add(MembershipPointEvent(
       type: type,
@@ -10572,6 +10656,11 @@ class ClubProvider extends ChangeNotifier with WidgetsBindingObserver {
   List<int> rankingYearsAvailable() {
     final now = DateTime.now().year;
     final years = <int>{now, now - 1, now - 2};
+    for (final lock in _seasonLocks.values) {
+      if (_myClubs.isEmpty || lock.clubId == selectedClub.id) {
+        years.add(lock.year);
+      }
+    }
     for (final list in _pointEvents.values) {
       for (final e in list) {
         years.add(e.date.year);

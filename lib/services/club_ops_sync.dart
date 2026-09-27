@@ -1215,6 +1215,9 @@ class ClubOpsSync {
       'roundScores': roundScores,
       'thankYouMessages': full['thankYouMessages'] ?? [],
       'pointEvents': pointEvents,
+      'seasonLocks': (full['seasonLocks'] as List? ?? [])
+          .where((e) => e is Map && '${e['clubId'] ?? ''}' == clubId)
+          .toList(),
       'joinRequests':
           (full['joinRequests'] as List? ?? []).where(clubField).toList(),
     };
@@ -1419,6 +1422,11 @@ class ClubOpsSync {
       remote: remote['pointEvents'],
     );
 
+    encoded['seasonLocks'] = mergeSeasonLocks(
+      local: encoded['seasonLocks'],
+      remote: remote['seasonLocks'],
+    );
+
     return ClubDataCodec.decode(encoded);
   }
 
@@ -1464,6 +1472,41 @@ class ClubOpsSync {
       out[key] = events;
     }
     return out;
+  }
+
+  /// 시즌 마감은 한 번만. 빈 원격으로 확정본을 지우지 않는다.
+  @visibleForTesting
+  static List<Map<String, dynamic>> mergeSeasonLocks({
+    required dynamic local,
+    required dynamic remote,
+  }) {
+    final out = <String, Map<String, dynamic>>{};
+    void take(dynamic raw) {
+      if (raw is! List) return;
+      for (final e in raw) {
+        if (e is! Map) continue;
+        final m = Map<String, dynamic>.from(e);
+        final clubId = '${m['clubId'] ?? ''}'.trim();
+        final year = m['year'];
+        final y = year is int ? year : int.tryParse('$year');
+        if (clubId.isEmpty || y == null) continue;
+        final key = '$clubId:$y';
+        final prev = out[key];
+        if (prev == null) {
+          out[key] = m;
+          continue;
+        }
+        final a = DateTime.tryParse('${prev['closedAt'] ?? ''}');
+        final b = DateTime.tryParse('${m['closedAt'] ?? ''}');
+        if (a != null && b != null && b.isBefore(a)) {
+          out[key] = m;
+        }
+      }
+    }
+
+    take(local);
+    take(remote);
+    return out.values.toList();
   }
 
   static List<Map<String, dynamic>> _asDynamicMaps(dynamic raw) {

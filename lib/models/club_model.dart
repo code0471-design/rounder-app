@@ -2102,6 +2102,39 @@ class MembershipPointEvent {
   });
 }
 
+enum SeasonCloseOutcome { ok, officerOnly, alreadyClosed }
+
+class SeasonRankingRow {
+  final String memberId;
+  final String name;
+  final int points;
+  final int rank;
+
+  const SeasonRankingRow({
+    required this.memberId,
+    required this.name,
+    required this.points,
+    required this.rank,
+  });
+}
+
+/// 모임·연도 공식 순위. 이벤트 원장을 복사하지 않는다.
+class SeasonRankingLock {
+  final String clubId;
+  final int year;
+  final DateTime closedAt;
+  final List<SeasonRankingRow> ranks;
+
+  const SeasonRankingLock({
+    required this.clubId,
+    required this.year,
+    required this.closedAt,
+    required this.ranks,
+  });
+
+  String get key => '$clubId:$year';
+}
+
 // ────────────────────────────────────────────────────────────
 //  시상 기록
 // ────────────────────────────────────────────────────────────

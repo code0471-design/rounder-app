@@ -1773,4 +1773,24 @@ void main() {
     expect(row.joinDate, DateTime(2026, 7, 1),
         reason: '전환해도 가입일(게스트로 들어온 날)은 그대로다');
   });
+
+  test('시즌 마감 확정본은 빈 원격이 지우지 않는다', () {
+    final merged = ClubOpsSync.mergeSeasonLocks(
+      local: [
+        {
+          'clubId': 'c_test',
+          'year': 2026,
+          'closedAt': '2026-12-01T00:00:00.000',
+          'ranks': [
+            {'memberId': 'm1', 'name': '이정원', 'points': 12, 'rank': 1},
+          ],
+        },
+      ],
+      remote: const [],
+    );
+    expect(merged.length, 1);
+    expect(merged.first['year'], 2026);
+    expect((merged.first['ranks'] as List).length, 1,
+        reason: '이벤트 전체를 다시 복사하지 않고 확정 순위만 남긴다');
+  });
 }

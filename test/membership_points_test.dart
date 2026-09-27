@@ -590,6 +590,63 @@ void main() {
       expect(clubs.getMembershipPoints(myId), 5);
     });
 
+    test('시즌을 마감하면 그해 포인트는 안 쌓이고 확정본은 남는다', () {
+      final year = DateTime.now().year;
+      clubs.addMembershipPoint(
+        memberId: myId,
+        type: MembershipPointType.roundAttendance,
+        points: 10,
+        desc: '8월 월례회 참석|s_aug',
+        date: DateTime(year, 8, 1),
+      );
+      expect(clubs.getMembershipPoints(myId, year: year), 10);
+      expect(clubs.closeSeasonRanking(year), SeasonCloseOutcome.ok);
+      expect(clubs.isSeasonClosed(year), isTrue);
+      expect(clubs.closeSeasonRanking(year), SeasonCloseOutcome.alreadyClosed);
+
+      clubs.addMembershipPoint(
+        memberId: myId,
+        type: MembershipPointType.roundAttendance,
+        points: 10,
+        desc: '마감 후 일정 참석|s_late',
+        date: DateTime(year, 12, 1),
+      );
+      expect(clubs.getMembershipPoints(myId, year: year), 10,
+          reason: '마감 후 그해 일정이 생겨도 점수가 오르면 안 된다');
+      expect(
+        clubs.memberPointsRankingForYear(year).firstWhere((e) => e.key == myId).value,
+        10,
+        reason: '확정했다고 점수를 0으로 만들면 안 된다',
+      );
+
+      final next = year + 1;
+      clubs.addMembershipPoint(
+        memberId: myId,
+        type: MembershipPointType.roundAttendance,
+        points: 10,
+        desc: '다음 해 참석|s_next',
+        date: DateTime(next, 1, 10),
+      );
+      expect(clubs.getMembershipPoints(myId, year: next), 10);
+      expect(clubs.getMembershipPoints(myId, year: year), 10);
+      expect(clubs.isSeasonClosed(next), isFalse);
+    });
+
+    test('일반회원은 시즌을 마감할 수 없다', () async {
+      final ok2 = await clubs.createClub(
+        name: '일반회원 시즌 모임',
+        region: '서울',
+        industry: '골프',
+        teamCount: 4,
+        myRole: '정회원',
+      );
+      expect(ok2, isTrue);
+      expect(clubs.isClubExecutive, isFalse);
+      expect(
+        clubs.closeSeasonRanking(DateTime.now().year),
+        SeasonCloseOutcome.officerOnly,
+      );
+    });
   });
 
   // ══════════════════════════════════════════════════════
@@ -646,6 +703,7 @@ void main() {
     );
 
     final restored = ClubDataCodec.decode(ClubDataCodec.encode(bundle));
+    expect(restored.seasonLocks, isEmpty);
     final mine = restored.pointEvents['m_a'] ?? const <MembershipPointEvent>[];
 
     expect(mine.length, 3);

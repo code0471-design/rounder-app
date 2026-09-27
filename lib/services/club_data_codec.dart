@@ -24,6 +24,7 @@ class ClubDataBundle {
   final List<AdNotification> adNotifications;
   final List<SponsorApplication> sponsorApplications;
   final Map<String, List<MembershipPointEvent>> pointEvents;
+  final Map<String, SeasonRankingLock> seasonLocks;
   final List<AwardRecord> awardRecords;
   final List<RoundScoreRecord> roundScores;
   final List<ThankYouMessage> thankYouMessages;
@@ -51,6 +52,7 @@ class ClubDataBundle {
     required this.adNotifications,
     required this.sponsorApplications,
     required this.pointEvents,
+    this.seasonLocks = const {},
     required this.awardRecords,
     this.roundScores = const [],
     required this.thankYouMessages,
@@ -120,6 +122,7 @@ class ClubDataCodec {
         'pointEvents': b.pointEvents.map(
           (k, v) => MapEntry(k, v.map(_encodePointEvent).toList()),
         ),
+        'seasonLocks': b.seasonLocks.values.map(_encodeSeasonLock).toList(),
         'awardRecords': b.awardRecords.map(_encodeAwardRecord).toList(),
         'roundScores': b.roundScores.map(_encodeRoundScore).toList(),
         'thankYouMessages': b.thankYouMessages.map(_encodeThankYou).toList(),
@@ -154,6 +157,7 @@ class ClubDataCodec {
       sponsorApplications:
           _list(json['sponsorApplications'], _decodeSponsorApplication),
       pointEvents: _pointMap(json['pointEvents']),
+      seasonLocks: _seasonLockMap(json['seasonLocks']),
       awardRecords: _list(json['awardRecords'], _decodeAwardRecord),
       roundScores: _list(json['roundScores'], _decodeRoundScore),
       thankYouMessages: _list(json['thankYouMessages'], _decodeThankYou),
@@ -912,6 +916,57 @@ class ClubDataCodec {
         desc: j['desc'] as String,
         date: _parseDtReq(j['date']),
       );
+
+  static Map<String, dynamic> _encodeSeasonLock(SeasonRankingLock lock) => {
+        'clubId': lock.clubId,
+        'year': lock.year,
+        'closedAt': _dt(lock.closedAt),
+        'ranks': [
+          for (final r in lock.ranks)
+            {
+              'memberId': r.memberId,
+              'name': r.name,
+              'points': r.points,
+              'rank': r.rank,
+            },
+        ],
+      };
+
+  static Map<String, SeasonRankingLock> _seasonLockMap(dynamic raw) {
+    if (raw is! List) return {};
+    final out = <String, SeasonRankingLock>{};
+    for (final e in raw) {
+      if (e is! Map) continue;
+      final j = Map<String, dynamic>.from(e);
+      final clubId = '${j['clubId'] ?? ''}'.trim();
+      final year = j['year'];
+      final y = year is int ? year : int.tryParse('$year');
+      final closedAt = _parseDt(j['closedAt']);
+      if (clubId.isEmpty || y == null || closedAt == null) continue;
+      final ranks = <SeasonRankingRow>[];
+      final rawRanks = j['ranks'];
+      if (rawRanks is List) {
+        for (final row in rawRanks) {
+          if (row is! Map) continue;
+          final r = Map<String, dynamic>.from(row);
+          ranks.add(SeasonRankingRow(
+            memberId: '${r['memberId'] ?? ''}',
+            name: '${r['name'] ?? ''}',
+            points: (r['points'] as num?)?.toInt() ?? 0,
+            rank: (r['rank'] as num?)?.toInt() ?? ranks.length + 1,
+          ));
+        }
+      }
+      final lock = SeasonRankingLock(
+        clubId: clubId,
+        year: y,
+        closedAt: closedAt,
+        ranks: ranks,
+      );
+      out[lock.key] = lock;
+    }
+    return out;
+  }
 
   // ── AwardRecord ──
   static Map<String, dynamic> _encodeAwardRecord(AwardRecord r) => {
