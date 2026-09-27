@@ -500,7 +500,7 @@ void main() {
 
     test('편집에서 양력·음력을 바꿀 수 있고 계정에 저장한다', () {
       expect(mypage.contains('birthIsLunar'), isTrue);
-      expect(mypage.contains('auth.updateGolfProfile('), isTrue);
+      expect(mypage.contains('auth.updateAccountProfile('), isTrue);
     });
 
     test('편집 시작값은 계정 값을 먼저 쓴다', () {
@@ -512,6 +512,16 @@ void main() {
       expect(mypage.contains('...myClubs.map'), isTrue);
       expect(mypage.contains("memberType != '게스트'"), isFalse);
       expect(mypage.contains('ClubMemberRole.guest'), isTrue);
+    });
+
+    test('헤더는 홈과 같은 흰색이고 진녹색 AppBar가 아니다', () {
+      final start = mypage.indexOf('class MyAdScreen');
+      final end = mypage.indexOf('class _AccountSettingsTab');
+      expect(start, greaterThan(0));
+      expect(end, greaterThan(start));
+      final header = mypage.substring(start, end);
+      expect(header.contains('_MyPageWhiteHeader'), isTrue);
+      expect(header.contains('primaryDark'), isFalse);
     });
   });
 

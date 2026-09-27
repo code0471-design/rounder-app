@@ -104,31 +104,53 @@ class _MyRoleChangeScreenState extends State<MyRoleChangeScreen> {
         final clubs = provider.myClubs;
         return Scaffold(
           backgroundColor: AppColors.background,
-          appBar: AppBar(
-            backgroundColor: AppColors.primaryDark,
-            iconTheme: const IconThemeData(color: Colors.white),
-            title: Text(
-              _selectedClub == null ? '직책 변경 — 모임 선택' : '직책 변경',
-              style: const TextStyle(
-                color: Colors.white,
-                fontWeight: FontWeight.bold,
-                fontSize: 17,
+          body: Column(
+            children: [
+              DecoratedBox(
+                decoration: const BoxDecoration(
+                  color: Color(0xFFFFFFFF),
+                  border: Border(
+                    bottom: BorderSide(color: Color(0xFFF0EFEA), width: 1),
+                  ),
+                ),
+                child: SafeArea(
+                  bottom: false,
+                  child: SizedBox(
+                    height: 48,
+                    child: Row(
+                      children: [
+                        IconButton(
+                          icon: const Icon(Icons.arrow_back_ios_new, size: 18),
+                          color: AppColors.primary,
+                          onPressed: () {
+                            if (_selectedClub != null) {
+                              setState(() => _selectedClub = null);
+                            } else {
+                              Navigator.pop(context);
+                            }
+                          },
+                        ),
+                        Text(
+                          _selectedClub == null ? '직책 변경 — 모임 선택' : '직책 변경',
+                          style: const TextStyle(
+                            color: AppColors.textPrimary,
+                            fontWeight: FontWeight.w700,
+                            fontSize: 17,
+                            letterSpacing: -0.2,
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                ),
               ),
-            ),
-            leading: IconButton(
-              icon: const Icon(Icons.arrow_back_ios_new, size: 18),
-              onPressed: () {
-                if (_selectedClub != null) {
-                  setState(() => _selectedClub = null);
-                } else {
-                  Navigator.pop(context);
-                }
-              },
-            ),
+              Expanded(
+                child: _selectedClub == null
+                    ? _buildClubPicker(clubs, provider)
+                    : _buildRoleEditor(provider),
+              ),
+            ],
           ),
-          body: _selectedClub == null
-              ? _buildClubPicker(clubs, provider)
-              : _buildRoleEditor(provider),
         );
       },
     );
@@ -159,17 +181,7 @@ class _MyRoleChangeScreenState extends State<MyRoleChangeScreen> {
           );
           return Container(
             margin: const EdgeInsets.only(bottom: 10),
-            decoration: BoxDecoration(
-              color: Colors.white,
-              borderRadius: BorderRadius.circular(12),
-              boxShadow: [
-                BoxShadow(
-                  color: Colors.black.withValues(alpha: 0.05),
-                  blurRadius: 4,
-                  offset: const Offset(0, 1),
-                ),
-              ],
-            ),
+            decoration: AppDecorations.standardCard,
             child: ListTile(
               contentPadding:
                   const EdgeInsets.symmetric(horizontal: 16, vertical: 6),
