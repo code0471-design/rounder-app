@@ -90,6 +90,16 @@ void main() {
     );
   });
 
+  test('모임찾기 상세는 소개와 가입신청만 두고 가입 알림은 안 띄운다', () {
+    final dash = _read(
+        'lib/features/clubs/presentation/club_detail_dashboard_screen.dart');
+    expect(dash.contains('_JoinRequestsCard'), isFalse);
+    expect(dash.contains('가입 신청 대기 ('), isFalse);
+    expect(dash.contains('님 승인'), isFalse);
+    expect(dash.contains("'가입 신청'"), isTrue);
+    expect(dash.contains("'모임 소개'"), isTrue);
+  });
+
   test('모임찾기 상세에 입장 버튼이 없다', () {
     final dash = _read(
         'lib/features/clubs/presentation/club_detail_dashboard_screen.dart');

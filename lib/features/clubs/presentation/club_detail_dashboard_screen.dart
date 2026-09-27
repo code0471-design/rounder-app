@@ -89,9 +89,6 @@ class ClubDetailDashboardScreen extends StatelessWidget {
             !isPending &&
             (controller.isMember ||
                 (isLegacyDemo && legacyProvider.isMyClub(club.id)));
-        final pending = controller.pendingRequests.isNotEmpty
-            ? controller.pendingRequests
-            : legacyProvider.pendingRequestsOf(club.id);
         final isAdmin = controller.isAdmin ||
             (isMine &&
                 ClubMemberRole.isOfficer(club.myRole));
@@ -124,12 +121,6 @@ class ClubDetailDashboardScreen extends StatelessWidget {
                 child: Column(
                   children: [
                     _InfoCard(club: club, isAdmin: isAdmin, controller: controller),
-                    if (isMine && isAdmin && pending.isNotEmpty)
-                      _JoinRequestsCard(
-                        pending: pending,
-                        controller: controller,
-                        legacyProvider: legacyProvider,
-                      ),
                     const SizedBox(height: 32),
                   ],
                 ),
@@ -146,7 +137,6 @@ class ClubDetailDashboardScreen extends StatelessWidget {
                     ? _MemberBar(
                         club: club,
                         isAdmin: isAdmin,
-                        pendingCount: controller.pendingRequests.length,
                       )
                     : isPending
                         ? _PendingBar(
@@ -546,12 +536,10 @@ class _PendingBar extends StatelessWidget {
 class _MemberBar extends StatelessWidget {
   final Club club;
   final bool isAdmin;
-  final int pendingCount;
 
   const _MemberBar({
     required this.club,
     required this.isAdmin,
-    required this.pendingCount,
   });
 
   @override
@@ -587,24 +575,6 @@ class _MemberBar extends StatelessWidget {
               ),
             ),
           ),
-          if (isAdmin && pendingCount > 0) ...[
-            const SizedBox(width: 6),
-            Container(
-              padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
-              decoration: BoxDecoration(
-                color: AppColors.danger,
-                borderRadius: BorderRadius.circular(10),
-              ),
-              child: Text(
-                '$pendingCount',
-                style: const TextStyle(
-                  fontSize: 11,
-                  color: Colors.white,
-                  fontWeight: FontWeight.bold,
-                ),
-              ),
-            ),
-          ],
         ],
       ),
     );
@@ -747,173 +717,6 @@ class _InfoCardState extends State<_InfoCard> {
   Future<void> _updateTeamCount(int count) async {
     setState(() => _teamCount = count);
     await widget.controller.updateTeamCount(count);
-  }
-}
-
-class _JoinRequestsCard extends StatelessWidget {
-  final List<JoinRequest> pending;
-  final ClubDetailController controller;
-  final ClubProvider legacyProvider;
-
-  const _JoinRequestsCard({
-    required this.pending,
-    required this.controller,
-    required this.legacyProvider,
-  });
-
-  Future<void> _approveWithRole(
-    BuildContext context, {
-    required ClubDetailController controller,
-    required JoinRequest request,
-    required String reviewer,
-  }) async {
-    var role = '정회원';
-    final confirmed = await showDialog<bool>(
-      context: context,
-      builder: (_) => StatefulBuilder(
-        builder: (ctx, setDlg) => AlertDialog(
-          shape: RoundedRectangleBorder(
-              borderRadius: BorderRadius.circular(16)),
-          title: Text('${request.userName}님 승인',
-              style: const TextStyle(
-                  fontSize: 16, fontWeight: FontWeight.bold)),
-          content: Column(
-            mainAxisSize: MainAxisSize.min,
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              const Text('직책을 지정해 주세요. 권한이 자동으로 설정됩니다.',
-                  style: TextStyle(fontSize: 13)),
-              const SizedBox(height: 12),
-              DropdownButtonFormField<String>(
-                value: role,
-                decoration: InputDecoration(
-                  filled: true,
-                  fillColor: const Color(0xFFF7F8FA),
-                  border: OutlineInputBorder(
-                    borderRadius: BorderRadius.circular(10),
-                    borderSide: BorderSide.none,
-                  ),
-                ),
-                items: const ['회장', '부회장', '총무', '정회원', '게스트']
-                    .map((r) => DropdownMenuItem(value: r, child: Text(r)))
-                    .toList(),
-                onChanged: (v) {
-                  if (v != null) setDlg(() => role = v);
-                },
-              ),
-            ],
-          ),
-          actions: [
-            TextButton(
-              onPressed: () => Navigator.pop(ctx, false),
-              child: const Text('취소'),
-            ),
-            ElevatedButton(
-              onPressed: () => Navigator.pop(ctx, true),
-              child: const Text('승인'),
-            ),
-          ],
-        ),
-      ),
-    );
-    if (confirmed != true || !context.mounted) return;
-    final ok = await legacyProvider.approveRequest(
-      request.id,
-      memberType: role == '게스트' ? '게스트' : '정회원',
-      role: role,
-      request: request,
-    );
-    if (ok) {
-      final uid = context.read<AuthProvider>().currentUser?.id ?? '';
-      await controller.load(clubId: request.clubId, userId: uid);
-    }
-    if (context.mounted && ok) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text('${request.userName}님을 $role으로 승인했습니다'),
-          backgroundColor: AppColors.success,
-        ),
-      );
-    }
-  }
-
-  @override
-  Widget build(BuildContext context) {
-    final auth = context.read<AuthProvider>();
-    final reviewer = auth.currentUser?.name ?? '관리자';
-
-    return Container(
-      margin: const EdgeInsets.fromLTRB(14, 12, 14, 0),
-      decoration: BoxDecoration(
-        color: Colors.white,
-        borderRadius: BorderRadius.circular(14),
-      ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Padding(
-            padding: const EdgeInsets.fromLTRB(16, 14, 16, 10),
-            child: Text('가입 신청 대기 (${pending.length})',
-                style: const TextStyle(
-                    fontSize: 14, fontWeight: FontWeight.bold)),
-          ),
-          const Divider(height: 1),
-          ...pending.map(
-            (req) => ListTile(
-              title: Text(req.userName,
-                  style: const TextStyle(fontWeight: FontWeight.bold)),
-              subtitle: req.message.isNotEmpty ? Text(req.message) : null,
-              trailing: Wrap(
-                spacing: 4,
-                children: [
-                  TextButton(
-                    onPressed: controller.actionInProgress
-                        ? null
-                        : () => _approveWithRole(
-                              context,
-                              controller: controller,
-                              request: req,
-                              reviewer: reviewer,
-                            ),
-                    child: const Text('승인'),
-                  ),
-                  TextButton(
-                    onPressed: controller.actionInProgress
-                        ? null
-                        : () async {
-                            final ok = await legacyProvider.rejectRequest(
-                              req.id,
-                              request: req,
-                            );
-                            if (ok) {
-                              await controller.load(
-                                clubId: req.clubId,
-                                userId: context
-                                        .read<AuthProvider>()
-                                        .currentUser
-                                        ?.id ??
-                                    '',
-                              );
-                            }
-                            if (context.mounted && ok) {
-                              ScaffoldMessenger.of(context).showSnackBar(
-                                SnackBar(
-                                  content: Text('${req.userName}님의 신청을 거절했습니다'),
-                                  backgroundColor: AppColors.danger,
-                                ),
-                              );
-                            }
-                          },
-                    child: const Text('거절',
-                        style: TextStyle(color: AppColors.danger)),
-                  ),
-                ],
-              ),
-            ),
-          ),
-        ],
-      ),
-    );
   }
 }
 
