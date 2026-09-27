@@ -75,15 +75,25 @@ void main() {
   });
 
   test('올해 연회비는 오늘 날짜 그대로다', () {
+    clubs.addDuesSetting(DuesSetting(
+      id: 'ds_annual_now',
+      type: DuesType.annual,
+      amount: 400000,
+      title: '연회비',
+      createdAt: DateTime(now.year, 1, 1),
+      clubId: clubs.selectedClub.id,
+      year: now.year,
+      dueDate: DateTime(now.year, 3, 31),
+    ));
     clubs.recordPayment(
       memberId: memberId,
       memberName: '안경헌',
-      duesSettingId: 'ds_annual',
+      duesSettingId: 'ds_annual_now',
       amount: 400000,
       year: now.year,
     );
 
-    expect(clubs.hasPaid(memberId, 'ds_annual', year: now.year), isTrue);
+    expect(clubs.hasPaid(memberId, 'ds_annual_now', year: now.year), isTrue);
     expect(clubs.monthlyIncome(now.year, now.month), 400000);
   });
 

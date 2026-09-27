@@ -47,7 +47,9 @@ void main() {
   test('홈 현 회비 잔고는 월회비·연회비를 다르게 보여 준다', () {
     expect(room.contains('currentHomeDuesSetting'), isTrue);
     expect(room.contains('previousMonthUnpaidCount'), isTrue);
-    expect(room.contains("isMonthly ? '이달 \${homeDues.title}' : homeDues.title"), isTrue);
+    expect(room.contains('homeMonthLabel'), isTrue);
+    expect(room.contains('collectableView(now)'), isTrue);
+    expect(room.contains("'이달 \${homeDues!.title}'"), isTrue);
     expect(room.contains("'전월 미납 \$prevUnpaid명'"), isTrue);
     expect(room.contains("'회비 미설정'"), isTrue);
     expect(room.contains("'이달 회비 납부'"), isFalse);
@@ -133,8 +135,8 @@ void main() {
     expect(balanceLabel.contains('AppColors.textSecondary'), isFalse);
 
     final duesLabel = room.substring(
-      room.indexOf("isMonthly ? '이달 \${homeDues.title}'"),
-      room.indexOf("isMonthly ? '이달 \${homeDues.title}'") + 500,
+      room.indexOf('homeMonthLabel,'),
+      room.indexOf('homeMonthLabel,') + 500,
     );
     expect(duesLabel.contains('Color(0xFF6B7280)'), isTrue);
     expect(duesLabel.contains('AppColors.textSecondary'), isFalse);

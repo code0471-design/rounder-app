@@ -217,7 +217,7 @@ class FinanceScreenState extends State<FinanceScreen>
   final _txTabKey = GlobalKey<_TransactionTabState>();
   final _settleTabKey = GlobalKey<_SettlementReportTabState>();
 
-  /// 다른 탭에서 재무로 다시 들어오면 이번 달·올해가 기본.
+  /// 다른 탭에서 재무로 다시 들어오면 납부 가능한 마지막 달로 맞춘다.
   /// 화면에 앉아 있는 동안 자정이 지나도 실시간으로 바꾸지 않는다.
   void onReentered() {
     final now = DateTime.now();
@@ -683,12 +683,21 @@ class _PaymentStatusTabState extends State<_PaymentStatusTab> {
   int _month = DateTime.now().month;
   final Set<String> _bulkSelectedIds = {};
 
-  /// 월회비는 오늘 기준 이번 달. 연회비는 설정 연도를 보므로 달을 안 고른다.
+  /// 납부 가능한 마지막 달로 맞춘다. 11월 종료면 12월에 열어도 11월.
   void resetPeriod(DateTime now) {
     setState(() {
       _year = now.year;
       _month = now.month;
       _bulkSelectedIds.clear();
+      final settings = context.read<ClubProvider>().activeDuesSettings;
+      if (settings.isEmpty) return;
+      final selected = settings.firstWhere(
+        (s) => s.id == _selectedDuesId,
+        orElse: () => settings.first,
+      );
+      final view = selected.collectableView(now);
+      _year = view.year;
+      _month = view.month;
     });
   }
 

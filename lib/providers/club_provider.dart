@@ -3038,32 +3038,42 @@ class ClubProvider extends ChangeNotifier with WidgetsBindingObserver {
         .firstWhere((_) => true, orElse: () => null);
   }
 
-  /// 홈 회계 카드용 — 이달 월회비, 없으면 올해 연회비. 특별회비는 제외.
+  /// 홈 회계 카드용 — 이달 월회비, 기간이 끝났으면 마지막 청구월 회비.
+  /// 없으면 그해 연회비. 특별회비는 제외.
   DuesSetting? currentHomeDuesSetting(int year, int month) {
     final monthly = currentMonthDuesSetting(year, month);
     if (monthly != null) return monthly;
+    if (clubPrimaryDuesType == DuesType.monthly) {
+      for (final d in activeDuesSettings) {
+        if (d.type != DuesType.monthly) continue;
+        final view = d.collectableView(DateTime(year, month, 1));
+        if (d.isActiveForYearMonth(view.year, view.month)) return d;
+      }
+    }
     for (final d in activeDuesSettings) {
       if (d.type == DuesType.annual &&
           (d.year ?? d.createdAt.year) == year) {
         return d;
       }
     }
+    for (final d in activeDuesSettings) {
+      if (d.type != DuesType.annual) continue;
+      return d;
+    }
     return null;
   }
 
-  /// 전월 월회비 미납 인원. 월회비 모임이 아니면 0.
-  int previousMonthUnpaidCount() {
+  /// 홈에 보이는 청구월의 바로 전 달 미납. 월회비 모임이 아니면 0.
+  /// 11월 종료면 12월 홈은 11월분이므로 전월은 10월이다.
+  int previousMonthUnpaidCount({DateTime? asOf}) {
     if (clubPrimaryDuesType != DuesType.monthly) return 0;
-    final now = DateTime.now();
-    var y = now.year;
-    var m = now.month - 1;
-    if (m < 1) {
-      m = 12;
-      y--;
-    }
-    final setting = currentMonthDuesSetting(y, m);
-    if (setting == null) return 0;
-    return unpaidCountForDuesSetting(setting, y, m);
+    final now = asOf ?? DateTime.now();
+    final setting = currentHomeDuesSetting(now.year, now.month);
+    if (setting == null || setting.type != DuesType.monthly) return 0;
+    final view = setting.collectableView(now);
+    final prev = DuesSetting.shiftYearMonth(view.year, view.month, -1);
+    if (!setting.isActiveForYearMonth(prev.year, prev.month)) return 0;
+    return unpaidCountForDuesSetting(setting, prev.year, prev.month);
   }
 
   /// 이달 적용 회비 (월회비: 해당 연/월 기간 내 / 그 외: 활성 회비)
@@ -3227,14 +3237,16 @@ class ClubProvider extends ChangeNotifier with WidgetsBindingObserver {
     final setting = currentHomeDuesSetting(year, month);
     if (setting == null) return 0;
     final now = asOf ?? DateTime.now();
+    final view = setting.collectableView(DateTime(year, month, 1));
     return regularMembers
         .where((m) =>
             DuesPeriodEligibility.classify(
               member: m,
               type: setting.type,
-              year: year,
-              month: setting.type == DuesType.monthly ? month : null,
-              hasPaid: _hasPaidForSetting(m.id, setting, year, month),
+              year: view.year,
+              month: setting.type == DuesType.monthly ? view.month : null,
+              hasPaid: _hasPaidForSetting(
+                  m.id, setting, view.year, view.month),
               asOf: now,
             ) ==
             DuesChip.paid)
@@ -3245,7 +3257,13 @@ class ClubProvider extends ChangeNotifier with WidgetsBindingObserver {
   int unpaidCountForMonth(int year, int month, {DateTime? asOf}) {
     final setting = currentHomeDuesSetting(year, month);
     if (setting == null) return 0;
-    return unpaidCountForDuesSetting(setting, year, month, asOf: asOf);
+    final view = setting.collectableView(DateTime(year, month, 1));
+    return unpaidCountForDuesSetting(
+      setting,
+      view.year,
+      view.month,
+      asOf: asOf,
+    );
   }
 
   /// 활성 회비 1건의 미납 건수 (회원×기간, 설정 생성~현재·밀린 달 포함)
@@ -3375,48 +3393,22 @@ class ClubProvider extends ChangeNotifier with WidgetsBindingObserver {
   bool hasAnyUnpaidActiveDues({DateTime? asOf}) =>
       totalUnpaidDuesAmount(asOf: asOf) > 0;
 
-  /// 월회비 청구 대상 연/월 목록 (설정 시작~기준일까지, 절대 구간이면 종료 연/월까지)
+  /// 월회비 청구 대상 연/월 목록. 종료 없이 계속이면 시작 달부터 asOf까지.
+  /// 종료가 있으면 그 기간만. 기간이 지나도 마지막 달은 남긴다.
   Iterable<({int year, int month})> _expectedMonthlyPeriods(
       DuesSetting setting, DateTime asOf) sync* {
     if (setting.type != DuesType.monthly) return;
-    final startYear = setting.startYear ?? setting.createdAt.year;
-    final periodStart = setting.startMonth ?? 1;
-    final periodEnd = setting.endMonth ?? 12;
-
-    if (setting.endYear != null) {
-      // 절대 구간 (연도 포함, 1년 이상 가능)
-      final endYear = setting.endYear!;
-      var year = startYear;
-      var month = math.max(periodStart, setting.createdAt.year == startYear
-          ? setting.createdAt.month
-          : periodStart);
-      while (year * 12 + month <= endYear * 12 + periodEnd &&
-          year * 12 + month <= asOf.year * 12 + asOf.month) {
+    var year = setting.startYear ?? setting.createdAt.year;
+    var month = setting.startMonth ?? 1;
+    final asOfKey = asOf.year * 12 + asOf.month;
+    for (var i = 0; i < 240; i++) {
+      if (year * 12 + month > asOfKey) break;
+      if (setting.isActiveForYearMonth(year, month)) {
         yield (year: year, month: month);
-        month++;
-        if (month > 12) {
-          month = 1;
-          year++;
-        }
       }
-      return;
-    }
-
-    // 매년 반복되는 월 구간
-    for (var year = startYear; year <= asOf.year; year++) {
-      var monthFrom = periodStart;
-      if (year == startYear) {
-        monthFrom = math.max(periodStart, setting.createdAt.month);
-      }
-      var monthTo = periodEnd;
-      if (year == asOf.year) {
-        monthTo = math.min(periodEnd, asOf.month);
-      }
-      for (var month = monthFrom; month <= monthTo; month++) {
-        if (setting.isMonthInPeriod(month)) {
-          yield (year: year, month: month);
-        }
-      }
+      final next = DuesSetting.shiftYearMonth(year, month, 1);
+      year = next.year;
+      month = next.month;
     }
   }
 
@@ -3736,6 +3728,15 @@ class ClubProvider extends ChangeNotifier with WidgetsBindingObserver {
     int? month,
     bool skipsBalance = false,   // true = 상태만 변경, 잔고 미반영
   }) {
+    final setting = _duesSettings
+        .where((d) => d.id == duesSettingId)
+        .firstOrNull;
+    if (setting != null &&
+        year != null &&
+        !setting.canCollectPeriod(year: year, month: month)) {
+      return;
+    }
+
     final now = DateTime.now();
     final paidAt = _paymentDateFor(
       duesSettingId: duesSettingId,

@@ -111,25 +111,17 @@ class DuesLedgerService {
     DuesSetting setting,
     DateTime asOf,
   ) sync* {
-    final startYear = setting.createdAt.year;
-    for (var year = startYear; year <= asOf.year; year++) {
-      final periodStart = setting.startMonth ?? 1;
-      final periodEnd = setting.endMonth ?? 12;
-      var monthFrom = periodStart;
-      if (year == startYear) {
-        monthFrom = periodStart > setting.createdAt.month
-            ? periodStart
-            : setting.createdAt.month;
+    var year = setting.startYear ?? setting.createdAt.year;
+    var month = setting.startMonth ?? 1;
+    final asOfKey = asOf.year * 12 + asOf.month;
+    for (var i = 0; i < 240; i++) {
+      if (year * 12 + month > asOfKey) break;
+      if (setting.isActiveForYearMonth(year, month)) {
+        yield (year: year, month: month);
       }
-      var monthTo = periodEnd;
-      if (year == asOf.year) {
-        monthTo = asOf.month < periodEnd ? asOf.month : periodEnd;
-      }
-      for (var month = monthFrom; month <= monthTo; month++) {
-        if (setting.isMonthInPeriod(month)) {
-          yield (year: year, month: month);
-        }
-      }
+      final next = DuesSetting.shiftYearMonth(year, month, 1);
+      year = next.year;
+      month = next.month;
     }
   }
 }

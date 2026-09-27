@@ -48,6 +48,50 @@ void main() {
     expect(s.clampDuesView(2027, 1), (year: 2026, month: 12));
   });
 
+  test('11월 종료면 12월에 열어도 11월분이고 12월분은 안 걷는다', () {
+    final s = monthly(endYear: 2026, endMonth: 11);
+    expect(s.isActiveForYearMonth(2026, 11), isTrue);
+    expect(s.isActiveForYearMonth(2026, 12), isFalse);
+    expect(s.collectableView(DateTime(2026, 12, 8)), (year: 2026, month: 11));
+    expect(s.canCollectPeriod(year: 2026, month: 11), isTrue);
+    expect(s.canCollectPeriod(year: 2026, month: 12), isFalse);
+    expect(s.canNavigateDuesNext(2026, 11), isFalse);
+  });
+
+  test('종료 없이 계속은 시작 달부터 다음 해도 걷는다', () {
+    final s = monthly();
+    expect(s.collectableView(DateTime(2027, 1, 5)), (year: 2027, month: 1));
+    expect(s.canCollectPeriod(year: 2027, month: 1), isTrue);
+    expect(s.canCollectPeriod(year: 2026, month: 2), isFalse);
+  });
+
+  test('연회비·특별회비는 날짜가 지나도 그 회비를 연다', () {
+    final annual = DuesSetting(
+      id: 'a',
+      type: DuesType.annual,
+      amount: 400000,
+      title: '연회비',
+      createdAt: DateTime(2026, 1, 1),
+      year: 2026,
+      dueDate: DateTime(2026, 3, 31),
+    );
+    expect(annual.collectableView(DateTime(2026, 12, 1)).year, 2026);
+    expect(annual.canCollectPeriod(year: 2026), isTrue);
+    expect(annual.isPaidOnTime(DateTime(2026, 12, 1), year: 2026), isFalse);
+
+    final special = DuesSetting(
+      id: 'sp',
+      type: DuesType.special,
+      amount: 50000,
+      title: '여행',
+      createdAt: DateTime(2026, 6, 1),
+      dueDate: DateTime(2026, 6, 15),
+    );
+    expect(special.collectableView(DateTime(2026, 12, 1)),
+        (year: 2026, month: 6));
+    expect(special.canCollectPeriod(year: 2026, month: 6), isTrue);
+  });
+
   test('특별회비는 납부 기준일 그 달만 고정이다', () {
     final s = DuesSetting(
       id: 'sp',

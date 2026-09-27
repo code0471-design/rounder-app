@@ -67,11 +67,23 @@ void main() {
     expect(finance.contains('panelColor: Colors.white'), isTrue);
   });
 
-  test('재무를 다시 열면 이번 달·올해가 기본이고 연회비 설정 연도는 안 바꾼다', () {
+  test('기간이 끝났다고 회비를 종료된 회비로 보내지 않는다', () {
+    expect(finance.contains("settings.any((s) => !s.isActive)"), isTrue);
+    expect(finance.contains("_SettingSectionLabel('종료된 회비')"), isTrue);
+    expect(finance.contains('.where((s) => !s.isActive)'), isTrue,
+        reason: '종료된 회비는 총무가 종료를 누른 !isActive 만');
+    expect(provider.contains('void deactivateDuesSetting'), isTrue);
+    expect(provider.contains('canCollectPeriod'), isTrue);
+    expect(provider.contains('collectableView'), isTrue);
+  });
+
+  test('재무를 다시 열면 납부 가능한 마지막 달로 맞추고 연회비 설정 연도는 안 바꾼다', () {
     expect(finance.contains('void onReentered()'), isTrue);
     expect(finance.contains('resetPeriod(now)'), isTrue);
+    expect(finance.contains('collectableView(now)'), isTrue,
+        reason: '11월 종료면 12월에 열어도 11월분이다');
     expect(finance.contains('if (_tab.index != 0) _tab.animateTo(0)'), isTrue,
-        reason: '다른 탭에서 들어오면 이번 달 납부현황으로 돌아간다');
+        reason: '다른 탭에서 들어오면 납부현황으로 돌아간다');
     expect(finance.contains('Timer.periodic'), isFalse,
         reason: '앉아 있는 동안 자정에 달을 실시간으로 바꾸면 안 된다');
     final tab = finance.substring(

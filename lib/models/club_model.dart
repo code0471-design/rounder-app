@@ -803,9 +803,36 @@ class DuesSetting {
   /// 해당 월이 납부 기간(월 범위)에 포함되는지 (월회비 전용, 연도 미고려)
   bool isMonthInPeriod(int month) {
     if (type != DuesType.monthly) return true;
+    if (endMonth == null && endYear == null && startMonth == null) return true;
     final s = startMonth ?? 1;
+    if (endMonth == null && endYear == null) return month >= s;
     final e = endMonth ?? 12;
     return month >= s && month <= e;
+  }
+
+  /// 오늘 재무를 열면 보여줄 납부 연·월. 기간이 끝났으면 마지막 청구월.
+  ({int year, int month}) collectableView(DateTime asOf) {
+    switch (type) {
+      case DuesType.monthly:
+        return clampDuesView(asOf.year, asOf.month);
+      case DuesType.special:
+        return (year: pinnedDueYear, month: pinnedDueMonth);
+      case DuesType.annual:
+        return (year: year ?? createdAt.year, month: asOf.month);
+    }
+  }
+
+  /// 그 연·월 분을 걷는지. 기간이 끝나도 그달·그해 분은 true.
+  bool canCollectPeriod({required int year, int? month}) {
+    switch (type) {
+      case DuesType.monthly:
+        return month != null && isActiveForYearMonth(year, month);
+      case DuesType.annual:
+        return year == (this.year ?? createdAt.year);
+      case DuesType.special:
+        return year == pinnedDueYear &&
+            (month == null || month == pinnedDueMonth);
+    }
   }
 
   /// 해당 연/월이 실제 납부 대상 기간인지 (연도까지 고려)

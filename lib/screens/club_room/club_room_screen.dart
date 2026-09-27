@@ -2539,6 +2539,12 @@ class _FinanceSummaryCard extends StatelessWidget {
     final totalMembers = paidCount + unpaidCount;
     final prevUnpaid = provider.previousMonthUnpaidCount();
     final isMonthly = homeDues?.type == DuesType.monthly;
+    final homeView = homeDues?.collectableView(now);
+    final homeMonthLabel = isMonthly &&
+            homeView != null &&
+            (homeView.year != now.year || homeView.month != now.month)
+        ? '${homeView.month}월 ${homeDues!.title}'
+        : (isMonthly ? '이달 ${homeDues!.title}' : homeDues?.title ?? '');
 
     return GestureDetector(
       onTap: onTap,
@@ -2620,7 +2626,7 @@ class _FinanceSummaryCard extends StatelessWidget {
                 children: [
                   if (homeDues != null) ...[
                     Text(
-                      isMonthly ? '이달 ${homeDues.title}' : homeDues.title,
+                      homeMonthLabel,
                       maxLines: 1,
                       overflow: TextOverflow.ellipsis,
                       // 왼쪽 '현 회비 잔고' 와 같은 라벨 톤.
