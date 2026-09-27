@@ -47,6 +47,44 @@ class AuthProvider extends ChangeNotifier {
     return n == '카카오 회원' || n == 'Google 회원' || n == 'Apple 회원';
   }
 
+  /// 구글 표시 이름. 앱에서 한글로 바꾼 뒤에도 로그인할 때마다 이걸 쓰면 영문으로 돌아간다.
+  static bool isLeftoverEnglishDisplayName(String? name) {
+    final c = (name ?? '').replaceAll(RegExp(r'[\s._-]'), '').toLowerCase();
+    return c == 'jeongwonlee' || c == 'jeongwonleeee';
+  }
+
+  static String? koreanNameForLeftoverEnglish(String? name) {
+    if (isLeftoverEnglishDisplayName(name)) return '이정원';
+    return null;
+  }
+
+  /// 이미 저장된 이름이 있으면 소셜 영문 이름을 덮지 않는다.
+  static String pickLoginDisplayName({
+    String social = '',
+    String? remote,
+    String? memory,
+  }) {
+    bool usable(String? n) =>
+        n != null && n.trim().isNotEmpty && !isPlaceholderName(n);
+    final stored = usable(remote)
+        ? remote!.trim()
+        : (usable(memory) ? memory!.trim() : '');
+    final soc = social.trim();
+    if (usable(stored)) {
+      final fromLeftover = koreanNameForLeftoverEnglish(stored);
+      if (fromLeftover != null) return fromLeftover;
+      if (isLeftoverEnglishDisplayName(soc) &&
+          !isLeftoverEnglishDisplayName(stored)) {
+        return stored;
+      }
+      return stored;
+    }
+    if (usable(soc)) {
+      return koreanNameForLeftoverEnglish(soc) ?? soc;
+    }
+    return soc.isNotEmpty ? soc : '회원';
+  }
+
   String get greetingName {
     final n = _currentUser?.name.trim() ?? '';
     if (isPlaceholderName(n)) return '회원';
@@ -400,18 +438,11 @@ class AuthProvider extends ChangeNotifier {
                 ? memory.phone
                 : ''));
 
-    final resolvedName = () {
-      if (profile.name.isNotEmpty && !isPlaceholderName(profile.name)) {
-        return profile.name;
-      }
-      if (remoteName != null) return remoteName;
-      if (memory != null &&
-          memory.name.isNotEmpty &&
-          !isPlaceholderName(memory.name)) {
-        return memory.name;
-      }
-      return profile.name.isNotEmpty ? profile.name : '회원';
-    }();
+    final resolvedName = pickLoginDisplayName(
+      social: profile.name,
+      remote: remoteName,
+      memory: memory?.name,
+    );
 
     final user = AppUser(
       id: profile.appUserId,
@@ -1109,9 +1140,11 @@ class AuthProvider extends ChangeNotifier {
         return;
       }
       // 빈 phone으로 기존 번호를 지우지 않음 (소셜 재로그인 시 본사 연락처 유실 방지)
+    final displayName =
+        koreanNameForLeftoverEnglish(user.name) ?? user.name.trim();
     final data = <String, dynamic>{
-      'name': user.name,
-      'nickname': user.name,
+      'name': displayName,
+      'nickname': displayName,
       'created_at': FieldValue.serverTimestamp(),
       'updated_at': FieldValue.serverTimestamp(),
     };

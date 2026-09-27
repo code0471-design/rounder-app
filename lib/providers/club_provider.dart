@@ -1874,10 +1874,13 @@ class ClubProvider extends ChangeNotifier with WidgetsBindingObserver {
       } else if (_members[idx].id != id) {
         _members[idx] = _preferLocalMemberProfile(row, _members[idx], clubId);
         changed = true;
-      } else if (isPlaceholderMemberName(_members[idx].name) &&
+      } else if ((isPlaceholderMemberName(_members[idx].name) ||
+              AuthProvider.isLeftoverEnglishDisplayName(_members[idx].name)) &&
           row.name.trim().isNotEmpty &&
-          !isPlaceholderMemberName(row.name)) {
-        _members[idx] = _preferLocalMemberProfile(row, _members[idx], clubId);
+          !isPlaceholderMemberName(row.name) &&
+          !AuthProvider.isLeftoverEnglishDisplayName(row.name)) {
+        _members[idx] = _preferLocalMemberProfile(row, _members[idx], clubId)
+            .copyWith(name: row.name);
         changed = true;
       } else {
         final kept = _preferLocalMemberProfile(row, _members[idx], clubId);
