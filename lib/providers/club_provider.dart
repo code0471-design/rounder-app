@@ -7646,8 +7646,22 @@ class ClubProvider extends ChangeNotifier with WidgetsBindingObserver {
       timestamp: DateTime.now(),
     ));
 
-    final club = _allClubs.where((c) => c.id == req.clubId).firstOrNull ??
+    var club = _allClubs.where((c) => c.id == req.clubId).firstOrNull ??
         _myClubs.where((c) => c.id == req.clubId).firstOrNull;
+    if (AppDependencies.instance.isInitialized &&
+        !AppDependencies.instance.isOfflineMockMode) {
+      try {
+        final remote = await AppDependencies.instance.clubRepository
+            .fetchClubById(
+              req.clubId,
+              userId: _persistAuthUserId ?? currentUserId,
+            )
+            .timeout(const Duration(seconds: 8));
+        if (remote != null) club = remote;
+      } catch (e) {
+        debugPrint('[ClubProvider] join publish club skip: $e');
+      }
+    }
     // 신청자 폰 명단은 그 모임 총무가 없다. 서버 소속 계정으로 고른다.
     final officerIds = await _resolveJoinNotifyAccountIds(req.clubId);
     String inboxId = '';
@@ -7687,20 +7701,27 @@ class ClubProvider extends ChangeNotifier with WidgetsBindingObserver {
     );
 
     await ClubOpsSync.upsertClubJoinRequest(req);
+    final expectedId = JoinRequestService.requestId(req.clubId, req.userId);
     if (inboxId.isNotEmpty) {
       await ClubOpsSync.appendOfficerInbox(
         authUserId: inboxId,
         notification: noti,
         request: req,
       );
-      unawaited(PushNotificationService.enqueue(
-        targetUserId: inboxId,
-        title: noti.title,
-        body: '${req.userName}님이 ${club?.name ?? '모임'} 가입을 신청했습니다',
-        type: HqPushCatalog.joinRequest,
-        clubId: req.clubId,
-        itemId: req.id,
-      ));
+      if (expectedId.isNotEmpty && req.id == expectedId) {
+        await PushNotificationService.enqueue(
+          targetUserId: inboxId,
+          title: noti.title,
+          body: '${req.userName}님이 ${club?.name ?? '모임'} 가입을 신청했습니다',
+          type: HqPushCatalog.joinRequest,
+          clubId: req.clubId,
+          itemId: req.id,
+        );
+      } else {
+        debugPrint(
+          '[ClubProvider] join enqueue skip id mismatch ${req.id} $expectedId',
+        );
+      }
     }
 
     AppDependencies.instance.mockDataStore?.upsertPendingJoinRequest(req);

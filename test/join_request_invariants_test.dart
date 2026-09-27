@@ -92,6 +92,23 @@ void main() {
 
     final fn = read('functions/index.js');
     expect(fn.contains('skip join inbox not jr_'), isTrue);
+    expect(fn.contains('exports.fanoutJoinRequest'), isTrue);
+    expect(fn.contains('clubs/{clubId}/join_requests/{requestId}'), isTrue);
+    expect(fn.contains('join inbox written'), isTrue);
+    expect(fn.contains('shouldFanoutJoinRequest'), isTrue);
+    expect(
+      fn.contains('joinPushPayload'),
+      isTrue,
+      reason: '신청 푸시 문구는 그 신청 문서의 모임명만 쓴다',
+    );
+
+    final src = read('lib/providers/club_provider.dart');
+    expect(src.contains('join enqueue skip id mismatch'), isTrue);
+    expect(
+      src.contains('await PushNotificationService.enqueue('),
+      isTrue,
+      reason: '가입 푸시함을 unawaited 로 흘리면 다음 신청 때 예전 모임명이 나간다',
+    );
   });
 
   test('총무 알림함 type=joinRequest 이고 계정 id로 보낸다', () {

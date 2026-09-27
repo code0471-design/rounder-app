@@ -4,6 +4,12 @@ const { onSchedule } = require("firebase-functions/v2/scheduler");
 const { initializeApp } = require("firebase-admin/app");
 const { getFirestore } = require("firebase-admin/firestore");
 const { getMessaging } = require("firebase-admin/messaging");
+const {
+  shouldFanoutJoinRequest,
+  officersFromRows,
+  notifyAccountIds,
+  joinPushPayload,
+} = require("./join_notify");
 
 const D1_TEMPLATE = "KA01TP260819170856743YpkKVjb5WfS";
 const DUES_TEMPLATE = "KA01TP260819171813223rmS1ByutYaw";
@@ -95,6 +101,75 @@ exports.sendPushOnInbox = onDocumentCreated(
       });
     } catch (err) {
       console.error("FCM send failed", userId, err);
+    }
+  }
+);
+
+exports.fanoutJoinRequest = onDocumentCreated(
+  {
+    document: "clubs/{clubId}/join_requests/{requestId}",
+    region: REGION,
+  },
+  async (event) => {
+    const clubId = String(event.params.clubId || "");
+    const requestId = String(event.params.requestId || "");
+    const data = event.data?.data() || {};
+    const status = String(data.status || "pending");
+    if (!shouldFanoutJoinRequest({ requestId, clubId, status })) {
+      console.log("skip join fanout", clubId, requestId, status);
+      return;
+    }
+
+    const db = getFirestore();
+    const clubSnap = await db.doc(`clubs/${clubId}`).get();
+    const club = clubSnap.data() || {};
+    const clubName = String(club.name || "").trim() || "모임";
+    const creatorId = String(
+      club.creatorId || club.creator_id || club.host_user_id || "",
+    ).trim();
+    const userName = String(data.user_name || data.userName || "").trim() || "회원";
+
+    let members = [];
+    let memberships = [];
+    try {
+      const memSnap = await db.collection(`clubs/${clubId}/members`).get();
+      members = memSnap.docs.map((d) => ({ id: d.id, ...d.data() }));
+    } catch (err) {
+      console.error("join fanout members skip", clubId, err);
+    }
+    try {
+      const memsSnap = await db
+        .collection("user_memberships")
+        .where("club_id", "==", clubId)
+        .get();
+      memberships = memsSnap.docs.map((d) => ({ id: d.id, ...d.data() }));
+    } catch (err) {
+      console.error("join fanout memberships skip", clubId, err);
+    }
+
+    const officers = officersFromRows({ members, memberships });
+    const targets = notifyAccountIds({ officers, creatorId, clubId });
+    if (!targets.length) {
+      console.log("no join officer", clubId, requestId);
+      return;
+    }
+
+    const payload = joinPushPayload({ userName, clubName, clubId });
+    for (const uid of targets) {
+      const ref = db.doc(`push_inbox/${uid}/items/${requestId}`);
+      const existing = await ref.get();
+      if (existing.exists) {
+        console.log("join inbox exists", uid, requestId, clubId);
+        continue;
+      }
+      await ref.set({
+        title: payload.title,
+        body: payload.body,
+        type: payload.type,
+        clubId: payload.clubId,
+        createdAt: new Date(),
+      });
+      console.log("join inbox written", uid, requestId, clubId, clubName);
     }
   }
 );
