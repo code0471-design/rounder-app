@@ -1386,6 +1386,28 @@ void main() {
     expect(ids, isNot(contains('kakao_host')));
   });
 
+  test('강남 시상에 남은 장창현 이름은 그 모임 회원 이름으로 고친다', () {
+    const gangnam = 'c_1788832826557';
+    final fixed = ClubOpsSync.rewriteLeftoverAwardWinnerNames(
+      awards: [
+        {
+          'id': 'ar1',
+          'scheduleId': 'sched_test',
+          'awardName': '메달리스트',
+          'winnerIds': ['m_creator_$gangnam'],
+          'winnerNames': ['장창현'],
+        },
+      ],
+      members: [
+        {'id': 'm_creator_$gangnam', 'name': '안경헌'},
+      ],
+      clubId: gangnam,
+    );
+    expect(fixed.single['winnerNames'], ['안경헌'],
+        reason: '혼자인 모임에 장창현 메달리스트가 보이면 안 된다');
+    expect(fixed.single['winnerIds'], ['m_creator_$gangnam']);
+  });
+
   test('남의 모임에 남은 장창현 소셜 행은 합쳐도 다시 안 붙는다', () {
     ClubOpsSync.resetMemberTombstones();
     addTearDown(ClubOpsSync.resetMemberTombstones);

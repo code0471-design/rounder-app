@@ -137,10 +137,14 @@ class ClubOpsSync {
           remote: remote['waitingList'] as List? ?? const [],
           localWins: true,
         ));
-        slice['awardRecords'] = mergeRowsById(
-          local: slice['awardRecords'] as List? ?? const [],
-          remote: remote['awardRecords'] as List? ?? const [],
-          localWins: true,
+        slice['awardRecords'] = rewriteLeftoverAwardWinnerNames(
+          awards: mergeRowsById(
+            local: slice['awardRecords'] as List? ?? const [],
+            remote: remote['awardRecords'] as List? ?? const [],
+            localWins: true,
+          ),
+          members: slice['members'] as List? ?? const [],
+          clubId: clubId,
         );
         slice['roundScores'] = mergeRowsById(
           local: slice['roundScores'] as List? ?? const [],
@@ -1310,10 +1314,14 @@ class ClubOpsSync {
       );
     }
 
-    encoded['awardRecords'] = _mergeRecordsByScheduleId(
-      localList: encoded['awardRecords'] as List?,
-      remoteList: remote['awardRecords'] as List?,
-      scheduleIds: scheduleIds,
+    encoded['awardRecords'] = rewriteLeftoverAwardWinnerNames(
+      awards: _mergeRecordsByScheduleId(
+        localList: encoded['awardRecords'] as List?,
+        remoteList: remote['awardRecords'] as List?,
+        scheduleIds: scheduleIds,
+      ),
+      members: encoded['members'] as List? ?? const [],
+      clubId: clubId,
     );
     encoded['roundScores'] = _mergeRecordsByScheduleId(
       localList: encoded['roundScores'] as List?,
@@ -1581,6 +1589,64 @@ class ClubOpsSync {
       out.add(e);
     }
     return out;
+  }
+
+  /// 시상 winnerId 가 이 모임 회원이면 지금 명단 이름을 쓴다.
+  /// 장창현 찌꺼기 이름이 남의 시상에 남아 메달리스트로 보이던 것을 막는다.
+  @visibleForTesting
+  static List<dynamic> rewriteLeftoverAwardWinnerNames({
+    required List awards,
+    required List members,
+    required String clubId,
+  }) {
+    final nameById = <String, String>{};
+    for (final e in members) {
+      if (e is! Map) continue;
+      final id = '${e['id'] ?? ''}';
+      final name = '${e['name'] ?? ''}'.trim();
+      if (id.isNotEmpty && name.isNotEmpty) nameById[id] = name;
+    }
+    return awards.map((e) {
+      if (e is! Map) return e;
+      final m = Map<String, dynamic>.from(e);
+      final ids = (m['winnerIds'] as List? ?? []).map((x) => '$x').toList();
+      final oldNames =
+          (m['winnerNames'] as List? ?? []).map((x) => '$x').toList();
+      final nextIds = <String>[];
+      final nextNames = <String>[];
+      final n = ids.length > oldNames.length ? ids.length : oldNames.length;
+      for (var i = 0; i < n; i++) {
+        final id = i < ids.length ? ids[i] : '';
+        final stored = i < oldNames.length ? oldNames[i].trim() : '';
+        final roster = nameById[id];
+        if (roster != null && roster.isNotEmpty) {
+          if (isForeignLeftoverMember(
+            id: id,
+            name: roster,
+            clubId: clubId,
+            creatorUserId: '',
+          )) {
+            continue;
+          }
+          nextIds.add(id);
+          nextNames.add(roster);
+          continue;
+        }
+        if (isForeignLeftoverMember(
+          id: id,
+          name: stored,
+          clubId: clubId,
+          creatorUserId: '',
+        )) {
+          continue;
+        }
+        if (id.isNotEmpty) nextIds.add(id);
+        if (stored.isNotEmpty) nextNames.add(stored);
+      }
+      m['winnerIds'] = nextIds;
+      m['winnerNames'] = nextNames;
+      return m;
+    }).toList();
   }
 
   static List<dynamic> _mergeMembersById({

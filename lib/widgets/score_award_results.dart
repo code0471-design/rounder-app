@@ -50,11 +50,8 @@ class ScoreAwardResultsPreview extends StatelessWidget {
             ),
             const SizedBox(height: 8),
             ...awards.map((a) {
-              final names = a.winnerNames.isNotEmpty
-                  ? a.winnerNames.join(', ')
-                  : a.winnerIds
-                      .map((id) => provider.memberById(id)?.name ?? id)
-                      .join(', ');
+              final names = provider.visibleAwardWinnerNames(a).join(', ');
+              if (names.isEmpty) return const SizedBox.shrink();
               return Padding(
                 padding: const EdgeInsets.only(bottom: 6),
                 child: Row(

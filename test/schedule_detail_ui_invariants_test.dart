@@ -242,6 +242,13 @@ void main() {
     expect(source.contains('ScoreAwardResultsPreview(scheduleId: schedule.id)'),
         isTrue,
         reason: '저장한 스코어·시상이 일정 상세에 바로 보여야 함');
+    expect(
+      File('lib/widgets/score_award_results.dart').readAsStringSync().contains(
+            'visibleAwardWinnerNames',
+          ),
+      isTrue,
+      reason: '시상 이름은 명단을 쓰고 장창현 찌꺼기를 그대로 보여 주면 안 된다',
+    );
     expect(group, greaterThanOrEqualTo(0), reason: '조편성 배너가 사라짐');
     expect(body.contains('_InfoCard(schedule: schedule)'), isFalse,
         reason: '헤더와 겹치는 일정 정보 카드가 다시 생기면 안 됨');

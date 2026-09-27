@@ -2664,6 +2664,7 @@ class ClubProvider extends ChangeNotifier with WidgetsBindingObserver {
     _awardRecords
       ..clear()
       ..addAll(b.awardRecords);
+    _rewriteAwardWinnerLabels();
     _roundScores
       ..clear()
       ..addAll(b.roundScores);
@@ -7146,7 +7147,10 @@ class ClubProvider extends ChangeNotifier with WidgetsBindingObserver {
         winnerNames: [
           for (var j = 0; j < ids.length; j++)
             names[ids[j]] ??
-                (j < a.winnerNames.length ? a.winnerNames[j] : ids[j]),
+                ((j < a.winnerNames.length &&
+                        !leftoverStolenNames.contains(a.winnerNames[j].trim()))
+                    ? a.winnerNames[j]
+                    : ''),
         ],
         winnerNote: a.winnerNote,
         recordedAt: a.recordedAt,
@@ -10606,6 +10610,66 @@ class ClubProvider extends ChangeNotifier with WidgetsBindingObserver {
         regularMembers.where((m) => m.name.trim() == name).toList();
     if (hits.length == 1) return hits.single.id;
     return null;
+  }
+
+  /// 일정 상세에 보여 줄 수상자. 명단 이름을 쓰고, 남의 모임 장창현 찌꺼기는 뺀다.
+  List<String> visibleAwardWinnerNames(AwardRecord r) {
+    final clubId = scheduleById(r.scheduleId)?.clubId ??
+        (_myClubs.isEmpty ? '' : selectedClub.id);
+    final n = r.winnerIds.length > r.winnerNames.length
+        ? r.winnerIds.length
+        : r.winnerNames.length;
+    final out = <String>[];
+    for (var i = 0; i < n; i++) {
+      final id = i < r.winnerIds.length ? r.winnerIds[i] : '';
+      final stored = i < r.winnerNames.length ? r.winnerNames[i].trim() : '';
+      final member = id.isEmpty ? null : memberById(id);
+      if (member != null) {
+        if (ClubOpsSync.isForeignLeftoverMember(
+          id: member.id,
+          name: member.name,
+          clubId: clubId,
+          creatorUserId: '',
+        )) {
+          continue;
+        }
+        out.add(member.name);
+        continue;
+      }
+      if (stored.isEmpty) continue;
+      if (ClubOpsSync.isForeignLeftoverMember(
+        id: id,
+        name: stored,
+        clubId: clubId,
+        creatorUserId: '',
+      )) {
+        continue;
+      }
+      if (members.any((m) => m.name.trim() == stored)) out.add(stored);
+    }
+    return out;
+  }
+
+  void _rewriteAwardWinnerLabels() {
+    for (var i = 0; i < _awardRecords.length; i++) {
+      final a = _awardRecords[i];
+      final names = visibleAwardWinnerNames(a);
+      if (names.length == a.winnerNames.length &&
+          names.every((n) => a.winnerNames.contains(n))) {
+        continue;
+      }
+      _awardRecords[i] = AwardRecord(
+        id: a.id,
+        scheduleId: a.scheduleId,
+        scheduleName: a.scheduleName,
+        awardName: a.awardName,
+        awardIcon: a.awardIcon,
+        winnerIds: a.winnerIds,
+        winnerNames: names,
+        winnerNote: a.winnerNote,
+        recordedAt: a.recordedAt,
+      );
+    }
   }
 
   /// 시상 목록용 정회원 수상자 이름. 게스트는 빠져 있다.

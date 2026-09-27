@@ -109,4 +109,20 @@ void main() {
     clubs.selectClubById(clubA);
     expect(clubs.getMemberAwardCount(regularId, year: 2026), 1);
   });
+
+  test('시상 id가 내 행이면 장창현 찌꺼기 이름은 보여 주지 않는다', () {
+    clubs.saveAwardRecord(AwardRecord(
+      id: 'ar_ghost',
+      scheduleId: 's_ghost',
+      scheduleName: '지난 모임 테스트',
+      awardName: '메달리스트',
+      awardIcon: '🥇',
+      winnerIds: [regularId],
+      winnerNames: const ['장창현'],
+      recordedAt: DateTime(2026, 9, 1),
+    ));
+    final rec = clubs.allAwardRecords.firstWhere((r) => r.id == 'ar_ghost');
+    expect(clubs.visibleAwardWinnerNames(rec), ['안경현']);
+    expect(clubs.visibleAwardWinnerNames(rec), isNot(contains('장창현')));
+  });
 }

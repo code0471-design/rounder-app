@@ -174,7 +174,9 @@ class _ScoreAwardScreenState extends State<ScoreAwardScreen>
         icon: rec.awardIcon,
         allowCustom: true,
         winnerIds: List<String>.from(rec.winnerIds),
-        winnerNames: List<String>.from(rec.winnerNames),
+        winnerNames: provider.visibleAwardWinnerNames(rec).isNotEmpty
+            ? provider.visibleAwardWinnerNames(rec)
+            : List<String>.from(rec.winnerNames),
         winnerNote: rec.winnerNote,
       );
       if (i >= 0) {
