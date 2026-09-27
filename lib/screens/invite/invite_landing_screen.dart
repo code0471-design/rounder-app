@@ -154,7 +154,9 @@ class _InviteLandingScreenState extends State<InviteLandingScreen> {
                       'club': widget.clubId,
                       'name': widget.clubName,
                       'inviter': widget.inviterName,
-                      'type': _asGuest ? 'guest' : 'regular',
+                      'type': _asGuest
+                          ? InviteMemberType.guest.linkType
+                          : InviteMemberType.regular.linkType,
                       if (widget.referrerId != null)
                         'referrer': widget.referrerId!,
                       if (widget.referrerName != null)

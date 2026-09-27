@@ -7,6 +7,7 @@ Member _m({
   String type = '정회원',
   String status = '활성',
   DateTime? join,
+  DateTime? regularSince,
   DateTime? left,
 }) =>
     Member(
@@ -16,6 +17,7 @@ Member _m({
       memberType: type,
       role: '일반',
       joinDate: join,
+      regularSince: regularSince,
       leftAt: left,
       status: status,
     );
@@ -156,6 +158,37 @@ void main() {
       ),
       isTrue,
     );
+  });
+
+  test('게스트에서 정회원이 되면 전환 달부터 내고 게스트 달은 가입 전이다', () {
+    final m = _m(
+      id: 'conv',
+      join: DateTime(2026, 7, 3),
+      regularSince: DateTime(2026, 9, 20),
+    );
+    expect(
+      DuesPeriodEligibility.classify(
+        member: m,
+        type: DuesType.monthly,
+        year: 2026,
+        month: 8,
+        hasPaid: false,
+        asOf: asOf,
+      ),
+      DuesChip.beforeJoin,
+    );
+    expect(
+      DuesPeriodEligibility.classify(
+        member: m,
+        type: DuesType.monthly,
+        year: 2026,
+        month: 9,
+        hasPaid: false,
+        asOf: asOf,
+      ),
+      DuesChip.unpaid,
+    );
+    expect(m.joinDate, DateTime(2026, 7, 3));
   });
 
   test('연회비는 가입한 해부터, 탈퇴한 해부터 숨긴다', () {

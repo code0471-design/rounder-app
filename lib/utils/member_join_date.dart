@@ -124,4 +124,85 @@ abstract final class MemberJoinDate {
       target['joinDate'] = best.toIso8601String();
     }
   }
+
+  static String memberTypeOf(Map<dynamic, dynamic>? m) {
+    if (m == null) return '';
+    return '${m['memberType'] ?? m['member_type'] ?? ''}';
+  }
+
+  static DateTime? regularSinceOf(Map<dynamic, dynamic>? m) {
+    if (m == null) return null;
+    return parse(m['regularSince'] ?? m['regular_since']);
+  }
+
+  static DateTime? typeUpdatedAtOf(Map<dynamic, dynamic>? m) {
+    if (m == null) return null;
+    return parse(m['memberTypeUpdatedAt'] ?? m['member_type_updated_at']);
+  }
+
+  /// memberType + regularSince 짝. 빈 원격이 정회원 전환을 게스트로 되돌리지 않는다.
+  static void writeTypePairInto(
+    Map<dynamic, dynamic> target,
+    Map<dynamic, dynamic>? local,
+    Map<dynamic, dynamic>? remote, {
+    required bool remoteWins,
+  }) {
+    Map<dynamic, dynamic>? winner;
+    if (local == null) {
+      winner = remote;
+    } else if (remote == null) {
+      winner = local;
+    } else {
+      final localAt = typeUpdatedAtOf(local);
+      final remoteAt = typeUpdatedAtOf(remote);
+      if (localAt != null && remoteAt != null) {
+        if (remoteAt.isAfter(localAt)) {
+          winner = remote;
+        } else if (localAt.isAfter(remoteAt)) {
+          winner = local;
+        } else {
+          winner = remoteWins ? remote : local;
+        }
+      } else if (localAt != null) {
+        winner = local;
+      } else if (remoteAt != null) {
+        winner = remote;
+      } else {
+        final localType = memberTypeOf(local);
+        final remoteType = memberTypeOf(remote);
+        final localSince = regularSinceOf(local);
+        final remoteSince = regularSinceOf(remote);
+        if (localType == '정회원' &&
+            localSince != null &&
+            remoteType != '정회원') {
+          winner = local;
+        } else if (remoteType == '정회원' &&
+            remoteSince != null &&
+            localType != '정회원') {
+          winner = remote;
+        } else {
+          winner = remoteWins ? remote : local;
+        }
+      }
+    }
+    if (winner == null) return;
+
+    final type = memberTypeOf(winner);
+    if (type.isNotEmpty) target['memberType'] = type;
+    final at = typeUpdatedAtOf(winner);
+    if (at != null) {
+      target['memberTypeUpdatedAt'] = at.toIso8601String();
+    }
+    if (type == '게스트') {
+      target.remove('regularSince');
+      target.remove('regular_since');
+      return;
+    }
+    final since = regularSinceOf(winner) ??
+        regularSinceOf(local) ??
+        regularSinceOf(remote);
+    if (since != null) {
+      target['regularSince'] = since.toIso8601String();
+    }
+  }
 }

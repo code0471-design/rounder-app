@@ -335,6 +335,11 @@ class Member {
   final String role;          // 회장, 부회장, 총무, 정회원(레거시:일반), 게스트
   final double? handicap;
   final DateTime? joinDate;
+  /// 정회원이 된 시각. 가입일(게스트로 들어온 날)과 다르다.
+  /// 처음부터 정회원이면 가입일과 같고, 게스트→정회원이면 전환한 날.
+  final DateTime? regularSince;
+  /// 유형(정회원/게스트)을 마지막으로 바꾼 시각. 원격 빈 값이 전환을 되돌리지 않게 한다.
+  final DateTime? memberTypeUpdatedAt;
   final DateTime? leftAt;     // 탈퇴일. 문서 삭제 없이 status: 탈퇴 + left_at
   final String? address;
   final String? memo;
@@ -380,6 +385,8 @@ class Member {
         role: role,
         handicap: handicap,
         joinDate: joinDate,
+        regularSince: regularSince,
+        memberTypeUpdatedAt: memberTypeUpdatedAt,
         leftAt: leftAt,
         address: address,
         memo: memo,
@@ -400,6 +407,8 @@ class Member {
     required this.role,
     this.handicap,
     this.joinDate,
+    this.regularSince,
+    this.memberTypeUpdatedAt,
     this.leftAt,
     this.address,
     this.memo,
@@ -434,6 +443,9 @@ class Member {
     double? handicap,
     bool clearHandicap = false,
     DateTime? joinDate,
+    DateTime? regularSince,
+    bool clearRegularSince = false,
+    DateTime? memberTypeUpdatedAt,
     DateTime? leftAt,
     bool clearLeftAt = false,
     String? address,
@@ -454,6 +466,9 @@ class Member {
       role: role ?? this.role,
       handicap: clearHandicap ? null : (handicap ?? this.handicap),
       joinDate: joinDate ?? this.joinDate,
+      regularSince:
+          clearRegularSince ? null : (regularSince ?? this.regularSince),
+      memberTypeUpdatedAt: memberTypeUpdatedAt ?? this.memberTypeUpdatedAt,
       leftAt: clearLeftAt ? null : (leftAt ?? this.leftAt),
       address: address ?? this.address,
       memo: memo ?? this.memo,

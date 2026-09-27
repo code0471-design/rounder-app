@@ -122,7 +122,21 @@ class AppUser {
 //  InviteToken — 초대장 링크 정보
 // ────────────────────────────────────────────────────────────
 /// 초대장 종류 — 정회원용 / 게스트용
-enum InviteMemberType { regular, guest }
+enum InviteMemberType {
+  regular,
+  guest;
+
+  /// 초대 링크 `type`. 원클럽과 같이 게스트/정회원.
+  String get linkType => this == guest ? '게스트' : '정회원';
+
+  static InviteMemberType parse(String? raw) {
+    final t = (raw ?? '').trim();
+    if (t == '게스트' || t.toLowerCase() == 'guest') {
+      return InviteMemberType.guest;
+    }
+    return InviteMemberType.regular;
+  }
+}
 
 class InviteToken {
   final String token;       // 고유 토큰 (URL에 포함)
@@ -165,7 +179,7 @@ class InviteToken {
       'club': clubId,
       'name': clubName,
       'inviter': inviterName,
-      'type': inviteType == InviteMemberType.guest ? 'guest' : 'regular',
+      'type': inviteType.linkType,
       if (referrerId != null && referrerId!.isNotEmpty) 'referrer': referrerId!,
       if (referrerName != null && referrerName!.isNotEmpty)
         'referrerName': referrerName!,

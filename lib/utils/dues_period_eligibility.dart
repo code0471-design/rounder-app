@@ -7,6 +7,10 @@ enum DuesChip { hidden, beforeJoin, scheduled, paid, unpaid }
 abstract final class DuesPeriodEligibility {
   static bool isRegular(Member member) => member.memberType == '정회원';
 
+  /// 회비 시작. 게스트→정회원이면 전환일, 처음부터 정회원이면 가입일.
+  static DateTime? duesStart(Member member) =>
+      member.regularSince ?? member.joinDate;
+
   static bool isLeft(Member member) => member.status == '탈퇴';
 
   /// 탈퇴일. 없으면 오늘. 활성은 null.
@@ -53,15 +57,15 @@ abstract final class DuesPeriodEligibility {
       return DuesChip.hidden;
     }
 
-    if (member.joinDate != null) {
-      final joined = member.joinDate!;
+    final started = duesStart(member);
+    if (started != null) {
       if (type == DuesType.monthly) {
         final viewMonth = month ?? 1;
         if (yearMonth(year, viewMonth) <
-            yearMonth(joined.year, joined.month)) {
+            yearMonth(started.year, started.month)) {
           return DuesChip.beforeJoin;
         }
-      } else if (year < joined.year) {
+      } else if (year < started.year) {
         return DuesChip.beforeJoin;
       }
     }

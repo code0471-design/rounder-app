@@ -956,6 +956,9 @@ class ClubOpsSync {
     required String role,
     required String memberType,
     String? rosterMemberId,
+    DateTime? regularSince,
+    bool clearRegularSince = false,
+    DateTime? memberTypeUpdatedAt,
   }) async {
     if (!_enabled || clubId.isEmpty) return;
     final uid = userId.trim();
@@ -973,6 +976,12 @@ class ClubOpsSync {
           'role': role,
           'member_type': memberType,
           if (uid.isNotEmpty) 'user_id': uid,
+          if (clearRegularSince)
+            'regular_since': FieldValue.delete()
+          else if (regularSince != null)
+            'regular_since': regularSince.toIso8601String(),
+          if (memberTypeUpdatedAt != null)
+            'member_type_updated_at': memberTypeUpdatedAt.toIso8601String(),
           'updated_at': FieldValue.serverTimestamp(),
         }, SetOptions(merge: true));
       }
@@ -983,6 +992,12 @@ class ClubOpsSync {
           await mem.set({
             'role': role,
             'member_type': memberType,
+            if (clearRegularSince)
+              'regular_since': FieldValue.delete()
+            else if (regularSince != null)
+              'regular_since': regularSince.toIso8601String(),
+            if (memberTypeUpdatedAt != null)
+              'member_type_updated_at': memberTypeUpdatedAt.toIso8601String(),
             'updated_at': FieldValue.serverTimestamp(),
           }, SetOptions(merge: true));
         }
@@ -1567,6 +1582,12 @@ class ClubOpsSync {
         e,
         [localByJoin[id], remoteByJoin[id], e],
         notBefore: clubCreatedAt,
+      );
+      MemberJoinDate.writeTypePairInto(
+        e,
+        localByJoin[id],
+        remoteByJoin[id],
+        remoteWins: remoteWins,
       );
     }
     if (_removedMemberIds.isEmpty) return merged;

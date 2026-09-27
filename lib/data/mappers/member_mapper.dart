@@ -30,6 +30,10 @@ abstract final class MemberMapper {
         role: data['role'] as String? ?? '일반',
         handicap: _asDouble(data['handicap']),
         joinDate: _asDateTime(data['join_date']) ?? _asDateTime(data['joinDate']),
+        regularSince: _asDateTime(data['regular_since']) ??
+            _asDateTime(data['regularSince']),
+        memberTypeUpdatedAt: _asDateTime(data['member_type_updated_at']) ??
+            _asDateTime(data['memberTypeUpdatedAt']),
         leftAt: _asDateTime(data['left_at']) ?? _asDateTime(data['leftAt']),
         address: data['address'] as String?,
         memo: data['memo'] as String?,
@@ -66,6 +70,12 @@ abstract final class MemberMapper {
         'handicap': member.handicap,
         if (writeJoinDate && member.joinDate != null)
           'join_date': member.joinDate!.toIso8601String(),
+        if (member.memberType == '정회원')
+          'regular_since': (member.regularSince ?? member.joinDate)
+              ?.toIso8601String(),
+        if (member.memberTypeUpdatedAt != null)
+          'member_type_updated_at':
+              member.memberTypeUpdatedAt!.toIso8601String(),
         'left_at': member.leftAt?.toIso8601String(),
         'address': member.address,
         'memo': member.memo,

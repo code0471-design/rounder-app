@@ -1228,7 +1228,8 @@ class _AttendanceCard extends StatelessWidget {
           return const SizedBox.shrink();
         }
 
-        final memberIds = {for (final m in prov.activeMembers) m.id};
+        final roster = prov.activeMembers;
+        final memberIds = {for (final m in roster) m.id};
         final responses = nextSchedule.responses
             .where((r) => memberIds.contains(r.memberId))
             .toList();
@@ -1237,27 +1238,22 @@ class _AttendanceCard extends StatelessWidget {
         bool isGuest(AttendanceResponse r) =>
             guestIds.contains(r.memberId) || guestNames.contains(r.memberName);
 
-        // 게스트: 미응답 → 미답변 제외. 참석 시에만 참석 집계에 포함.
-        // 클럽 회원 id가 아닌 응답(옛 자동참석/ID불일치)은 제외.
         final confirmedList =
             responses.where((r) => r.response == '참석').toList();
         final confirmed = confirmedList.length;
         final guestAttend =
             confirmedList.where(isGuest).length;
         final declined = responses
-            .where((r) => r.response == '불참' && !isGuest(r))
+            .where((r) => r.response == '불참')
             .length;
         final respondedIds = {
-          ...confirmedList
-              .where((r) => !isGuest(r))
-              .map((r) => r.memberId),
+          ...confirmedList.map((r) => r.memberId),
           ...responses
-              .where((r) => r.response == '불참' && !isGuest(r))
+              .where((r) => r.response == '불참')
               .map((r) => r.memberId),
         };
-        final noResponse = prov.regularMembers
-            .where((m) => !respondedIds.contains(m.id))
-            .length;
+        final noResponse =
+            roster.where((m) => !respondedIds.contains(m.id)).length;
         Widget mini(String status, String countLabel, Color fg) {
           return Expanded(
             child: Container(

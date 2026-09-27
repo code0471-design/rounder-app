@@ -317,6 +317,8 @@ class ClubDataCodec {
         'role': m.role,
         'handicap': m.handicap,
         'joinDate': _dt(m.joinDate),
+        'regularSince': _dt(m.regularSince),
+        'memberTypeUpdatedAt': _dt(m.memberTypeUpdatedAt),
         'leftAt': _dt(m.leftAt),
         'address': m.address,
         'memo': m.memo,
@@ -337,6 +339,10 @@ class ClubDataCodec {
         role: j['role'] as String,
         handicap: (j['handicap'] as num?)?.toDouble(),
         joinDate: _parseDt(j['joinDate']),
+        regularSince: _parseDt(j['regularSince']) ??
+            _parseDt(j['regular_since']),
+        memberTypeUpdatedAt: _parseDt(j['memberTypeUpdatedAt']) ??
+            _parseDt(j['member_type_updated_at']),
         leftAt: _parseDt(j['leftAt']) ?? _parseDt(j['left_at']),
         address: j['address'] as String?,
         memo: j['memo'] as String?,

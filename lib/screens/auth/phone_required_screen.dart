@@ -8,6 +8,7 @@ import 'package:provider/provider.dart';
 import '../../models/user_model.dart';
 import '../../providers/auth_provider.dart';
 import '../../providers/club_provider.dart';
+import '../../services/deep_link_service.dart';
 import '../../theme/app_theme.dart';
 
 /// 소셜 로그인 후 이름·휴대폰 번호 필수 수집 화면
@@ -165,6 +166,9 @@ class _PhoneRequiredScreenState extends State<PhoneRequiredScreen> {
       // 이 화면은 이름+전화만 받는다. 골프 프로필은 다음 화면에서.
       final next = user.needsGolfProfile ? '/golf-profile' : '/main';
       Navigator.of(context).pushNamedAndRemoveUntil(next, (_) => false);
+      if (next == '/main') {
+        DeepLinkService.instance.onAppReady();
+      }
     } on StateError catch (e) {
       if (!mounted) return;
       setState(() {

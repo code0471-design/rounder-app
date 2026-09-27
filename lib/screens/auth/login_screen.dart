@@ -7,6 +7,7 @@ import '../../providers/auth_provider.dart';
 import '../../providers/club_provider.dart';
 import '../../services/social_auth_service.dart';
 import '../legal/service_about_screen.dart';
+import '../../services/deep_link_service.dart';
 import '../../widgets/rounder_logo.dart';
 
 // ════════════════════════════════════════════════════════════
@@ -91,11 +92,13 @@ class _LoginScreenState extends State<LoginScreen> {
       final askProfile =
           needsPhone ? false : await auth.shouldAskGolfProfile();
       if (!mounted) return;
-      Navigator.of(context).pushReplacementNamed(
-        needsPhone
-            ? '/phone-required'
-            : (askProfile ? '/golf-profile' : '/main'),
-      );
+      final next = needsPhone
+          ? '/phone-required'
+          : (askProfile ? '/golf-profile' : '/main');
+      Navigator.of(context).pushReplacementNamed(next);
+      if (next == '/main') {
+        DeepLinkService.instance.onAppReady();
+      }
       unawaited(_syncClubProvider());
     } catch (e) {
       if (!mounted) return;

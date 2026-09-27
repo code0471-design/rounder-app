@@ -362,6 +362,9 @@ class FirestoreClubDataSource {
           'club_id': clubId,
           'role': member.role,
           'member_type': member.memberType,
+          if (member.memberType == '정회원')
+            'regular_since': (member.regularSince ?? member.joinDate)
+                ?.toIso8601String(),
           if (!existingMembership.exists) 'joined_at': FieldValue.serverTimestamp(),
           'updated_at': FieldValue.serverTimestamp(),
           'via_invite': true,

@@ -50,6 +50,23 @@ void main() {
     expect(uri.queryParameters['name'], '한남골프회');
   });
 
+  test('초대 링크 type은 게스트/정회원이고 둘 다 읽는다', () {
+    expect(InviteMemberType.parse('게스트'), InviteMemberType.guest);
+    expect(InviteMemberType.parse('guest'), InviteMemberType.guest);
+    expect(InviteMemberType.parse('정회원'), InviteMemberType.regular);
+    expect(InviteMemberType.guest.linkType, '게스트');
+    expect(InviteMemberType.regular.linkType, '정회원');
+    final guest = InviteToken(
+      token: 'inv_g',
+      clubId: 'club_a',
+      clubName: '한남골프회',
+      inviterName: '로이',
+      inviterId: 'u1',
+      inviteType: InviteMemberType.guest,
+    );
+    expect(guest.webUrl, contains(Uri.encodeQueryComponent('게스트')));
+  });
+
   test('Play 스토어 설치 URL에 초대 referrer가 들어간다', () {
     final url = InviteLinks.playStoreUrl(inviteQuery: {
       'token': 'inv_1',

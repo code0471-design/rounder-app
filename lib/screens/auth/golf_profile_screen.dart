@@ -5,6 +5,7 @@ import 'package:provider/provider.dart';
 import '../../models/user_model.dart';
 import '../../providers/auth_provider.dart';
 import '../../providers/club_provider.dart';
+import '../../services/deep_link_service.dart';
 import '../../services/photo_compress_service.dart';
 import '../../theme/app_theme.dart';
 import '../../utils/avatar_image.dart';
@@ -136,6 +137,7 @@ class _GolfProfileScreenState extends State<GolfProfileScreen> {
       await auth.markGolfProfileAsked();
       if (!mounted) return;
       Navigator.of(context).pushNamedAndRemoveUntil('/main', (_) => false);
+      DeepLinkService.instance.onAppReady();
     } catch (_) {
       if (!mounted) return;
       setState(() {
@@ -151,6 +153,7 @@ class _GolfProfileScreenState extends State<GolfProfileScreen> {
     await context.read<AuthProvider>().markGolfProfileAsked();
     if (!mounted) return;
     Navigator.of(context).pushNamedAndRemoveUntil('/main', (_) => false);
+    DeepLinkService.instance.onAppReady();
   }
 
   @override

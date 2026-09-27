@@ -1701,4 +1701,76 @@ void main() {
     expect(merged.members.single.photoUrl, 'data:image/jpeg;base64,abc',
         reason: '원격이 사진을 빼면 내 프로필 사진이 사라진다');
   });
+
+  test('빈 원격이 정회원 전환·regularSince 를 게스트로 되돌리지 않는다', () {
+    final converted = DateTime(2026, 9, 20);
+    final local = ClubDataBundle(
+      selectedClubIndex: 0,
+      freshClubIds: {'c_test'},
+      myClubs: [
+        Club(
+          id: 'c_test',
+          name: '테스트',
+          myRole: '총무',
+          memberCount: 2,
+          region: '서울',
+          industry: 'IT',
+          teamCount: 4,
+        ),
+      ],
+      allClubs: const [],
+      joinRequests: const [],
+      members: [
+        Member(
+          id: 'm_c_test_kakao_g',
+          name: '전환회원',
+          gender: '남',
+          memberType: '정회원',
+          role: '정회원',
+          joinDate: DateTime(2026, 7, 1),
+          regularSince: converted,
+          memberTypeUpdatedAt: converted,
+          status: '활성',
+        ),
+      ],
+      activities: const [],
+      announcements: const [],
+      appNotifications: const [],
+      duesSettings: const [],
+      duesPayments: const [],
+      paymentRequests: const [],
+      transactions: const [],
+      schedules: const [],
+      photos: const [],
+      groupAssignments: const {},
+      adApplications: const [],
+      adNotifications: const [],
+      sponsorApplications: const [],
+      pointEvents: const {},
+      awardRecords: const [],
+      thankYouMessages: const [],
+      waitingList: const [],
+      alimtalkSettings: const {},
+    );
+
+    final merged = ClubOpsSync.applyRemoteSlice(local, 'c_test', {
+      'members': [
+        {
+          'id': 'm_c_test_kakao_g',
+          'name': '전환회원',
+          'gender': '남',
+          'memberType': '게스트',
+          'role': '게스트',
+          'joinDate': DateTime(2026, 7, 1).toIso8601String(),
+          'status': '활성',
+        },
+      ],
+    });
+    final row = merged.members.singleWhere((m) => m.id == 'm_c_test_kakao_g');
+    expect(row.memberType, '정회원',
+        reason: '총무가 정회원으로 저장한 뒤 옛 원격 게스트가 덮으면 안 된다');
+    expect(row.regularSince, converted);
+    expect(row.joinDate, DateTime(2026, 7, 1),
+        reason: '전환해도 가입일(게스트로 들어온 날)은 그대로다');
+  });
 }

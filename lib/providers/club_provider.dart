@@ -145,6 +145,7 @@ class ClubProvider extends ChangeNotifier with WidgetsBindingObserver {
     required String memberType,
     required String role,
     DateTime? joinDate,
+    DateTime? regularSince,
     String? referrerId,
     String? referrerName,
     Member? inherit,
@@ -166,6 +167,7 @@ class ClubProvider extends ChangeNotifier with WidgetsBindingObserver {
       role: role,
       handicap: inherit?.handicap ?? _accountHandicap,
       joinDate: joinDate ?? inherit?.joinDate,
+      regularSince: regularSince ?? inherit?.regularSince,
       status: '활성',
       referrerId: referrerId ?? inherit?.referrerId,
       referrerName: referrerName ?? inherit?.referrerName,
@@ -7766,15 +7768,23 @@ class ClubProvider extends ChangeNotifier with WidgetsBindingObserver {
     club ??= await readServerClub();
 
     final existingRow = _members.where((m) => m.id == rosterId).firstOrNull;
+    final joinedAt = existingRow?.joinDate ?? DateTime.now();
     final member = _selfMember(
       id: rosterId,
       name: userName,
       memberType: memberType,
       role: role,
-      joinDate: existingRow?.joinDate ?? DateTime.now(),
+      joinDate: joinedAt,
+      regularSince: asGuest
+          ? null
+          : (existingRow?.regularSince ?? joinedAt),
       referrerId: referrerId,
       referrerName: referrerName,
-      inherit: existingRow,
+      inherit: existingRow == null
+          ? null
+          : existingRow.copyWith(clearRegularSince: asGuest),
+    ).copyWith(
+      memberTypeUpdatedAt: DateTime.now(),
     );
 
     try {
@@ -8713,7 +8723,24 @@ class ClubProvider extends ChangeNotifier with WidgetsBindingObserver {
       final roleEncoded = ClubMemberRole.encodeRoles(
         ClubMemberRole.splitRoles(updated.role),
       );
-      final normalized = updated.copyWith(role: roleEncoded);
+      var normalized = updated.copyWith(role: roleEncoded);
+      if (prev.memberType != normalized.memberType && prev.joinDate != null) {
+        normalized = normalized.copyWith(joinDate: prev.joinDate);
+      }
+      if (prev.memberType != normalized.memberType) {
+        normalized = normalized.copyWith(memberTypeUpdatedAt: DateTime.now());
+      }
+      if (prev.memberType != ClubMemberRole.regular &&
+          normalized.memberType == ClubMemberRole.regular) {
+        normalized = normalized.copyWith(regularSince: DateTime.now());
+      } else if (normalized.memberType == ClubMemberRole.guest) {
+        normalized = normalized.copyWith(clearRegularSince: true);
+      } else if (normalized.memberType == ClubMemberRole.regular &&
+          normalized.regularSince == null) {
+        normalized = normalized.copyWith(
+          regularSince: normalized.joinDate ?? DateTime.now(),
+        );
+      }
       _members[idx] = normalized;
       // 본인 직책 수정 시 모임 myRole 동기화 (권한 판정용, 겸직 포함)
       final isSelf = normalized.id == currentUserId ||
@@ -8753,6 +8780,31 @@ class ClubProvider extends ChangeNotifier with WidgetsBindingObserver {
       }
       notifyListeners();
       _persistImmediately();
+      unawaited(_persistMemberTypeToServer(normalized));
+    }
+  }
+
+  Future<void> _persistMemberTypeToServer(Member member) async {
+    if (_myClubs.isEmpty) return;
+    final clubId = selectedClub.id;
+    final uid = JoinRequestService.loginAccountIdOf(
+      clubId: clubId,
+      memberOrUserId: member.id,
+      creatorId: selectedClub.creatorId,
+    );
+    try {
+      await ClubOpsSync.upsertMemberRole(
+        clubId: clubId,
+        userId: uid,
+        role: member.role,
+        memberType: member.memberType,
+        rosterMemberId: member.id,
+        regularSince: member.regularSince,
+        clearRegularSince: member.memberType == ClubMemberRole.guest,
+        memberTypeUpdatedAt: member.memberTypeUpdatedAt,
+      );
+    } catch (e) {
+      debugPrint('[ClubProvider] persist member type skip: $e');
     }
   }
 

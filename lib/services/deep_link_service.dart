@@ -286,11 +286,9 @@ class DeepLinkService {
         (q['inviter'] ?? q['inviterName'] ?? known?.inviterName ?? '').trim();
     final resolvedClubId =
         (clubId.isNotEmpty ? clubId : known?.clubId ?? '').trim();
-    final typeRaw = (q['type'] ?? '').trim().toLowerCase();
-    final inviteType = (typeRaw == 'guest' ||
-            known?.inviteType == InviteMemberType.guest)
+    final inviteType = known?.inviteType == InviteMemberType.guest
         ? InviteMemberType.guest
-        : InviteMemberType.regular;
+        : InviteMemberType.parse(q['type']);
     final referrerId =
         (q['referrer'] ?? q['referrerId'] ?? known?.referrerId ?? '').trim();
     final referrerName = (q['referrerName'] ?? known?.referrerName ?? '').trim();
