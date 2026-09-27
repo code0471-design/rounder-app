@@ -11,6 +11,14 @@ void main() {
     provider = File('lib/providers/club_provider.dart').readAsStringSync();
   });
 
+  test('해가 바뀌어도 잔고는 그대로 이어지고 이월 실행은 없다', () {
+    expect(finance.contains('이월하시겠습니까'), isFalse);
+    expect(finance.contains('이월 실행'), isFalse);
+    expect(finance.contains('void addCarryover'), isFalse);
+    expect(provider.contains('void addCarryover'), isFalse);
+    expect(provider.contains('bool hasCarryover'), isFalse);
+  });
+
   test('재무 잔고는 크림 위 다크 카드이고 금액과 원이 붙어 있다', () {
     expect(finance.contains('class _SplitMoneyRow'), isTrue);
     expect(finance.contains("leftValue: '\${_fmtSigned(balance)}원'"), isTrue);

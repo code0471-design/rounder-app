@@ -3445,7 +3445,7 @@ class ClubProvider extends ChangeNotifier with WidgetsBindingObserver {
     return balance;
   }
 
-  /// 특정 연도 말 잔고 (다음 연도 이월 기준, 선택 모임)
+  /// 그 해 말까지의 누적 잔고. 해가 바뀌어도 잔액은 이어서 간다.
   int balanceAtYearEnd(int year) {
     int balance = 0;
     for (final t in _scopedTransactions) {
@@ -3467,14 +3467,6 @@ class ClubProvider extends ChangeNotifier with WidgetsBindingObserver {
       }
     }
     return balance;
-  }
-
-  /// 이월 잔액이 이미 등록됐는지 확인
-  bool hasCarryover(int year) {
-    return _transactions.any((t) =>
-        t.source == TxSource.carryover &&
-        t.date.year == year &&
-        t.date.month == 1);
   }
 
   // ════════════════════════════════════════════════════════
@@ -3848,24 +3840,6 @@ class ClubProvider extends ChangeNotifier with WidgetsBindingObserver {
     notifyListeners();
     final setting = _duesSettings.where((d) => d.id == duesSettingId).firstOrNull;
     if (setting != null) unawaited(syncDuesD1Reminders(setting));
-  }
-
-  /// 이월 잔액 수동 등록 (신규 연도 시작 시)
-  void addCarryover({required int amount, required int toYear}) {
-    if (hasCarryover(toYear)) return; // 이미 등록된 경우 스킵
-    _transactions.add(Transaction(
-      id: 'co_${DateTime.now().millisecondsSinceEpoch}',
-      type: TxType.income,
-      amount: amount,
-      category: '이월잔액',
-      title: '${toYear - 1}년 잔액 이월',
-      date: DateTime(toYear, 1, 1),
-      recordedBy: '시스템',
-      source: TxSource.carryover,
-      clubId: selectedClub.id,
-    ));
-    notifyListeners();
-    _persistImmediately();
   }
 
   // ════════════════════════════════════════════════════════
