@@ -1,4 +1,5 @@
 import '../models/club_model.dart';
+import '../utils/d1_send_window.dart';
 import '../utils/member_join_date.dart';
 
 /// ClubProvider 전체 상태 스냅샷
@@ -76,6 +77,10 @@ class ClubDataCodec {
 
   static DateTime _parseRoundDate(dynamic v) {
     final s = v as String;
+    if (s.contains('T') || s.endsWith('Z')) {
+      final parsed = DateTime.parse(s);
+      return D1SendWindow.calendarDay(parsed);
+    }
     final m = RegExp(r'^(\d{4})-(\d{2})-(\d{2})').firstMatch(s);
     if (m != null) {
       return DateTime(

@@ -13,6 +13,7 @@ import '../domain/services/join_request_service.dart';
 import '../core/firebase/firestore_paths.dart';
 import '../firebase_options.dart';
 import '../utils/d1_enqueue_policy.dart';
+import '../utils/d1_send_window.dart';
 import '../utils/dues_d1_schedule.dart';
 import 'hq_push_catalog.dart';
 import 'hq_remote_settings.dart';
@@ -323,20 +324,24 @@ abstract final class PushNotificationService {
         );
         return;
       }
-      final sendOn = DateTime(roundDate.year, roundDate.month, roundDate.day)
-          .subtract(const Duration(days: 1));
-      final today = DateTime(DateTime.now().year, DateTime.now().month,
-          DateTime.now().day);
+      final sendOn = D1SendWindow.sendOnForRound(roundDate);
+      final today = D1SendWindow.calendarDay(D1SendWindow.kstNow());
       if (sendOn.isBefore(today)) return;
       final existing = await doc.get();
-      if (existing.data()?['alimtalkSent'] == true ||
-          existing.data()?['alimtalkScheduled'] == true) {
+      final prev = existing.data();
+      final prevSendOn = '${prev?['sendOn'] ?? ''}';
+      final already = prev?['alimtalkSent'] == true ||
+          prev?['alimtalkScheduled'] == true;
+      if (already && prevSendOn == _ymd(sendOn)) {
         await _deleteD1AliasDocs(
           docIdFor: (id) => _d1DocId(scheduleId, id),
           keepUserId: userId,
           aliasUserIds: aliasUserIds,
         );
         return;
+      }
+      if (already) {
+        await doc.delete();
       }
       final t = HqPushCatalog.byIdSync(HqPushCatalog.d1Reminder);
       await doc.set({
@@ -372,7 +377,7 @@ abstract final class PushNotificationService {
       dueD1AlimtalkDocs() async {
     if (!HqRemoteSettings.available) return const [];
     try {
-      final today = _ymd(DateTime.now());
+      final today = _ymd(D1SendWindow.calendarDay(D1SendWindow.kstNow()));
       final snap = await FirebaseFirestore.instance
           .collection(FirestorePaths.d1Queue)
           .where('sendOn', isEqualTo: today)

@@ -11,6 +11,19 @@ abstract final class D1SendWindow {
 
   static DateTime _day(DateTime d) => DateTime(d.year, d.month, d.day);
 
+  /// 라운딩 달력일. UTC 시각의 year/month/day를 그대로 쓰면 하루 전으로 간다.
+  static DateTime calendarDay(DateTime d) {
+    if (d.isUtc) {
+      final kst = d.add(const Duration(hours: 9));
+      return DateTime(kst.year, kst.month, kst.day);
+    }
+    return DateTime(d.year, d.month, d.day);
+  }
+
+  /// 라운딩 하루 전(KST 달력).
+  static DateTime sendOnForRound(DateTime roundDate) =>
+      calendarDay(roundDate).subtract(const Duration(days: 1));
+
   static int _minutes(DateTime kst) => kst.hour * 60 + kst.minute;
 
   /// 오늘 10:00~10:20. 예약이 실패한 분만 이 구간에 즉시 발송.

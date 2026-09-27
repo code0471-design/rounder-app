@@ -289,6 +289,27 @@ void main() {
       expect(read('lib/services/push_notification_service.dart'),
           contains('claimD1Alimtalk'),
           reason: '두 기기가 같은 큐를 두 번 예약하면 10시에 두 통이 간다');
+      final push = read('lib/services/push_notification_service.dart');
+      final d1Sync = push.substring(
+        push.indexOf('static Future<void> syncD1Reminder'),
+        push.indexOf('static Future<List<QueryDocumentSnapshot'),
+      );
+      expect(d1Sync.contains("'alimtalkSent': false"), isFalse,
+          reason: '이미 보낸 큐를 false로 덮으면 앱을 연 사람에게 알림톡이 한 번 더 간다');
+      expect(d1Sync.contains('sendOnForRound'), isTrue,
+          reason: 'UTC 시각 year/month/day를 그대로 빼면 D-1이 하루 일찍 잡힌다');
+      expect(d1Sync.contains('prevSendOn'), isTrue,
+          reason: '일정 날짜를 바꿔도 옛 sendOn에 보낸 표시가 있으면 하루 전 10시에 안 간다');
+      expect(push.contains('type == HqPushCatalog.d1Reminder'), isTrue);
+      expect(
+        push.contains(
+          'if (type == HqPushCatalog.d1Reminder ||\n'
+          '            type == HqPushCatalog.duesRequest)',
+        ),
+        isFalse,
+        reason: 'D-1 FCM이 알림톡 플러시를 부르면 앱을 켜 둔 사람만 두 통이 간다',
+      );
+      expect(push.contains('onRemoteD1Inbox'), isTrue);
       expect(fn.contains('isLeftoverRecipient'), isTrue,
           reason: '아레나 회원이 아닌 장창현에게 D-1이 나갔다');
       expect(fn.contains('sendDedupKey'), isTrue,
