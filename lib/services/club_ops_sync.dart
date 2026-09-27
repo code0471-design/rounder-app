@@ -1482,7 +1482,7 @@ class ClubOpsSync {
     return out;
   }
 
-  /// 시즌 마감은 한 번만. 빈 원격으로 확정본을 지우지 않는다.
+  /// 시즌 마감·취소는 더 나중 시각이 이긴다. 빈 원격으로 확정본을 지우지 않는다.
   @visibleForTesting
   static List<Map<String, dynamic>> mergeSeasonLocks({
     required dynamic local,
@@ -1504,9 +1504,9 @@ class ClubOpsSync {
           out[key] = m;
           continue;
         }
-        final a = DateTime.tryParse('${prev['closedAt'] ?? ''}');
-        final b = DateTime.tryParse('${m['closedAt'] ?? ''}');
-        if (a != null && b != null && b.isBefore(a)) {
+        final a = _seasonLockActionAt(prev);
+        final b = _seasonLockActionAt(m);
+        if (a != null && b != null && b.isAfter(a)) {
           out[key] = m;
         }
       }
@@ -1515,6 +1515,15 @@ class ClubOpsSync {
     take(local);
     take(remote);
     return out.values.toList();
+  }
+
+  static DateTime? _seasonLockActionAt(Map<String, dynamic> m) {
+    final reopened = DateTime.tryParse('${m['reopenedAt'] ?? ''}');
+    final closed = DateTime.tryParse('${m['closedAt'] ?? ''}');
+    if (reopened != null && closed != null) {
+      return reopened.isAfter(closed) ? reopened : closed;
+    }
+    return reopened ?? closed;
   }
 
   static List<Map<String, dynamic>> _asDynamicMaps(dynamic raw) {

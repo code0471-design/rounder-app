@@ -921,6 +921,7 @@ class ClubDataCodec {
         'clubId': lock.clubId,
         'year': lock.year,
         'closedAt': _dt(lock.closedAt),
+        if (lock.reopenedAt != null) 'reopenedAt': _dt(lock.reopenedAt!),
         'ranks': [
           for (final r in lock.ranks)
             {
@@ -961,6 +962,7 @@ class ClubDataCodec {
         clubId: clubId,
         year: y,
         closedAt: closedAt,
+        reopenedAt: _parseDt(j['reopenedAt']),
         ranks: ranks,
       );
       out[lock.key] = lock;

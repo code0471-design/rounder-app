@@ -2129,7 +2129,7 @@ class MembershipPointEvent {
   });
 }
 
-enum SeasonCloseOutcome { ok, officerOnly, alreadyClosed }
+enum SeasonCloseOutcome { ok, officerOnly, alreadyClosed, notClosed }
 
 class SeasonRankingRow {
   final String memberId;
@@ -2150,16 +2150,21 @@ class SeasonRankingLock {
   final String clubId;
   final int year;
   final DateTime closedAt;
+  final DateTime? reopenedAt;
   final List<SeasonRankingRow> ranks;
 
   const SeasonRankingLock({
     required this.clubId,
     required this.year,
     required this.closedAt,
+    this.reopenedAt,
     required this.ranks,
   });
 
   String get key => '$clubId:$year';
+
+  bool get isClosed =>
+      reopenedAt == null || !reopenedAt!.isAfter(closedAt);
 }
 
 // ────────────────────────────────────────────────────────────

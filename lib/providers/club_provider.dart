@@ -10192,7 +10192,7 @@ class ClubProvider extends ChangeNotifier with WidgetsBindingObserver {
 
   List<MapEntry<String, int>> memberPointsRankingForYear(int year) {
     final lock = seasonLockFor(year);
-    if (lock != null) {
+    if (lock != null && lock.isClosed) {
       final rows = [...lock.ranks]
         ..sort((a, b) => a.rank.compareTo(b.rank));
       return [for (final r in rows) MapEntry(r.memberId, r.points)];
@@ -10216,7 +10216,7 @@ class ClubProvider extends ChangeNotifier with WidgetsBindingObserver {
   }
 
   bool isSeasonClosed(int year, {String? clubId}) =>
-      seasonLockFor(year, clubId: clubId) != null;
+      seasonLockFor(year, clubId: clubId)?.isClosed == true;
 
   bool canAwardMembershipPoint(DateTime date, {String? clubId}) =>
       !isSeasonClosed(date.year, clubId: clubId);
@@ -10266,6 +10266,26 @@ class ClubProvider extends ChangeNotifier with WidgetsBindingObserver {
       ranks: ranks,
     );
     _seasonLocks[lock.key] = lock;
+    notifyListeners();
+    _persistImmediately();
+    return SeasonCloseOutcome.ok;
+  }
+
+  SeasonCloseOutcome reopenSeasonRanking(int year) {
+    if (!isClubExecutive) return SeasonCloseOutcome.officerOnly;
+    if (_myClubs.isEmpty) return SeasonCloseOutcome.notClosed;
+    final clubId = selectedClub.id;
+    final lock = seasonLockFor(year, clubId: clubId);
+    if (lock == null || !lock.isClosed) {
+      return SeasonCloseOutcome.notClosed;
+    }
+    _seasonLocks[lock.key] = SeasonRankingLock(
+      clubId: lock.clubId,
+      year: lock.year,
+      closedAt: lock.closedAt,
+      reopenedAt: DateTime.now(),
+      ranks: lock.ranks,
+    );
     notifyListeners();
     _persistImmediately();
     return SeasonCloseOutcome.ok;

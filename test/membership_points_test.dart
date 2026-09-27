@@ -630,6 +630,18 @@ void main() {
       expect(clubs.getMembershipPoints(myId, year: next), 10);
       expect(clubs.getMembershipPoints(myId, year: year), 10);
       expect(clubs.isSeasonClosed(next), isFalse);
+
+      expect(clubs.reopenSeasonRanking(year), SeasonCloseOutcome.ok);
+      expect(clubs.isSeasonClosed(year), isFalse);
+      clubs.addMembershipPoint(
+        memberId: myId,
+        type: MembershipPointType.roundAttendance,
+        points: 10,
+        desc: '마감 취소 후 참석|s_reopen',
+        date: DateTime(year, 12, 15),
+      );
+      expect(clubs.getMembershipPoints(myId, year: year), 20,
+          reason: '임원이 마감을 취소하면 그해 포인트가 다시 쌓여야 한다');
     });
 
     test('일반회원은 시즌을 마감할 수 없다', () async {

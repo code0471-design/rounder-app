@@ -43,7 +43,11 @@ void main() {
       SeasonRanking.closeButtonLabel(2026, closed: false),
       '2026시즌 랭킹 마감 확정하기',
     );
-    expect(SeasonRanking.closeButtonLabel(2026, closed: true), '2026시즌 마감됨');
+    expect(SeasonRanking.closeButtonLabel(2026, closed: true), '2026시즌 마감 취소하기');
+    expect(
+      SeasonRanking.closeConfirmMessage(2026, nowYear: 2026),
+      '올해 멤버십 랭킹을 마감, 확정하시겠습니까?',
+    );
   });
 
   test('회원 탭은 점수만 내역 팝업이고 자세히 보기·배너는 그대로다', () {
@@ -54,7 +58,10 @@ void main() {
     expect(src.contains('_showPointHistoryPopup'), isTrue);
     expect(src.contains('_showFullRankingSheet(provider)'), isTrue);
     expect(src.contains("'임원만 가능합니다'"), isTrue);
-    expect(src.contains("'확정할래요?'"), isTrue);
+    expect(src.contains('SeasonRanking.closeConfirmMessage'), isTrue);
+    expect(src.contains('SeasonRanking.reopenConfirmMessage'), isTrue);
+    expect(src.contains('_confirmSeasonReopen'), isTrue);
+    expect(src.contains("'확정할래요?'"), isFalse);
     expect(src.contains('SeasonRanking.closeButtonLabel'), isTrue);
     expect(src.contains("'일정 참석'"), isTrue);
     expect(src.contains("'회비 정시 납부'"), isTrue);

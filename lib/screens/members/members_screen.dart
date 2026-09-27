@@ -577,14 +577,19 @@ class _MembersScreenState extends State<MembersScreen>
                   child: SizedBox(
                     width: double.infinity,
                     child: OutlinedButton(
-                      onPressed: closed
-                          ? null
-                          : () => _confirmSeasonClose(
-                                ctx,
-                                provider,
-                                year,
-                                setSheet,
-                              ),
+                      onPressed: () => closed
+                          ? _confirmSeasonReopen(
+                              ctx,
+                              provider,
+                              year,
+                              setSheet,
+                            )
+                          : _confirmSeasonClose(
+                              ctx,
+                              provider,
+                              year,
+                              setSheet,
+                            ),
                       child: Text(
                         SeasonRanking.closeButtonLabel(year, closed: closed),
                       ),
@@ -679,7 +684,7 @@ class _MembersScreenState extends State<MembersScreen>
     final ok = await showDialog<bool>(
       context: sheetCtx,
       builder: (ctx) => AlertDialog(
-        title: const Text('확정할래요?'),
+        title: Text(SeasonRanking.closeConfirmMessage(year)),
         actions: [
           TextButton(
             onPressed: () => Navigator.pop(ctx, false),
@@ -694,6 +699,50 @@ class _MembersScreenState extends State<MembersScreen>
     );
     if (ok != true) return;
     final result = provider.closeSeasonRanking(year);
+    if (result == SeasonCloseOutcome.officerOnly) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('임원만 가능합니다')),
+      );
+      return;
+    }
+    if (result == SeasonCloseOutcome.ok) {
+      setSheet(() {});
+    }
+  }
+
+  Future<void> _confirmSeasonReopen(
+    BuildContext sheetCtx,
+    ClubProvider provider,
+    int year,
+    void Function(void Function()) setSheet,
+  ) async {
+    if (!provider.isSeasonClosed(year)) return;
+    if (!provider.isClubExecutive) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('임원만 가능합니다')),
+      );
+      return;
+    }
+    final ok = await showDialog<bool>(
+      context: sheetCtx,
+      builder: (ctx) => AlertDialog(
+        title: Text(SeasonRanking.reopenConfirmMessage(year)),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(ctx, false),
+            child: const Text('닫기'),
+          ),
+          TextButton(
+            onPressed: () => Navigator.pop(ctx, true),
+            child: const Text('마감 취소'),
+          ),
+        ],
+      ),
+    );
+    if (ok != true) return;
+    final result = provider.reopenSeasonRanking(year);
     if (result == SeasonCloseOutcome.officerOnly) {
       if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(

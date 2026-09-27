@@ -1815,4 +1815,31 @@ void main() {
     expect((merged.first['ranks'] as List).length, 1,
         reason: '이벤트 전체를 다시 복사하지 않고 확정 순위만 남긴다');
   });
+
+  test('임원이 마감을 취소한 쪽이 옛 확정본을 이긴다', () {
+    final merged = ClubOpsSync.mergeSeasonLocks(
+      local: [
+        {
+          'clubId': 'c_test',
+          'year': 2026,
+          'closedAt': '2026-12-01T00:00:00.000',
+          'reopenedAt': '2026-12-10T00:00:00.000',
+          'ranks': [
+            {'memberId': 'm1', 'name': '이정원', 'points': 12, 'rank': 1},
+          ],
+        },
+      ],
+      remote: [
+        {
+          'clubId': 'c_test',
+          'year': 2026,
+          'closedAt': '2026-12-01T00:00:00.000',
+          'ranks': [
+            {'memberId': 'm1', 'name': '이정원', 'points': 12, 'rank': 1},
+          ],
+        },
+      ],
+    );
+    expect(merged.single['reopenedAt'], '2026-12-10T00:00:00.000');
+  });
 }

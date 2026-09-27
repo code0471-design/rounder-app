@@ -16,7 +16,19 @@ abstract final class SeasonRanking {
   }
 
   static String closeButtonLabel(int year, {required bool closed}) {
-    return closed ? '${year}시즌 마감됨' : '${year}시즌 랭킹 마감 확정하기';
+    return closed ? '${year}시즌 마감 취소하기' : '${year}시즌 랭킹 마감 확정하기';
+  }
+
+  static String closeConfirmMessage(int year, {int? nowYear}) {
+    final now = nowYear ?? DateTime.now().year;
+    if (year == now) return '올해 멤버십 랭킹을 마감, 확정하시겠습니까?';
+    return '$year년 멤버십 랭킹을 마감, 확정하시겠습니까?';
+  }
+
+  static String reopenConfirmMessage(int year, {int? nowYear}) {
+    final now = nowYear ?? DateTime.now().year;
+    if (year == now) return '올해 멤버십 랭킹 마감을 취소하시겠습니까?';
+    return '$year년 멤버십 랭킹 마감을 취소하시겠습니까?';
   }
 
   static String historyEmptyMessage(int year, {int? nowYear}) {
