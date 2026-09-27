@@ -114,6 +114,8 @@ class HomeScreen extends StatelessWidget {
                       clipBehavior: Clip.none,
                       children: [
                         IconButton(
+                          constraints: const BoxConstraints.tightFor(
+                              width: 48, height: 48),
                           icon: const Icon(Icons.notifications_outlined,
                               color: Colors.white, size: 22),
                           onPressed: () => _showNotifications(context, prov),
@@ -121,17 +123,19 @@ class HomeScreen extends StatelessWidget {
                         if (prov.unreadNotificationCount > 0)
                           Positioned(
                             right: 6, top: 6,
-                            child: Container(
-                              width: 16, height: 16,
-                              decoration: BoxDecoration(
-                                color: AppColors.danger,
-                                shape: BoxShape.circle,
-                                border: Border.all(color: AppColors.sageDeep, width: 1.5),
-                              ),
-                              child: Center(
-                                child: Text(
-                                  '${prov.unreadNotificationCount}',
-                                  style: const TextStyle(color: Colors.white, fontSize: 9, fontWeight: FontWeight.bold),
+                            child: IgnorePointer(
+                              child: Container(
+                                width: 16, height: 16,
+                                decoration: BoxDecoration(
+                                  color: AppColors.danger,
+                                  shape: BoxShape.circle,
+                                  border: Border.all(color: AppColors.sageDeep, width: 1.5),
+                                ),
+                                child: Center(
+                                  child: Text(
+                                    '${prov.unreadNotificationCount}',
+                                    style: const TextStyle(color: Colors.white, fontSize: 9, fontWeight: FontWeight.bold),
+                                  ),
                                 ),
                               ),
                             ),
@@ -710,7 +714,10 @@ class _NotificationTile extends StatelessWidget {
   Widget build(BuildContext context) {
     final n = notification;
     final isUnread = !n.isRead;
-    return InkWell(
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        InkWell(
       onTap: onTap,
       child: Container(
         color: isUnread ? AppColors.sageLighter.withValues(alpha: 0.35) : Colors.transparent,
@@ -780,16 +787,19 @@ class _NotificationTile extends StatelessWidget {
                   Text(n.body,
                       style: const TextStyle(fontSize: 12, color: AppColors.textSecondary, height: 1.4),
                       maxLines: 2, overflow: TextOverflow.ellipsis),
-                  if (n.type == AppNotificationType.joinRequest) ...[
-                    const SizedBox(height: 8),
-                    _JoinInboxActions(notification: n),
-                  ],
                 ],
               ),
             ),
           ],
         ),
       ),
+        ),
+        if (n.type == AppNotificationType.joinRequest)
+          Padding(
+            padding: const EdgeInsets.fromLTRB(64, 0, 16, 12),
+            child: _JoinInboxActions(notification: n),
+          ),
+      ],
     );
   }
 

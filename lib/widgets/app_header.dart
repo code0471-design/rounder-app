@@ -49,11 +49,11 @@ class AppHeader extends StatelessWidget {
       icon: icon,
       style: IconButton.styleFrom(
         padding: EdgeInsets.zero,
-        tapTargetSize: MaterialTapTargetSize.shrinkWrap,
-        minimumSize: const Size(40, 40),
-        visualDensity: const VisualDensity(horizontal: -2, vertical: -2),
+        tapTargetSize: MaterialTapTargetSize.padded,
+        minimumSize: const Size(48, 48),
+        visualDensity: VisualDensity.standard,
       ),
-      constraints: const BoxConstraints.tightFor(width: 40, height: 40),
+      constraints: const BoxConstraints.tightFor(width: 48, height: 48),
     );
   }
 
@@ -185,21 +185,23 @@ class _NotificationIcon extends StatelessWidget {
           Positioned(
             right: 2,
             top: 2,
-            child: Container(
-              padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 1),
-              constraints: const BoxConstraints(minWidth: 14),
-              decoration: BoxDecoration(
-                color: AppColors.accent,
-                borderRadius: BorderRadius.circular(10),
-                border: Border.all(color: AppColors.surface, width: 1),
-              ),
-              child: Text(
-                count > 99 ? '99+' : '$count',
-                textAlign: TextAlign.center,
-                style: const TextStyle(
-                  color: AppColors.primaryDark,
-                  fontSize: 9,
-                  fontWeight: FontWeight.bold,
+            child: IgnorePointer(
+              child: Container(
+                padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 1),
+                constraints: const BoxConstraints(minWidth: 14),
+                decoration: BoxDecoration(
+                  color: AppColors.accent,
+                  borderRadius: BorderRadius.circular(10),
+                  border: Border.all(color: AppColors.surface, width: 1),
+                ),
+                child: Text(
+                  count > 99 ? '99+' : '$count',
+                  textAlign: TextAlign.center,
+                  style: const TextStyle(
+                    color: AppColors.primaryDark,
+                    fontSize: 9,
+                    fontWeight: FontWeight.bold,
+                  ),
                 ),
               ),
             ),

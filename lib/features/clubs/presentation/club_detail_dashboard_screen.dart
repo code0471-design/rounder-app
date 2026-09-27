@@ -326,7 +326,11 @@ class _JoinBar extends StatelessWidget {
     final msgCtrl = TextEditingController();
     showDialog<void>(
       context: context,
-      builder: (dialogCtx) => AlertDialog(
+      builder: (dialogCtx) {
+        var busy = false;
+        return StatefulBuilder(
+        builder: (dialogCtx, setDlg) {
+          return AlertDialog(
         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
         title: Text('${club.name} 가입 신청',
             style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 16)),
@@ -339,6 +343,7 @@ class _JoinBar extends StatelessWidget {
             TextField(
               controller: msgCtrl,
               maxLines: 3,
+              enabled: !busy,
               decoration: InputDecoration(
                 hintText: '자기 소개나 신청 이유를 적어주세요...',
                 filled: true,
@@ -353,11 +358,14 @@ class _JoinBar extends StatelessWidget {
         ),
         actions: [
           TextButton(
-            onPressed: () => Navigator.pop(dialogCtx),
+            onPressed: busy ? null : () => Navigator.pop(dialogCtx),
             child: const Text('취소'),
           ),
           ElevatedButton(
-            onPressed: () async {
+            onPressed: busy
+                ? null
+                : () async {
+              setDlg(() => busy = true);
               final message = msgCtrl.text.trim();
               if (allowRejoin) {
                 controller.allowRejoinAfterLeave();
@@ -409,10 +417,19 @@ class _JoinBar extends StatelessWidget {
                 ),
               );
             },
-            child: const Text('신청하기'),
+            child: busy
+                ? const SizedBox(
+                    width: 18,
+                    height: 18,
+                    child: CircularProgressIndicator(strokeWidth: 2),
+                  )
+                : const Text('신청하기'),
           ),
         ],
-      ),
+          );
+        },
+        );
+      },
     );
   }
 }

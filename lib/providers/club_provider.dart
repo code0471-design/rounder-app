@@ -7696,7 +7696,10 @@ class ClubProvider extends ChangeNotifier with WidgetsBindingObserver {
 
     var club = _allClubs.where((c) => c.id == req.clubId).firstOrNull ??
         _myClubs.where((c) => c.id == req.clubId).firstOrNull;
-    if (AppDependencies.instance.isInitialized &&
+    if ((club == null ||
+            club.creatorId.trim().isEmpty ||
+            club.name.trim().isEmpty) &&
+        AppDependencies.instance.isInitialized &&
         !AppDependencies.instance.isOfflineMockMode) {
       try {
         final remote = await AppDependencies.instance.clubRepository
@@ -7704,7 +7707,7 @@ class ClubProvider extends ChangeNotifier with WidgetsBindingObserver {
               req.clubId,
               userId: _persistAuthUserId ?? currentUserId,
             )
-            .timeout(const Duration(seconds: 8));
+            .timeout(const Duration(seconds: 3));
         if (remote != null) club = remote;
       } catch (e) {
         debugPrint('[ClubProvider] join publish club skip: $e');

@@ -2886,7 +2886,10 @@ void _showNotificationPanel(
                                                   AppNotificationType
                                                       .joinRequest) ...[
                                                 const SizedBox(height: 8),
-                                                Row(
+                                                GestureDetector(
+                                                  onTap: () {},
+                                                  behavior: HitTestBehavior.opaque,
+                                                  child: Row(
                                                   children: [
                                                     Expanded(
                                                       child: OutlinedButton(
@@ -2940,6 +2943,7 @@ void _showNotificationPanel(
                                                       ),
                                                     ),
                                                   ],
+                                                ),
                                                 ),
                                               ],
                                             ],

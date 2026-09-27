@@ -109,6 +109,9 @@ void main() {
     expect(src.contains('join enqueue skip id mismatch'), isTrue);
     expect(src.contains('replaceExisting: true'), isTrue);
     expect(src.contains('approveJoinFromInbox'), isTrue);
+    final header = read('lib/widgets/app_header.dart');
+    expect(header.contains('IgnorePointer'), isTrue);
+    expect(header.contains('Size(48, 48)'), isTrue);
     expect(src.contains('isSameLoginAccount'), isTrue);
     expect(
       src.contains('await PushNotificationService.enqueue('),

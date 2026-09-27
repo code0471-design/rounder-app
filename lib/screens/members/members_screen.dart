@@ -213,6 +213,8 @@ class _MembersScreenState extends State<MembersScreen>
                     ),
                     if (provider.isClubExecutive)
                       IconButton(
+                        constraints: const BoxConstraints.tightFor(
+                            width: 48, height: 48),
                         icon: Stack(
                           clipBehavior: Clip.none,
                           children: [
@@ -222,20 +224,22 @@ class _MembersScreenState extends State<MembersScreen>
                               Positioned(
                                 right: -4,
                                 top: -4,
-                                child: Container(
-                                  width: 14,
-                                  height: 14,
-                                  decoration: const BoxDecoration(
-                                    color: AppColors.danger,
-                                    shape: BoxShape.circle,
-                                  ),
-                                  child: Center(
-                                    child: Text(
-                                      '${pending.length}',
-                                      style: const TextStyle(
-                                          color: Colors.white,
-                                          fontSize: 8,
-                                          fontWeight: FontWeight.bold),
+                                child: IgnorePointer(
+                                  child: Container(
+                                    width: 14,
+                                    height: 14,
+                                    decoration: const BoxDecoration(
+                                      color: AppColors.danger,
+                                      shape: BoxShape.circle,
+                                    ),
+                                    child: Center(
+                                      child: Text(
+                                        '${pending.length}',
+                                        style: const TextStyle(
+                                            color: Colors.white,
+                                            fontSize: 8,
+                                            fontWeight: FontWeight.bold),
+                                      ),
                                     ),
                                   ),
                                 ),
@@ -1411,12 +1415,10 @@ class _JoinRequestSheetState extends State<_JoinRequestSheet> {
   Widget build(BuildContext context) {
     final pending = widget.provider.pendingRequestsOf(widget.clubId);
 
-    return DraggableScrollableSheet(
-      initialChildSize: 0.6,
-      minChildSize: 0.4,
-      maxChildSize: 0.9,
-      expand: false,
-      builder: (_, ctrl) => Column(
+    final height = MediaQuery.sizeOf(context).height * 0.72;
+    return SizedBox(
+      height: height,
+      child: Column(
         children: [
           // 핸들
           Padding(
@@ -1475,7 +1477,6 @@ class _JoinRequestSheetState extends State<_JoinRequestSheet> {
                     ),
                   )
                 : ListView.separated(
-                    controller: ctrl,
                     padding: const EdgeInsets.all(16),
                     itemCount: pending.length,
                     separatorBuilder: (_, __) =>
@@ -1882,7 +1883,9 @@ class _JoinRequestCardState extends State<_JoinRequestCard> {
                         color: AppColors.danger.withValues(alpha: 0.5)),
                     shape: RoundedRectangleBorder(
                         borderRadius: BorderRadius.circular(10)),
-                    padding: const EdgeInsets.symmetric(vertical: 10),
+                    padding: const EdgeInsets.symmetric(vertical: 14),
+                    minimumSize: const Size(0, 48),
+                    tapTargetSize: MaterialTapTargetSize.padded,
                   ),
                   child: const Text('거절',
                       style: TextStyle(fontWeight: FontWeight.bold)),
@@ -1898,7 +1901,9 @@ class _JoinRequestCardState extends State<_JoinRequestCard> {
                     foregroundColor: Colors.white,
                     shape: RoundedRectangleBorder(
                         borderRadius: BorderRadius.circular(10)),
-                    padding: const EdgeInsets.symmetric(vertical: 10),
+                    padding: const EdgeInsets.symmetric(vertical: 14),
+                    minimumSize: const Size(0, 48),
+                    tapTargetSize: MaterialTapTargetSize.padded,
                     elevation: 0,
                   ),
                   child: const Text('승인 (유형·직책 선택)',
