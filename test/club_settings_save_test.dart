@@ -267,6 +267,97 @@ void main() {
         reason: '홈 새로고침이 알라딘에서 아레나로 바꿔면 안 된다');
   });
 
+  test('카탈로그에만 있는 모임 사진은 내 모임·모임방에 채운다', () async {
+    expect(
+      await clubs.createClub(
+        name: '알라딘 정기월례회',
+        region: '서울',
+        industry: '골프',
+        teamCount: 4,
+        myRole: '회장',
+        description: '알라딘',
+      ),
+      isTrue,
+    );
+    final id = clubs.selectedClub.id;
+    expect((clubs.selectedClub.imageUrl ?? '').trim(), isEmpty);
+
+    clubs.hydrateFromBootstrap(AppBootstrapSnapshot(
+      userId: 'kakao_settings',
+      myClubs: [
+        Club(
+          id: id,
+          name: '알라딘 정기월례회',
+          myRole: '회장',
+          memberCount: 1,
+          region: '서울',
+          industry: '골프',
+          teamCount: 4,
+          description: '알라딘',
+          creatorId: 'kakao_settings',
+        ),
+      ],
+      discoverableClubs: [
+        Club(
+          id: id,
+          name: '알라딘 정기월례회',
+          imageUrl: 'https://example.com/aladdin.jpg',
+          myRole: '일반',
+          memberCount: 8,
+          region: '서울',
+          industry: '골프',
+          teamCount: 4,
+          description: '알라딘',
+          creatorId: 'kakao_settings',
+        ),
+      ],
+      membersByClubId: const {},
+      financeByClubId: const {},
+      loadedAt: DateTime(2026, 9, 27),
+    ));
+
+    expect(clubs.selectedClub.imageUrl, 'https://example.com/aladdin.jpg',
+        reason: '모임찾기 사진이 내 모임·모임방에서 빠지면 안 된다');
+    expect(
+      clubs.myClubs.where((c) => c.id == id).first.imageUrl,
+      'https://example.com/aladdin.jpg',
+    );
+  });
+
+  test('이미 있는 모임 사진은 카탈로그가 덮지 않는다', () async {
+    expect(
+      await clubs.createClub(
+        name: '알라딘',
+        region: '서울',
+        industry: '골프',
+        teamCount: 4,
+        myRole: '회장',
+        description: '알라딘',
+        imageUrl: 'https://example.com/mine.jpg',
+      ),
+      isTrue,
+    );
+    final id = clubs.selectedClub.id;
+
+    clubs.adoptCatalogCoverImages([
+      Club(
+        id: id,
+        name: '알라딘',
+        imageUrl: 'https://example.com/catalog.jpg',
+        myRole: '일반',
+        memberCount: 1,
+        region: '서울',
+        industry: '골프',
+        teamCount: 4,
+        description: '알라딘',
+        creatorId: 'kakao_settings',
+      ),
+    ]);
+
+    expect(clubs.selectedClub.imageUrl, 'https://example.com/mine.jpg',
+        reason: '설정에 있는 사진을 모임찾기 값으로 바꾸면 안 된다');
+  });
+
   test('설정에서도 같은 이름으로는 저장하지 않는다', () {
     final src =
         File('lib/screens/clubs/club_settings_screen.dart').readAsStringSync();

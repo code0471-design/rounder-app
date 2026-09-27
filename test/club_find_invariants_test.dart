@@ -110,6 +110,19 @@ void main() {
     expect(legacy.contains('fromLTRB(20, 52'), isFalse);
   });
 
+  test('모임찾기 카탈로그 사진은 내 모임이 비어 있으면 채운다', () {
+    final dash =
+        _read('lib/features/clubs/presentation/club_list_dashboard_screen.dart');
+    final provider = _read('lib/providers/club_provider.dart');
+    expect(dash.contains('adoptCatalogCoverImages'), isTrue);
+    expect(provider.contains('bool _fillEmptyClubCovers'), isTrue);
+    expect(
+      provider.contains('cover.isEmpty ? null : club.imageUrl'),
+      isTrue,
+      reason: '빈 사진으로 카탈로그를 지우면 모임찾기 사진이 사라진다',
+    );
+  });
+
   test('내 모임 카드는 원클럽형 커버와 구분선이 있다', () {
     final card = _read('lib/screens/my_clubs/widgets/home_club_card.dart');
     final home = _read('lib/screens/my_clubs/my_clubs_screen.dart');

@@ -58,6 +58,7 @@ class _ClubListDashboardScreenState extends State<ClubListDashboardScreen> {
       await context.read<ClubListController>().load(userId: userId);
       if (!mounted) return;
       final listCtrl = context.read<ClubListController>();
+      context.read<ClubProvider>().adoptCatalogCoverImages(listCtrl.clubs);
       context.read<ClubProvider>().dropMyPendingNotOnServer(
             listCtrl.pendingClubIds,
             onlyClubIds: listCtrl.checkedPendingClubIds,

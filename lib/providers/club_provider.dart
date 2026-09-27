@@ -348,6 +348,11 @@ class ClubProvider extends ChangeNotifier with WidgetsBindingObserver {
     // 일정 기준 D-day로 맞춤 (bootstrap 템플릿 날짜로 덮지 않음)
     _syncAllNextRounds();
     _applyClubInfoOverrides();
+    _fillEmptyClubCovers([
+      ...snapshot.myClubs.map((c) => _clubFromBootstrap(c)),
+      ...snapshot.discoverableClubs
+          .map((c) => _clubFromBootstrap(c, forCatalog: true)),
+    ]);
     _suppressPersist = false;
     notifyListeners();
     // bootstrap 후 스테이징 ops 동기화
@@ -632,7 +637,9 @@ class ClubProvider extends ChangeNotifier with WidgetsBindingObserver {
       _rebindPushIdsIfChanged();
       await _pullCloudOpsForMyClubs();
       if (!_isDemoSession && authUserId.isNotEmpty) {
-        await _replaceMyClubsFromServerMemberships(authUserId);
+        if (await _replaceMyClubsFromServerMemberships(authUserId)) {
+          unawaited(_persistNow());
+        }
       }
       _watchSelectedClubOps();
       unawaited(_enqueueAllUpcomingD1());
@@ -1270,8 +1277,16 @@ class ClubProvider extends ChangeNotifier with WidgetsBindingObserver {
     } else {
       final i = _myClubs.indexWhere((c) => c.id == club.id);
       final cur = _myClubs[i];
+      var next = cur;
       if (cur.creatorId.trim().isEmpty && club.creatorId.trim().isNotEmpty) {
-        _myClubs[i] = cur.copyWith(creatorId: club.creatorId);
+        next = next.copyWith(creatorId: club.creatorId);
+      }
+      if ((next.imageUrl ?? '').trim().isEmpty &&
+          (club.imageUrl ?? '').trim().isNotEmpty) {
+        next = next.copyWith(imageUrl: club.imageUrl);
+      }
+      if (next != cur) {
+        _myClubs[i] = next;
         changed = true;
       }
     }
@@ -1398,6 +1413,7 @@ class ClubProvider extends ChangeNotifier with WidgetsBindingObserver {
     _myClubs
       ..clear()
       ..addAll(next);
+    final coversFilled = _fillEmptyClubCovers(remote);
     _confirmedClubIds
       ..clear()
       ..addAll(after);
@@ -1408,7 +1424,7 @@ class ClubProvider extends ChangeNotifier with WidgetsBindingObserver {
       unawaited(_saveLeftClubIds(auth));
       unawaited(_saveConfirmedClubIds(auth));
     }
-    return before != after;
+    return before != after || coversFilled;
   }
 
   bool _purgeDemoIdentityClubs() {
@@ -2537,6 +2553,39 @@ class ClubProvider extends ChangeNotifier with WidgetsBindingObserver {
     _selectedClubIndex = fb.clamp(0, _myClubs.length - 1);
   }
 
+  /// 모임찾기는 clubs 카탈로그 사진을 쓰고, 내 모임은 ops/로컬이 비어 있을 수 있다.
+  /// 이미 있는 사진은 덮지 않고, 빈 칸만 채운다.
+  bool _fillEmptyClubCovers(Iterable<Club> sources) {
+    final keep = <String, String>{
+      for (final c in sources)
+        if ((c.imageUrl ?? '').trim().isNotEmpty) c.id: c.imageUrl!.trim(),
+    };
+    if (keep.isEmpty) return false;
+    var changed = false;
+    void apply(List<Club> list) {
+      for (var i = 0; i < list.length; i++) {
+        final kept = keep[list[i].id];
+        if (kept == null || kept.isEmpty) continue;
+        if ((list[i].imageUrl ?? '').trim().isEmpty) {
+          list[i] = list[i].copyWith(imageUrl: kept);
+          changed = true;
+        }
+      }
+    }
+
+    apply(_myClubs);
+    apply(_allClubs);
+    return changed;
+  }
+
+  /// 모임찾기에서 본 카탈로그 사진을 내 모임 카드·모임방에 넣는다.
+  void adoptCatalogCoverImages(Iterable<Club> catalog) {
+    if (_fillEmptyClubCovers(catalog)) {
+      notifyListeners();
+      _persistImmediately();
+    }
+  }
+
   void _keepClubImagesIfIncomingEmpty(Map<String, String> keep) {
     if (keep.isEmpty) return;
     void apply(List<Club> list) {
@@ -2590,6 +2639,7 @@ class ClubProvider extends ChangeNotifier with WidgetsBindingObserver {
       ..addAll(b.allClubs);
     _keepClubImagesIfIncomingEmpty(keepImages);
     _applyClubInfoOverrides();
+    _fillEmptyClubCovers(_allClubs);
     _joinRequests
       ..clear()
       ..addAll(b.joinRequests);
@@ -7575,11 +7625,12 @@ class ClubProvider extends ChangeNotifier with WidgetsBindingObserver {
       if (_legacyMockClubIds.contains(club.id)) continue;
       if (!_iAmClubCreator(club)) continue;
       if (club.name.trim().isEmpty) continue;
+      final cover = (club.imageUrl ?? '').trim();
       await _pushClubCatalogToServer(
         club.id,
         name: club.name,
         description: club.description,
-        imageUrl: club.imageUrl,
+        imageUrl: cover.isEmpty ? null : club.imageUrl,
         teamCount: club.teamCount,
         hostName: currentUserName,
         hostUserId: (_persistAuthUserId ?? currentUserId).trim(),
