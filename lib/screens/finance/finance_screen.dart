@@ -2590,57 +2590,9 @@ class _DuesSettingTab extends StatelessWidget {
               ListView(
             padding: const EdgeInsets.fromLTRB(16, 16, 16, 100),
             children: [
-              if (!isTreasurer)
-                Container(
-                  padding: const EdgeInsets.all(12),
-                  decoration: BoxDecoration(
-                    color: AppColors.primary.withValues(alpha: 0.07),
-                    borderRadius: BorderRadius.circular(10),
-                  ),
-                  child: const Row(
-                    children: [
-                      Icon(Icons.info_outline,
-                          size: 14, color: AppColors.primary),
-                      SizedBox(width: 6),
-                      Expanded(
-                        child: Text('회비 설정·초기 세팅은 총무만 가능합니다',
-                            style: TextStyle(
-                                fontSize: 12, color: AppColors.primary)),
-                      ),
-                    ],
-                  ),
-                ),
-              if (!isTreasurer) const SizedBox(height: 12),
-
-              // ── 기존 잔액 등록 (총무 전용 UI, 비총무는 탭 시 경고) ──
+              // 기존 잔액 등록은 총무만. 일반회원에게 잠금 안내를 두 줄 띄우지 않는다.
               if (isAdmin) ...[
                 _OpeningBalanceSettingCard(provider: provider),
-                const SizedBox(height: 20),
-              ] else ...[
-                GestureDetector(
-                  onTap: () => _guardTreasurerSetup(context, () {}),
-                  child: Container(
-                    padding: const EdgeInsets.all(14),
-                    decoration: BoxDecoration(
-                      color: AppColors.surface,
-                      borderRadius: BorderRadius.circular(12),
-                      border: Border.all(color: AppColors.cardLine, width: 1.5),
-                    ),
-                    child: const Row(
-                      children: [
-                        Icon(Icons.lock_outline,
-                            size: 18, color: AppColors.textSecondary),
-                        SizedBox(width: 10),
-                        Expanded(
-                          child: Text('초기 잔고·회비 세팅은 총무만 가능합니다',
-                              style: TextStyle(
-                                  fontSize: 13,
-                                  color: AppColors.textSecondary)),
-                        ),
-                      ],
-                    ),
-                  ),
-                ),
                 const SizedBox(height: 20),
               ],
 

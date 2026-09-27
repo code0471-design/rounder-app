@@ -219,15 +219,12 @@ void main() {
   });
 
   test('기존 잔액 등록 카드는 총무만 본다', () {
-    // 비총무는 잠금 안내만 보고 금액·수정 버튼을 못 본다.
     expect(finance.contains('final isAdmin = isTreasurer;'), isTrue);
-    final block = finance.substring(
-      finance.indexOf('// ── 기존 잔액 등록'),
-      finance.indexOf('// ── 기존 잔액 등록') + 1400,
-    );
-    expect(block.contains('if (isAdmin)'), isTrue);
-    expect(block.contains('_OpeningBalanceSettingCard'), isTrue);
-    expect(block.contains('초기 잔고·회비 세팅은 총무만 가능합니다'), isTrue);
+    expect(finance.contains('_OpeningBalanceSettingCard'), isTrue);
+    expect(finance.contains('회비 설정·초기 세팅은 총무만 가능합니다'), isFalse,
+        reason: '일반회원 회비설정에 총무 안내가 두 줄로 뜨면 안 된다');
+    expect(finance.contains('초기 잔고·회비 세팅은 총무만 가능합니다'), isFalse,
+        reason: '잔고 카드 대신 잠금 안내를 또 두면 같은 말이 두 번이다');
   });
 
   test('월↔연 전환은 로컬만 남기지 않고 persist 한다', () {
