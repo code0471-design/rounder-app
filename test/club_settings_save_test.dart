@@ -324,7 +324,7 @@ void main() {
     );
   });
 
-  test('이미 있는 모임 사진은 카탈로그가 덮지 않는다', () async {
+  test('임원이 카탈로그 사진을 바꾸면 내 모임·모임방도 따라간다', () async {
     expect(
       await clubs.createClub(
         name: '알라딘',
@@ -333,7 +333,7 @@ void main() {
         teamCount: 4,
         myRole: '회장',
         description: '알라딘',
-        imageUrl: 'https://example.com/mine.jpg',
+        imageUrl: 'https://example.com/old.jpg',
       ),
       isTrue,
     );
@@ -343,7 +343,7 @@ void main() {
       Club(
         id: id,
         name: '알라딘',
-        imageUrl: 'https://example.com/catalog.jpg',
+        imageUrl: 'https://example.com/new.jpg',
         myRole: '일반',
         memberCount: 1,
         region: '서울',
@@ -354,8 +354,49 @@ void main() {
       ),
     ]);
 
-    expect(clubs.selectedClub.imageUrl, 'https://example.com/mine.jpg',
-        reason: '설정에 있는 사진을 모임찾기 값으로 바꾸면 안 된다');
+    expect(clubs.selectedClub.imageUrl, 'https://example.com/new.jpg',
+        reason: '임원이 올린 새 사진이 회원 화면에 남아 있으면 안 된다');
+  });
+
+  test('방금 설정에서 저장한 사진은 옛 카탈로그가 되돌리지 않는다', () async {
+    expect(
+      await clubs.createClub(
+        name: '알라딘',
+        region: '서울',
+        industry: '골프',
+        teamCount: 4,
+        myRole: '회장',
+        description: '알라딘',
+        imageUrl: 'https://example.com/old.jpg',
+      ),
+      isTrue,
+    );
+    final id = clubs.selectedClub.id;
+    expect(
+      await clubs.updateClubInfo(
+        clubId: id,
+        imageUrl: 'https://example.com/saved.jpg',
+      ),
+      isTrue,
+    );
+
+    clubs.adoptCatalogCoverImages([
+      Club(
+        id: id,
+        name: '알라딘',
+        imageUrl: 'https://example.com/old.jpg',
+        myRole: '일반',
+        memberCount: 1,
+        region: '서울',
+        industry: '골프',
+        teamCount: 4,
+        description: '알라딘',
+        creatorId: 'kakao_settings',
+      ),
+    ]);
+
+    expect(clubs.selectedClub.imageUrl, 'https://example.com/saved.jpg',
+        reason: '방금 저장한 임원 사진을 옛 서버 값으로 되돌리면 안 된다');
   });
 
   test('설정에서도 같은 이름으로는 저장하지 않는다', () {

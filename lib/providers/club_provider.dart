@@ -347,12 +347,12 @@ class ClubProvider extends ChangeNotifier with WidgetsBindingObserver {
 
     // 일정 기준 D-day로 맞춤 (bootstrap 템플릿 날짜로 덮지 않음)
     _syncAllNextRounds();
-    _applyClubInfoOverrides();
-    _fillEmptyClubCovers([
+    _adoptCatalogCovers([
       ...snapshot.myClubs.map((c) => _clubFromBootstrap(c)),
       ...snapshot.discoverableClubs
           .map((c) => _clubFromBootstrap(c, forCatalog: true)),
     ]);
+    _applyClubInfoOverrides();
     _suppressPersist = false;
     notifyListeners();
     // bootstrap 후 스테이징 ops 동기화
@@ -1413,7 +1413,7 @@ class ClubProvider extends ChangeNotifier with WidgetsBindingObserver {
     _myClubs
       ..clear()
       ..addAll(next);
-    final coversFilled = _fillEmptyClubCovers(remote);
+    final coversFilled = _adoptCatalogCovers(remote);
     _confirmedClubIds
       ..clear()
       ..addAll(after);
@@ -2553,23 +2553,24 @@ class ClubProvider extends ChangeNotifier with WidgetsBindingObserver {
     _selectedClubIndex = fb.clamp(0, _myClubs.length - 1);
   }
 
-  /// 모임찾기는 clubs 카탈로그 사진을 쓰고, 내 모임은 ops/로컬이 비어 있을 수 있다.
-  /// 이미 있는 사진은 덮지 않고, 빈 칸만 채운다.
-  bool _fillEmptyClubCovers(Iterable<Club> sources) {
-    final keep = <String, String>{
+  /// 카탈로그에 사진이 있으면 내 모임·모임방도 그걸 쓴다.
+  /// 빈 값은 덮지 않는다. 방금 설정에서 저장한 사진은 옛 카탈로그로 되돌리지 않는다.
+  bool _adoptCatalogCovers(Iterable<Club> sources) {
+    final next = <String, String>{
       for (final c in sources)
         if ((c.imageUrl ?? '').trim().isNotEmpty) c.id: c.imageUrl!.trim(),
     };
-    if (keep.isEmpty) return false;
+    if (next.isEmpty) return false;
     var changed = false;
     void apply(List<Club> list) {
       for (var i = 0; i < list.length; i++) {
-        final kept = keep[list[i].id];
-        if (kept == null || kept.isEmpty) continue;
-        if ((list[i].imageUrl ?? '').trim().isEmpty) {
-          list[i] = list[i].copyWith(imageUrl: kept);
-          changed = true;
-        }
+        final id = list[i].id;
+        if (_clubInfoOverrides.containsKey(id)) continue;
+        final url = next[id];
+        if (url == null || url.isEmpty) continue;
+        if ((list[i].imageUrl ?? '').trim() == url) continue;
+        list[i] = list[i].copyWith(imageUrl: url);
+        changed = true;
       }
     }
 
@@ -2580,7 +2581,7 @@ class ClubProvider extends ChangeNotifier with WidgetsBindingObserver {
 
   /// 모임찾기에서 본 카탈로그 사진을 내 모임 카드·모임방에 넣는다.
   void adoptCatalogCoverImages(Iterable<Club> catalog) {
-    if (_fillEmptyClubCovers(catalog)) {
+    if (_adoptCatalogCovers(catalog)) {
       notifyListeners();
       _persistImmediately();
     }
@@ -2638,8 +2639,8 @@ class ClubProvider extends ChangeNotifier with WidgetsBindingObserver {
       ..clear()
       ..addAll(b.allClubs);
     _keepClubImagesIfIncomingEmpty(keepImages);
+    _adoptCatalogCovers(_allClubs);
     _applyClubInfoOverrides();
-    _fillEmptyClubCovers(_allClubs);
     _joinRequests
       ..clear()
       ..addAll(b.joinRequests);
@@ -7568,16 +7569,11 @@ class ClubProvider extends ChangeNotifier with WidgetsBindingObserver {
     notifyListeners();
     _syncMyClubsToMockStore();
     await _persistNow();
-    String? catalogImage = imageUrl;
-    if (catalogImage != null &&
-        catalogImage.startsWith('data:') &&
-        catalogImage.length > 180000) {
-      catalogImage = null;
-    }
+    final catalogImage = (imageUrl ?? '').trim();
     await _pushClubCatalogToServer(clubId,
         name: name,
         description: description,
-        imageUrl: catalogImage,
+        imageUrl: catalogImage.isEmpty ? null : imageUrl,
         teamCount: teamCount,
         hostName: hostName,
         hostUserId: hostUserId,

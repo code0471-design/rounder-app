@@ -120,16 +120,22 @@ void main() {
     expect(legacy.contains('fromLTRB(20, 52'), isFalse);
   });
 
-  test('모임찾기 카탈로그 사진은 내 모임이 비어 있으면 채운다', () {
+  test('모임찾기 카탈로그 사진은 내 모임이 비어 있으면 채우고 바뀌면 따라간다', () {
     final dash =
         _read('lib/features/clubs/presentation/club_list_dashboard_screen.dart');
     final provider = _read('lib/providers/club_provider.dart');
     expect(dash.contains('adoptCatalogCoverImages'), isTrue);
-    expect(provider.contains('bool _fillEmptyClubCovers'), isTrue);
+    expect(provider.contains('bool _adoptCatalogCovers'), isTrue);
+    expect(provider.contains('_fillEmptyClubCovers'), isFalse);
     expect(
       provider.contains('cover.isEmpty ? null : club.imageUrl'),
       isTrue,
       reason: '빈 사진으로 카탈로그를 지우면 모임찾기 사진이 사라진다',
+    );
+    expect(
+      provider.contains('catalogImage.isEmpty ? null : imageUrl'),
+      isTrue,
+      reason: '임원이 올린 사진은 카탈로그에 남아 회원이 받아야 한다',
     );
   });
 
