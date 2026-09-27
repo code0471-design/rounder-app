@@ -9088,12 +9088,13 @@ class ClubProvider extends ChangeNotifier with WidgetsBindingObserver {
 
     notifyListeners();
     _persistImmediately();
-    await _persistMyRoleToServer(
+    // 화면 스피너는 로컬 저장이 끝나면 끈다. 서버 업로드를 기다리면 버튼이 계속 돈다.
+    unawaited(_persistMyRoleToServer(
       clubId: clubId,
       role: roleEncoded,
       memberType: ClubMemberRole.memberTypeForRole(roleEncoded),
       rosterMemberId: me.id,
-    );
+    ));
     return true;
   }
 
@@ -9108,7 +9109,7 @@ class ClubProvider extends ChangeNotifier with WidgetsBindingObserver {
       await ClubOpsSync.pushClubOps(
         clubId: clubId,
         bundle: _exportBundle(),
-      );
+      ).timeout(const Duration(seconds: 12));
     } catch (e) {
       debugPrint('[ClubProvider] role ops push skip: $e');
     }
@@ -9119,7 +9120,7 @@ class ClubProvider extends ChangeNotifier with WidgetsBindingObserver {
         role: role,
         memberType: memberType,
         rosterMemberId: rosterMemberId,
-      );
+      ).timeout(const Duration(seconds: 8));
     } catch (e) {
       debugPrint('[ClubProvider] role member write skip: $e');
     }

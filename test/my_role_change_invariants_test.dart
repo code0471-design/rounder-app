@@ -18,6 +18,8 @@ void main() {
     expect(src.contains('setMyRoleForClub'), isTrue);
     expect(src.contains('ClubOpsSync.upsertMemberRole'), isTrue);
     expect(src.contains('ClubOpsSync.pushClubOps'), isTrue);
+    expect(src.contains('unawaited(_persistMyRoleToServer'), isTrue,
+        reason: '서버 업로드를 기다리면 직책은 바뀌어도 버튼이 계속 돈다');
     expect(
       src.contains('생성자인데 양쪽 다 임원이 아니면 회장·총무로 되돌린다'),
       isFalse,
