@@ -162,7 +162,11 @@ class _ClubRoomScreenState extends State<ClubRoomScreen> {
         await Future<void>.delayed(const Duration(milliseconds: 80));
         if (!mounted) return;
         if (p.consumeOpenJoinRequests()) {
-          MembersScreen.showJoinRequestsSheet(context, p);
+          MembersScreen.showJoinRequestsSheet(
+            context,
+            p,
+            clubId: widget.club.id,
+          );
         }
       } else {
         unawaited(p.refreshJoinRequestInbox());
@@ -583,6 +587,7 @@ class _ClubRoomScreenState extends State<ClubRoomScreen> {
               MembersScreen.showJoinRequestsSheet(
                 context,
                 context.read<ClubProvider>(),
+                clubId: provider.selectedClub.id,
               );
             });
           },
@@ -2877,6 +2882,66 @@ void _showNotificationPanel(
                                                           .textTertiary,
                                                 ),
                                               ),
+                                              if (n.type ==
+                                                  AppNotificationType
+                                                      .joinRequest) ...[
+                                                const SizedBox(height: 8),
+                                                Row(
+                                                  children: [
+                                                    Expanded(
+                                                      child: OutlinedButton(
+                                                        onPressed: () async {
+                                                          final ok = await prov
+                                                              .rejectJoinFromInbox(
+                                                                  n);
+                                                          if (!context
+                                                              .mounted) {
+                                                            return;
+                                                          }
+                                                          ScaffoldMessenger.of(
+                                                                  context)
+                                                              .showSnackBar(
+                                                            SnackBar(
+                                                              content: Text(
+                                                                ok
+                                                                    ? '가입 신청을 거절했습니다'
+                                                                    : '거절하지 못했습니다. 총무 권한을 확인해 주세요.',
+                                                              ),
+                                                            ),
+                                                          );
+                                                        },
+                                                        child: const Text('거절'),
+                                                      ),
+                                                    ),
+                                                    const SizedBox(width: 8),
+                                                    Expanded(
+                                                      child: ElevatedButton(
+                                                        onPressed: () async {
+                                                          final ok = await prov
+                                                              .approveJoinFromInbox(
+                                                                  n);
+                                                          if (!context
+                                                              .mounted) {
+                                                            return;
+                                                          }
+                                                          ScaffoldMessenger.of(
+                                                                  context)
+                                                              .showSnackBar(
+                                                            SnackBar(
+                                                              content: Text(
+                                                                ok
+                                                                    ? '가입을 승인했습니다'
+                                                                    : '승인하지 못했습니다. 총무 권한을 확인해 주세요.',
+                                                              ),
+                                                            ),
+                                                          );
+                                                        },
+                                                        child: const Text('승인'),
+                                                      ),
+                                                    ),
+                                                  ],
+                                                ),
+                                              ],
                                             ],
                                           ),
                                         ),

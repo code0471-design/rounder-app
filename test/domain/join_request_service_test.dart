@@ -71,6 +71,18 @@ void main() {
       );
     });
 
+    test('명단 행 id 와 로그인 계정은 같은 사람이다', () {
+      expect(
+        JoinRequestService.isSameLoginAccount(
+          a: 'm_c_arena_kakao_5044456654',
+          b: 'kakao_5044456654',
+          clubId: 'c_arena',
+          creatorId: 'kakao_5044456654',
+        ),
+        isTrue,
+      );
+    });
+
     test('총무가 없으면 회장, 둘 다 없으면 생성자에게 보낸다', () {
       expect(
         JoinRequestService.notifyAccountIds(

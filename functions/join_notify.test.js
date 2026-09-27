@@ -4,11 +4,14 @@ const test = require('node:test');
 const assert = require('node:assert/strict');
 const {
   shouldFanoutJoinRequest,
+  shouldSendJoinApply,
+  shouldSendJoinResult,
   requestIdFor,
   notifyAccountIds,
   officersFromRows,
   loginAccountIdOf,
   joinPushPayload,
+  resultInboxItemId,
 } = require('./join_notify');
 
 const ARENA = 'c_1786973797931';
@@ -116,4 +119,55 @@ test('수신자는 로그인 계정. 총무 없으면 회장, 없으면 생성�
     }),
     [AHN],
   );
+});
+
+test('거절 후 다시 신청하면 푸시를 다시 보내고, 같은 pending 수정은 안 보낸다', () => {
+  const id = requestIdFor(ARENA, JANG);
+  assert.equal(
+    shouldSendJoinApply({
+      requestId: id,
+      clubId: ARENA,
+      beforeStatus: '',
+      afterStatus: 'pending',
+    }),
+    true,
+  );
+  assert.equal(
+    shouldSendJoinApply({
+      requestId: id,
+      clubId: ARENA,
+      beforeStatus: 'rejected',
+      afterStatus: 'pending',
+    }),
+    true,
+  );
+  assert.equal(
+    shouldSendJoinApply({
+      requestId: id,
+      clubId: ARENA,
+      beforeStatus: 'pending',
+      afterStatus: 'pending',
+    }),
+    false,
+  );
+  assert.equal(
+    shouldSendJoinResult({
+      requestId: id,
+      clubId: ARENA,
+      beforeStatus: 'pending',
+      afterStatus: 'approved',
+    }),
+    true,
+  );
+  assert.equal(
+    shouldSendJoinResult({
+      requestId: id,
+      clubId: ARENA,
+      beforeStatus: 'approved',
+      afterStatus: 'approved',
+    }),
+    false,
+  );
+  assert.equal(resultInboxItemId(id, true), `${id}_ok`);
+  assert.equal(resultInboxItemId(id, false), `${id}_no`);
 });

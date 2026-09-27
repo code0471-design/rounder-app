@@ -21,16 +21,19 @@ class MembersScreen extends StatefulWidget {
   /// 원클럽과 같은 가입 신청 목록 시트. 새 승인 화면을 만들지 않는다.
   static void showJoinRequestsSheet(
     BuildContext context,
-    ClubProvider provider,
-  ) {
-    unawaited(provider.refreshJoinRequestsForClub(provider.selectedClub.id));
+    ClubProvider provider, {
+    String? clubId,
+  }) {
+    final id = (clubId ?? provider.selectedClub.id).trim();
+    if (id.isNotEmpty) provider.selectClubById(id);
+    unawaited(provider.refreshJoinRequestsForClub(id));
     showModalBottomSheet(
       context: context,
       isScrollControlled: true,
       backgroundColor: AppColors.surface,
       shape: const RoundedRectangleBorder(
           borderRadius: BorderRadius.vertical(top: Radius.circular(20))),
-      builder: (_) => _JoinRequestSheet(provider: provider),
+      builder: (_) => _JoinRequestSheet(provider: provider, clubId: id),
     );
   }
 
@@ -1376,7 +1379,8 @@ class _GuestBadge extends StatelessWidget {
 // ════════════════════════════════════════
 class _JoinRequestSheet extends StatefulWidget {
   final ClubProvider provider;
-  const _JoinRequestSheet({required this.provider});
+  final String clubId;
+  const _JoinRequestSheet({required this.provider, required this.clubId});
 
   @override
   State<_JoinRequestSheet> createState() => _JoinRequestSheetState();
@@ -1386,18 +1390,26 @@ class _JoinRequestSheetState extends State<_JoinRequestSheet> {
   @override
   void initState() {
     super.initState();
+    widget.provider.addListener(_onProvider);
     WidgetsBinding.instance.addPostFrameCallback((_) async {
-      await widget.provider.refreshJoinRequestsForClub(
-        widget.provider.selectedClub.id,
-      );
+      await widget.provider.refreshJoinRequestsForClub(widget.clubId);
       if (mounted) setState(() {});
     });
   }
 
   @override
+  void dispose() {
+    widget.provider.removeListener(_onProvider);
+    super.dispose();
+  }
+
+  void _onProvider() {
+    if (mounted) setState(() {});
+  }
+
+  @override
   Widget build(BuildContext context) {
-    final pending = widget.provider.pendingRequestsOf(
-        widget.provider.selectedClub.id);
+    final pending = widget.provider.pendingRequestsOf(widget.clubId);
 
     return DraggableScrollableSheet(
       initialChildSize: 0.6,
@@ -1649,7 +1661,7 @@ class _JoinRequestCardState extends State<_JoinRequestCard> {
           ),
           actions: [
             TextButton(
-              onPressed: () => Navigator.pop(context),
+              onPressed: () => Navigator.pop(ctx),
               child: const Text('취소',
                   style:
                       TextStyle(color: AppColors.textSecondary)),
@@ -1665,8 +1677,8 @@ class _JoinRequestCardState extends State<_JoinRequestCard> {
                   role: role,
                   request: widget.request,
                 );
-                if (!context.mounted) return;
-                Navigator.pop(context);
+                if (!ctx.mounted) return;
+                Navigator.pop(ctx);
                 if (ok) widget.onApproved();
                 ScaffoldMessenger.of(context).showSnackBar(
                   SnackBar(

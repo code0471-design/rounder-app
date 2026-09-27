@@ -94,8 +94,11 @@ void main() {
     expect(fn.contains('skip join inbox not jr_'), isTrue);
     expect(fn.contains('exports.fanoutJoinRequest'), isTrue);
     expect(fn.contains('clubs/{clubId}/join_requests/{requestId}'), isTrue);
-    expect(fn.contains('join inbox written'), isTrue);
-    expect(fn.contains('shouldFanoutJoinRequest'), isTrue);
+    expect(fn.contains('shouldSendJoinApply'), isTrue);
+    expect(fn.contains('shouldSendJoinResult'), isTrue);
+    expect(fn.contains('onDocumentWritten'), isTrue);
+    expect(fn.contains('join apply fcm'), isTrue);
+    expect(fn.contains('join result fcm'), isTrue);
     expect(
       fn.contains('joinPushPayload'),
       isTrue,
@@ -104,6 +107,9 @@ void main() {
 
     final src = read('lib/providers/club_provider.dart');
     expect(src.contains('join enqueue skip id mismatch'), isTrue);
+    expect(src.contains('replaceExisting: true'), isTrue);
+    expect(src.contains('approveJoinFromInbox'), isTrue);
+    expect(src.contains('isSameLoginAccount'), isTrue);
     expect(
       src.contains('await PushNotificationService.enqueue('),
       isTrue,

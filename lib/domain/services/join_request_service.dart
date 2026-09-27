@@ -186,18 +186,44 @@ abstract final class JoinRequestService {
     return const [];
   }
 
+  static bool isSameLoginAccount({
+    required String a,
+    required String b,
+    String clubId = '',
+    String? creatorId,
+  }) {
+    final left = loginAccountIdOf(
+      clubId: clubId,
+      memberOrUserId: a,
+      creatorId: creatorId,
+    );
+    final right = loginAccountIdOf(
+      clubId: clubId,
+      memberOrUserId: b,
+      creatorId: creatorId,
+    );
+    if (left.isNotEmpty && right.isNotEmpty) return left == right;
+    final rawA = a.trim();
+    final rawB = b.trim();
+    return rawA.isNotEmpty && rawA == rawB;
+  }
+
   static bool canApprove({
     required String myRole,
     required String? creatorId,
     required String reviewerId,
     String memberRole = '',
+    String clubId = '',
   }) {
     if (ClubMemberRole.canApproveJoins(myRole)) return true;
     if (memberRole.isNotEmpty && ClubMemberRole.canApproveJoins(memberRole)) {
       return true;
     }
-    final creator = creatorId?.trim() ?? '';
-    final reviewer = reviewerId.trim();
-    return creator.isNotEmpty && reviewer.isNotEmpty && creator == reviewer;
+    return isSameLoginAccount(
+      a: creatorId ?? '',
+      b: reviewerId,
+      clubId: clubId,
+      creatorId: creatorId,
+    );
   }
 }

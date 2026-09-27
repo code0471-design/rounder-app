@@ -125,12 +125,57 @@ function joinPushPayload({ userName, clubName, clubId }) {
   };
 }
 
+function resultInboxItemId(requestId, approved) {
+  const id = String(requestId || '').trim();
+  if (!id) return '';
+  return approved ? `${id}_ok` : `${id}_no`;
+}
+
+function joinResultPayload({ clubName, clubId, approved, role }) {
+  const club = String(clubName || '').trim() || '모임';
+  const assigned = String(role || '').trim();
+  return {
+    title: approved ? '가입 승인' : '가입 거절',
+    body: approved
+      ? `${club} 가입이 승인되었습니다${assigned ? ` (${assigned})` : ''}`
+      : `${club} 가입이 거절되었습니다`,
+    type: 'push_join_result',
+    clubId: String(clubId || ''),
+  };
+}
+
+function shouldSendJoinApply({ requestId, clubId, beforeStatus, afterStatus }) {
+  if (
+    !shouldFanoutJoinRequest({
+      requestId,
+      clubId,
+      status: afterStatus,
+    })
+  ) {
+    return false;
+  }
+  return String(beforeStatus || '') !== 'pending';
+}
+
+function shouldSendJoinResult({ requestId, clubId, beforeStatus, afterStatus }) {
+  const id = String(requestId || '').trim();
+  const c = String(clubId || '').trim();
+  const after = String(afterStatus || '');
+  if (!id.startsWith(`jr_${c}_`)) return false;
+  if (after !== 'approved' && after !== 'rejected') return false;
+  return String(beforeStatus || '') !== after;
+}
+
 module.exports = {
   isLoginAccountId,
   loginAccountIdOf,
   requestIdFor,
   shouldFanoutJoinRequest,
+  shouldSendJoinApply,
+  shouldSendJoinResult,
+  resultInboxItemId,
   officersFromRows,
   notifyAccountIds,
   joinPushPayload,
+  joinResultPayload,
 };

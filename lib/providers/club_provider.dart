@@ -5725,18 +5725,33 @@ class ClubProvider extends ChangeNotifier with WidgetsBindingObserver {
 
   bool _canReviewClub(String clubId) {
     final me = (_persistAuthUserId ?? currentUserId).trim();
+    final aliases = clubIdAliases(clubId);
+    final club = _myClubs.where((c) => aliases.contains(c.id)).firstOrNull ??
+        _allClubs.where((c) => aliases.contains(c.id)).firstOrNull;
+    final creatorId = club?.creatorId ?? '';
+    bool isMe(String raw) =>
+        JoinRequestService.isSameLoginAccount(
+          a: raw,
+          b: me,
+          clubId: clubId,
+          creatorId: creatorId,
+        ) ||
+        JoinRequestService.isSameLoginAccount(
+          a: raw,
+          b: currentUserId,
+          clubId: clubId,
+          creatorId: creatorId,
+        );
     final officers = _joinOfficersByClub[clubId];
     if (officers != null) {
       for (final o in officers) {
-        if (o.userId == me && ClubMemberRole.canApproveJoins(o.role)) {
+        if (isMe(o.userId) && ClubMemberRole.canApproveJoins(o.role)) {
           return true;
         }
       }
     }
-    final aliases = clubIdAliases(clubId);
-    final club = _myClubs.where((c) => aliases.contains(c.id)).firstOrNull ??
-        _allClubs.where((c) => aliases.contains(c.id)).firstOrNull;
     if (club == null) return false;
+    if (isMe(club.creatorId) && club.creatorId.trim().isNotEmpty) return true;
     String memberRole = '';
     for (final m in membersForClub(club.id)) {
       if (_isMyRosterRowFor(club, m.id)) {
@@ -5749,10 +5764,43 @@ class ClubProvider extends ChangeNotifier with WidgetsBindingObserver {
       creatorId: club.creatorId,
       reviewerId: me,
       memberRole: memberRole,
+      clubId: clubId,
     );
   }
 
   bool _canReviewJoin(JoinRequest req) => _canReviewClub(req.clubId);
+
+  JoinRequest? joinRequestForNotification(AppNotification n) {
+    final target = (n.targetId ?? '').trim();
+    if (target.isEmpty) return null;
+    final aliases = clubIdAliases(n.clubId);
+    return _joinRequests.where((r) =>
+        r.id == target &&
+        aliases.contains(r.clubId) &&
+        r.status == JoinRequestStatus.pending).firstOrNull;
+  }
+
+  Future<bool> approveJoinFromInbox(AppNotification n) async {
+    selectClubById(n.clubId);
+    await refreshJoinRequestsForClub(n.clubId);
+    final req = joinRequestForNotification(n);
+    if (req == null) {
+      debugPrint('[ClubProvider] approve from inbox missing ${n.targetId}');
+      return false;
+    }
+    return approveRequest(req.id, request: req);
+  }
+
+  Future<bool> rejectJoinFromInbox(AppNotification n) async {
+    selectClubById(n.clubId);
+    await refreshJoinRequestsForClub(n.clubId);
+    final req = joinRequestForNotification(n);
+    if (req == null) {
+      debugPrint('[ClubProvider] reject from inbox missing ${n.targetId}');
+      return false;
+    }
+    return rejectRequest(req.id, request: req);
+  }
 
   /// 내 모임 기준으로 볼 수 있는 알림인지
   bool canSeeNotification(AppNotification n) {
@@ -7716,6 +7764,7 @@ class ClubProvider extends ChangeNotifier with WidgetsBindingObserver {
           type: HqPushCatalog.joinRequest,
           clubId: req.clubId,
           itemId: req.id,
+          replaceExisting: true,
         );
       } else {
         debugPrint(
@@ -8340,10 +8389,12 @@ class ClubProvider extends ChangeNotifier with WidgetsBindingObserver {
       return false;
     }
     final req = _joinRequests[idx];
-    await _joinOfficerAccounts(req.clubId);
     if (!_canReviewJoin(req)) {
-      debugPrint('[ClubProvider] approveRequest blocked — not an officer');
-      return false;
+      await _joinOfficerAccounts(req.clubId);
+      if (!_canReviewJoin(req)) {
+        debugPrint('[ClubProvider] approveRequest blocked — not an officer');
+        return false;
+      }
     }
 
     final assignedRole = ClubMemberRole.roleForMemberType(memberType, role);
@@ -8462,7 +8513,7 @@ class ClubProvider extends ChangeNotifier with WidgetsBindingObserver {
           authUserId: applicant,
           notification: approvedNoti,
         );
-        unawaited(PushNotificationService.enqueue(
+        await PushNotificationService.enqueue(
           targetUserId: applicant,
           title: approvedNoti.title,
           body: approvedNoti.body,
@@ -8472,7 +8523,8 @@ class ClubProvider extends ChangeNotifier with WidgetsBindingObserver {
             request.id,
             approved: true,
           ),
-        ));
+          replaceExisting: true,
+        );
       }
     } catch (e) {
       debugPrint('[ClubProvider] approve applicant inbox skip: $e');
@@ -8500,10 +8552,12 @@ class ClubProvider extends ChangeNotifier with WidgetsBindingObserver {
       return false;
     }
     final req = _joinRequests[idx];
-    await _joinOfficerAccounts(req.clubId);
     if (!_canReviewJoin(req)) {
-      debugPrint('[ClubProvider] rejectRequest blocked — not an officer');
-      return false;
+      await _joinOfficerAccounts(req.clubId);
+      if (!_canReviewJoin(req)) {
+        debugPrint('[ClubProvider] rejectRequest blocked — not an officer');
+        return false;
+      }
     }
     final rejected = req.copyWith(
       status: JoinRequestStatus.rejected,
@@ -8559,14 +8613,15 @@ class ClubProvider extends ChangeNotifier with WidgetsBindingObserver {
       } catch (e) {
         debugPrint('[ClubProvider] reject applicant inbox skip: $e');
       }
-      unawaited(PushNotificationService.enqueue(
+      await PushNotificationService.enqueue(
         targetUserId: applicant,
         title: noti.title,
         body: noti.body,
         type: HqPushCatalog.joinResult,
         clubId: req.clubId,
         itemId: noti.id,
-      ));
+        replaceExisting: true,
+      );
     }
     notifyListeners();
     _persistImmediately();

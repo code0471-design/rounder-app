@@ -1,14 +1,18 @@
 const crypto = require("crypto");
-const { onDocumentCreated } = require("firebase-functions/v2/firestore");
+const { onDocumentCreated, onDocumentWritten } = require("firebase-functions/v2/firestore");
 const { onSchedule } = require("firebase-functions/v2/scheduler");
 const { initializeApp } = require("firebase-admin/app");
 const { getFirestore } = require("firebase-admin/firestore");
 const { getMessaging } = require("firebase-admin/messaging");
 const {
-  shouldFanoutJoinRequest,
+  shouldSendJoinApply,
+  shouldSendJoinResult,
+  resultInboxItemId,
   officersFromRows,
   notifyAccountIds,
+  loginAccountIdOf,
   joinPushPayload,
+  joinResultPayload,
 } = require("./join_notify");
 
 const D1_TEMPLATE = "KA01TP260819170856743YpkKVjb5WfS";
@@ -65,6 +69,10 @@ exports.sendPushOnInbox = onDocumentCreated(
       type === "push_join_result" ||
       type === "joinApproved" ||
       type === "joinResult";
+    if (itemId.startsWith("jr_")) {
+      console.log("join fcm owned by fanoutJoinRequest", userId, itemId);
+      return;
+    }
     if (joinApply && (!itemId.startsWith("jr_") || itemId.endsWith("_ok") || itemId.endsWith("_no"))) {
       console.log("skip join inbox not jr_", userId, itemId);
       return;
@@ -84,20 +92,12 @@ exports.sendPushOnInbox = onDocumentCreated(
     const body = data.body || "";
 
     try {
-      await getMessaging().send({
-        token,
-        notification: { title, body },
-        data: {
-          type: String(data.type || ""),
-          clubId: String(data.clubId || ""),
-        },
-        android: {
-          priority: "high",
-          notification: { channelId: "rounder_default" },
-        },
-        apns: {
-          payload: { aps: { sound: "default", badge: 1 } },
-        },
+      await sendFcmToUser({
+        userId,
+        title,
+        body,
+        type,
+        clubId: String(data.clubId || ""),
       });
     } catch (err) {
       console.error("FCM send failed", userId, err);
@@ -105,7 +105,79 @@ exports.sendPushOnInbox = onDocumentCreated(
   }
 );
 
-exports.fanoutJoinRequest = onDocumentCreated(
+async function sendFcmToUser({ userId, title, body, type, clubId }) {
+  const tokenSnap = await getFirestore().doc(`fcm_tokens/${userId}`).get();
+  const token = tokenSnap.data()?.token;
+  if (!token) {
+    console.log("no FCM token", userId);
+    return false;
+  }
+  await getMessaging().send({
+    token,
+    notification: { title: title || "라운더", body: body || "" },
+    data: {
+      type: String(type || ""),
+      clubId: String(clubId || ""),
+    },
+    android: {
+      priority: "high",
+      notification: { channelId: "rounder_default" },
+    },
+    apns: {
+      payload: { aps: { sound: "default", badge: 1 } },
+    },
+  });
+  console.log("fcm sent", userId, type, clubId);
+  return true;
+}
+
+async function writeJoinInbox({ uid, itemId, payload }) {
+  const ref = getFirestore().doc(`push_inbox/${uid}/items/${itemId}`);
+  const existing = await ref.get();
+  if (existing.exists) await ref.delete();
+  await ref.set({
+    title: payload.title,
+    body: payload.body,
+    type: payload.type,
+    clubId: payload.clubId,
+    createdAt: new Date(),
+  });
+}
+
+async function resolveJoinClub(clubId) {
+  const clubSnap = await getFirestore().doc(`clubs/${clubId}`).get();
+  const club = clubSnap.data() || {};
+  return {
+    clubName: String(club.name || "").trim() || "모임",
+    creatorId: String(
+      club.creatorId || club.creator_id || club.host_user_id || "",
+    ).trim(),
+  };
+}
+
+async function resolveJoinOfficerIds(clubId, creatorId) {
+  let members = [];
+  let memberships = [];
+  try {
+    const memSnap = await getFirestore().collection(`clubs/${clubId}/members`).get();
+    members = memSnap.docs.map((d) => ({ id: d.id, ...d.data() }));
+  } catch (err) {
+    console.error("join fanout members skip", clubId, err);
+  }
+  try {
+    const memsSnap = await getFirestore()
+      .collection("user_memberships")
+      .where("club_id", "==", clubId)
+      .get();
+    memberships = memsSnap.docs.map((d) => ({ id: d.id, ...d.data() }));
+  } catch (err) {
+    console.error("join fanout memberships skip", clubId, err);
+  }
+  const officers = officersFromRows({ members, memberships });
+  return notifyAccountIds({ officers, creatorId, clubId });
+}
+
+exports.fanoutJoinRequest = onDocumentWritten(
   {
     document: "clubs/{clubId}/join_requests/{requestId}",
     region: REGION,
@@ -113,63 +185,76 @@ exports.fanoutJoinRequest = onDocumentCreated(
   async (event) => {
     const clubId = String(event.params.clubId || "");
     const requestId = String(event.params.requestId || "");
-    const data = event.data?.data() || {};
-    const status = String(data.status || "pending");
-    if (!shouldFanoutJoinRequest({ requestId, clubId, status })) {
-      console.log("skip join fanout", clubId, requestId, status);
-      return;
-    }
+    const before = event.data?.before?.data() || null;
+    const after = event.data?.after?.data() || null;
+    if (!after) return;
+    const beforeStatus = String(before?.status || "");
+    const afterStatus = String(after.status || "pending");
+    const { clubName, creatorId } = await resolveJoinClub(clubId);
 
-    const db = getFirestore();
-    const clubSnap = await db.doc(`clubs/${clubId}`).get();
-    const club = clubSnap.data() || {};
-    const clubName = String(club.name || "").trim() || "모임";
-    const creatorId = String(
-      club.creatorId || club.creator_id || club.host_user_id || "",
-    ).trim();
-    const userName = String(data.user_name || data.userName || "").trim() || "회원";
-
-    let members = [];
-    let memberships = [];
-    try {
-      const memSnap = await db.collection(`clubs/${clubId}/members`).get();
-      members = memSnap.docs.map((d) => ({ id: d.id, ...d.data() }));
-    } catch (err) {
-      console.error("join fanout members skip", clubId, err);
-    }
-    try {
-      const memsSnap = await db
-        .collection("user_memberships")
-        .where("club_id", "==", clubId)
-        .get();
-      memberships = memsSnap.docs.map((d) => ({ id: d.id, ...d.data() }));
-    } catch (err) {
-      console.error("join fanout memberships skip", clubId, err);
-    }
-
-    const officers = officersFromRows({ members, memberships });
-    const targets = notifyAccountIds({ officers, creatorId, clubId });
-    if (!targets.length) {
-      console.log("no join officer", clubId, requestId);
-      return;
-    }
-
-    const payload = joinPushPayload({ userName, clubName, clubId });
-    for (const uid of targets) {
-      const ref = db.doc(`push_inbox/${uid}/items/${requestId}`);
-      const existing = await ref.get();
-      if (existing.exists) {
-        console.log("join inbox exists", uid, requestId, clubId);
-        continue;
+    if (
+      shouldSendJoinApply({
+        requestId,
+        clubId,
+        beforeStatus,
+        afterStatus,
+      })
+    ) {
+      const userName =
+        String(after.user_name || after.userName || "").trim() || "회원";
+      const targets = await resolveJoinOfficerIds(clubId, creatorId);
+      if (!targets.length) {
+        console.log("no join officer", clubId, requestId);
+      } else {
+        const payload = joinPushPayload({ userName, clubName, clubId });
+        for (const uid of targets) {
+          await writeJoinInbox({ uid, itemId: requestId, payload });
+          await sendFcmToUser({
+            userId: uid,
+            title: payload.title,
+            body: payload.body,
+            type: payload.type,
+            clubId,
+          });
+          console.log("join apply fcm", uid, requestId, clubId, clubName);
+        }
       }
-      await ref.set({
+    }
+
+    if (
+      shouldSendJoinResult({
+        requestId,
+        clubId,
+        beforeStatus,
+        afterStatus,
+      })
+    ) {
+      const applicant = loginAccountIdOf({
+        clubId,
+        memberOrUserId: after.user_id || after.userId || "",
+        creatorId,
+      });
+      if (!applicant) {
+        console.log("no join applicant login", clubId, requestId);
+        return;
+      }
+      const approved = afterStatus === "approved";
+      const payload = joinResultPayload({
+        clubName,
+        clubId,
+        approved,
+        role: after.assigned_role || after.role || "",
+      });
+      const itemId = resultInboxItemId(requestId, approved);
+      await writeJoinInbox({ uid: applicant, itemId, payload });
+      await sendFcmToUser({
+        userId: applicant,
         title: payload.title,
         body: payload.body,
         type: payload.type,
-        clubId: payload.clubId,
-        createdAt: new Date(),
+        clubId,
       });
-      console.log("join inbox written", uid, requestId, clubId, clubName);
+      console.log("join result fcm", applicant, itemId, clubId, afterStatus);
     }
   }
 );

@@ -225,6 +225,7 @@ abstract final class PushNotificationService {
     String? type,
     String? clubId,
     String? itemId,
+    bool replaceExisting = false,
   }) async {
     if (!HqRemoteSettings.available) return;
     final id = targetUserId.trim();
@@ -250,9 +251,12 @@ abstract final class PushNotificationService {
       if (fixed.isNotEmpty) {
         final ref = col.doc(fixed);
         final existing = await ref.get();
-        if (existing.exists) {
+        if (existing.exists && !replaceExisting) {
           debugPrint('[Push] enqueue skip existing $id/$fixed');
           return;
+        }
+        if (existing.exists && replaceExisting) {
+          await ref.delete();
         }
         await ref.set(data);
         return;

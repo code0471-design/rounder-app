@@ -780,6 +780,10 @@ class _NotificationTile extends StatelessWidget {
                   Text(n.body,
                       style: const TextStyle(fontSize: 12, color: AppColors.textSecondary, height: 1.4),
                       maxLines: 2, overflow: TextOverflow.ellipsis),
+                  if (n.type == AppNotificationType.joinRequest) ...[
+                    const SizedBox(height: 8),
+                    _JoinInboxActions(notification: n),
+                  ],
                 ],
               ),
             ),
@@ -839,6 +843,56 @@ class _NotificationTile extends StatelessWidget {
     if (diff.inMinutes < 60) return '${diff.inMinutes}분 전';
     if (diff.inHours < 24)   return '${diff.inHours}시간 전';
     return '${diff.inDays}일 전';
+  }
+}
+
+class _JoinInboxActions extends StatelessWidget {
+  final AppNotification notification;
+  const _JoinInboxActions({required this.notification});
+
+  @override
+  Widget build(BuildContext context) {
+    return Row(
+      children: [
+        Expanded(
+          child: OutlinedButton(
+            onPressed: () async {
+              final prov = context.read<ClubProvider>();
+              final ok = await prov.rejectJoinFromInbox(notification);
+              if (!context.mounted) return;
+              ScaffoldMessenger.of(context).showSnackBar(
+                SnackBar(
+                  content: Text(
+                    ok ? '가입 신청을 거절했습니다' : '거절하지 못했습니다. 총무 권한을 확인해 주세요.',
+                  ),
+                  backgroundColor: AppColors.danger,
+                ),
+              );
+            },
+            child: const Text('거절'),
+          ),
+        ),
+        const SizedBox(width: 8),
+        Expanded(
+          child: ElevatedButton(
+            onPressed: () async {
+              final prov = context.read<ClubProvider>();
+              final ok = await prov.approveJoinFromInbox(notification);
+              if (!context.mounted) return;
+              ScaffoldMessenger.of(context).showSnackBar(
+                SnackBar(
+                  content: Text(
+                    ok ? '가입을 승인했습니다' : '승인하지 못했습니다. 총무 권한을 확인해 주세요.',
+                  ),
+                  backgroundColor: ok ? AppColors.primary : AppColors.danger,
+                ),
+              );
+            },
+            child: const Text('승인'),
+          ),
+        ),
+      ],
+    );
   }
 }
 

@@ -18,6 +18,8 @@ void main() {
     expect(src.contains('itemId: req.id'), isTrue);
     expect(src.contains('join enqueue skip id mismatch'), isTrue);
     expect(src.contains('await PushNotificationService.enqueue('), isTrue);
+    expect(src.contains('approveJoinFromInbox'), isTrue);
+    expect(src.contains('isSameLoginAccount'), isTrue);
     expect(src.contains('already pending join skip publish'), isTrue);
     expect(
       src.contains('await publishJoinRequestToOfficer(existing)'),
