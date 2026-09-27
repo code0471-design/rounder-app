@@ -218,6 +218,8 @@ void main() {
     expect(header.contains('Transform.translate'), isTrue,
         reason: '로고와 모임명 사이가 원클럽처럼 붙어 있어야 한다');
     expect(header.contains('fontSize: 12'), isTrue);
+    expect(header.contains('Size(40, 40)'), isTrue,
+        reason: '헤더 아이콘 칸을 48로 키우면 설정·알림·프로필 사이가 벌어진다');
   });
 
   test('다른 탭에서 재무로 들어오면 이번 달 납부현황으로 돌아간다', () {

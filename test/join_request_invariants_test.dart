@@ -111,7 +111,7 @@ void main() {
     expect(src.contains('approveJoinFromInbox'), isTrue);
     final header = read('lib/widgets/app_header.dart');
     expect(header.contains('IgnorePointer'), isTrue);
-    expect(header.contains('Size(48, 48)'), isTrue);
+    expect(header.contains('Size(40, 40)'), isTrue);
     expect(src.contains('isSameLoginAccount'), isTrue);
     expect(
       src.contains('await PushNotificationService.enqueue('),
@@ -145,7 +145,8 @@ void main() {
       isFalse,
       reason: '대시보드가 저장과 푸시를 각각 부르면 푸시가 두 번 나간다',
     );
-    expect(dash.contains('legacyProvider.approveRequest'), isTrue);
+    expect(dash.contains('legacyProvider.approveRequest'), isFalse,
+        reason: '모임찾기 상세는 소개·가입신청만 두고 승인 알림은 안 띄운다');
     expect(dash.contains('dropMyPendingForClub'), isTrue);
     expect(dash.contains('serverConfirmedNoPending'), isTrue);
 

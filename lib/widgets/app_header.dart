@@ -49,11 +49,11 @@ class AppHeader extends StatelessWidget {
       icon: icon,
       style: IconButton.styleFrom(
         padding: EdgeInsets.zero,
-        tapTargetSize: MaterialTapTargetSize.padded,
-        minimumSize: const Size(48, 48),
-        visualDensity: VisualDensity.standard,
+        tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+        minimumSize: const Size(40, 40),
+        visualDensity: const VisualDensity(horizontal: -2, vertical: -2),
       ),
-      constraints: const BoxConstraints.tightFor(width: 48, height: 48),
+      constraints: const BoxConstraints.tightFor(width: 40, height: 40),
     );
   }
 
