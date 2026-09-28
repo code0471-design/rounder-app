@@ -85,5 +85,18 @@ void main() {
         phone: '01092874073',
       ),
     );
+    expect(
+      D1EnqueuePolicy.sendDedupKey(
+        scheduleId: 'sched_1',
+        sendOn: '2026-09-22',
+        phone: '821092874073',
+      ),
+      D1EnqueuePolicy.sendDedupKey(
+        scheduleId: 'sched_1',
+        sendOn: '2026-09-22',
+        phone: '01092874073',
+      ),
+      reason: '82 국가번호와 010이 다르면 같은 사람한테 두 통 간다',
+    );
   });
 }

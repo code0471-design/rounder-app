@@ -77,6 +77,7 @@ abstract final class D1AlimtalkFlush {
         debugPrint('[Alimtalk] d1 skip no phone ${doc.id}');
         continue;
       }
+      phone = D1EnqueuePolicy.canonicalPhone(phone);
       final dedupKey = D1EnqueuePolicy.sendDedupKey(
         scheduleId: '${d['scheduleId'] ?? ''}',
         sendOn: '${d['sendOn'] ?? ''}',
@@ -96,7 +97,9 @@ abstract final class D1AlimtalkFlush {
           SolapiService.templateIdForHqType(hqTypeId)?.trim() ?? '';
       if (templateId.isEmpty) continue;
 
-      final sendOn = _parseYmd('${d['sendOn'] ?? ''}');
+      final sendOnRaw = '${d['sendOn'] ?? ''}';
+      final scheduleId = '${d['scheduleId'] ?? ''}';
+      final sendOn = _parseYmd(sendOnRaw);
       if (sendOn == null) continue;
       final today = DateTime(now.year, now.month, now.day);
       if (sendOn.isAfter(today.add(const Duration(days: 1)))) {
@@ -110,6 +113,21 @@ abstract final class D1AlimtalkFlush {
       final sendNow = D1SendWindow.shouldSendNow(now, sendOn);
       final reserve = D1SendWindow.shouldReserve(now, sendOn);
       if (!sendNow && !reserve) continue;
+      final once = await PushNotificationService.claimD1AlimtalkOnce(
+        scheduleId: scheduleId,
+        sendOn: sendOnRaw,
+        phone: phone,
+        kind: isDues ? 'dues' : '',
+        clubId: clubId,
+      );
+      if (once == null) continue;
+      if (!once) {
+        await PushNotificationService.markD1AlimtalkSent(
+          doc.id,
+          scheduled: true,
+        );
+        continue;
+      }
       if (!await PushNotificationService.claimD1Alimtalk(doc.id)) {
         continue;
       }
@@ -147,6 +165,13 @@ abstract final class D1AlimtalkFlush {
         );
       } else {
         await PushNotificationService.releaseD1AlimtalkClaim(doc.id);
+        await PushNotificationService.releaseD1AlimtalkOnce(
+          scheduleId: scheduleId,
+          sendOn: sendOnRaw,
+          phone: phone,
+          kind: isDues ? 'dues' : '',
+          clubId: clubId,
+        );
       }
     }
   }

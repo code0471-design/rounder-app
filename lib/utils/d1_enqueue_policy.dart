@@ -64,6 +64,18 @@ abstract final class D1EnqueuePolicy {
   static String phoneDigits(String phone) =>
       phone.replaceAll(RegExp(r'\D'), '');
 
+  /// 010과 8210은 같은 번호다. 형식이 다르면 알림톡이 여러 통 나간다.
+  static String canonicalPhone(String phone) {
+    var d = phoneDigits(phone);
+    if (d.startsWith('82') && d.length >= 11) {
+      d = '0${d.substring(2)}';
+    }
+    if (d.length == 10 && d.startsWith('10')) {
+      d = '0$d';
+    }
+    return d;
+  }
+
   static String sendDedupKey({
     required String scheduleId,
     required String sendOn,
@@ -72,6 +84,18 @@ abstract final class D1EnqueuePolicy {
     String clubId = '',
   }) {
     final sched = kind == 'dues' ? 'dues|$clubId' : scheduleId;
-    return '$sched|$sendOn|${phoneDigits(phone)}';
+    return '$sched|$sendOn|${canonicalPhone(phone)}';
+  }
+
+  static String alimtalkOnceDocId({
+    required String scheduleId,
+    required String sendOn,
+    required String phone,
+    String kind = '',
+    String clubId = '',
+  }) {
+    final sched = kind == 'dues' ? 'dues|$clubId' : scheduleId;
+    final p = canonicalPhone(phone);
+    return '${sched}_${sendOn}_$p'.replaceAll('/', '_');
   }
 }

@@ -500,6 +500,76 @@ abstract final class PushNotificationService {
     }
   }
 
+  /// 큐 문서가 여러 개여도 일정·날짜·번호당 한 번만 솔라피를 호출한다.
+  /// true면 이 호출만 발송. false면 이미 선점. null이면 확인 실패라 다음에 다시 본다.
+  static Future<bool?> claimD1AlimtalkOnce({
+    required String scheduleId,
+    required String sendOn,
+    required String phone,
+    String kind = '',
+    String clubId = '',
+  }) async {
+    final id = D1EnqueuePolicy.alimtalkOnceDocId(
+      scheduleId: scheduleId,
+      sendOn: sendOn,
+      phone: phone,
+      kind: kind,
+      clubId: clubId,
+    );
+    final sched = kind == 'dues' ? 'dues|$clubId' : scheduleId;
+    if (!HqRemoteSettings.available ||
+        sched.isEmpty ||
+        sendOn.isEmpty ||
+        !id.contains('_') ||
+        D1EnqueuePolicy.canonicalPhone(phone).length < 10) {
+      return false;
+    }
+    try {
+      final ref = FirebaseFirestore.instance
+          .collection(FirestorePaths.d1AlimtalkOnce)
+          .doc(id);
+      return FirebaseFirestore.instance.runTransaction((tx) async {
+        final snap = await tx.get(ref);
+        if (snap.exists) return false;
+        tx.set(ref, {
+          'scheduleId': scheduleId,
+          'sendOn': sendOn,
+          'phone': D1EnqueuePolicy.canonicalPhone(phone),
+          'claimedAt': FieldValue.serverTimestamp(),
+        });
+        return true;
+      });
+    } catch (e) {
+      debugPrint('[Push] d1 alimtalk once claim skip: $e');
+      return null;
+    }
+  }
+
+  static Future<void> releaseD1AlimtalkOnce({
+    required String scheduleId,
+    required String sendOn,
+    required String phone,
+    String kind = '',
+    String clubId = '',
+  }) async {
+    final id = D1EnqueuePolicy.alimtalkOnceDocId(
+      scheduleId: scheduleId,
+      sendOn: sendOn,
+      phone: phone,
+      kind: kind,
+      clubId: clubId,
+    );
+    if (!HqRemoteSettings.available || id.isEmpty) return;
+    try {
+      await FirebaseFirestore.instance
+          .collection(FirestorePaths.d1AlimtalkOnce)
+          .doc(id)
+          .delete();
+    } catch (e) {
+      debugPrint('[Push] d1 alimtalk once release skip: $e');
+    }
+  }
+
   static Future<void> releaseD1AlimtalkClaim(String docId) async {
     if (!HqRemoteSettings.available || docId.isEmpty) return;
     try {

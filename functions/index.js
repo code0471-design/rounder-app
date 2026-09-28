@@ -327,6 +327,23 @@ function digits(value) {
   return String(value || "").replace(/\D/g, "");
 }
 
+function canonicalPhone(phone) {
+  let d = digits(phone);
+  if (d.startsWith("82") && d.length >= 11) d = "0" + d.slice(2);
+  if (d.length === 10 && d.startsWith("10")) d = "0" + d;
+  return d;
+}
+
+function onceSched(d) {
+  if (d && d.kind === "dues") return `dues|${d.clubId || ""}`;
+  return (d && d.scheduleId) || "";
+}
+
+function alimtalkOnceId(scheduleId, sendOn, phone) {
+  const p = canonicalPhone(phone);
+  return `${scheduleId || ""}_${sendOn || ""}_${p}`.replace(/\//g, "_");
+}
+
 const ALADDIN_CLUB_ID = "c_1789270673471";
 const LEFTOVER_NAMES = new Set(["장창현"]);
 const LEFTOVER_UIDS = new Set(["kakao_5049673364"]);
@@ -364,7 +381,7 @@ function isLeftoverRecipient(d) {
 function sendDedupKey(d, phone) {
   const isDues = d.kind === "dues";
   const sched = isDues ? `dues|${d.clubId || ""}` : (d.scheduleId || "");
-  return `${sched}|${d.sendOn || ""}|${digits(phone)}`;
+  return `${sched}|${d.sendOn || ""}|${canonicalPhone(phone)}`;
 }
 
 async function resolvePushUserId(d) {
@@ -460,6 +477,154 @@ async function sendSolapiAlimtalk({ to, templateId, variables }) {
   return { ok: false, reason: body.errorCode || String(res.status) };
 }
 
+const GUARDED_TEMPLATES = new Set([D1_TEMPLATE, DUES_TEMPLATE]);
+
+async function solapiJson(method, rel) {
+  const apiKey = (process.env.SOLAPI_API_KEY || "").trim();
+  const apiSecret = (process.env.SOLAPI_API_SECRET || "").trim();
+  if (!apiKey || !apiSecret) return null;
+  const res = await fetch(`https://api.solapi.com${rel}`, {
+    method,
+    headers: solapiHeaders(apiKey, apiSecret),
+  });
+  const body = await res.json().catch(() => ({}));
+  if (!res.ok) {
+    console.error("solapi", method, rel, res.status, body);
+    return null;
+  }
+  return body;
+}
+
+async function claimAlimtalkOnce(scheduleId, sendOn, phone) {
+  const id = alimtalkOnceId(scheduleId, sendOn, phone);
+  if (!scheduleId || !sendOn || canonicalPhone(phone).length < 10) return false;
+  const ref = getFirestore().collection("d1_alimtalk_once").doc(id);
+  try {
+    return await getFirestore().runTransaction(async (tx) => {
+      const snap = await tx.get(ref);
+      if (snap.exists) return false;
+      tx.set(ref, {
+        scheduleId: String(scheduleId),
+        sendOn: String(sendOn),
+        phone: canonicalPhone(phone),
+        claimedAt: new Date(),
+      });
+      return true;
+    });
+  } catch (err) {
+    console.error("d1 once claim", err);
+    return null;
+  }
+}
+
+async function releaseAlimtalkOnce(scheduleId, sendOn, phone) {
+  const id = alimtalkOnceId(scheduleId, sendOn, phone);
+  if (!id || canonicalPhone(phone).length < 10) return;
+  try {
+    await getFirestore().collection("d1_alimtalk_once").doc(id).delete();
+  } catch (err) {
+    console.error("d1 once release", err);
+  }
+}
+
+async function listScheduledGroups() {
+  const now = Date.now();
+  const start = new Date(now - 3 * 24 * 3600 * 1000).toISOString();
+  const end = new Date(now + 7 * 24 * 3600 * 1000).toISOString();
+  const groups = [];
+  let startKey = "";
+  for (let page = 0; page < 5; page += 1) {
+    const q = new URLSearchParams({ startDate: start, endDate: end, limit: "100" });
+    if (startKey) q.set("startKey", startKey);
+    const body = await solapiJson("GET", `/messages/v4/groups?${q.toString()}`);
+    if (!body) break;
+    const list = body.groupList || {};
+    for (const g of Object.values(list)) {
+      if (g && g.status === "SCHEDULED" && g.groupId) groups.push(g);
+    }
+    if (!body.nextKey) break;
+    startKey = String(body.nextKey);
+  }
+  return groups;
+}
+
+async function scheduledGroupTarget(groupId) {
+  const body = await solapiJson(
+    "GET",
+    `/messages/v4/groups/${encodeURIComponent(groupId)}/messages?limit=20`,
+  );
+  if (!body) return null;
+  const raw = body.messageList || {};
+  const msgs = Array.isArray(raw) ? raw : Object.values(raw);
+  if (!msgs.length) return null;
+  let template = "";
+  let phone = "";
+  for (const m of msgs) {
+    const t =
+      (m && m.kakaoOptions && m.kakaoOptions.templateId) ||
+      (m && m.kakaoTemplateId) ||
+      "";
+    if (!GUARDED_TEMPLATES.has(String(t))) return null;
+    if (!template) template = String(t);
+    if (template !== String(t)) return null;
+    const p = canonicalPhone(m && m.to);
+    if (p.length < 10) return null;
+    if (!phone) phone = p;
+    if (phone !== p) return null;
+  }
+  return { template, phone };
+}
+
+async function cancelScheduledGroup(groupId) {
+  const cancelled = await solapiJson(
+    "DELETE",
+    `/messages/v4/groups/${encodeURIComponent(groupId)}/schedule`,
+  );
+  if (!cancelled) return false;
+  await solapiJson("DELETE", `/messages/v4/groups/${encodeURIComponent(groupId)}`);
+  return true;
+}
+
+async function lockQueuePhone(phone) {
+  const snap = await getFirestore()
+    .collection("d1_queue")
+    .where("sendOn", "==", seoulYmd())
+    .get();
+  for (const doc of snap.docs) {
+    const d = doc.data() || {};
+    if (canonicalPhone(d.phone) !== phone) continue;
+    await claimAlimtalkOnce(onceSched(d), d.sendOn, phone);
+    await doc.ref.set(
+      { alimtalkScheduled: true, alimtalkSent: true },
+      { merge: true },
+    );
+  }
+}
+
+async function dedupeScheduledAlimtalk() {
+  const groups = await listScheduledGroups();
+  const buckets = new Map();
+  for (const g of groups) {
+    const info = await scheduledGroupTarget(g.groupId);
+    if (!info) continue;
+    const key = `${info.template}|${info.phone}`;
+    if (!buckets.has(key)) buckets.set(key, []);
+    buckets.get(key).push(g);
+  }
+  for (const [key, list] of buckets) {
+    if (list.length < 2) continue;
+    list.sort((a, b) =>
+      String(a.dateCreated || "").localeCompare(String(b.dateCreated || "")),
+    );
+    for (const g of list.slice(1)) {
+      const ok = await cancelScheduledGroup(g.groupId);
+      console.log("d1 duplicate cancel", key, g.groupId, ok);
+    }
+    const phone = key.split("|")[1];
+    if (phone) await lockQueuePhone(phone);
+  }
+}
+
 async function flushDueD1Alimtalk() {
   if (seoulHour() < 10) return;
   // 10:00 정각은 앱 솔라피 예약과 겹친다. 예약 안 된 건 10:10 이후만 보조.
@@ -506,6 +671,13 @@ async function flushDueD1Alimtalk() {
       continue;
     }
     claimed.add(key);
+    const onceOk = await claimAlimtalkOnce(onceSched(d), d.sendOn, phone);
+    if (onceOk !== true) {
+      if (onceOk === false) {
+        await doc.ref.set({ alimtalkSent: true, alimtalkScheduled: true }, { merge: true });
+      }
+      continue;
+    }
     const sent = await sendSolapiAlimtalk({
       to: phone,
       templateId: isDues
@@ -529,6 +701,7 @@ async function flushDueD1Alimtalk() {
     if (sent.ok) {
       await doc.ref.set({ alimtalkSent: true }, { merge: true });
     } else {
+      await releaseAlimtalkOnce(onceSched(d), d.sendOn, phone);
       console.log("d1 alimtalk pending", doc.id, sent.reason);
     }
   }
@@ -582,6 +755,18 @@ exports.flushD1Alimtalk = onSchedule(
     region: REGION,
   },
   async () => {
+    await dedupeScheduledAlimtalk();
     await flushDueD1Alimtalk();
+  }
+);
+
+exports.dedupeScheduledD1Alimtalk = onSchedule(
+  {
+    schedule: "50-59 9 * * *",
+    timeZone: "Asia/Seoul",
+    region: REGION,
+  },
+  async () => {
+    await dedupeScheduledAlimtalk();
   }
 );

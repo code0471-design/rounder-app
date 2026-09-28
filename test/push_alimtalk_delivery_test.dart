@@ -320,8 +320,14 @@ void main() {
           contains('D1EnqueuePolicy.isBlockedRecipient'),
           reason: '명단에 leftover가 남아도 D-1 큐에 넣으면 안 된다');
       expect(read('lib/services/d1_alimtalk_flush.dart'),
-          contains('sendDedupKey'),
-          reason: '앱 예약도 같은 번호면 한 통만 나가야 한다');
+          contains('claimD1AlimtalkOnce'),
+          reason: '큐가 여러 줄이어도 같은 번호는 한 통만 예약해야 한다');
+      expect(fn.contains('d1_alimtalk_once'), isTrue,
+          reason: 'Functions 보조 발송도 같은 번호 잠금을 봐야 한다');
+      expect(fn.contains('dedupeScheduledAlimtalk'), isTrue,
+          reason: '이미 깔린 앱이 세 번 예약해도 10시 전에 한 통만 남아야 한다');
+      expect(fn.contains('50-59 9 * * *'), isTrue,
+          reason: '9시 50분 이후에 생긴 중복도 10시 전에 지워야 한다');
       expect(
         read('lib/services/club_ops_sync.dart'),
         contains('if (!_deletedPhotoIds.contains(d.id)) continue;'),

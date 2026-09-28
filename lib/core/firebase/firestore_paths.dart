@@ -16,6 +16,8 @@ abstract final class FirestorePaths {
   static const metaHqAlimtalk = '_meta/hq_alimtalk';
   static const hqBroadcasts = 'hq_broadcasts';
   static const d1Queue = 'd1_queue';
+  /// 일정·날짜·번호당 알림톡 1통. 큐 문서가 여러 개여도 이 문서가 하나면 한 통이다.
+  static const d1AlimtalkOnce = 'd1_alimtalk_once';
   /// 모임 운영 스냅샷 (일정·공지·회비·조편성 등) — 테스터 공유용
   static const ops = 'ops';
   static const opsBundleDoc = 'bundle';
