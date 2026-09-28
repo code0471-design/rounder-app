@@ -572,8 +572,11 @@ async function scheduledGroupTarget(groupId) {
     if (!phone) phone = p;
     if (phone !== p) return null;
   }
-  return { template, phone };
-}
+    const vars =
+      (msgs[0] && msgs[0].kakaoOptions && msgs[0].kakaoOptions.variables) ||
+      {};
+    return { template, phone, fingerprint: JSON.stringify(vars) };
+  }
 
 async function cancelScheduledGroup(groupId) {
   const cancelled = await solapiJson(
@@ -585,10 +588,18 @@ async function cancelScheduledGroup(groupId) {
   return true;
 }
 
-async function lockQueuePhone(phone) {
+function ymdFromScheduled(group) {
+  const raw = String((group && group.scheduledDate) || "");
+  const dt = new Date(raw);
+  if (!raw || Number.isNaN(dt.getTime())) return "";
+  return dt.toLocaleDateString("en-CA", { timeZone: "Asia/Seoul" });
+}
+
+async function lockQueuePhone(phone, sendOn) {
+  if (!sendOn) return;
   const snap = await getFirestore()
     .collection("d1_queue")
-    .where("sendOn", "==", seoulYmd())
+    .where("sendOn", "==", sendOn)
     .get();
   for (const doc of snap.docs) {
     const d = doc.data() || {};
@@ -607,12 +618,11 @@ async function dedupeScheduledAlimtalk() {
   for (const g of groups) {
     const info = await scheduledGroupTarget(g.groupId);
     if (!info) continue;
-    const key = `${info.template}|${info.phone}`;
+    const key = `${info.template}|${info.phone}|${info.fingerprint}`;
     if (!buckets.has(key)) buckets.set(key, []);
     buckets.get(key).push(g);
   }
   for (const [key, list] of buckets) {
-    if (list.length < 2) continue;
     list.sort((a, b) =>
       String(a.dateCreated || "").localeCompare(String(b.dateCreated || "")),
     );
@@ -621,7 +631,8 @@ async function dedupeScheduledAlimtalk() {
       console.log("d1 duplicate cancel", key, g.groupId, ok);
     }
     const phone = key.split("|")[1];
-    if (phone) await lockQueuePhone(phone);
+    const sendOn = ymdFromScheduled(list[0]);
+    if (phone) await lockQueuePhone(phone, sendOn);
   }
 }
 
@@ -707,11 +718,81 @@ async function flushDueD1Alimtalk() {
   }
 }
 
+async function sendUnscheduledD1Alimtalk() {
+  const snap = await getFirestore()
+    .collection("d1_queue")
+    .where("sendOn", "==", seoulYmd())
+    .get();
+  const seen = new Set();
+  for (const doc of snap.docs) {
+    const d = doc.data() || {};
+    if (d.alimtalkSent === true || d.alimtalkScheduled === true) continue;
+    if (isLeftoverRecipient(d)) {
+      await doc.ref.set({ alimtalkSent: true }, { merge: true });
+      continue;
+    }
+    const isDues = d.kind === "dues";
+    const typeId = isDues ? "atk_dues_request" : "atk_d1_reminder";
+    if (!(await hqAlimtalkEnabled(typeId))) continue;
+    let phone = canonicalPhone(d.phone);
+    if (phone.length < 10) {
+      phone = canonicalPhone(await lookupMemberPhone(d.clubId, d.userId));
+    }
+    if (phone.length < 10) continue;
+    const key = sendDedupKey(d, phone);
+    if (seen.has(key)) {
+      await doc.ref.set(
+        { alimtalkSent: true, alimtalkScheduled: true },
+        { merge: true },
+      );
+      continue;
+    }
+    seen.add(key);
+    const onceOk = await claimAlimtalkOnce(onceSched(d), d.sendOn, phone);
+    if (onceOk !== true) {
+      if (onceOk === false) {
+        await doc.ref.set(
+          { alimtalkSent: true, alimtalkScheduled: true },
+          { merge: true },
+        );
+      }
+      continue;
+    }
+    const sent = await sendSolapiAlimtalk({
+      to: phone,
+      templateId: isDues
+        ? process.env.SOLAPI_TEMPLATE_ID_DUES_REQUEST || DUES_TEMPLATE
+        : process.env.SOLAPI_TEMPLATE_ID_D1 || D1_TEMPLATE,
+      variables: isDues
+        ? {
+            "#{이름}": d.memberName || "회원",
+            "#{모임명}": d.clubName || "",
+            "#{금액}": String(d.amount || ""),
+            "#{기한}": d.dueText || "-",
+          }
+        : {
+            "#{이름}": d.memberName || "회원",
+            "#{모임명}": d.clubName || "",
+            "#{일정명}": d.scheduleTitle || "",
+            "#{일시}": d.whenText || "",
+            "#{장소}": d.place || "장소 미정",
+          },
+    });
+    if (sent.ok) {
+      await doc.ref.set({ alimtalkSent: true }, { merge: true });
+    } else {
+      await releaseAlimtalkOnce(onceSched(d), d.sendOn, phone);
+      console.log("d1 cron alimtalk pending", doc.id, sent.reason);
+    }
+  }
+}
+
 exports.sendD1Reminders = onSchedule(
   {
     schedule: "0 10 * * *",
     timeZone: "Asia/Seoul",
     region: REGION,
+    secrets: ["SOLAPI_API_KEY", "SOLAPI_API_SECRET"],
   },
   async () => {
     const snap = await getFirestore()
@@ -744,7 +825,8 @@ exports.sendD1Reminders = onSchedule(
       // 문서를 지우면 알림톡 재시도가 끊긴다. 푸시만 표시한다.
       await doc.ref.set({ pushSent: true }, { merge: true });
     }
-    // 알림톡은 여기 보내지 않는다. 10시 예약분과 같은 분에 두 통이 간다.
+    await dedupeScheduledAlimtalk();
+    await sendUnscheduledD1Alimtalk();
   }
 );
 
@@ -753,6 +835,7 @@ exports.flushD1Alimtalk = onSchedule(
     schedule: "every 15 minutes",
     timeZone: "Asia/Seoul",
     region: REGION,
+    secrets: ["SOLAPI_API_KEY", "SOLAPI_API_SECRET"],
   },
   async () => {
     await dedupeScheduledAlimtalk();
@@ -762,9 +845,10 @@ exports.flushD1Alimtalk = onSchedule(
 
 exports.dedupeScheduledD1Alimtalk = onSchedule(
   {
-    schedule: "50-59 9 * * *",
+    schedule: "* * * * *",
     timeZone: "Asia/Seoul",
     region: REGION,
+    secrets: ["SOLAPI_API_KEY", "SOLAPI_API_SECRET"],
   },
   async () => {
     await dedupeScheduledAlimtalk();

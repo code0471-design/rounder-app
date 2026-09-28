@@ -1,13 +1,23 @@
 rules_version = '2';
 service cloud.firestore {
   match /databases/{database}/documents {
-    // Staging: Firebase Auth 로그인 사용자만 읽기/쓰기
     function signedIn() {
       return request.auth != null;
     }
 
+    // 하루 전 알림 대기열은 문서 하나씩만. 목록 조회는 막는다.
+    // 예전 앱이 대기열 전체를 읽어 참석자 알림톡을 여러 번 예약하지 못하게 한다.
+    function isD1QueuePath() {
+      return request.path.matches('.*/documents/d1_queue(/.*)?$');
+    }
+
+    match /d1_queue/{docId} {
+      allow get, create, update, delete: if signedIn();
+      allow list: if false;
+    }
+
     match /{document=**} {
-      allow read, write: if signedIn();
+      allow read, write: if signedIn() && !isD1QueuePath();
     }
   }
 }
