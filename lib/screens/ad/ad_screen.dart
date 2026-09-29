@@ -2080,7 +2080,7 @@ class _AccountSettingsTabState extends State<_AccountSettingsTab> {
                   child: Text('사진 변경',
                       style: TextStyle(
                         fontSize: 12,
-                        color: const Color(0xFF1E1B4B).withValues(alpha: 0.8),
+                        color: Color(0xCC1E1B4B),
                       )),
                 ),
                 const SizedBox(height: 20),
