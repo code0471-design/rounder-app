@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:flutter/foundation.dart';
 
 import '../../../data/repositories/club_repository.dart';
@@ -80,19 +82,26 @@ class ClubListController extends ChangeNotifier {
   Future<void> syncMembershipState(String userId) async {
     final joinRepo =
         _joinRequestRepository ?? AppDependencies.instance.joinRequestRepository;
-    final myClubs = await _clubRepository.fetchMyClubs(userId);
-    _myClubIds = myClubs.map((c) => c.id).toSet();
+    // 홈에서 이미 넘긴 내 모임 id가 있으면 카탈로그를 다시 받지 않는다.
+    if (_myClubIds.isEmpty) {
+      final myClubs = await _clubRepository.fetchMyClubs(userId);
+      _myClubIds = myClubs.map((c) => c.id).toSet();
+    }
 
     final pending = <String>{};
     final checked = <String>{};
-    for (final club in _clubs) {
+    final results = await Future.wait(_clubs.map((club) async {
       try {
         final req = await joinRepo.fetchPendingForUser(club.id, userId);
-        checked.add(club.id);
-        if (req != null) pending.add(club.id);
+        return (id: club.id, pending: req != null, checked: true);
       } catch (e) {
         debugPrint('[ClubListController] pending skip ${club.id}: $e');
+        return (id: club.id, pending: false, checked: false);
       }
+    }));
+    for (final row in results) {
+      if (row.checked) checked.add(row.id);
+      if (row.pending) pending.add(row.id);
     }
     _pendingClubIds = pending;
     _checkedPendingClubIds = checked;
@@ -133,16 +142,15 @@ class ClubListController extends ChangeNotifier {
         return;
       }
 
-      final seeded = await _safeSeedIfEmpty();
-      if (seeded) {
-        debugPrint('[ClubListController] Firestore 샘플 모임 시드 완료');
-      }
+      unawaited(_safeSeedIfEmpty());
 
       _clubs = (await _clubRepository.fetchDiscoverableClubs())
           .where((c) => !SampleClubFilter.isSample(id: c.id, name: c.name))
           .toList();
       debugPrint('[ClubListController] Firestore clubs ${_clubs.length}건');
       _usingLocalFallback = false;
+      _state = ClubListLoadState.loaded;
+      notifyListeners();
 
       if (userId != null && userId.isNotEmpty) {
         try {
@@ -151,8 +159,6 @@ class ClubListController extends ChangeNotifier {
           debugPrint('[ClubListController] membership skip: $e');
         }
       }
-
-      _state = ClubListLoadState.loaded;
     } catch (e, st) {
       debugPrint('[ClubListController] load 실패: $e\n$st');
       // 테스터에게 전체 에러 화면을 띄우지 않는다. 내 모임은 화면에 남긴다.

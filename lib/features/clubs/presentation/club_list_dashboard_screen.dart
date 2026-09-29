@@ -35,16 +35,12 @@ class _ClubListDashboardScreenState extends State<ClubListDashboardScreen> {
           );
     });
     WidgetsBinding.instance.addPostFrameCallback((_) async {
-      if (!AppDependencies.instance.isOfflineMockMode) {
-        await AppDependencies.instance.ensureClubCatalogSeeded();
-      }
-
       if (!mounted) return;
 
       final auth = context.read<AuthProvider>();
       final user = auth.currentUser;
       final userId = user?.id ?? '';
-      if (user != null) {
+      if (user != null && FirebaseAuthBridge.currentUid == null) {
         await FirebaseAuthBridge.ensureSignedIn(user);
       }
       if (!mounted) return;

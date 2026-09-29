@@ -6,6 +6,22 @@ import 'package:golf_rounder/models/club_model.dart';
 String _read(String relative) => File(relative).readAsStringSync();
 
 void main() {
+  test('모임찾기는 시드를 기다리지 않고 바로 연다', () {
+    final nav =
+        _read('lib/features/clubs/presentation/club_list_navigation.dart');
+    expect(nav.contains('ensureClubCatalogSeeded'), isFalse);
+    expect(nav.contains('unawaited(context.read<ClubListController>().refresh'),
+        isTrue);
+    final dash =
+        _read('lib/features/clubs/presentation/club_list_dashboard_screen.dart');
+    expect(dash.contains('ensureClubCatalogSeeded'), isFalse);
+    expect(
+      dash.contains('FirebaseAuthBridge.currentUid == null'),
+      isTrue,
+      reason: '이미 로그인된 세션을 모임찾기마다 다시 만들면 목록이 늦어진다',
+    );
+  });
+
   test('모임찾기 카드에 모임소개가 있다', () {
     final dash =
         _read('lib/features/clubs/presentation/club_list_dashboard_screen.dart');

@@ -1,17 +1,14 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 
-import '../../../di/app_dependencies.dart';
+import '../../../providers/auth_provider.dart';
 import '../application/club_list_controller.dart';
 import 'club_list_dashboard_screen.dart';
 
-/// 모임 찾기 진입 — 시드 후 대시보드 표시
+/// 모임 찾기 진입 — 시드를 기다리지 않고 바로 연다.
 Future<void> openClubListDashboard(BuildContext context) async {
-  if (!AppDependencies.instance.isOfflineMockMode) {
-    await AppDependencies.instance.ensureClubCatalogSeeded();
-  }
-  if (!context.mounted) return;
-
   await Navigator.of(context).push(
     MaterialPageRoute<void>(
       builder: (_) => const ClubListDashboardScreen(),
@@ -19,5 +16,6 @@ Future<void> openClubListDashboard(BuildContext context) async {
   );
 
   if (!context.mounted) return;
-  context.read<ClubListController>().refresh();
+  final userId = context.read<AuthProvider>().currentUser?.id ?? '';
+  unawaited(context.read<ClubListController>().refresh(userId: userId));
 }
