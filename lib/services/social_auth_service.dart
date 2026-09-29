@@ -182,13 +182,24 @@ abstract final class SocialAuthService {
     final rawNonce = _generateNonce();
     final nonce = _sha256ofString(rawNonce);
 
-    final apple = await SignInWithApple.getAppleIDCredential(
-      scopes: [
-        AppleIDAuthorizationScopes.email,
-        AppleIDAuthorizationScopes.fullName,
-      ],
-      nonce: nonce,
-    );
+    final AuthorizationCredentialAppleID apple;
+    try {
+      apple = await SignInWithApple.getAppleIDCredential(
+        scopes: [
+          AppleIDAuthorizationScopes.email,
+          AppleIDAuthorizationScopes.fullName,
+        ],
+        nonce: nonce,
+      );
+    } on SignInWithAppleAuthorizationException catch (e) {
+      debugPrint('[SocialAuth] Apple auth error: ${e.code} ${e.message}');
+      if (e.code == AuthorizationErrorCode.canceled) {
+        throw const SocialAuthException('Apple 로그인이 취소되었습니다.');
+      }
+      throw const SocialAuthException(
+        'Apple 로그인에 실패했습니다. 잠시 후 다시 시도해 주세요.',
+      );
+    }
 
     final userId = apple.userIdentifier;
     if (userId == null || userId.isEmpty) {

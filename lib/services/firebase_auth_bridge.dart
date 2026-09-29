@@ -43,10 +43,18 @@ abstract final class FirebaseAuthBridge {
       final auth = FirebaseAuth.instance;
       final email = emailFor(user.id);
       final current = auth.currentUser;
+      final currentEmail = current?.email?.toLowerCase() ?? '';
 
+      // Apple·구글이 이미 연 세션을 스테이징 이메일 계정으로 바꾸면
+      // 아이패드 심사에서 로그인 직후 권한 오류가 난다.
       if (current != null &&
-          (current.email?.toLowerCase() == email ||
-              current.uid.isNotEmpty && current.email == email)) {
+          currentEmail.isNotEmpty &&
+          !currentEmail.endsWith('@staging.rounder.app')) {
+        debugPrint('[FirebaseAuthBridge] keep oauth session ${current.uid}');
+        return true;
+      }
+
+      if (current != null && currentEmail == email) {
         debugPrint('[FirebaseAuthBridge] already signed in as $email');
         return true;
       }
