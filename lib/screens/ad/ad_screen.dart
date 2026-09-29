@@ -15,6 +15,7 @@ import '../../theme/app_theme.dart';
 import '../../utils/avatar_image.dart';
 import '../../widgets/club_cover_mark.dart';
 import '../../widgets/phone_otp_sheet.dart';
+import '../../widgets/rounder_logo.dart';
 import '../club_room/club_room_screen.dart';
 import '../members/my_role_change_screen.dart';
 
@@ -1460,7 +1461,7 @@ class MyAdScreen extends StatelessWidget {
   }
 }
 
-/// 홈·모임방과 같은 흰 헤더. 진녹색 AppBar를 쓰지 않는다.
+/// 원클럽과 같이 흰 로고 헤더. 진녹색 AppBar를 쓰지 않는다.
 class _MyPageWhiteHeader extends StatelessWidget {
   const _MyPageWhiteHeader();
 
@@ -1476,13 +1477,13 @@ class _MyPageWhiteHeader extends StatelessWidget {
       child: SafeArea(
         bottom: false,
         child: SizedBox(
-          height: 48,
+          height: 52,
           child: Row(
             children: [
               IconButton(
                 onPressed: () => Navigator.of(context).maybePop(),
-                icon: const Icon(Icons.arrow_back_ios_new, size: 18),
-                color: AppColors.primary,
+                icon: const Icon(Icons.arrow_back_ios_new_rounded, size: 18),
+                color: Color(0xFF1E1B4B),
                 style: IconButton.styleFrom(
                   padding: EdgeInsets.zero,
                   tapTargetSize: MaterialTapTargetSize.shrinkWrap,
@@ -1490,15 +1491,7 @@ class _MyPageWhiteHeader extends StatelessWidget {
                   visualDensity: const VisualDensity(horizontal: -2, vertical: -2),
                 ),
               ),
-              const Text(
-                '마이페이지',
-                style: TextStyle(
-                  color: AppColors.textPrimary,
-                  fontWeight: FontWeight.w700,
-                  fontSize: 17,
-                  letterSpacing: -0.2,
-                ),
-              ),
+              const RounderLogo(height: 28, forWhiteHeader: true),
             ],
           ),
         ),
@@ -1539,8 +1532,18 @@ class _AccountSettingsTabState extends State<_AccountSettingsTab> {
           children: [
             // ── 프로필 카드 ──────────────────────────────
             Container(
-              padding: const EdgeInsets.fromLTRB(18, 20, 18, 18),
-              decoration: AppDecorations.standardCard,
+              padding: const EdgeInsets.fromLTRB(18, 18, 18, 16),
+              decoration: BoxDecoration(
+                color: Colors.white,
+                borderRadius: BorderRadius.circular(16),
+                boxShadow: [
+                  BoxShadow(
+                    color: Colors.black.withValues(alpha: 0.06),
+                    blurRadius: 8,
+                    offset: const Offset(0, 2),
+                  ),
+                ],
+              ),
               child: Column(
                 children: [
                   Row(
@@ -1558,28 +1561,24 @@ class _AccountSettingsTabState extends State<_AccountSettingsTab> {
                           );
                           if (img != null) {
                             return CircleAvatar(
-                              radius: 32,
+                              radius: 27,
                               backgroundImage: img,
                               onBackgroundImageError: (_, __) {},
                             );
                           }
                           return Container(
-                            width: 64, height: 64,
-                            decoration: BoxDecoration(
-                              color: AppColors.sageLighter,
+                            width: 54, height: 54,
+                            decoration: const BoxDecoration(
+                              color: Color(0xFFF3F4F6),
                               shape: BoxShape.circle,
-                              border: Border.all(
-                                color: AppColors.accent.withValues(alpha: 0.45),
-                                width: 1.5,
-                              ),
                             ),
                             child: Center(
                               child: Text(
                                 (displayName.isNotEmpty ? displayName[0] : '나'),
                                 style: const TextStyle(
                                     color: AppColors.primary,
-                                    fontSize: 24,
-                                    fontWeight: FontWeight.w700),
+                                    fontSize: 22,
+                                    fontWeight: FontWeight.bold),
                               ),
                             ),
                           );
@@ -1607,10 +1606,9 @@ class _AccountSettingsTabState extends State<_AccountSettingsTab> {
                         Text(
                           displayName,
                           style: const TextStyle(
-                            fontSize: 18,
-                            fontWeight: FontWeight.w700,
-                            color: AppColors.textPrimary,
-                            letterSpacing: -0.3,
+                            fontSize: 16,
+                            fontWeight: FontWeight.bold,
+                            color: Color(0xFF1E1B4B),
                           ),
                         ),
                         const SizedBox(height: 4),
@@ -1622,19 +1620,15 @@ class _AccountSettingsTabState extends State<_AccountSettingsTab> {
                       ],
                     ),
                   ),
-                  TextButton(
+                  TextButton.icon(
                     onPressed: () => _showProfileEditDialog(context, provider),
+                    icon: const Icon(Icons.edit_outlined, size: 14),
+                    label: const Text('편집', style: TextStyle(fontSize: 12)),
                     style: TextButton.styleFrom(
-                      foregroundColor: AppColors.goldDeep,
-                      backgroundColor: AppColors.accentSoft,
-                      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+                      foregroundColor: Color(0xFF1E1B4B),
+                      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
                       tapTargetSize: MaterialTapTargetSize.shrinkWrap,
-                      shape: RoundedRectangleBorder(
-                        borderRadius: BorderRadius.circular(20),
-                      ),
                     ),
-                    child: const Text('편집',
-                        style: TextStyle(fontSize: 12, fontWeight: FontWeight.w700)),
                   ),
                 ],
               ),
@@ -1672,10 +1666,13 @@ class _AccountSettingsTabState extends State<_AccountSettingsTab> {
             const SizedBox(height: 24),
 
             // ── 직책 변경 ────────────────────────────────
-            const _AccountSectionHeader(label: '직책'),
+            const _AccountSectionHeader(label: '직책 변경'),
             const SizedBox(height: 10),
             Container(
-              decoration: AppDecorations.standardCard,
+              decoration: BoxDecoration(
+                color: Colors.white,
+                borderRadius: BorderRadius.circular(14),
+              ),
               child: InkWell(
                 borderRadius: BorderRadius.circular(14),
                 onTap: () {
@@ -1693,12 +1690,12 @@ class _AccountSettingsTabState extends State<_AccountSettingsTab> {
                       Container(
                         width: 36,
                         height: 36,
-                        decoration: BoxDecoration(
-                          color: AppColors.primary.withValues(alpha: 0.1),
+                        decoration: const BoxDecoration(
+                          color: Color(0xFFFFE8E2),
                           shape: BoxShape.circle,
                         ),
                         child: const Icon(Icons.military_tech_outlined,
-                            color: AppColors.primary, size: 18),
+                            color: Color(0xFFF06A4D), size: 18),
                       ),
                       const SizedBox(width: 12),
                       const Expanded(
@@ -1711,7 +1708,7 @@ class _AccountSettingsTabState extends State<_AccountSettingsTab> {
                                     fontWeight: FontWeight.w700,
                                     color: AppColors.textPrimary)),
                             SizedBox(height: 2),
-                            Text('내 모임 선택 후 직책을 수정합니다',
+                            Text('모임별 내 직책을 수정합니다',
                                 style: TextStyle(
                                     fontSize: 12,
                                     color: AppColors.textSecondary)),
@@ -1734,7 +1731,10 @@ class _AccountSettingsTabState extends State<_AccountSettingsTab> {
             if (myClubs.isEmpty)
               Container(
                 padding: const EdgeInsets.all(16),
-                decoration: AppDecorations.standardCard,
+                decoration: BoxDecoration(
+                  color: Colors.white,
+                  borderRadius: BorderRadius.circular(12),
+                ),
                 child: const Text('참여 중인 모임이 없습니다.',
                     style: TextStyle(fontSize: 13, color: AppColors.textSecondary)),
               )
@@ -1750,7 +1750,10 @@ class _AccountSettingsTabState extends State<_AccountSettingsTab> {
             const _AccountSectionHeader(label: '계정'),
             const SizedBox(height: 10),
             Container(
-              decoration: AppDecorations.standardCard,
+              decoration: BoxDecoration(
+                color: Colors.white,
+                borderRadius: BorderRadius.circular(14),
+              ),
               child: InkWell(
                 borderRadius: BorderRadius.circular(14),
                 onTap: () => _confirmLogout(context, provider),
@@ -1927,7 +1930,7 @@ class _AccountSettingsTabState extends State<_AccountSettingsTab> {
       context: context,
       isScrollControlled: true,
       useRootNavigator: true,
-      backgroundColor: AppColors.background,
+      backgroundColor: Colors.white,
       shape: const RoundedRectangleBorder(
           borderRadius: BorderRadius.vertical(top: Radius.circular(20))),
       builder: (sheetCtx) => StatefulBuilder(
@@ -1978,19 +1981,17 @@ class _AccountSettingsTabState extends State<_AccountSettingsTab> {
             hintText: hint,
             hintStyle: const TextStyle(fontSize: 13, color: AppColors.textTertiary),
             filled: true,
-            fillColor: AppColors.surface,
+            fillColor: AppColors.background,
             contentPadding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
             border: OutlineInputBorder(
                 borderRadius: BorderRadius.circular(10),
-                borderSide: BorderSide(
-                    color: AppColors.accent.withValues(alpha: 0.22))),
+                borderSide: BorderSide(color: Colors.grey.shade300)),
             enabledBorder: OutlineInputBorder(
                 borderRadius: BorderRadius.circular(10),
-                borderSide: BorderSide(
-                    color: AppColors.accent.withValues(alpha: 0.22))),
+                borderSide: BorderSide(color: Colors.grey.shade300)),
             focusedBorder: OutlineInputBorder(
                 borderRadius: BorderRadius.circular(10),
-                borderSide: const BorderSide(color: AppColors.goldDeep, width: 1.4)),
+                borderSide: const BorderSide(color: Color(0xFF1E1B4B), width: 1.5)),
             suffixIcon: suffix,
           );
 
@@ -2013,7 +2014,7 @@ class _AccountSettingsTabState extends State<_AccountSettingsTab> {
                   child: Container(
                     width: 36, height: 4,
                     decoration: BoxDecoration(
-                        color: AppColors.accentMuted,
+                        color: Colors.grey.shade300,
                         borderRadius: BorderRadius.circular(2)),
                   ),
                 ),
@@ -2053,8 +2054,8 @@ class _AccountSettingsTabState extends State<_AccountSettingsTab> {
                           child: Container(
                             width: 26, height: 26,
                             decoration: const BoxDecoration(
-                                color: AppColors.accent, shape: BoxShape.circle),
-                            child: const Icon(Icons.camera_alt, color: AppColors.primaryDark, size: 14),
+                                color: Color(0xFF1E1B4B), shape: BoxShape.circle),
+                            child: const Icon(Icons.camera_alt, color: Colors.white, size: 14),
                           ),
                         ),
                         if (photoDataUrl != null && photoDataUrl!.isNotEmpty)
@@ -2079,8 +2080,7 @@ class _AccountSettingsTabState extends State<_AccountSettingsTab> {
                   child: Text('사진 변경',
                       style: TextStyle(
                         fontSize: 12,
-                        fontWeight: FontWeight.w600,
-                        color: AppColors.goldDeep,
+                        color: const Color(0xFF1E1B4B).withValues(alpha: 0.8),
                       )),
                 ),
                 const SizedBox(height: 20),
@@ -2105,12 +2105,12 @@ class _AccountSettingsTabState extends State<_AccountSettingsTab> {
                           margin: EdgeInsets.only(right: g == '남' ? 8 : 0),
                           padding: const EdgeInsets.symmetric(vertical: 12),
                           decoration: BoxDecoration(
-                            color: selected ? AppColors.charcoal : AppColors.surface,
+                            color: selected ? AppColors.charcoal : AppColors.background,
                             borderRadius: BorderRadius.circular(10),
                             border: Border.all(
                               color: selected
                                   ? AppColors.charcoal
-                                  : AppColors.accent.withValues(alpha: 0.28),
+                                  : Colors.grey.shade300,
                             ),
                           ),
                           child: Center(
@@ -2138,17 +2138,15 @@ class _AccountSettingsTabState extends State<_AccountSettingsTab> {
                     width: double.infinity,
                     padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 13),
                     decoration: BoxDecoration(
-                      color: AppColors.surface,
+                      color: AppColors.background,
                       borderRadius: BorderRadius.circular(10),
-                      border: Border.all(
-                        color: AppColors.accent.withValues(alpha: 0.22),
-                      ),
+                      border: Border.all(color: Colors.grey.shade300),
                     ),
                     child: Row(
                       children: [
                         Icon(Icons.cake_outlined, size: 16,
                             color: selectedBirth != null
-                                ? AppColors.goldDeep
+                                ? const Color(0xFF1E1B4B)
                                 : AppColors.textTertiary),
                         const SizedBox(width: 8),
                         Text(
@@ -2181,12 +2179,12 @@ class _AccountSettingsTabState extends State<_AccountSettingsTab> {
                           decoration: BoxDecoration(
                             color: selected
                                 ? AppColors.charcoal
-                                : AppColors.surface,
+                                : AppColors.background,
                             borderRadius: BorderRadius.circular(10),
                             border: Border.all(
                               color: selected
                                   ? AppColors.charcoal
-                                  : AppColors.accent.withValues(alpha: 0.28),
+                                  : Colors.grey.shade300,
                             ),
                           ),
                           child: Text(
@@ -2516,7 +2514,11 @@ class _AccountSectionHeader extends StatelessWidget {
   @override
   Widget build(BuildContext context) => Text(
         label,
-        style: AppText.accentLabel,
+        style: const TextStyle(
+          fontSize: 13,
+          fontWeight: FontWeight.bold,
+          color: Color(0xFF1E1B4B),
+        ),
       );
 }
 
@@ -2535,8 +2537,12 @@ class _ClubWithdrawTile extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Container(
-      margin: const EdgeInsets.only(bottom: 10),
-      decoration: AppDecorations.standardCard,
+      margin: const EdgeInsets.only(bottom: 8),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(color: const Color(0xFFE5E7EB)),
+      ),
       child: ListTile(
         onTap: () => _enterClub(context),
         leading: ClubCoverMark(club: club, size: 44),
@@ -2569,7 +2575,7 @@ class _ClubWithdrawTile extends StatelessWidget {
                   style: TextStyle(
                     fontSize: 13,
                     fontWeight: FontWeight.bold,
-                    color: AppColors.goldDeep,
+                    color: Color(0xFF1E1B4B),
                   )),
             ),
             TextButton(
