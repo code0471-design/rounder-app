@@ -31,55 +31,81 @@ class MemberDetailScreen extends StatelessWidget {
 
     return Scaffold(
       backgroundColor: AppColors.background,
-      body: SafeArea(
-        bottom: false,
-        child: Column(
-          children: [
-            Align(
-              alignment: Alignment.centerLeft,
-              child: IconButton(
-                visualDensity: VisualDensity.compact,
-                padding: const EdgeInsets.only(left: 8),
-                constraints: const BoxConstraints(minWidth: 40, minHeight: 36),
-                icon: const Icon(Icons.arrow_back_ios_new,
-                    color: AppColors.textSecondary, size: 18),
-                onPressed: () => Navigator.pop(context),
+      body: Column(
+        children: [
+          ColoredBox(
+            color: AppColors.cream,
+            child: SafeArea(
+              bottom: false,
+              child: SizedBox(
+                height: 48,
+                child: Row(
+                  children: [
+                    IconButton(
+                      visualDensity: VisualDensity.compact,
+                      padding: const EdgeInsets.only(left: 4),
+                      constraints:
+                          const BoxConstraints(minWidth: 40, minHeight: 36),
+                      icon: const Icon(Icons.arrow_back_ios_new,
+                          color: AppColors.ink, size: 18),
+                      onPressed: () => Navigator.pop(context),
+                    ),
+                    Expanded(
+                      child: Text(
+                        member.name,
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                        style: const TextStyle(
+                          color: AppColors.ink,
+                          fontSize: 17,
+                          fontWeight: FontWeight.bold,
+                        ),
+                      ),
+                    ),
+                    if (member.status == '탈퇴')
+                      const Padding(
+                        padding: EdgeInsets.only(right: 12),
+                        child: _StatusBadge(
+                            label: '탈퇴', color: AppColors.danger),
+                      ),
+                  ],
+                ),
               ),
             ),
-            Expanded(
-              child: SingleChildScrollView(
-          child: Column(
-            children: [
-              _buildProfileHeaderCard(context),
-              _buildProfileSection(context),
-              const SizedBox(height: 12),
-              _buildInfoCard(context),
-              const SizedBox(height: 12),
-              _buildActivityCard(context),
-              const SizedBox(height: 24),
-              if (canEditRole) ...[
-                _buildEditRoleButton(context),
-                const SizedBox(height: 12),
-              ],
-              if (member.status == '활성' &&
-                  ClubMemberRole.isTreasurer(member.role) &&
-                  provider.canAccessTreasurerTransfer)
-                _buildTreasurerTransferButton(context),
-              if (member.status == '활성' &&
-                  ClubMemberRole.isTreasurer(member.role) &&
-                  provider.canAccessTreasurerTransfer)
-                const SizedBox(height: 12),
-              if (canKick) ...[
-                _buildKickButton(context),
-                const SizedBox(height: 12),
-              ],
-              const SizedBox(height: 32),
-            ],
           ),
+          Expanded(
+            child: SingleChildScrollView(
+              padding: const EdgeInsets.only(top: 8, bottom: 32),
+              child: Column(
+                children: [
+                  _buildProfileHeaderCard(context),
+                  _buildProfileSection(context),
+                  const SizedBox(height: 12),
+                  _buildInfoCard(context),
+                  const SizedBox(height: 12),
+                  _buildActivityCard(context),
+                  const SizedBox(height: 24),
+                  if (canEditRole) ...[
+                    _buildEditRoleButton(context),
+                    const SizedBox(height: 12),
+                  ],
+                  if (member.status == '활성' &&
+                      ClubMemberRole.isTreasurer(member.role) &&
+                      provider.canAccessTreasurerTransfer)
+                    _buildTreasurerTransferButton(context),
+                  if (member.status == '활성' &&
+                      ClubMemberRole.isTreasurer(member.role) &&
+                      provider.canAccessTreasurerTransfer)
+                    const SizedBox(height: 12),
+                  if (canKick) ...[
+                    _buildKickButton(context),
+                    const SizedBox(height: 12),
+                  ],
+                ],
               ),
             ),
-          ],
-        ),
+          ),
+        ],
       ),
     );
   }
@@ -114,11 +140,11 @@ class MemberDetailScreen extends StatelessWidget {
           padding: const EdgeInsets.all(16),
           decoration: BoxDecoration(
             color: Colors.white,
-            borderRadius: BorderRadius.circular(16),
-            border: Border.all(color: AppColors.divider),
+            borderRadius: BorderRadius.circular(14),
+            border: Border.all(color: const Color(0xFFE5E7EB)),
             boxShadow: [
               BoxShadow(
-                color: AppColors.primary.withValues(alpha: 0.06),
+                color: Colors.black.withValues(alpha: 0.04),
                 blurRadius: 8,
                 offset: const Offset(0, 2),
               ),
@@ -191,8 +217,8 @@ class MemberDetailScreen extends StatelessWidget {
                         if (ClubMemberRole.isOfficer(member.role))
                           _ChipBadge(
                               label: member.role,
-                              bg: AppColors.cream2,
-                              fg: AppColors.goldDeep),
+                              bg: const Color(0xFFFFE8E2),
+                              fg: const Color(0xFF1E1B4B)),
                         _ChipBadge(
                             label: member.memberType,
                             bg: AppColors.surfaceVariant,
@@ -216,11 +242,11 @@ class MemberDetailScreen extends StatelessWidget {
       padding: const EdgeInsets.symmetric(vertical: 16),
       decoration: BoxDecoration(
         color: Colors.white,
-        borderRadius: BorderRadius.circular(16),
-        border: Border.all(color: AppColors.divider),
+        borderRadius: BorderRadius.circular(14),
+        border: Border.all(color: const Color(0xFFE5E7EB)),
         boxShadow: [
           BoxShadow(
-            color: AppColors.primary.withValues(alpha: 0.06),
+            color: Colors.black.withValues(alpha: 0.04),
             blurRadius: 8,
             offset: const Offset(0, 2),
           ),
@@ -856,11 +882,11 @@ class _Card extends StatelessWidget {
       margin: const EdgeInsets.symmetric(horizontal: 16),
       decoration: BoxDecoration(
         color: Colors.white,
-        borderRadius: BorderRadius.circular(16),
-        border: Border.all(color: AppColors.divider),
+        borderRadius: BorderRadius.circular(14),
+        border: Border.all(color: const Color(0xFFE5E7EB)),
         boxShadow: [
           BoxShadow(
-            color: AppColors.primary.withValues(alpha: 0.06),
+            color: Colors.black.withValues(alpha: 0.04),
             blurRadius: 8,
             offset: const Offset(0, 2),
           ),
@@ -873,7 +899,7 @@ class _Card extends StatelessWidget {
             padding: const EdgeInsets.fromLTRB(16, 14, 16, 10),
             child: Row(
               children: [
-                Icon(icon, size: 16, color: AppColors.goldDeep),
+                Icon(icon, size: 16, color: const Color(0xFF1E1B4B)),
                 const SizedBox(width: 6),
                 Text(
                   title,
@@ -921,7 +947,7 @@ class _InfoRow extends StatelessWidget {
               color: AppColors.cream2,
               borderRadius: BorderRadius.circular(8),
             ),
-            child: Icon(icon, size: 15, color: AppColors.goldDeep),
+            child: Icon(icon, size: 15, color: const Color(0xFF1E1B4B)),
           ),
           const SizedBox(width: 10),
           SizedBox(
