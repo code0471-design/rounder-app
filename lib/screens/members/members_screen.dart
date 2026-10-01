@@ -54,12 +54,14 @@ class _MembersScreenState extends State<MembersScreen>
     _searchController.addListener(() {
       setState(() => _searchQuery = _searchController.text.trim());
     });
-    WidgetsBinding.instance.addPostFrameCallback((_) async {
+    WidgetsBinding.instance.addPostFrameCallback((_) {
       if (!mounted) return;
       final provider = context.read<ClubProvider>();
-      await provider.refreshJoinRequestsForClub(provider.selectedClub.id);
-      if (!mounted) return;
-      if (provider.consumeOpenJoinRequests()) {
+      final open = provider.consumeOpenJoinRequests();
+      unawaited(
+        provider.refreshJoinRequestsForClub(provider.selectedClub.id),
+      );
+      if (open) {
         MembersScreen.showJoinRequestsSheet(context, provider);
       }
     });

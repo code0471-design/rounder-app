@@ -131,9 +131,11 @@ class ClubListController extends ChangeNotifier {
 
     try {
       if (AppDependencies.instance.isOfflineMockMode) {
-        _clubs = (await _clubRepository.fetchDiscoverableClubs())
-          .where((c) => !SampleClubFilter.isSample(id: c.id, name: c.name))
-          .toList();
+        _clubs = (await _clubRepository
+                .fetchDiscoverableClubs()
+                .timeout(const Duration(seconds: 8)))
+            .where((c) => !SampleClubFilter.isSample(id: c.id, name: c.name))
+            .toList();
         if (userId != null && userId.isNotEmpty) {
           await syncMembershipState(userId);
         }
@@ -144,7 +146,9 @@ class ClubListController extends ChangeNotifier {
 
       unawaited(_safeSeedIfEmpty());
 
-      _clubs = (await _clubRepository.fetchDiscoverableClubs())
+      _clubs = (await _clubRepository
+              .fetchDiscoverableClubs()
+              .timeout(const Duration(seconds: 8)))
           .where((c) => !SampleClubFilter.isSample(id: c.id, name: c.name))
           .toList();
       debugPrint('[ClubListController] Firestore clubs ${_clubs.length}건');

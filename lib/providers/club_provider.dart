@@ -4698,7 +4698,8 @@ class ClubProvider extends ChangeNotifier with WidgetsBindingObserver {
     if (!solapi.hasKakaoChannel) {
       return SolapiResult.error('카카오 채널(PFID)이 설정되지 않았습니다.');
     }
-    final enabled = await HqAlimtalkCatalog.isGloballyEnabled(hqTypeId);
+    final enabled = await HqAlimtalkCatalog.isGloballyEnabled(hqTypeId)
+        .timeout(const Duration(seconds: 8), onTimeout: () => true);
     if (!enabled) {
       return SolapiResult.error('본사에서 해당 알림톡이 사용중지입니다.');
     }
@@ -4715,7 +4716,14 @@ class ClubProvider extends ChangeNotifier with WidgetsBindingObserver {
     if (messages.isEmpty) {
       return SolapiResult.error('전화번호가 있는 발송 대상이 없습니다.');
     }
-    final result = await solapi.sendManyRaw(messages);
+    final result = await solapi
+        .sendManyRaw(messages)
+        .timeout(
+          const Duration(seconds: 20),
+          onTimeout: () => SolapiResult.error(
+            '발송 응답이 지연되었습니다. 잠시 후 다시 시도해 주세요.',
+          ),
+        );
     debugPrint(
       '[Alimtalk] $hqTypeId n=${messages.length} ok=${result.success} '
       '${result.errorMessage ?? ''}',
@@ -5274,7 +5282,7 @@ class ClubProvider extends ChangeNotifier with WidgetsBindingObserver {
           memberId: myId,
           memberName: currentUserName,
           capacity: schedule.effectiveCapacity,
-        );
+        ).timeout(const Duration(seconds: 8), onTimeout: () => null);
         if (claimed == false) return false;
         if (claimed == true) {
           return respondToSchedule(
@@ -6501,7 +6509,8 @@ class ClubProvider extends ChangeNotifier with WidgetsBindingObserver {
       final auth = _persistAuthUserId ?? currentUserId;
       if (club == null && auth.isNotEmpty) {
         try {
-          await _ingestServerMemberships(auth);
+          await _ingestServerMemberships(auth)
+              .timeout(const Duration(seconds: 8));
         } catch (e) {
           debugPrint('[ClubProvider] attachApproved ingest skip: $e');
         }
@@ -6643,15 +6652,13 @@ class ClubProvider extends ChangeNotifier with WidgetsBindingObserver {
           adminSynced = true;
         }
       } else {
-        await FirebaseAuthBridge.ensureStagingSession(userId: authUserId);
-        await AppDependencies.instance.clubRepository.createClub(
-          club: newClub,
-          userId: authUserId,
-          userName: currentUserName,
-          creatorMember: creatorMember,
-          moderationStatus: 'active',
-        );
+        // 서버 생성이 늘어지면 만들기 버튼이 안 끝난다. 이 폰에는 먼저 넣고 올린다.
         adminSynced = true;
+        unawaited(_syncCreatedClubToAdmin(
+          club: newClub,
+          authUserId: authUserId,
+          creatorMember: creatorMember,
+        ));
       }
     } catch (e, st) {
       syncError = e;
@@ -6666,6 +6673,28 @@ class ClubProvider extends ChangeNotifier with WidgetsBindingObserver {
       debugPrint('[ClubProvider] createClub local-only (admin sync failed)');
     }
     return adminSynced;
+  }
+
+  Future<void> _syncCreatedClubToAdmin({
+    required Club club,
+    required String authUserId,
+    required Member creatorMember,
+  }) async {
+    try {
+      await FirebaseAuthBridge.ensureStagingSession(userId: authUserId)
+          .timeout(const Duration(seconds: 8));
+      await AppDependencies.instance.clubRepository
+          .createClub(
+            club: club,
+            userId: authUserId,
+            userName: currentUserName,
+            creatorMember: creatorMember,
+            moderationStatus: 'active',
+          )
+          .timeout(const Duration(seconds: 12));
+    } catch (e, st) {
+      debugPrint('[ClubProvider] admin sync createClub failed: $e\n$st');
+    }
   }
 
   /// 내 모임(데모 c1~c5 제외)에 생성자 회원이 없으면 복구. 변경 여부 반환.
@@ -7614,9 +7643,9 @@ class ClubProvider extends ChangeNotifier with WidgetsBindingObserver {
     }
     notifyListeners();
     _syncMyClubsToMockStore();
-    await _persistNow();
+    unawaited(_persistNow().timeout(const Duration(seconds: 12)));
     final catalogImage = (imageUrl ?? '').trim();
-    await _pushClubCatalogToServer(clubId,
+    unawaited(_pushClubCatalogToServer(clubId,
         name: name,
         description: description,
         imageUrl: catalogImage.isEmpty ? null : imageUrl,
@@ -7624,7 +7653,7 @@ class ClubProvider extends ChangeNotifier with WidgetsBindingObserver {
         hostName: hostName,
         hostUserId: hostUserId,
         region: region,
-        industry: industry);
+        industry: industry));
     return true;
   }
 
@@ -7683,6 +7712,9 @@ class ClubProvider extends ChangeNotifier with WidgetsBindingObserver {
   // ════════════════════════════════════════════════════════
   //  Actions — Join Request
   // ════════════════════════════════════════════════════════
+  /// 가입 신청 서버 저장은 한 건씩. 겹치면 다음 푸시에 이전 모임명이 남는다.
+  Future<void>? _joinPublishChain;
+
   Future<bool> submitJoinRequest({
     required String clubId,
     String message = '',
@@ -7700,22 +7732,18 @@ class ClubProvider extends ChangeNotifier with WidgetsBindingObserver {
       return false;
     }
     final applicantId = userId ?? _persistAuthUserId ?? currentUserId;
-    if (AppDependencies.instance.isInitialized &&
-        !AppDependencies.instance.isOfflineMockMode) {
-      try {
-        final existing = await AppDependencies.instance.joinRequestRepository
-            .fetchPendingForUser(clubId, applicantId);
-        if (existing != null) {
-          debugPrint(
-            '[ClubProvider] already pending join skip publish ${existing.id}',
-          );
-          _ingestPendingJoinRequest(existing);
-          notifyListeners();
-          return true;
-        }
-      } catch (e) {
-        debugPrint('[ClubProvider] fetch pending join user skip: $e');
-      }
+    final localExisting = _joinRequests
+        .where((r) =>
+            r.status == JoinRequestStatus.pending &&
+            clubIdAliases(clubId).contains(r.clubId) &&
+            _userIdsMatch(r.userId, applicantId))
+        .firstOrNull;
+    if (localExisting != null) {
+      debugPrint(
+        '[ClubProvider] already pending join skip publish ${localExisting.id}',
+      );
+      _rememberSubmittedJoin(localExisting);
+      return true;
     }
     final req = JoinRequest(
       id: JoinRequestService.requestId(clubId, applicantId),
@@ -7734,27 +7762,37 @@ class ClubProvider extends ChangeNotifier with WidgetsBindingObserver {
       referrerName: referrerName,
       requestedAt: DateTime.now(),
     );
-    try {
-      await AppDependencies.instance.joinRequestRepository.submitJoinRequest(
-        clubId: req.clubId,
-        userId: req.userId,
-        userName: req.userName,
-        userGender: req.userGender,
-        userHandicap: req.userHandicap,
-        userPhone: req.userPhone,
-        userPhotoUrl: req.userPhotoUrl,
-        userBirthDate: req.userBirthDate,
-        message: req.message,
-        requestId: req.id,
-      );
-    } catch (e) {
-      debugPrint('[ClubProvider] firestore join submit: $e');
-      if (!AppDependencies.instance.isOfflineMockMode) {
-        return false;
-      }
-    }
-    await publishJoinRequestToOfficer(req);
+    // 서버 저장·총무 알림이 늘어지면 신청 버튼이 안 끝난다. 화면은 먼저 닫는다.
+    _rememberSubmittedJoin(req);
+    _enqueueJoinPublish(req);
     return true;
+  }
+
+  void _rememberSubmittedJoin(JoinRequest req) {
+    final already = _joinRequests.any((r) => r.id == req.id);
+    _ingestPendingJoinRequest(req);
+    if (!already) {
+      _activities.insert(
+        0,
+        ActivityItem(
+          id: 'act_join_${DateTime.now().millisecondsSinceEpoch}',
+          memberId: req.userId,
+          memberName: req.userName,
+          activityType: 'join',
+          description: '가입 신청 (승인 대기 중)',
+          timestamp: DateTime.now(),
+        ),
+      );
+    }
+    notifyListeners();
+    _persistImmediately();
+  }
+
+  void _enqueueJoinPublish(JoinRequest req) {
+    final prev = _joinPublishChain ?? Future<void>.value();
+    _joinPublishChain = prev.catchError((Object _) {}).then((_) {
+      return _submitJoinRemote(req);
+    });
   }
 
   bool _pendingOpenJoinRequests = false;
@@ -7771,21 +7809,12 @@ class ClubProvider extends ChangeNotifier with WidgetsBindingObserver {
 
   /// 신청을 총무(없으면 회장) 알림함·모임 대기열에 올린다.
   Future<void> publishJoinRequestToOfficer(JoinRequest req) async {
+    _rememberSubmittedJoin(req);
     try {
       await SharedJoinRequestStore.upsert(req);
     } catch (e) {
       debugPrint('[ClubProvider] shared join upsert early failed: $e');
     }
-    _ingestPendingJoinRequest(req);
-
-    _activities.insert(0, ActivityItem(
-      id: 'act_join_${DateTime.now().millisecondsSinceEpoch}',
-      memberId: req.userId,
-      memberName: req.userName,
-      activityType: 'join',
-      description: '가입 신청 (승인 대기 중)',
-      timestamp: DateTime.now(),
-    ));
 
     var club = _allClubs.where((c) => c.id == req.clubId).firstOrNull ??
         _myClubs.where((c) => c.id == req.clubId).firstOrNull;
@@ -7875,6 +7904,46 @@ class ClubProvider extends ChangeNotifier with WidgetsBindingObserver {
     await _publishJoinRequestCrossAccount(req, noti);
   }
 
+  Future<void> _submitJoinRemote(JoinRequest req) async {
+    if (AppDependencies.instance.isInitialized &&
+        !AppDependencies.instance.isOfflineMockMode) {
+      try {
+        final existing = await AppDependencies.instance.joinRequestRepository
+            .fetchPendingForUser(req.clubId, req.userId)
+            .timeout(const Duration(seconds: 8));
+        if (existing != null) {
+          debugPrint(
+            '[ClubProvider] already pending join skip publish ${existing.id}',
+          );
+          _rememberSubmittedJoin(existing);
+          return;
+        }
+      } catch (e) {
+        debugPrint('[ClubProvider] fetch pending join user skip: $e');
+      }
+    }
+    try {
+      await AppDependencies.instance.joinRequestRepository.submitJoinRequest(
+        clubId: req.clubId,
+        userId: req.userId,
+        userName: req.userName,
+        userGender: req.userGender,
+        userHandicap: req.userHandicap,
+        userPhone: req.userPhone,
+        userPhotoUrl: req.userPhotoUrl,
+        userBirthDate: req.userBirthDate,
+        message: req.message,
+        requestId: req.id,
+      ).timeout(const Duration(seconds: 12));
+    } catch (e) {
+      debugPrint('[ClubProvider] firestore join submit: $e');
+      if (!AppDependencies.instance.isOfflineMockMode) {
+        return;
+      }
+    }
+    await publishJoinRequestToOfficer(req);
+  }
+
   /// 초대 링크 수락 — 총무 승인 없이 즉시 가입 (밴드형)
   Future<bool> joinViaInvite({
     required String clubId,
@@ -7943,17 +8012,28 @@ class ClubProvider extends ChangeNotifier with WidgetsBindingObserver {
     );
 
     try {
-      await AppDependencies.instance.clubRepository.addMemberViaInvite(
-        clubId: clubId,
-        userId: authUserId,
-        member: member,
+      await AppDependencies.instance.clubRepository
+          .addMemberViaInvite(
+            clubId: clubId,
+            userId: authUserId,
+            member: member,
+          )
+          .timeout(const Duration(seconds: 8));
+    } on TimeoutException catch (e) {
+      debugPrint('[ClubProvider] joinViaInvite remote slow: $e');
+      unawaited(
+        AppDependencies.instance.clubRepository.addMemberViaInvite(
+          clubId: clubId,
+          userId: authUserId,
+          member: member,
+        ),
       );
     } catch (e) {
       debugPrint('[ClubProvider] joinViaInvite remote fail: $e');
       return false;
     }
 
-    club = await readServerClub() ?? club;
+    club ??= await readServerClub();
     if (club == null) {
       debugPrint('[ClubProvider] joinViaInvite — no server club $clubId');
       return false;
@@ -8033,25 +8113,28 @@ class ClubProvider extends ChangeNotifier with WidgetsBindingObserver {
       notifySelf: true,
     );
 
-    try {
-      final merged = await ClubOpsSync.pullMergeClub(
-        clubId: clubId,
-        local: _exportBundle(),
-        seedIfMissing: false,
-      );
-      if (merged != null) _importBundle(merged);
-    } catch (e) {
-      debugPrint('[ClubProvider] joinViaInvite ops pull skip: $e');
-    }
-    await hydrateClubAccounts(clubId);
-    await _hydrateRosterFromServer(clubId);
-    // 방장이 이름·번호만 적어 둔 내 행이 있으면 새 행과 합친다 (두 줄 방지)
-    _absorbUnlinkedRowsByPhone(clubId);
     _rememberOfficialClub(clubId);
 
     selectClubById(clubId);
     notifyListeners();
     _persistImmediately();
+    unawaited(() async {
+      try {
+        final merged = await ClubOpsSync.pullMergeClub(
+          clubId: clubId,
+          local: _exportBundle(),
+          seedIfMissing: false,
+        );
+        if (merged != null) _importBundle(merged);
+      } catch (e) {
+        debugPrint('[ClubProvider] joinViaInvite ops pull skip: $e');
+      }
+      await hydrateClubAccounts(clubId);
+      await _hydrateRosterFromServer(clubId);
+      // 방장이 이름·번호만 적어 둔 내 행이 있으면 새 행과 합친다 (두 줄 방지)
+      _absorbUnlinkedRowsByPhone(clubId);
+      notifyListeners();
+    }());
     return true;
   }
 
@@ -8176,13 +8259,14 @@ class ClubProvider extends ChangeNotifier with WidgetsBindingObserver {
                 _userIdsMatch(r.userId, _persistAuthUserId)))
         .toList();
     if (pending.isEmpty) {
-      // 스토어에만 있을 수 있음
       try {
-        await AppDependencies.instance.joinRequestRepository.cancelJoinRequest(
-          clubId: legacyClubIdFor(clubId),
-          requestId: '',
-          userId: _persistAuthUserId ?? currentUserId,
-        );
+        await AppDependencies.instance.joinRequestRepository
+            .cancelJoinRequest(
+              clubId: legacyClubIdFor(clubId),
+              requestId: '',
+              userId: _persistAuthUserId ?? currentUserId,
+            )
+            .timeout(const Duration(seconds: 8));
       } catch (_) {
         return false;
       }
@@ -8195,18 +8279,22 @@ class ClubProvider extends ChangeNotifier with WidgetsBindingObserver {
         (n) =>
             n.type == AppNotificationType.joinRequest && n.targetId == req.id,
       );
-      try {
-        await SharedJoinRequestStore.remove(req.id);
-      } catch (_) {}
-      try {
-        await AppDependencies.instance.joinRequestRepository.cancelJoinRequest(
-          clubId: req.clubId,
-          requestId: req.id,
-          userId: req.userId,
-        );
-      } catch (_) {}
-      AppDependencies.instance.mockDataStore
-          ?.removePendingJoinRequest(req.id, persist: true);
+      unawaited(() async {
+        try {
+          await SharedJoinRequestStore.remove(req.id);
+        } catch (_) {}
+        try {
+          await AppDependencies.instance.joinRequestRepository
+              .cancelJoinRequest(
+                clubId: req.clubId,
+                requestId: req.id,
+                userId: req.userId,
+              )
+              .timeout(const Duration(seconds: 8));
+        } catch (_) {}
+        AppDependencies.instance.mockDataStore
+            ?.removePendingJoinRequest(req.id, persist: true);
+      }());
     }
     notifyListeners();
     _persistImmediately();
@@ -8669,6 +8757,23 @@ class ClubProvider extends ChangeNotifier with WidgetsBindingObserver {
     AppDependencies.instance.mockDataStore
         ?.removePendingJoinRequest(requestId);
     unawaited(SharedJoinRequestStore.remove(requestId));
+    notifyListeners();
+    _persistImmediately();
+    unawaited(
+      _persistRejectedJoin(
+        rejected: rejected,
+        clubName: (_allClubs.where((c) => c.id == req.clubId).firstOrNull ??
+                _myClubs.where((c) => c.id == req.clubId).firstOrNull)
+            ?.name,
+      ).timeout(const Duration(seconds: 12), onTimeout: () {}),
+    );
+    return true;
+  }
+
+  Future<void> _persistRejectedJoin({
+    required JoinRequest rejected,
+    required String? clubName,
+  }) async {
     try {
       await AppDependencies.instance.joinRequestRepository.rejectJoinRequest(
         clubId: rejected.clubId,
@@ -8683,46 +8788,40 @@ class ClubProvider extends ChangeNotifier with WidgetsBindingObserver {
     } catch (e) {
       debugPrint('[ClubProvider] reject join ops skip: $e');
     }
-    final club = _allClubs.where((c) => c.id == req.clubId).firstOrNull ??
-        _myClubs.where((c) => c.id == req.clubId).firstOrNull;
     final applicant = JoinRequestService.loginAccountIdOf(
-      clubId: req.clubId,
-      memberOrUserId: req.userId,
+      clubId: rejected.clubId,
+      memberOrUserId: rejected.userId,
     );
-    if (applicant.isNotEmpty) {
-      final noti = AppNotification(
-        id: JoinRequestService.resultInboxItemId(req.id, approved: false),
-        type: AppNotificationType.announcement,
-        clubId: req.clubId,
-        clubName: club?.name ?? '모임',
-        title: '가입 거절',
-        body: '${club?.name ?? '모임'} 가입이 거절되었습니다',
-        createdAt: DateTime.now(),
-        targetId: req.id,
-        targetUserId: applicant,
-        isRead: false,
+    if (applicant.isEmpty) return;
+    final noti = AppNotification(
+      id: JoinRequestService.resultInboxItemId(rejected.id, approved: false),
+      type: AppNotificationType.announcement,
+      clubId: rejected.clubId,
+      clubName: clubName ?? '모임',
+      title: '가입 거절',
+      body: '${clubName ?? '모임'} 가입이 거절되었습니다',
+      createdAt: DateTime.now(),
+      targetId: rejected.id,
+      targetUserId: applicant,
+      isRead: false,
+    );
+    try {
+      await ClubOpsSync.appendApplicantInbox(
+        authUserId: applicant,
+        notification: noti,
       );
-      try {
-        await ClubOpsSync.appendApplicantInbox(
-          authUserId: applicant,
-          notification: noti,
-        );
-      } catch (e) {
-        debugPrint('[ClubProvider] reject applicant inbox skip: $e');
-      }
-      await PushNotificationService.enqueue(
-        targetUserId: applicant,
-        title: noti.title,
-        body: noti.body,
-        type: HqPushCatalog.joinResult,
-        clubId: req.clubId,
-        itemId: noti.id,
-        replaceExisting: true,
-      );
+    } catch (e) {
+      debugPrint('[ClubProvider] reject applicant inbox skip: $e');
     }
-    notifyListeners();
-    _persistImmediately();
-    return true;
+    await PushNotificationService.enqueue(
+      targetUserId: applicant,
+      title: noti.title,
+      body: noti.body,
+      type: HqPushCatalog.joinResult,
+      clubId: rejected.clubId,
+      itemId: noti.id,
+      replaceExisting: true,
+    );
   }
 
   // ════════════════════════════════════════════════════════
@@ -8809,6 +8908,22 @@ class ClubProvider extends ChangeNotifier with WidgetsBindingObserver {
 
     // Mock 저장소 멤버십 제거 (c1 / seed_c1 모두)
     final store = AppDependencies.instance.mockDataStore;
+    notifyListeners();
+    unawaited(_finishLeaveClub(
+      resolvedId: resolvedId,
+      leavingUser: (_persistAuthUserId ?? currentUserId).trim(),
+      leavingIds: leavingIds,
+      store: store,
+    ));
+    return LeaveClubResult(success: true, treasurerVacated: wasTreasurer);
+  }
+
+  Future<void> _finishLeaveClub({
+    required String resolvedId,
+    required String leavingUser,
+    required Set<String> leavingIds,
+    required MockDataStore? store,
+  }) async {
     if (store != null) {
       for (final key in clubIdAliases(resolvedId)) {
         final map = store.membersByClub[key];
@@ -8817,30 +8932,42 @@ class ClubProvider extends ChangeNotifier with WidgetsBindingObserver {
           map.remove(id);
         }
       }
-      await MockStorePersistence.save(store);
+      try {
+        await MockStorePersistence.save(store)
+            .timeout(const Duration(seconds: 8));
+      } catch (e) {
+        debugPrint('[ClubProvider] leave mock save skip: $e');
+      }
     }
 
-    // 탈퇴 직후 sync가 나를 다시 올리지 않도록 — 활성 회원만 동기화
     _syncMyClubsToMockStore();
     if (_persistAuthUserId != null) {
-      await _saveLeftClubIds(_persistAuthUserId!);
-      await _persistNow();
+      try {
+        await _saveLeftClubIds(_persistAuthUserId!)
+            .timeout(const Duration(seconds: 3));
+      } catch (e) {
+        debugPrint('[ClubProvider] leave prefs skip: $e');
+      }
+      try {
+        await _persistNow().timeout(const Duration(seconds: 12));
+      } catch (e) {
+        debugPrint('[ClubProvider] leave persist skip: $e');
+      }
     }
-    final leavingUser = (_persistAuthUserId ?? currentUserId).trim();
     if (leavingUser.isNotEmpty &&
         AppDependencies.instance.isInitialized &&
         !AppDependencies.instance.isOfflineMockMode) {
       try {
-        await AppDependencies.instance.clubRepository.removeOfficialMembership(
-          clubId: resolvedId,
-          userId: leavingUser,
-        );
+        await AppDependencies.instance.clubRepository
+            .removeOfficialMembership(
+              clubId: resolvedId,
+              userId: leavingUser,
+            )
+            .timeout(const Duration(seconds: 12));
       } catch (e) {
         debugPrint('[ClubProvider] leave membership skip: $e');
       }
     }
-    notifyListeners();
-    return LeaveClubResult(success: true, treasurerVacated: wasTreasurer);
   }
 
   /// 앱 탈퇴 — 모든 모임에서 빠지고, 이 계정 로컬·원격 모임 목록을 지운다.

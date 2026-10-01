@@ -54,12 +54,16 @@ class ClubDetailController extends ChangeNotifier {
     Club? initialClub,
   }) async {
     _userId = userId;
+    _club = initialClub ?? _club;
     _state = ClubDetailLoadState.loading;
     _errorMessage = null;
     notifyListeners();
 
     try {
-      _club = (await _clubRepository.fetchClubById(clubId, userId: userId)) ??
+      _club = (await _clubRepository
+              .fetchClubById(clubId, userId: userId)
+              .timeout(const Duration(seconds: 8))) ??
+          _club ??
           initialClub;
       if (_club == null) {
         throw Exception('모임을 찾을 수 없습니다');
@@ -68,11 +72,14 @@ class ClubDetailController extends ChangeNotifier {
         _club = _club!.coalesceDisplayFields(initialClub);
       }
 
-      _isMember = await _clubRepository.isUserMember(clubId, userId);
+      _isMember = await _clubRepository
+          .isUserMember(clubId, userId)
+          .timeout(const Duration(seconds: 8));
       _pendingLookupSucceeded = false;
       try {
-        _myPendingRequest =
-            await _joinRequestRepository.fetchPendingForUser(clubId, userId);
+        _myPendingRequest = await _joinRequestRepository
+            .fetchPendingForUser(clubId, userId)
+            .timeout(const Duration(seconds: 8));
         _pendingLookupSucceeded = true;
       } catch (_) {
         // 조회가 깨지면 로컬 대기 표시를 지우지 않는다.
@@ -80,8 +87,9 @@ class ClubDetailController extends ChangeNotifier {
 
       if (_isMember && isAdmin) {
         try {
-          _pendingRequests =
-              await _joinRequestRepository.fetchPendingForClub(clubId);
+          _pendingRequests = await _joinRequestRepository
+              .fetchPendingForClub(clubId)
+              .timeout(const Duration(seconds: 8));
         } catch (_) {
           _pendingRequests = [];
         }

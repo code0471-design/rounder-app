@@ -67,4 +67,21 @@ void main() {
     expect(approve.contains('_officialMemberCount'), isTrue);
     expect(src.contains('실계정 회원수는 이 폰 명단을 센다'), isTrue);
   });
+
+  test('가입 신청 버튼은 서버 저장 전에 닫힌다', () {
+    final src = read('lib/providers/club_provider.dart');
+    final submit = src.substring(
+      src.indexOf('Future<bool> submitJoinRequest('),
+      src.indexOf('void _rememberSubmittedJoin('),
+    );
+    expect(submit.contains('_rememberSubmittedJoin(req)'), isTrue);
+    expect(submit.contains('_enqueueJoinPublish(req)'), isTrue);
+    expect(submit.contains('await publishJoinRequestToOfficer'), isFalse);
+    final reject = src.substring(
+      src.indexOf('Future<bool> rejectRequest('),
+      src.indexOf('Future<void> _persistRejectedJoin('),
+    );
+    expect(reject.contains('unawaited('), isTrue);
+    expect(reject.contains('await AppDependencies.instance.joinRequestRepository.rejectJoinRequest'), isFalse);
+  });
 }
