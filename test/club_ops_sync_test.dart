@@ -743,7 +743,7 @@ void main() {
     expect(merged.duesPayments.any((p) => p.id == 'pay_ghost'), isFalse);
     expect(merged.transactions.any((t) => t.id == 'tx_ghost'), isFalse);
     expect(merged.members.any((m) => m.id == 'm_creator_c_arena'), isTrue);
-    expect(ClubOpsSync.isMemberRemoved('m1'), isTrue);
+    expect(ClubOpsSync.isMemberRemoved('m_c_arena_m1'), isTrue);
   });
 
   group('capacity / scale guards', () {
@@ -1421,8 +1421,8 @@ void main() {
         clubId: gangnam,
         creatorUserId: 'kakao_5044456654',
       ),
-      isTrue,
-      reason: '강남 명단에 장창현이 다시 붙으면 테스터 폰에도 그대로 보인다',
+      isFalse,
+      reason: '총무가 만든 사람이 아니어도 이름만으로 지우면 회원 탭에서 사라진다',
     );
     expect(
       ClubOpsSync.isForeignLeftoverMember(
@@ -1481,10 +1481,10 @@ void main() {
       clubId: gangnam,
       creatorUserId: 'kakao_5044456654',
     );
-    expect(kept.map((e) => (e as Map)['name']), ['안경헌']);
+    expect(kept.map((e) => (e as Map)['name']), ['안경헌', '장창현']);
     expect(
       ClubOpsSync.isMemberRemoved('m_${gangnam}_kakao_5049673364'),
-      isTrue,
+      isFalse,
     );
   });
 

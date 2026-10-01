@@ -1697,6 +1697,9 @@ class ClubProvider extends ChangeNotifier with WidgetsBindingObserver {
   /// 서버 소속이 없는 소셜 계정 명단 행은 지운다.
   /// 장창현이 아레나 총무로 다시 붙던 경로.
   bool _dropUnmemberedAccountRows(String clubId) {
+    // 가입 기록 문서가 없는 총무까지 지우면 회원 탭에 본인만 남는다.
+    // 이 정리는 아레나 방장 칸 찌꺼기에만 쓴다.
+    if (clubId != 'c_1786973797931') return false;
     if (_isDemoSession || clubId.isEmpty) return false;
     if (AppDependencies.instance.isOfflineMockMode) return false;
     final accounts = _clubAccounts[clubId];
@@ -2977,9 +2980,20 @@ class ClubProvider extends ChangeNotifier with WidgetsBindingObserver {
   /// 카드에 적는 인원. 게스트를 포함한 활성 명단이다.
   /// 명단이 아직 없으면 저장된 숫자를 그대로 둔다.
   int activeHeadcount(String clubId) {
-    final n = membersForClub(clubId).where((m) => m.status == '활성').length;
-    if (n > 0) return n;
-    return _clubById(clubId)?.memberCount ?? 0;
+    final club = _clubById(clubId);
+    final seen = <String>{};
+    for (final m in membersForClub(clubId)) {
+      if (m.status != '활성') continue;
+      final key = OfficialMemberCount.personKey(
+        clubId: clubId,
+        creatorUserId: club?.creatorId ?? '',
+        memberId: m.id,
+      );
+      if (key.isEmpty) continue;
+      seen.add(key);
+    }
+    if (seen.isNotEmpty) return seen.length;
+    return club?.memberCount ?? 0;
   }
 
   /// 어드민·동기화용 — 특정 모임의 회원 목록

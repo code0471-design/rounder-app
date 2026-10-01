@@ -1651,16 +1651,9 @@ class ClubOpsSync {
       (u) => id == u || id.endsWith('_$u'),
     );
     if (!stolenName && !stolenUid) return false;
-    // 아레나는 방장 칸에 이름만 남은 찌꺼기다. 그 모임은 방장이 맞아도 뺀다.
-    if (clubId == 'c_1786973797931') return true;
-    // 알라딘은 장창현 본인 모임이다.
-    if (clubId == 'c_1789270673471') return false;
-    // 방장을 모르거나, 그 모임을 장창현이 만들었으면 명단에서 지우지 않는다.
-    // 예전에는 옛 알라딘 id 가 아니면 총무여도 지워서, 폰마다 회원 목록이 달랐다.
-    final creator = creatorUserId.trim();
-    if (creator.isEmpty) return false;
-    if (creator == 'kakao_5049673364') return false;
-    return true;
+    // 아레나 방장 칸에만 이름만 남은 찌꺼기다. 그 모임만 뺀다.
+    // 다른 모임에서 이름만 보고 지우면 총무가 정회원 폰에서 사라진다.
+    return clubId == 'c_1786973797931';
   }
 
   @visibleForTesting

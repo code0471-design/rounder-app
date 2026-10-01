@@ -35,7 +35,19 @@ void main() {
     );
   });
 
-  test('그 모임 회원이 아닌 찌꺼기는 회원수에 안 넣는다', () {
+  test('아레나 찌꺼기만 빼고 다른 모임 총무는 회원수에 넣는다', () {
+    const arena = 'c_1786973797931';
+    expect(
+      OfficialMemberCount.of(
+        clubId: arena,
+        creatorUserId: 'kakao_5049673364',
+        roster: [
+          _m('m_creator_$arena', '장창현'),
+          _m('m_${arena}_kakao_other', '다른회원'),
+        ],
+      ),
+      1,
+    );
     expect(
       OfficialMemberCount.of(
         clubId: clubId,
@@ -45,7 +57,7 @@ void main() {
           _m('m_${clubId}_kakao_5049673364', '장창현'),
         ],
       ),
-      1,
+      2,
     );
   });
 
