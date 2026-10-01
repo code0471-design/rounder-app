@@ -4174,16 +4174,30 @@ class ClubProvider extends ChangeNotifier with WidgetsBindingObserver {
       _schedules.cast<RoundSchedule?>().firstWhere(
           (s) => s?.id == id, orElse: () => null);
 
+  /// 참석을 명단 id로 저장하고 화면은 로그인 id로 찾으면 미답변으로 보인다.
+  bool _isMyAttendanceMemberId(String memberId) {
+    if (memberId.isEmpty) return false;
+    if (memberId == currentUserId) return true;
+    if (_persistAuthUserId != null &&
+        _userIdsMatch(memberId, _persistAuthUserId)) {
+      return true;
+    }
+    final me = currentMember;
+    if (me != null && memberId == me.id) return true;
+    if (_myClubs.isEmpty) return false;
+    return _isMyRosterRowFor(selectedClub, memberId);
+  }
+
   /// 현재 유저의 응답 조회
   AttendanceResponse? myResponse(String scheduleId) {
     final s = scheduleById(scheduleId);
     if (s == null) return null;
-    final myId = currentMember?.id ?? currentUserId;
-    try {
-      return s.responses.firstWhere((r) => r.memberId == myId);
-    } catch (_) {
-      return null;
+    AttendanceResponse? best;
+    for (final r in s.responses) {
+      if (!_isMyAttendanceMemberId(r.memberId)) continue;
+      if (best == null || r.respondedAt.isAfter(best.respondedAt)) best = r;
     }
+    return best;
   }
 
   /// 현재 유저의 대기 등록 상태 (waiting / notified)
@@ -7020,6 +7034,16 @@ class ClubProvider extends ChangeNotifier with WidgetsBindingObserver {
         me.name.trim() != _currentUserName.trim()) {
       return;
     }
+    final accountKorean = RegExp(r'[가-힣]').hasMatch(_currentUserName);
+    final rosterKorean = RegExp(r'[가-힣]').hasMatch(me.name);
+    // 계정은 한글인데 명단 줄만 영문이면, 화면이 둘을 번갈아 보여 준다.
+    if (accountKorean && !rosterKorean && !isPlaceholderMemberName(_currentUserName)) {
+      final idx = _members.indexWhere((m) => m.id == me.id);
+      if (idx >= 0 && _members[idx].name != _currentUserName) {
+        _members[idx] = _members[idx].copyWith(name: _currentUserName);
+      }
+      return;
+    }
     if (_currentUserName == me.name) return;
     _currentUserName = me.name;
   }
@@ -8520,15 +8544,17 @@ class ClubProvider extends ChangeNotifier with WidgetsBindingObserver {
     );
 
     unawaited(_clearLeftClubForApplicant(req.userId, req.clubId));
-    await _persistApprovedJoin(
-      request: _joinRequests[idx],
-      memberType: assignedType,
-      role: assignedRole,
-      approvedNoti: approvedNoti,
-    );
-
     notifyListeners();
     _persistImmediately();
+    // 서버 저장이 늘어지면 승인 버튼이 끝나지 않는다. 화면은 먼저 닫고 저장은 뒤에서 한다.
+    unawaited(
+      _persistApprovedJoin(
+        request: _joinRequests[idx],
+        memberType: assignedType,
+        role: assignedRole,
+        approvedNoti: approvedNoti,
+      ).timeout(const Duration(seconds: 12), onTimeout: () {}),
+    );
     return true;
   }
 

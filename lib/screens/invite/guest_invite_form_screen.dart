@@ -97,7 +97,11 @@ class _GuestInviteFormScreenState extends State<GuestInviteFormScreen> {
 
   @override
   Widget build(BuildContext context) {
-    final regularMembers = context.watch<ClubProvider>().regularMembers;
+    final regularMembers = context
+        .watch<ClubProvider>()
+        .membersForClub(widget.club.id)
+        .where((m) => m.status == '활성' && m.memberType != '게스트')
+        .toList();
 
     return Scaffold(
       backgroundColor: Colors.white,
@@ -192,20 +196,40 @@ class _GuestInviteFormScreenState extends State<GuestInviteFormScreen> {
               const Text('이 게스트를 데려온 정회원을 선택해 주세요',
                   style: TextStyle(fontSize: 11, color: AppColors.textSecondary)),
               const SizedBox(height: 8),
-              DropdownButtonFormField<Member>(
-                value: _referrer,
-                decoration: _deco('추천인을 선택하세요'),
-                dropdownColor: Colors.white,
-                items: regularMembers
-                    .map((m) => DropdownMenuItem(
-                          value: m,
-                          child: Text('${m.name} (${m.role})',
-                              style: const TextStyle(fontSize: 14)),
-                        ))
-                    .toList(),
-                onChanged: (v) => setState(() => _referrer = v),
-                validator: (v) => v == null ? '추천인을 선택하세요' : null,
-              ),
+              if (regularMembers.isEmpty)
+                Container(
+                  width: double.infinity,
+                  padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 14),
+                  decoration: BoxDecoration(
+                    color: const Color(0xFFF3F4F6),
+                    borderRadius: BorderRadius.circular(10),
+                  ),
+                  child: const Text(
+                    '이 모임 정회원을 아직 불러오지 못했습니다. 회원 탭을 연 뒤 다시 들어와 주세요.',
+                    style: TextStyle(fontSize: 13, color: AppColors.textSecondary),
+                  ),
+                )
+              else
+                DropdownButtonFormField<String>(
+                  value: regularMembers.any((m) => m.id == _referrer?.id)
+                      ? _referrer!.id
+                      : null,
+                  decoration: _deco('추천인을 선택하세요'),
+                  dropdownColor: Colors.white,
+                  items: regularMembers
+                      .map((m) => DropdownMenuItem(
+                            value: m.id,
+                            child: Text('${m.name} (${m.role})',
+                                style: const TextStyle(fontSize: 14)),
+                          ))
+                      .toList(),
+                  onChanged: (id) => setState(() {
+                    _referrer = regularMembers
+                        .where((m) => m.id == id)
+                        .firstOrNull;
+                  }),
+                  validator: (v) => v == null ? '추천인을 선택하세요' : null,
+                ),
               const SizedBox(height: 28),
 
               if (_sent) ...[
