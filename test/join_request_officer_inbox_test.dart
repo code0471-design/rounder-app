@@ -71,7 +71,12 @@ void main() {
 
   test('승인 모임은 신청한 그 모임이고 신청자 내 모임에도 붙는다', () {
     final src = read('lib/providers/club_provider.dart');
-    expect(src.contains('_updateMemberCount(req.clubId'), isTrue);
+    expect(
+      src.contains(
+        '_setMemberCount(req.clubId, _officialMemberCount(req.clubId))',
+      ),
+      isTrue,
+    );
     expect(src.contains('Member.rosterId(req.clubId, req.userId)'), isTrue);
     expect(src.contains('clubId: request.clubId'), isTrue);
     expect(src.contains('appendApplicantInbox'), isTrue);

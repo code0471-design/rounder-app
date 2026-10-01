@@ -46,4 +46,25 @@ void main() {
     expect(fn.contains('[가-힣]'), isTrue);
     expect(fn.contains('copyWith(name: _currentUserName)'), isTrue);
   });
+
+  test('다른 폰 일정 알림을 저장 중이라고 버리지 않는다', () {
+    final src = read('lib/providers/club_provider.dart');
+    expect(src.contains('_queuedWatchRemote = remote'), isTrue);
+    final watch = src.substring(
+      src.indexOf('void _watchSelectedClubOps()'),
+      src.indexOf('void _watchSelectedClubMembers()'),
+    );
+    expect(watch.contains('if (_applyingCloudOps) return;'), isFalse);
+  });
+
+  test('회원 수는 명단을 세고 폰마다 더하지 않는다', () {
+    final src = read('lib/providers/club_provider.dart');
+    final approve = src.substring(
+      src.indexOf('Future<bool> approveRequest('),
+      src.indexOf('Future<void> _persistApprovedJoin('),
+    );
+    expect(approve.contains('_updateMemberCount'), isFalse);
+    expect(approve.contains('_officialMemberCount'), isTrue);
+    expect(src.contains('실계정 회원수는 이 폰 명단을 센다'), isTrue);
+  });
 }

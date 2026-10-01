@@ -714,29 +714,12 @@ class ClubProvider extends ChangeNotifier with WidgetsBindingObserver {
     }
     _watchingClubId = clubId;
     ClubOpsSync.watchClub(clubId, (remote) {
-      if (_applyingCloudOps) return;
-      _applyingCloudOps = true;
-      _suppressPersist = true;
-      final beforeSig = _galleryWatchSignature();
-      try {
-        final merged = ClubOpsSync.applyRemoteSlice(
-          _exportBundle(),
-          clubId,
-          remote,
-        );
-        _importBundle(merged);
-        _syncNextRound(clubId);
-        unawaited(_hydrateRosterFromServer(clubId));
-      } catch (e) {
-        debugPrint('[ClubProvider] cloud watch apply fail: $e');
-      } finally {
-        _suppressPersist = false;
-        _applyingCloudOps = false;
-        // 사진·일정 등 갤러리 관련 내용이 같으면 통지 생략 → 깜빡임 감소
-        if (beforeSig != _galleryWatchSignature()) {
-          notifyListeners();
-        }
+      if (_applyingCloudOps) {
+        _queuedWatchClubId = clubId;
+        _queuedWatchRemote = remote;
+        return;
       }
+      _applyWatchedClubOps(clubId, remote);
     });
     _watchSelectedClubMembers();
   }
@@ -758,6 +741,48 @@ class ClubProvider extends ChangeNotifier with WidgetsBindingObserver {
     }, onError: (e) {
       debugPrint('[ClubProvider] watch members $clubId skip: $e');
     });
+  }
+
+  String? _queuedWatchClubId;
+  Map<String, dynamic>? _queuedWatchRemote;
+
+  /// 다른 폰이 일정·회원을 올리는 동안 이 폰이 저장 중이면
+  /// 그 알림을 버리면 그 폰에만 일정과 회원 수가 안 바뀐다.
+  void _applyWatchedClubOps(String clubId, Map<String, dynamic> remote) {
+    if (_applyingCloudOps) {
+      _queuedWatchClubId = clubId;
+      _queuedWatchRemote = remote;
+      return;
+    }
+    _applyingCloudOps = true;
+    _suppressPersist = true;
+    final beforeSig = _galleryWatchSignature();
+    try {
+      final merged = ClubOpsSync.applyRemoteSlice(
+        _exportBundle(),
+        clubId,
+        remote,
+      );
+      _importBundle(merged);
+      _syncNextRound(clubId);
+      _reconcileLiveMemberCounts();
+      unawaited(_hydrateRosterFromServer(clubId));
+    } catch (e) {
+      debugPrint('[ClubProvider] cloud watch apply fail: $e');
+    } finally {
+      _suppressPersist = false;
+      _applyingCloudOps = false;
+      if (beforeSig != _galleryWatchSignature()) {
+        notifyListeners();
+      }
+      final queuedId = _queuedWatchClubId;
+      final queued = _queuedWatchRemote;
+      _queuedWatchClubId = null;
+      _queuedWatchRemote = null;
+      if (queued != null && queuedId == clubId) {
+        _applyWatchedClubOps(clubId, queued);
+      }
+    }
   }
 
   String _galleryWatchSignature() {
@@ -782,8 +807,10 @@ class ClubProvider extends ChangeNotifier with WidgetsBindingObserver {
     final pointPart = _pointEvents.entries
         .map((e) => '${e.key}:${e.value.length}')
         .join(',');
+    final countPart =
+        _myClubs.map((c) => '${c.id}:${c.memberCount}').join(',');
     return '$photoPart|$schedPart|$duesPart|$waitPart|'
-        '$announcePart|$memberPart|$pointPart';
+        '$announcePart|$memberPart|$pointPart|$countPart';
   }
 
   static String _leftClubsPrefsKey(String authUserId) =>
@@ -1903,9 +1930,12 @@ class ClubProvider extends ChangeNotifier with WidgetsBindingObserver {
         changed = true;
       } else {
         final kept = _preferLocalMemberProfile(row, _members[idx], clubId);
-        if ((kept.photoUrl ?? '') != (_members[idx].photoUrl ?? '') ||
+        final roleChanged = kept.role != _members[idx].role ||
+            kept.memberType != _members[idx].memberType;
+        if (roleChanged ||
+            (kept.photoUrl ?? '') != (_members[idx].photoUrl ?? '') ||
             (kept.phone ?? '') != (_members[idx].phone ?? '')) {
-          _members[idx] = kept;
+          _members[idx] = kept.copyWith(name: _members[idx].name);
           changed = true;
         }
       }
@@ -2317,21 +2347,13 @@ class ClubProvider extends ChangeNotifier with WidgetsBindingObserver {
     }
   }
 
-  /// 데모 화면용. 실계정 회원수는 서버 멤버십 recount 만 쓴다.
+  /// 실계정 회원수는 이 폰 명단을 센다. 폰마다 +1 하면 같은 모임 숫자가 갈린다.
   void _reconcileLiveMemberCounts() {
-    if (!_isDemoSession) return;
-    final ids = <String>{
-      ..._confirmedClubIds,
-      ..._sessionCreatedClubIds,
-    };
-    for (final id in ids) {
-      if (_legacyMockClubIds.contains(id)) continue;
-      if (!_isOfficialMyClub(id)) continue;
-      final n = _officialMemberCount(id);
-      if (n <= 0) continue;
-      final mine = _myClubs.where((c) => c.id == id).firstOrNull;
-      if (mine?.memberCount == n) continue;
-      _setMemberCount(id, n);
+    for (final c in List<Club>.from(_myClubs)) {
+      if (_legacyMockClubIds.contains(c.id)) continue;
+      final n = _officialMemberCount(c.id);
+      if (n <= 0 || c.memberCount == n) continue;
+      _setMemberCount(c.id, n);
     }
   }
 
@@ -8507,8 +8529,7 @@ class ClubProvider extends ChangeNotifier with WidgetsBindingObserver {
         ?.removePendingJoinRequest(requestId);
     unawaited(SharedJoinRequestStore.remove(requestId));
 
-    // 해당 모임 memberCount 증가
-    _updateMemberCount(req.clubId, 1);
+    _setMemberCount(req.clubId, _officialMemberCount(req.clubId));
 
     // 활동 피드에 추가
     _activities.insert(0, ActivityItem(
@@ -8702,19 +8723,6 @@ class ClubProvider extends ChangeNotifier with WidgetsBindingObserver {
     notifyListeners();
     _persistImmediately();
     return true;
-  }
-
-  void _updateMemberCount(String clubId, int delta) {
-    final i1 = _myClubs.indexWhere((c) => c.id == clubId);
-    if (i1 != -1) {
-      _myClubs[i1] = _myClubs[i1].copyWith(
-          memberCount: _myClubs[i1].memberCount + delta);
-    }
-    final i2 = _allClubs.indexWhere((c) => c.id == clubId);
-    if (i2 != -1) {
-      _allClubs[i2] = _allClubs[i2].copyWith(
-          memberCount: _allClubs[i2].memberCount + delta);
-    }
   }
 
   // ════════════════════════════════════════════════════════
@@ -9309,7 +9317,7 @@ class ClubProvider extends ChangeNotifier with WidgetsBindingObserver {
     ClubOpsSync.markMemberRemoved(memberId);
 
     final targetClubId = clubId ?? selectedClub.id;
-    _updateMemberCount(targetClubId, -1);
+    _setMemberCount(targetClubId, _officialMemberCount(targetClubId));
 
     final club = _myClubs.where((c) => c.id == targetClubId).firstOrNull ??
         _allClubs.where((c) => c.id == targetClubId).firstOrNull;
