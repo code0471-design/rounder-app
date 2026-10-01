@@ -135,6 +135,8 @@ class ClubProvider extends ChangeNotifier with WidgetsBindingObserver {
   String? _accountGender;
   String? _accountPhone;
   String? _accountPhotoUrl;
+  String? _accountAddress;
+  String? _accountBio;
 
   String get currentUserId   => _currentUserId;
   String get currentUserName => _currentUserName;
@@ -9039,11 +9041,14 @@ class ClubProvider extends ChangeNotifier with WidgetsBindingObserver {
               _allClubs[allIdx].copyWith(myRole: roleEncoded);
         }
         syncAuthGolfProfile(
+          name: normalized.name,
           birthDate: normalized.birthDate,
           handicap: normalized.handicap,
           gender: normalized.gender,
           phone: normalized.phone,
           photoUrl: normalized.photoUrl,
+          address: normalized.address,
+          bio: normalized.bio,
         );
       }
       // 이름은 라벨이다. ID가 같은 회비·시상·참석 표시만 맞춘다. 새 행을 만들지 않는다.
@@ -9222,6 +9227,8 @@ class ClubProvider extends ChangeNotifier with WidgetsBindingObserver {
     String? gender,
     String? phone,
     String? photoUrl,
+    String? address,
+    String? bio,
   }) {
     final nextName = (name ?? '').trim();
     if (nextName.length >= 2) _currentUserName = nextName;
@@ -9230,13 +9237,19 @@ class ClubProvider extends ChangeNotifier with WidgetsBindingObserver {
     if (gender != null && gender.isNotEmpty) _accountGender = gender;
     if (phone != null && phone.trim().isNotEmpty) _accountPhone = phone.trim();
     if (photoUrl != null && photoUrl.isNotEmpty) _accountPhotoUrl = photoUrl;
+    if (address != null && address.trim().isNotEmpty) {
+      _accountAddress = address.trim();
+    }
+    if (bio != null && bio.trim().isNotEmpty) _accountBio = bio.trim();
 
     if (nextName.length < 2 &&
         birthDate == null &&
         handicap == null &&
         (gender == null || gender.isEmpty) &&
         (phone == null || phone.trim().isEmpty) &&
-        (photoUrl == null || photoUrl.isEmpty)) {
+        (photoUrl == null || photoUrl.isEmpty) &&
+        (address == null || address.trim().isEmpty) &&
+        (bio == null || bio.trim().isEmpty)) {
       return;
     }
     final authId = _persistAuthUserId;
@@ -9269,11 +9282,17 @@ class ClubProvider extends ChangeNotifier with WidgetsBindingObserver {
           : m.photoUrl;
       final nextBirth = birthDate ?? m.birthDate;
       final nextHandicap = handicap ?? m.handicap;
+      final nextAddress = (address != null && address.trim().isNotEmpty)
+          ? address.trim()
+          : m.address;
+      final nextBio = (bio != null && bio.trim().isNotEmpty) ? bio.trim() : m.bio;
       if (m.birthDate == nextBirth &&
           m.handicap == nextHandicap &&
           m.gender == nextGender &&
           m.phone == nextPhone &&
           m.photoUrl == nextPhoto &&
+          m.address == nextAddress &&
+          m.bio == nextBio &&
           (nextName.length < 2 || m.name == nextName)) {
         continue;
       }
@@ -9284,6 +9303,8 @@ class ClubProvider extends ChangeNotifier with WidgetsBindingObserver {
         gender: nextGender,
         phone: nextPhone,
         photoUrl: nextPhoto,
+        address: nextAddress,
+        bio: nextBio,
       );
       changed = true;
     }
@@ -9320,6 +9341,9 @@ class ClubProvider extends ChangeNotifier with WidgetsBindingObserver {
         phone: _accountPhone,
         birthDate: _accountBirthDate,
         handicap: _accountHandicap,
+        gender: _accountGender,
+        address: _accountAddress,
+        bio: _accountBio,
       ));
     }
   }

@@ -362,7 +362,11 @@ void main() {
       final club = _read('lib/providers/club_provider.dart');
       expect(club.contains('void syncAuthGolfProfile('), isTrue);
       final start = club.indexOf('void syncAuthGolfProfile(');
-      final fn = club.substring(start, start + 2800);
+      final end = club.indexOf(
+        'Future<void> _pushMyProfileToAllClubMemberDocs(',
+        start,
+      );
+      final fn = club.substring(start, end);
       expect(
         fn.contains('_persistImmediately'),
         isTrue,

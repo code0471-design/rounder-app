@@ -15,11 +15,11 @@ void main() {
         social: 'JeongwonLee',
         remote: 'Jeongwon Lee',
       ),
-      '이정원',
+      'Jeongwon Lee',
     );
     expect(
       AuthProvider.pickLoginDisplayName(social: 'Jeongwonleeee'),
-      '이정원',
+      'Jeongwonleeee',
     );
     expect(
       AuthProvider.isLeftoverEnglishDisplayName('Jeongwon Lee'),

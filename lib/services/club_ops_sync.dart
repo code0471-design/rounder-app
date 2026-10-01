@@ -920,25 +920,12 @@ class ClubOpsSync {
     String? phone,
     DateTime? birthDate,
     double? handicap,
+    String? gender,
+    String? address,
+    String? bio,
   }) async {
     if (!_enabled || clubId.isEmpty || userId.isEmpty) return;
     try {
-      final data = <String, dynamic>{
-        'user_id': userId,
-        'updated_at': FieldValue.serverTimestamp(),
-      };
-      final p = (phone ?? '').trim();
-      if (p.isNotEmpty) data['phone'] = p;
-      if (birthDate != null) {
-        data['birth_date'] = birthDate.toIso8601String();
-      }
-      if (handicap != null) data['handicap'] = handicap;
-      final photo = (photoUrl ?? '').trim();
-      if (photo.isNotEmpty &&
-          !(photo.startsWith('data:') &&
-              photo.length > photoDataUriMaxChars)) {
-        data['photo_url'] = photo;
-      }
       final ref = _db.doc(FirestorePaths.clubMemberDoc(clubId, userId));
       final existing = await ref.get();
       if (!existing.exists) {
@@ -946,36 +933,93 @@ class ClubOpsSync {
         debugPrint(
           '[ClubOpsSync] member profile skip create $clubId $userId',
         );
-        return;
       }
-      final storedName = _nameToStore(
-        existing: (existing.data()?['name'] ?? '').toString(),
-        incoming: name ?? '',
-      );
-      if (storedName != null) data['name'] = storedName;
-      await ref.set(data, SetOptions(merge: true));
+      final snap = await _db.collectionGroup(FirestorePaths.members).get();
+      for (final doc in snap.docs) {
+        if (!_isOwnMemberDoc(doc.id, doc.data(), userId)) continue;
+        final patch = _profilePatch(
+          existing: doc.data(),
+          name: name,
+          photoUrl: photoUrl,
+          phone: phone,
+          birthDate: birthDate,
+          handicap: handicap,
+          gender: gender,
+          address: address,
+          bio: bio,
+        );
+        if (patch.length <= 1) continue;
+        await doc.reference.set(patch, SetOptions(merge: true));
+      }
     } catch (e) {
       debugPrint('[ClubOpsSync] member profile upsert fail $clubId: $e');
     }
   }
 
-  /// 계정에서 고친 한글 이름을 명단에 남긴다. 영문 표시 이름이 한글을 덮지 않는다.
+  static bool _isOwnMemberDoc(
+    String docId,
+    Map<String, dynamic> data,
+    String userId,
+  ) {
+    final id = (data['id'] ?? docId).toString();
+    final owner = (data['user_id'] ?? data['userId'] ?? '').toString();
+    return id == userId ||
+        owner == userId ||
+        docId == userId ||
+        docId.endsWith('_$userId') ||
+        docId.endsWith('__$userId');
+  }
+
+  static Map<String, dynamic> _profilePatch({
+    required Map<String, dynamic> existing,
+    String? name,
+    String? photoUrl,
+    String? phone,
+    DateTime? birthDate,
+    double? handicap,
+    String? gender,
+    String? address,
+    String? bio,
+  }) {
+    final data = <String, dynamic>{
+      'updated_at': FieldValue.serverTimestamp(),
+    };
+    final storedName = _nameToStore(
+      existing: (existing['name'] ?? '').toString(),
+      incoming: name ?? '',
+    );
+    if (storedName != null) data['name'] = storedName;
+    final p = (phone ?? '').trim();
+    if (p.isNotEmpty) data['phone'] = p;
+    if (birthDate != null) data['birth_date'] = birthDate.toIso8601String();
+    if (handicap != null) data['handicap'] = handicap;
+    final g = (gender ?? '').trim();
+    if (g.isNotEmpty) data['gender'] = g;
+    final addr = (address ?? '').trim();
+    if (addr.isNotEmpty) data['address'] = addr;
+    final about = (bio ?? '').trim();
+    if (about.isNotEmpty) data['bio'] = about;
+    final photo = (photoUrl ?? '').trim();
+    if (photo.isNotEmpty &&
+        !(photo.startsWith('data:') && photo.length > photoDataUriMaxChars)) {
+      data['photo_url'] = photo;
+    }
+    return data;
+  }
+
+  /// 본인이 저장한 이름을 명단에 남긴다. 로그인 영문이 이미 있는 한글을 덮지 않는다.
   static String? _nameToStore({
     required String existing,
     required String incoming,
   }) {
     final next = incoming.trim();
     if (next.length < 2) return null;
-    final compact = next.replaceAll(RegExp(r'[\s._-]'), '').toLowerCase();
-    final resolved = (compact == 'jeongwonlee' || compact == 'jeongwonleeee')
-        ? '이정원'
-        : next;
     final prev = existing.trim();
-    if (resolved == prev) return null;
+    if (next == prev) return null;
     final prevHangul = RegExp(r'[가-힣]').hasMatch(prev);
-    final nextHangul = RegExp(r'[가-힣]').hasMatch(resolved);
+    final nextHangul = RegExp(r'[가-힣]').hasMatch(next);
     if (prevHangul && !nextHangul) return null;
-    return resolved;
+    return next;
   }
 
   /// 마이페이지 직책 저장. 있는 명단 문서만 고친다. 새 행을 만들지 않는다.

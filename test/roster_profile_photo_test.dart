@@ -156,6 +156,10 @@ void main() {
         reason: '영문 로그인 이름이 이미 있는 한글 이름을 덮으면 안 된다');
     expect(ops.contains('if (!existing.exists)'), isTrue,
         reason: '없는 명단 행을 만들면 어드민에만 kakao_ 회원이 생긴다');
+    expect(ops.contains("collectionGroup(FirestorePaths.members)"), isTrue,
+        reason: '계정 id 문서만 고치면 어드민이 보는 다른 명단 행은 예전 값으로 남는다');
+    expect(ops.contains("data['phone'] = p"), isTrue);
+    expect(ops.contains("data['gender'] = g"), isTrue);
     final clubs = File('lib/providers/club_provider.dart').readAsStringSync();
     expect(clubs.contains('_pushMyProfileToAllClubMemberDocs()'), isTrue);
     expect(clubs.contains('ClubOpsSync.upsertMemberProfile('), isTrue);
