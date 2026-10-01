@@ -2979,10 +2979,16 @@ class ClubProvider extends ChangeNotifier with WidgetsBindingObserver {
     final fresh = _freshClubIds.contains(clubId);
     final legacy = _legacyMockClubIds.contains(clubId);
     if (fresh || !legacy) {
+      final creator = (_clubById(clubId)?.creatorId ?? '').trim();
       return _members
-          .where((m) =>
-              m.id == 'm_creator_$clubId' ||
-              m.id.startsWith('m_${clubId}_'))
+          .where((m) {
+            if (m.id == 'm_creator_$clubId' ||
+                m.id.startsWith('m_${clubId}_')) {
+              return true;
+            }
+            // 생성자가 카카오 id 그대로 남아 있으면 회원 탭에서 빠진다.
+            return creator.isNotEmpty && m.id == creator;
+          })
           .map(withoutSeedDisplayName)
           .toList();
     }

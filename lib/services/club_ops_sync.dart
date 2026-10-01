@@ -84,9 +84,18 @@ class ClubOpsSync {
         // 초대 가입자가 자기 명단만 들고 올리면 기존 회원이 지워진다 → 합친다
         final localMembers = slice['members'] as List? ?? const [];
         final remoteMembers = remote['members'] as List? ?? const [];
+        final creatorForRoster = _creatorUserIdFromEncoded(full, clubId);
         slice['members'] = _mergeMembersById(
-          local: localMembers,
-          remote: remoteMembers,
+          local: assignClubRosterIds(
+            localMembers,
+            clubId: clubId,
+            creatorUserId: creatorForRoster,
+          ),
+          remote: assignClubRosterIds(
+            remoteMembers,
+            clubId: clubId,
+            creatorUserId: creatorForRoster,
+          ),
           remoteWins: false,
           clubCreatedAt: MemberJoinDate.createdAtFromClubId(clubId),
         );
@@ -1419,9 +1428,15 @@ class ClubOpsSync {
 
     // members: 합집합. 원격만 쓰면 초대 가입 직후 로컬 명단이 사라진다.
     // 단, 강퇴·탈퇴로 뺀 회원은 원격이 되살리지 못하게 tombstone 으로 막는다.
+    // 카카오 id 그대로인 행은 회원 탭 필터에 안 걸려, 폰마다 보이는 사람이 달랐다.
+    final rosterCreator = _creatorUserIdFromEncoded(encoded, clubId);
     encoded['members'] = _mergeMembersById(
       local: encoded['members'] as List? ?? const [],
-      remote: _asDynamicMaps(remote['members']),
+      remote: assignClubRosterIds(
+        _asDynamicMaps(remote['members']),
+        clubId: clubId,
+        creatorUserId: rosterCreator,
+      ),
       remoteWins: true,
       clubCreatedAt: MemberJoinDate.createdAtFromClubId(clubId),
     );
@@ -1636,8 +1651,15 @@ class ClubOpsSync {
       (u) => id == u || id.endsWith('_$u'),
     );
     if (!stolenName && !stolenUid) return false;
-    // 알라딘만 장창현 본인 모임. 방장 자리여도 다른 모임이면 찌꺼기다.
+    // 아레나는 방장 칸에 이름만 남은 찌꺼기다. 그 모임은 방장이 맞아도 뺀다.
+    if (clubId == 'c_1786973797931') return true;
+    // 알라딘은 장창현 본인 모임이다.
     if (clubId == 'c_1789270673471') return false;
+    // 방장을 모르거나, 그 모임을 장창현이 만들었으면 명단에서 지우지 않는다.
+    // 예전에는 옛 알라딘 id 가 아니면 총무여도 지워서, 폰마다 회원 목록이 달랐다.
+    final creator = creatorUserId.trim();
+    if (creator.isEmpty) return false;
+    if (creator == 'kakao_5049673364') return false;
     return true;
   }
 
@@ -1813,6 +1835,52 @@ class ClubOpsSync {
       }
     }
     return '';
+  }
+
+  /// 이 모임 문서에 있는 회원은 회원 탭이 알아보는 id 로 맞춘다.
+  /// 카카오 uid 그대로면 `membersForClub` 이 빼서, 그 폰에는 본인만 보인다.
+  @visibleForTesting
+  static List<dynamic> assignClubRosterIds(
+    List members, {
+    required String clubId,
+    required String creatorUserId,
+  }) {
+    final creator = creatorUserId.trim();
+    return [
+      for (final e in members)
+        if (e is! Map)
+          e
+        else
+          _withClubRosterId(Map<String, dynamic>.from(e), clubId, creator),
+    ];
+  }
+
+  static Map<String, dynamic> _withClubRosterId(
+    Map<String, dynamic> member,
+    String clubId,
+    String creator,
+  ) {
+    final raw = '${member['id'] ?? ''}'.trim();
+    if (raw.isEmpty || Member.isClubRosterId(clubId, raw)) return member;
+    final account = _embeddedAccountId(raw);
+    final uid = (account ?? raw).trim();
+    if (uid.isEmpty) return member;
+    if (creator.isNotEmpty && uid == creator) {
+      member['id'] = 'm_creator_$clubId';
+      return member;
+    }
+    if (account == null &&
+        (raw.startsWith('m_creator_') || raw.startsWith('m_c_'))) {
+      return member;
+    }
+    member['id'] = Member.rosterId(clubId, uid);
+    return member;
+  }
+
+  static String? _embeddedAccountId(String raw) {
+    final match =
+        RegExp(r'(kakao_|google_|apple_)[A-Za-z0-9._-]+$').firstMatch(raw);
+    return match?.group(0);
   }
 
   /// 운영 번들에 카카오 uid 로 남은 생성자 행을 명단 필터 id 로 맞춘다.

@@ -1444,6 +1444,26 @@ void main() {
       isTrue,
       reason: '아레나 방장 자리에 남은 장창현은 찌꺼기다',
     );
+    expect(
+      ClubOpsSync.isForeignLeftoverMember(
+        id: 'm_creator_c_new_aladdin',
+        name: '장창현',
+        clubId: 'c_new_aladdin',
+        creatorUserId: 'kakao_5049673364',
+      ),
+      isFalse,
+      reason: '새로 만든 모임의 방장 장창현까지 지우면 정회원 폰에는 본인만 남는다',
+    );
+    final shown = ClubOpsSync.assignClubRosterIds(
+      [
+        {'id': 'kakao_5049673364', 'name': '장창현', 'role': '총무'},
+        {'id': 'kakao_me', 'name': '안경헌', 'role': '정회원'},
+      ],
+      clubId: 'c_new_aladdin',
+      creatorUserId: 'kakao_5049673364',
+    );
+    expect(shown[0]['id'], 'm_creator_c_new_aladdin');
+    expect(shown[1]['id'], 'm_c_new_aladdin_kakao_me');
 
     final kept = ClubOpsSync.dropForeignLeftoverMembers(
       members: [
