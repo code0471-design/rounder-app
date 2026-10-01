@@ -2974,6 +2974,14 @@ class ClubProvider extends ChangeNotifier with WidgetsBindingObserver {
     );
   }
 
+  /// 카드에 적는 인원. 게스트를 포함한 활성 명단이다.
+  /// 명단이 아직 없으면 저장된 숫자를 그대로 둔다.
+  int activeHeadcount(String clubId) {
+    final n = membersForClub(clubId).where((m) => m.status == '활성').length;
+    if (n > 0) return n;
+    return _clubById(clubId)?.memberCount ?? 0;
+  }
+
   /// 어드민·동기화용 — 특정 모임의 회원 목록
   List<Member> membersForClub(String clubId) {
     final fresh = _freshClubIds.contains(clubId);

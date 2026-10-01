@@ -81,12 +81,14 @@ class _ClubListDashboardScreenState extends State<ClubListDashboardScreen> {
 
     return Consumer<ClubListController>(
       builder: (context, controller, _) {
-        // Firestore 탐색 + 내 모임. 같은 id면 서버 이름이 이기고, 로컬만 있는 모임도 빠지지 않는다.
+        // 앱 시작 때 받아 둔 전체 목록을 먼저 그린다.
+        // 재조회가 비어 있는 동안 내 모임만 그리면 몇 초 뒤에 나머지가 붙는다.
+        // 재조회가 오면 그 값이 같은 id를 덮는다.
         final byId = <String, Club>{
+          for (final c in legacyProvider.allClubs)
+            ClubProvider.legacyClubIdFor(c.id): c,
           for (final c in controller.clubs)
             ClubProvider.legacyClubIdFor(c.id): c,
-          if (AppDependencies.instance.isOfflineMockMode)
-            for (final c in legacyProvider.allClubs) c.id: c,
         };
         for (final c in legacyProvider.myClubs) {
           if (legacyProvider.hasLeftClub(c.id)) continue;
@@ -337,6 +339,9 @@ class _ClubListCard extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final intro = club.description.trim();
+    final headcount = isMine
+        ? context.watch<ClubProvider>().activeHeadcount(club.id)
+        : club.memberCount;
     return GestureDetector(
       onTap: onTap,
       child: Container(
@@ -382,7 +387,7 @@ class _ClubListCard extends StatelessWidget {
                   ),
                   const SizedBox(height: 6),
                   Text(
-                    '${club.region} · ${club.industry} · ${club.memberCount}명',
+                    '${club.region} · ${club.industry} · $headcount명',
                     style: const TextStyle(
                       fontSize: 12,
                       color: AppColors.textSecondary,

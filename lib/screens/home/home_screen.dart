@@ -1050,6 +1050,7 @@ class _GroupCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final headcount = context.watch<ClubProvider>().activeHeadcount(club.id);
     // D-day
     final days = club.daysUntilNextRound;
     final dDayText = days < 0 ? '일정 없음' : days == 0 ? 'D-Day!' : 'D-$days';
@@ -1104,7 +1105,7 @@ class _GroupCard extends StatelessWidget {
                                 color: AppColors.ink, height: 1.15)),
                         // 지역·업종·인원
                         const SizedBox(height: 2),
-                        Text('${club.region} · ${club.industry} · ${club.memberCount}명',
+                        Text('${club.region} · ${club.industry} · $headcount명',
                             style: const TextStyle(
                                 fontSize: 10, color: AppColors.inkSoft,
                                 letterSpacing: 0.02 * 10)),

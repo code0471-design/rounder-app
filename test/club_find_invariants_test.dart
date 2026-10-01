@@ -31,23 +31,32 @@ void main() {
     expect(dash.contains('size: 64'), isTrue);
   });
 
-  test('모임찾기 회원수는 서버 멤버십 recount 만 쓰고 폰 명단으로 덮지 않는다', () {
+  test('모임찾기 회원수는 서버 명단을 세고 폰 숫자로 덮지 않는다', () {
     final provider = _read('lib/providers/club_provider.dart');
     final catalog = _read(
         'lib/data/datasources/firestore/firestore_club_datasource.dart');
     final join = _read(
         'lib/data/datasources/firestore/firestore_join_request_datasource.dart');
+    final count = _read(
+        'lib/data/datasources/firestore/firestore_membership_count.dart');
     expect(provider.contains('_pushClubCatalogToServer(clubId, memberCount:'),
         isFalse);
     expect(catalog.contains("'member_count': FieldValue.increment"), isFalse);
     expect(join.contains("'member_count': FieldValue.increment"), isFalse);
     expect(catalog.contains('recountClubMemberCount'), isTrue);
     expect(join.contains('recountClubMemberCount'), isTrue);
-    expect(
-      _read('lib/data/datasources/firestore/firestore_membership_count.dart')
-          .contains("where('club_id', isEqualTo: clubId)"),
-      isTrue,
-    );
+    expect(count.contains("collection(FirestorePaths.members)"), isTrue);
+    expect(count.contains("where('club_id', isEqualTo: clubId)"), isTrue);
+    expect(provider.contains('int activeHeadcount('), isTrue);
+  });
+
+  test('모임찾기는 재조회 전에도 받아 둔 전체 목록을 그린다', () {
+    final dash =
+        _read('lib/features/clubs/presentation/club_list_dashboard_screen.dart');
+    expect(dash.contains('for (final c in legacyProvider.allClubs)'), isTrue);
+    expect(dash.contains('activeHeadcount(club.id)'), isTrue);
+    final home = _read('lib/screens/home/home_screen.dart');
+    expect(home.contains('activeHeadcount(club.id)'), isTrue);
   });
 
   test('모임찾기는 내 모임을 포함한다', () {
