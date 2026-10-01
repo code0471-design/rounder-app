@@ -2319,6 +2319,7 @@ class _AccountSettingsTabState extends State<_AccountSettingsTab> {
                         profileImageUrl: photoDataUrl,
                       );
                       provider.syncAuthGolfProfile(
+                        name: newName.isNotEmpty ? newName : null,
                         birthDate: selectedBirth,
                         handicap: newHandicap,
                         gender: selectedGender,

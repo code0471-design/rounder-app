@@ -915,6 +915,7 @@ class ClubOpsSync {
   static Future<void> upsertMemberProfile({
     required String clubId,
     required String userId,
+    String? name,
     String? photoUrl,
     String? phone,
     DateTime? birthDate,
@@ -947,10 +948,34 @@ class ClubOpsSync {
         );
         return;
       }
+      final storedName = _nameToStore(
+        existing: (existing.data()?['name'] ?? '').toString(),
+        incoming: name ?? '',
+      );
+      if (storedName != null) data['name'] = storedName;
       await ref.set(data, SetOptions(merge: true));
     } catch (e) {
       debugPrint('[ClubOpsSync] member profile upsert fail $clubId: $e');
     }
+  }
+
+  /// 계정에서 고친 한글 이름을 명단에 남긴다. 영문 표시 이름이 한글을 덮지 않는다.
+  static String? _nameToStore({
+    required String existing,
+    required String incoming,
+  }) {
+    final next = incoming.trim();
+    if (next.length < 2) return null;
+    final compact = next.replaceAll(RegExp(r'[\s._-]'), '').toLowerCase();
+    final resolved = (compact == 'jeongwonlee' || compact == 'jeongwonleeee')
+        ? '이정원'
+        : next;
+    final prev = existing.trim();
+    if (resolved == prev) return null;
+    final prevHangul = RegExp(r'[가-힣]').hasMatch(prev);
+    final nextHangul = RegExp(r'[가-힣]').hasMatch(resolved);
+    if (prevHangul && !nextHangul) return null;
+    return resolved;
   }
 
   /// 마이페이지 직책 저장. 있는 명단 문서만 고친다. 새 행을 만들지 않는다.

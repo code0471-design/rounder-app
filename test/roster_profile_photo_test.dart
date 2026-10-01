@@ -150,7 +150,10 @@ void main() {
 
   test('계정 프로필은 모든 모임 명단 문서에 같이 쓴다', () {
     final ops = File('lib/services/club_ops_sync.dart').readAsStringSync();
-    expect(ops.contains('static Future<void> upsertMemberProfile('), isTrue);
+    expect(ops.contains("data['name'] = storedName"), isTrue,
+        reason: '이름을 안 쓰면 어드민은 예전 영문 이름을 계속 보여 준다');
+    expect(ops.contains('prevHangul && !nextHangul'), isTrue,
+        reason: '영문 로그인 이름이 이미 있는 한글 이름을 덮으면 안 된다');
     expect(ops.contains('if (!existing.exists)'), isTrue,
         reason: '없는 명단 행을 만들면 어드민에만 kakao_ 회원이 생긴다');
     final clubs = File('lib/providers/club_provider.dart').readAsStringSync();

@@ -9216,19 +9216,23 @@ class ClubProvider extends ChangeNotifier with WidgetsBindingObserver {
   }
 
   void syncAuthGolfProfile({
+    String? name,
     DateTime? birthDate,
     double? handicap,
     String? gender,
     String? phone,
     String? photoUrl,
   }) {
+    final nextName = (name ?? '').trim();
+    if (nextName.length >= 2) _currentUserName = nextName;
     if (birthDate != null) _accountBirthDate = birthDate;
     if (handicap != null) _accountHandicap = handicap;
     if (gender != null && gender.isNotEmpty) _accountGender = gender;
     if (phone != null && phone.trim().isNotEmpty) _accountPhone = phone.trim();
     if (photoUrl != null && photoUrl.isNotEmpty) _accountPhotoUrl = photoUrl;
 
-    if (birthDate == null &&
+    if (nextName.length < 2 &&
+        birthDate == null &&
         handicap == null &&
         (gender == null || gender.isEmpty) &&
         (phone == null || phone.trim().isEmpty) &&
@@ -9269,10 +9273,12 @@ class ClubProvider extends ChangeNotifier with WidgetsBindingObserver {
           m.handicap == nextHandicap &&
           m.gender == nextGender &&
           m.phone == nextPhone &&
-          m.photoUrl == nextPhoto) {
+          m.photoUrl == nextPhoto &&
+          (nextName.length < 2 || m.name == nextName)) {
         continue;
       }
       _members[i] = m.copyWith(
+        name: nextName.length >= 2 ? nextName : m.name,
         birthDate: nextBirth,
         handicap: nextHandicap,
         gender: nextGender,
@@ -9309,6 +9315,7 @@ class ClubProvider extends ChangeNotifier with WidgetsBindingObserver {
       unawaited(ClubOpsSync.upsertMemberProfile(
         clubId: club.id,
         userId: uid,
+        name: _currentUserName,
         photoUrl: _accountPhotoUrl,
         phone: _accountPhone,
         birthDate: _accountBirthDate,
