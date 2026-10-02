@@ -133,31 +133,32 @@ class MemberDetailScreen extends StatelessWidget {
   }
 
   Widget _buildProfileHeaderCard(BuildContext context) {
-    // 예전엔 96px 그라데이션 배너 + 그 위에 겹친 아바타 + 52px 여백이라
-    // 이름이 화면 한참 아래에서 시작했다. 가로 한 줄로 접는다.
+    final phone = member.phone?.trim() ?? '';
     return Container(
           margin: const EdgeInsets.fromLTRB(16, 0, 16, 0),
-          padding: const EdgeInsets.all(16),
+          padding: const EdgeInsets.fromLTRB(18, 22, 18, 20),
           decoration: BoxDecoration(
             color: Colors.white,
-            borderRadius: BorderRadius.circular(14),
-            border: Border.all(color: const Color(0xFFE5E7EB)),
-            boxShadow: [
-              BoxShadow(
-                color: Colors.black.withValues(alpha: 0.04),
-                blurRadius: 8,
-                offset: const Offset(0, 2),
-              ),
-            ],
+            borderRadius: BorderRadius.circular(18),
+            border: Border.all(color: AppColors.cardLine, width: 1.5),
           ),
-          child: Row(
+          child: Column(
             children: [
               Stack(
                 clipBehavior: Clip.none,
                 children: [
                   GestureDetector(
                     onTap: () => _openPhotoViewer(context),
-                    child: _buildAvatar(radius: 34, fontSize: 22),
+                    child: Container(
+                      padding: const EdgeInsets.all(3),
+                      decoration: const BoxDecoration(
+                        shape: BoxShape.circle,
+                        border: Border.fromBorderSide(
+                          BorderSide(color: AppColors.accent, width: 2),
+                        ),
+                      ),
+                      child: _buildAvatar(radius: 38, fontSize: 26),
+                    ),
                   ),
                   if (member.status == '활성' &&
                       member.id == provider.currentUserId)
@@ -183,50 +184,41 @@ class MemberDetailScreen extends StatelessWidget {
                     ),
                 ],
               ),
-              const SizedBox(width: 14),
-              Expanded(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Row(
-                      children: [
-                        Flexible(
-                          child: Text(
-                            member.name,
-                            maxLines: 1,
-                            overflow: TextOverflow.ellipsis,
-                            style: const TextStyle(
-                              color: AppColors.ink,
-                              fontSize: 20,
-                              fontWeight: FontWeight.w800,
-                            ),
-                          ),
-                        ),
-                        if (member.status == '탈퇴') ...[
-                          const SizedBox(width: 8),
-                          _StatusBadge(
-                              label: '탈퇴', color: AppColors.danger),
-                        ],
-                      ],
-                    ),
-                    const SizedBox(height: 8),
-                    Wrap(
-                      spacing: 6,
-                      runSpacing: 6,
-                      children: [
-                        if (ClubMemberRole.isOfficer(member.role))
-                          _ChipBadge(
-                              label: member.role,
-                              bg: const Color(0xFFFFE8E2),
-                              fg: const Color(0xFF1E1B4B)),
-                        _ChipBadge(
-                            label: member.memberType,
-                            bg: AppColors.surfaceVariant,
-                            fg: AppColors.textSecondary),
-                      ],
-                    ),
-                  ],
+              const SizedBox(height: 12),
+              Text(
+                member.name,
+                textAlign: TextAlign.center,
+                style: const TextStyle(
+                  color: AppColors.ink,
+                  fontSize: 22,
+                  fontWeight: FontWeight.w800,
+                  height: 1.15,
+                  letterSpacing: -0.4,
                 ),
+              ),
+              const SizedBox(height: 10),
+              Wrap(
+                alignment: WrapAlignment.center,
+                spacing: 6,
+                runSpacing: 6,
+                children: [
+                  if (ClubMemberRole.isOfficer(member.role))
+                    _ChipBadge(
+                        label: member.role,
+                        bg: AppColors.accentSoft,
+                        fg: AppColors.goldDeep),
+                  _ChipBadge(
+                      label: member.memberType,
+                      bg: AppColors.surfaceVariant,
+                      fg: AppColors.textSecondary),
+                  if (phone.isNotEmpty)
+                    _ChipBadge(
+                        label: phone,
+                        bg: AppColors.surfaceVariant,
+                        fg: AppColors.textSecondary),
+                  if (member.status == '탈퇴')
+                    _StatusBadge(label: '탈퇴', color: AppColors.danger),
+                ],
               ),
             ],
           ),
@@ -242,8 +234,8 @@ class MemberDetailScreen extends StatelessWidget {
       padding: const EdgeInsets.symmetric(vertical: 16),
       decoration: BoxDecoration(
         color: Colors.white,
-        borderRadius: BorderRadius.circular(14),
-        border: Border.all(color: const Color(0xFFE5E7EB)),
+        borderRadius: BorderRadius.circular(18),
+        border: Border.all(color: AppColors.cardLine, width: 1.5),
         boxShadow: [
           BoxShadow(
             color: Colors.black.withValues(alpha: 0.04),
@@ -882,8 +874,8 @@ class _Card extends StatelessWidget {
       margin: const EdgeInsets.symmetric(horizontal: 16),
       decoration: BoxDecoration(
         color: Colors.white,
-        borderRadius: BorderRadius.circular(14),
-        border: Border.all(color: const Color(0xFFE5E7EB)),
+        borderRadius: BorderRadius.circular(18),
+        border: Border.all(color: AppColors.cardLine, width: 1.5),
         boxShadow: [
           BoxShadow(
             color: Colors.black.withValues(alpha: 0.04),
@@ -899,7 +891,7 @@ class _Card extends StatelessWidget {
             padding: const EdgeInsets.fromLTRB(16, 14, 16, 10),
             child: Row(
               children: [
-                Icon(icon, size: 16, color: const Color(0xFF1E1B4B)),
+                Icon(icon, size: 16, color: AppColors.charcoal),
                 const SizedBox(width: 6),
                 Text(
                   title,

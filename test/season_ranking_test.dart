@@ -56,6 +56,7 @@ void main() {
     expect(src.contains("'올해 랭킹'"), isTrue);
     expect(src.contains("'자세히 보기'"), isTrue);
     expect(src.contains('_showPointHistoryPopup'), isTrue);
+    expect(src.contains('Divider(height: 1, color: Color(0xFFB4B8C0))'), isTrue);
     expect(src.contains('_showFullRankingSheet(provider)'), isTrue);
     expect(src.contains("'임원만 가능합니다'"), isTrue);
     expect(src.contains('SeasonRanking.closeConfirmMessage'), isTrue);

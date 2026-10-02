@@ -133,9 +133,10 @@ class _MemberFormScreenState extends State<MemberFormScreen> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      backgroundColor: AppColors.background,
+      backgroundColor: AppColors.cream,
       appBar: AppBar(
-        backgroundColor: AppColors.primaryDark,
+        backgroundColor: AppColors.cream,
+        foregroundColor: AppColors.ink,
         toolbarHeight: 48,
         scrolledUnderElevation: 0,
         centerTitle: true,
@@ -144,17 +145,17 @@ class _MemberFormScreenState extends State<MemberFormScreen> {
         title: Text(
           _isEdit ? '회원 수정' : '회원 등록',
           style: const TextStyle(
-              fontWeight: FontWeight.bold, color: Colors.white),
+              fontWeight: FontWeight.w600, color: AppColors.ink, fontSize: 17),
         ),
-        iconTheme: const IconThemeData(color: Colors.white),
+        iconTheme: const IconThemeData(color: AppColors.ink),
         actions: [
           TextButton(
             onPressed: _save,
             child: const Text(
               '저장',
               style: TextStyle(
-                color: Colors.white,
-                fontWeight: FontWeight.bold,
+                color: AppColors.ink,
+                fontWeight: FontWeight.w700,
                 fontSize: 15,
               ),
             ),
@@ -248,21 +249,30 @@ class _MemberFormScreenState extends State<MemberFormScreen> {
     return Center(
       child: Stack(
         children: [
-          CircleAvatar(
-            radius: 50,
-            backgroundColor: AppColors.primary.withValues(alpha: 0.15),
-            backgroundImage: img,
-            onBackgroundImageError: img == null ? null : (_, __) {},
-            child: img == null
-                ? Text(
-                    initial,
-                    style: const TextStyle(
-                      fontSize: 36,
-                      fontWeight: FontWeight.bold,
-                      color: AppColors.primary,
-                    ),
-                  )
-                : null,
+          Container(
+            padding: const EdgeInsets.all(3),
+            decoration: const BoxDecoration(
+              shape: BoxShape.circle,
+              border: Border.fromBorderSide(
+                BorderSide(color: AppColors.accent, width: 2),
+              ),
+            ),
+            child: CircleAvatar(
+              radius: 48,
+              backgroundColor: AppColors.cream2,
+              backgroundImage: img,
+              onBackgroundImageError: img == null ? null : (_, __) {},
+              child: img == null
+                  ? Text(
+                      initial,
+                      style: const TextStyle(
+                        fontSize: 32,
+                        fontWeight: FontWeight.w700,
+                        color: AppColors.charcoal,
+                      ),
+                    )
+                  : null,
+            ),
           ),
           Positioned(
             bottom: 0,
@@ -272,7 +282,7 @@ class _MemberFormScreenState extends State<MemberFormScreen> {
               child: Container(
                 padding: const EdgeInsets.all(6),
                 decoration: const BoxDecoration(
-                  color: AppColors.primary,
+                  color: AppColors.charcoal,
                   shape: BoxShape.circle,
                 ),
                 child: const Icon(Icons.camera_alt,
@@ -525,18 +535,18 @@ class _MemberFormScreenState extends State<MemberFormScreen> {
                   label: Text(o.$2),
                   selected: selected,
                   onSelected: (_) => _toggleRole(o.$1),
-                  selectedColor: AppColors.primary.withValues(alpha: 0.15),
-                  checkmarkColor: AppColors.primary,
+                  selectedColor: AppColors.charcoal.withValues(alpha: 0.15),
+                  checkmarkColor: AppColors.charcoal,
                   labelStyle: TextStyle(
                     fontSize: 13,
                     fontWeight:
                         selected ? FontWeight.w700 : FontWeight.w500,
                     color: selected
-                        ? AppColors.primary
+                        ? AppColors.charcoal
                         : AppColors.textPrimary,
                   ),
                   side: BorderSide(
-                    color: selected ? AppColors.primary : AppColors.divider,
+                    color: selected ? AppColors.charcoal : AppColors.divider,
                   ),
                   backgroundColor: Colors.white,
                 );
@@ -593,7 +603,7 @@ class _MemberFormScreenState extends State<MemberFormScreen> {
     return ElevatedButton(
       onPressed: _save,
       style: ElevatedButton.styleFrom(
-        backgroundColor: AppColors.primary,
+        backgroundColor: AppColors.charcoal,
         foregroundColor: Colors.white,
         minimumSize: const Size(double.infinity, 50),
         shape:
@@ -626,7 +636,7 @@ class _MemberFormScreenState extends State<MemberFormScreen> {
       builder: (ctx, child) => Theme(
         data: Theme.of(ctx).copyWith(
           colorScheme: const ColorScheme.light(
-            primary: AppColors.primary,
+            primary: AppColors.charcoal,
             onPrimary: Colors.white,
             onSurface: AppColors.textPrimary,
           ),
@@ -673,9 +683,9 @@ class _SectionTitle extends StatelessWidget {
         title,
         style: const TextStyle(
           fontSize: 13,
-          fontWeight: FontWeight.bold,
-          color: AppColors.textSecondary,
-          letterSpacing: 0.3,
+          fontWeight: FontWeight.w600,
+          color: AppColors.ink,
+          letterSpacing: 0.2,
         ),
       ),
     );
@@ -691,14 +701,8 @@ class _FormCard extends StatelessWidget {
     return Container(
       decoration: BoxDecoration(
         color: Colors.white,
-        borderRadius: BorderRadius.circular(10),
-        boxShadow: [
-          BoxShadow(
-            color: Colors.black.withValues(alpha: 0.04),
-            blurRadius: 4,
-            offset: const Offset(0, 1),
-          ),
-        ],
+        borderRadius: BorderRadius.circular(16),
+        border: Border.all(color: AppColors.cardLine, width: 1.5),
       ),
       child: child,
     );
@@ -724,12 +728,12 @@ class _ToggleChip extends StatelessWidget {
             const EdgeInsets.symmetric(horizontal: 16, vertical: 6),
         decoration: BoxDecoration(
           color: selected
-              ? AppColors.primary
+              ? AppColors.charcoal
               : AppColors.background,
           borderRadius: BorderRadius.circular(20),
           border: Border.all(
             color:
-                selected ? AppColors.primary : AppColors.divider,
+                selected ? AppColors.charcoal : AppColors.divider,
           ),
         ),
         child: Text(

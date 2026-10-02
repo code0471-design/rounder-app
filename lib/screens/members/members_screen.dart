@@ -647,25 +647,61 @@ class _MembersScreenState extends State<MembersScreen>
     showDialog<void>(
       context: context,
       builder: (ctx) => AlertDialog(
-        title: Text('$name'),
-        content: events.isEmpty
-            ? Text(SeasonRanking.historyEmptyMessage(year))
-            : SizedBox(
-                width: double.maxFinite,
-                child: ListView(
-                  shrinkWrap: true,
-                  children: [
-                    for (final e in events)
-                      Padding(
-                        padding: const EdgeInsets.symmetric(vertical: 6),
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+        titlePadding: const EdgeInsets.fromLTRB(20, 20, 20, 0),
+        contentPadding: const EdgeInsets.fromLTRB(20, 12, 20, 8),
+        title: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text(
+              '$name 포인트 내역',
+              style: const TextStyle(fontSize: 17, fontWeight: FontWeight.w600),
+            ),
+            const SizedBox(height: 4),
+            Text(
+              '$year년',
+              style: const TextStyle(
+                  fontSize: 12, color: AppColors.textSecondary),
+            ),
+          ],
+        ),
+        content: SizedBox(
+          width: double.maxFinite,
+          child: events.isEmpty
+              ? Padding(
+                  padding: const EdgeInsets.symmetric(vertical: 16),
+                  child: Text(
+                    SeasonRanking.historyEmptyMessage(year),
+                    style: const TextStyle(
+                        fontSize: 14, color: AppColors.textSecondary),
+                  ),
+                )
+              : ConstrainedBox(
+                  constraints: const BoxConstraints(maxHeight: 360),
+                  child: ListView.separated(
+                    shrinkWrap: true,
+                    itemCount: events.length,
+                    separatorBuilder: (_, __) =>
+                        const Divider(height: 1, color: Color(0xFFB4B8C0)),
+                    itemBuilder: (_, i) {
+                      final e = events[i];
+                      final plus = e.points > 0;
+                      return Padding(
+                        padding: const EdgeInsets.symmetric(vertical: 10),
                         child: Text(
                           SeasonRanking.historyLine(e),
-                          style: const TextStyle(fontSize: 14, height: 1.4),
+                          style: TextStyle(
+                            fontSize: 14,
+                            fontWeight: FontWeight.w600,
+                            height: 1.35,
+                            color: plus ? AppColors.ink : AppColors.danger,
+                          ),
                         ),
-                      ),
-                  ],
+                      );
+                    },
+                  ),
                 ),
-              ),
+        ),
         actions: [
           TextButton(
             onPressed: () => Navigator.pop(ctx),

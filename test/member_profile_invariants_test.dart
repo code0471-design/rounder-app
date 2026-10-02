@@ -676,8 +676,9 @@ void main() {
       expect(detail.contains('height: 96,'), isFalse);
       expect(detail.contains('const SizedBox(height: 52),'), isFalse);
       expect(detail.contains('Positioned(\n                top: 56,'), isFalse);
-      // 아바타와 이름이 가로 한 줄에 온다.
-      expect(detail.contains('_buildAvatar(radius: 34, fontSize: 22)'), isTrue);
+      // 원클럽처럼 골드 링 아바타를 카드 가운데에 둔다.
+      expect(detail.contains('_buildAvatar(radius: 38, fontSize: 26)'), isTrue);
+      expect(detail.contains('AppColors.accent'), isTrue);
     });
 
     test('사진 변경이 URL 입력이 아니라 갤러리 선택이다', () {
@@ -733,6 +734,9 @@ void main() {
       final transfer =
           _read('lib/screens/members/treasurer_transfer_screen.dart');
       expect(form.contains('toolbarHeight: 48'), isTrue);
+      expect(form.contains('backgroundColor: AppColors.cream'), isTrue);
+      expect(form.contains('AppColors.primaryDark'), isFalse);
+      expect(form.contains('AppColors.primary'), isFalse);
       expect(transfer.contains('toolbarHeight: 48'), isTrue);
     });
   });
