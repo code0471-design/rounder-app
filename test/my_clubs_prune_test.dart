@@ -170,6 +170,8 @@ void main() {
     expect(body.contains('_clubRosterHasMyPhone(c.id)'), isFalse,
         reason: '로컬 명단·번호만으로 남기면 잘못 붙은 모임이 다시 내 모임이 된다');
     expect(body.contains('if (mineIds.contains(c.id)) continue;'), isTrue);
+    expect(body.contains('if (await _serverRosterIncludesMe(c)) continue;'), isTrue,
+        reason: '멤버십 문서가 없는 정회원·게스트 모임은 서버 명단에 있으면 남긴다');
     expect(body.contains('_iAmClubCreator(c)'), isFalse,
         reason: '로컬 방장 id 를 믿으면 장창현 폰에 남의 모임이 남는다');
     expect(body.contains('fetchClubById'), isFalse,
@@ -204,8 +206,8 @@ void main() {
         reason: '번호 색인으로 소속을 만들면 가입 안 한 모임이 내 모임이 된다');
     expect(src.contains('restore discoverable skip'), isFalse,
         reason: '카탈로그 생성자를 내 모임으로 복구하면 안 된다');
-    expect(src.contains('if (!_isDemoSession) return;'), isTrue,
-        reason: '실계정 회원수를 폰 명단 길이로 맞추면 안 된다');
+    expect(src.contains('final n = _officialMemberCount(c.id);'), isTrue,
+        reason: '실계정 회원수는 공식 명단 인원이다');
     expect(src.contains('memberCount: c.memberCount,'), isTrue,
         reason: '내 모임 회원수는 서버 카탈로그 값이다');
     expect(src.contains('_applyMembershipOnlyMyClubs()'), isTrue,

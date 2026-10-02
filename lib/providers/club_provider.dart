@@ -1407,6 +1407,7 @@ class ClubProvider extends ChangeNotifier with WidgetsBindingObserver {
     if (remote.isEmpty) {
       // 조회가 비었다고 확정 가입까지 지우면 안 된다.
       // 반대로 폰에 남은 탐색 찌꺼기(장창현 7개)는 여기서 뺀다.
+      await _confirmRosterBackedMyClubs();
       final dropped = _dropUnconfirmedMyClubs();
       debugPrint('[ClubProvider] replace my clubs skip: empty memberships');
       return dropped;
@@ -1435,6 +1436,14 @@ class ClubProvider extends ChangeNotifier with WidgetsBindingObserver {
     for (final c in _myClubs) {
       if (_sessionCreatedClubIds.contains(c.id) && seen.add(c.id)) {
         next.add(c);
+        continue;
+      }
+      if (seen.contains(c.id)) continue;
+      // 멤버십 문서가 없는 정회원·게스트도 서버 명단에 있으면 내 모임이다.
+      // 여기가 없으면 알라딘·볼케이노가 빠졌다 붙었다 한다.
+      if (await _serverRosterIncludesMe(c)) {
+        next.add(c);
+        seen.add(c.id);
       }
     }
     final before = _myClubs.map((c) => c.id).toSet();
@@ -1507,6 +1516,42 @@ class ClubProvider extends ChangeNotifier with WidgetsBindingObserver {
         MemberPhoneIndex.digitsOf(m.phone) == mine);
   }
 
+  /// 멤버십 문서가 없어도 서버 명단에 내가 있으면 내 모임으로 확정한다.
+  Future<void> _confirmRosterBackedMyClubs() async {
+    for (final c in List<Club>.from(_myClubs)) {
+      if (await _serverRosterIncludesMe(c)) {
+        _confirmedClubIds.add(c.id);
+      }
+    }
+  }
+
+  /// 서버 `members` 에 이 계정 행이 있는지. 폰에 남은 이름만으로는 남기지 않는다.
+  Future<bool> _serverRosterIncludesMe(Club club) async {
+    if (!AppDependencies.instance.isInitialized) return false;
+    final ids = <String>{
+      if ((_persistAuthUserId ?? '').trim().isNotEmpty)
+        _persistAuthUserId!.trim(),
+      if (currentUserId.trim().isNotEmpty) currentUserId.trim(),
+    };
+    if (ids.isEmpty) return false;
+    try {
+      final members = await AppDependencies.instance.memberRepository
+          .fetchMembers(club.id)
+          .timeout(const Duration(seconds: 8));
+      for (final m in members) {
+        if (m.status == '탈퇴' || m.status == '강퇴') continue;
+        if (_isMyRosterRowById(club, m.id)) return true;
+        for (final id in ids) {
+          if (m.id == id || m.id.endsWith('_$id')) return true;
+        }
+      }
+      return false;
+    } catch (e) {
+      debugPrint('[ClubProvider] roster keep ${club.id} skip: $e');
+      return false;
+    }
+  }
+
   /// 서버 멤버십이 없는 모임을 내 모임에서 뺀다.
   ///
   /// 멤버십 조회가 실패하면 아무것도 지우지 않는다. 조회에 성공하면
@@ -1535,6 +1580,7 @@ class ClubProvider extends ChangeNotifier with WidgetsBindingObserver {
       if (_legacyMockClubIds.contains(c.id)) continue;
       if (mineIds.contains(c.id)) continue;
       if (_sessionCreatedClubIds.contains(c.id)) continue;
+      if (await _serverRosterIncludesMe(c)) continue;
       drop.add(c.id);
     }
     _serverClubsAligned = true;
