@@ -1,5 +1,7 @@
 import 'package:flutter/material.dart';
+import 'package:provider/provider.dart';
 import '../../../models/club_model.dart';
+import '../../../providers/club_provider.dart';
 import '../../../theme/app_theme.dart';
 import '../../../utils/d_day_utils.dart';
 import '../../../widgets/club_cover_mark.dart';
@@ -21,6 +23,7 @@ class HomeClubCard extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final badgeRole = (roleLabel ?? club.myRole).trim();
+    final headcount = context.watch<ClubProvider>().activeHeadcount(club.id);
     final dDayText = DDayUtils.format(club.nextRoundDate);
     final dDayClose = DDayUtils.isUrgent(club.nextRoundDate);
     final hasSchedule = club.nextRoundDate != null;
@@ -59,7 +62,7 @@ class HomeClubCard extends StatelessWidget {
                       ),
                       const SizedBox(height: 4),
                       Text(
-                        '${club.region} · ${club.industry} · ${club.memberCount}명',
+                        '${club.region} · ${club.industry} · $headcount명',
                         maxLines: 1,
                         overflow: TextOverflow.ellipsis,
                         style: const TextStyle(

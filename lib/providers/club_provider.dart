@@ -1429,7 +1429,11 @@ class ClubProvider extends ChangeNotifier with WidgetsBindingObserver {
                 creatorId: c.creatorId.trim().isNotEmpty
                     ? c.creatorId
                     : local.creatorId,
-                memberCount: c.memberCount,
+                // 서버 저장 숫자는 명단과 다를 수 있다. 명단이 있으면 그 인원을 유지한다.
+                memberCount: () {
+                  final shown = activeHeadcount(c.id);
+                  return shown > 0 ? shown : c.memberCount;
+                }(),
               ),
       );
     }
@@ -2399,10 +2403,11 @@ class ClubProvider extends ChangeNotifier with WidgetsBindingObserver {
   }
 
   /// 실계정 회원수는 이 폰 명단을 센다. 폰마다 +1 하면 같은 모임 숫자가 갈린다.
+  /// 게스트를 뺀 숫자로 덮으면 카드 인원이 서버 숫자와 번갈아 바뀐다.
   void _reconcileLiveMemberCounts() {
     for (final c in List<Club>.from(_myClubs)) {
       if (_legacyMockClubIds.contains(c.id)) continue;
-      final n = _officialMemberCount(c.id);
+      final n = activeHeadcount(c.id);
       if (n <= 0 || c.memberCount == n) continue;
       _setMemberCount(c.id, n);
     }
@@ -3027,21 +3032,16 @@ class ClubProvider extends ChangeNotifier with WidgetsBindingObserver {
   }
 
   /// 카드에 적는 인원. 게스트를 포함한 활성 명단이다.
+  /// 같은 사람 줄이 늘었다 줄어도 숫자는 그대로다.
   /// 명단이 아직 없으면 저장된 숫자를 그대로 둔다.
   int activeHeadcount(String clubId) {
     final club = _clubById(clubId);
-    final seen = <String>{};
-    for (final m in membersForClub(clubId)) {
-      if (m.status != '활성') continue;
-      final key = OfficialMemberCount.personKey(
-        clubId: clubId,
-        creatorUserId: club?.creatorId ?? '',
-        memberId: m.id,
-      );
-      if (key.isEmpty) continue;
-      seen.add(key);
-    }
-    if (seen.isNotEmpty) return seen.length;
+    final roster = OfficialMemberCount.attendanceRoster(
+      clubId: clubId,
+      creatorUserId: club?.creatorId ?? '',
+      roster: membersForClub(clubId),
+    );
+    if (roster.isNotEmpty) return roster.length;
     return club?.memberCount ?? 0;
   }
 
@@ -7719,7 +7719,8 @@ class ClubProvider extends ChangeNotifier with WidgetsBindingObserver {
     try {
       final n = await AppDependencies.instance.clubRepository
           .recountMemberCount(clubId);
-      _setMemberCount(clubId, n);
+      final shown = activeHeadcount(clubId);
+      _setMemberCount(clubId, shown > 0 ? shown : n);
     } catch (e) {
       debugPrint('[ClubProvider] member count recount skip: $e');
     }

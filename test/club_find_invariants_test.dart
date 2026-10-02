@@ -57,6 +57,9 @@ void main() {
     expect(dash.contains('activeHeadcount(club.id)'), isTrue);
     final home = _read('lib/screens/home/home_screen.dart');
     expect(home.contains('activeHeadcount(club.id)'), isTrue);
+    final myClubs =
+        _read('lib/screens/my_clubs/widgets/home_club_card.dart');
+    expect(myClubs.contains('activeHeadcount(club.id)'), isTrue);
   });
 
   test('모임찾기는 내 모임을 포함한다', () {

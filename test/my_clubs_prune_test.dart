@@ -206,10 +206,10 @@ void main() {
         reason: '번호 색인으로 소속을 만들면 가입 안 한 모임이 내 모임이 된다');
     expect(src.contains('restore discoverable skip'), isFalse,
         reason: '카탈로그 생성자를 내 모임으로 복구하면 안 된다');
-    expect(src.contains('final n = _officialMemberCount(c.id);'), isTrue,
-        reason: '실계정 회원수는 공식 명단 인원이다');
-    expect(src.contains('memberCount: c.memberCount,'), isTrue,
-        reason: '내 모임 회원수는 서버 카탈로그 값이다');
+    expect(src.contains('final n = activeHeadcount(c.id);'), isTrue,
+        reason: '실계정 카드 인원은 명단 인원이다');
+    expect(src.contains('memberCount: c.memberCount,'), isFalse,
+        reason: '서버 저장 숫자로 덮으면 카드 인원이 왔다 갔다 한다');
     expect(src.contains('_applyMembershipOnlyMyClubs()'), isTrue,
         reason: '폰에 남은 클럽 목록은 실제 가입처럼 보여 주면 안 된다');
     final refreshStart = src.indexOf('Future<void> refreshOwnedClubs()');
