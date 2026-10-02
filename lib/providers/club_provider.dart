@@ -3207,15 +3207,15 @@ class ClubProvider extends ChangeNotifier with WidgetsBindingObserver {
     return List.unmodifiable(_members);
   }
 
+  /// 원클럽과 같다. 가입돼 있고 활성인 회원은 회원 탭에 그대로 둔다.
   List<Member> get activeMembers {
     final club = _myClubs.isEmpty ? null : selectedClub;
-    if (club == null) {
-      return members.where((m) => m.status == '활성').toList();
-    }
+    final roster = members.where((m) => m.status == '활성');
+    if (club == null) return roster.toList();
     return OfficialMemberCount.attendanceRoster(
       clubId: club.id,
       creatorUserId: club.creatorId,
-      roster: members,
+      roster: roster,
     );
   }
 
@@ -7492,15 +7492,8 @@ class ClubProvider extends ChangeNotifier with WidgetsBindingObserver {
       _members
         ..clear()
         ..addAll(result.members);
-      ClubOpsSync.seedRemovedMembers(result.droppedIds);
-      final prefix = 'm_${club.id}_';
-      for (final oldId in result.droppedIds) {
-        if (!oldId.startsWith(prefix)) continue;
-        unawaited(ClubOpsSync.deleteClubMemberDoc(
-          club.id,
-          oldId.substring(prefix.length),
-        ));
-      }
+      // 원클럽은 가입된 회원 문서를 합친다고 지우지 않는다.
+      // 지우면 다음 조회에 그 사람이 없고, 회원 탭에는 본인만 남는다.
       _applyRosterIdRemap(
         club.id,
         result.idRemap,

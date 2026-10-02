@@ -109,9 +109,6 @@ class ClubOpsSync {
           clubId: clubId,
         );
         slice['members'] = collapsedPush.members;
-        for (final id in collapsedPush.droppedIds) {
-          markMemberRemoved(id);
-        }
         slice['members'] = dropForeignLeftoverMembers(
           members: slice['members'] as List? ?? const [],
           clubId: clubId,
@@ -1469,9 +1466,6 @@ class ClubOpsSync {
       collapsed.members,
       clubId: clubId,
     );
-    for (final id in collapsed.droppedIds) {
-      markMemberRemoved(id);
-    }
     encoded['members'] = dropForeignLeftoverMembers(
       members: encoded['members'] as List? ?? const [],
       clubId: clubId,

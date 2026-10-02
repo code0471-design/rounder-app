@@ -1,3 +1,5 @@
+import 'dart:io';
+
 import 'package:flutter_test/flutter_test.dart';
 import 'package:golf_rounder/data/repositories/club_repository.dart';
 import 'package:golf_rounder/di/app_dependencies.dart';
@@ -194,5 +196,15 @@ void main() {
       clubs.activeMembers.map((m) => m.name).toSet(),
       {'안경헌', '장창현'},
     );
+  });
+
+  test('명단을 합친다고 가입 회원 문서를 지우지 않는다', () {
+    final provider = File('lib/providers/club_provider.dart').readAsStringSync();
+    final prune = provider.substring(
+      provider.indexOf('bool pruneDuplicateRosterRows()'),
+      provider.indexOf('void _applyRosterIdRemap('),
+    );
+    expect(prune.contains('deleteClubMemberDoc'), isFalse);
+    expect(prune.contains('seedRemovedMembers'), isFalse);
   });
 }
