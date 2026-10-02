@@ -6,6 +6,7 @@ Member _m(
   String id,
   String name, {
   String type = '정회원',
+  String role = '정회원',
   String status = '활성',
 }) =>
     Member(
@@ -13,7 +14,7 @@ Member _m(
       name: name,
       gender: '남',
       memberType: type,
-      role: '정회원',
+      role: role,
       status: status,
     );
 
@@ -59,6 +60,37 @@ void main() {
       ),
       2,
     );
+  });
+
+  test('같은 사람 줄이 붙어도 참석 인원은 그대로다', () {
+    final base = [
+      _m('m_creator_$clubId', '장창현', role: '총무'),
+      _m('m_${clubId}_a', '김철수'),
+      _m('m_${clubId}_b', '이영희', type: '게스트'),
+    ];
+    final withDuplicate = [
+      ...base,
+      _m('m_${clubId}_kakao_x', '장창현'),
+    ];
+
+    List<Member> roster(List<Member> rows) =>
+        OfficialMemberCount.attendanceRoster(
+          clubId: clubId,
+          creatorUserId: creator,
+          roster: rows,
+        );
+
+    final baseRoster = roster(base);
+    final dupRoster = roster(withDuplicate);
+    expect(
+      baseRoster.where((m) => m.memberType == '정회원').length,
+      dupRoster.where((m) => m.memberType == '정회원').length,
+    );
+    expect(baseRoster.length, dupRoster.length);
+    expect(baseRoster.where((m) => m.memberType == '정회원').length, 2);
+    expect(baseRoster.length, 3);
+    expect(dupRoster.any((m) => m.name == '김철수'), isTrue);
+    expect(dupRoster.any((m) => m.name == '이영희'), isTrue);
   });
 
   test('게스트는 모임찾기 회원수가 아니다', () {

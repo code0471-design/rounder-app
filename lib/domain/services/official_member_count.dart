@@ -1,4 +1,5 @@
 import '../../models/club_model.dart';
+import '../../models/member_role.dart';
 import '../../services/club_ops_sync.dart';
 
 /// 모임찾기·내 모임 회원수.
@@ -48,5 +49,51 @@ abstract final class OfficialMemberCount {
       seen.add(key);
     }
     return seen.length;
+  }
+
+  /// 참석 인원. 방장 자리와 같은 사람 줄이 생겼다 사라져도 수는 그대로다.
+  static List<Member> attendanceRoster({
+    required String clubId,
+    required String creatorUserId,
+    required Iterable<Member> roster,
+  }) {
+    final active = roster.where((m) => m.status == '활성').toList();
+    final creatorRow =
+        active.where((m) => m.id == 'm_creator_$clubId').firstOrNull;
+    final creatorName = creatorRow?.name.trim() ?? '';
+    final creatorKey = creatorRow == null
+        ? ''
+        : personKey(
+            clubId: clubId,
+            creatorUserId: creatorUserId,
+            memberId: creatorRow.id,
+          );
+    final seen = <String>{};
+    final out = <Member>[];
+    for (final m in active) {
+      if (ClubOpsSync.isForeignLeftoverMember(
+        id: m.id,
+        name: m.name,
+        clubId: clubId,
+        creatorUserId: creatorUserId,
+      )) {
+        continue;
+      }
+      var key = personKey(
+        clubId: clubId,
+        creatorUserId: creatorUserId,
+        memberId: m.id,
+      );
+      if (creatorRow != null &&
+          m.id != creatorRow.id &&
+          creatorName.isNotEmpty &&
+          m.name.trim() == creatorName &&
+          !ClubMemberRole.isOfficer(m.role)) {
+        key = creatorKey;
+      }
+      if (key.isEmpty || !seen.add(key)) continue;
+      out.add(m);
+    }
+    return out;
   }
 }

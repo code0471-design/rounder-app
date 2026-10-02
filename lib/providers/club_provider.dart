@@ -1439,8 +1439,7 @@ class ClubProvider extends ChangeNotifier with WidgetsBindingObserver {
         continue;
       }
       if (seen.contains(c.id)) continue;
-      // 멤버십 문서가 없는 정회원·게스트도 서버 명단에 있으면 내 모임이다.
-      // 여기가 없으면 알라딘·볼케이노가 빠졌다 붙었다 한다.
+      // 가입 기록 문서가 없어도 서버 명단에 이 계정이 있으면 내 모임으로 남긴다.
       if (await _serverRosterIncludesMe(c)) {
         next.add(c);
         seen.add(c.id);
@@ -1966,6 +1965,7 @@ class ClubProvider extends ChangeNotifier with WidgetsBindingObserver {
           (m.id == raw.id && Member.isClubRosterId(clubId, m.id)));
       if (idx < 0) {
         if (ClubOpsSync.isMemberRemoved(id)) continue;
+        if (_alreadyOnRoster(clubId, row, creatorUserId)) continue;
         _members.add(row);
         changed = true;
       } else if (_members[idx].id != id) {
@@ -2677,6 +2677,7 @@ class ClubProvider extends ChangeNotifier with WidgetsBindingObserver {
   }
 
   void _importBundle(ClubDataBundle b) {
+    final previousMembers = List<Member>.from(_members);
     final keepSelectedId = _selectedClubIdOrNull();
     final keepImages = <String, String>{
       for (final c in _myClubs)
@@ -2720,6 +2721,8 @@ class ClubProvider extends ChangeNotifier with WidgetsBindingObserver {
     _members
       ..clear()
       ..addAll(b.members);
+    // 짧은 스냅샷이 와도 활성 회원은 빼지 않는다. 탈퇴·강퇴만 빠진다.
+    _keepActiveMembersMissingFromBundle(previousMembers);
     _dropLeftoverStolenForeignRoster();
     // 원격 명단이 로컬을 덮은 직후다. 여기서 다시 걸지 않으면
     // switchUser 에서 고친 내 이름이 '홍길동'으로 되돌아간다.
@@ -3064,8 +3067,57 @@ class ClubProvider extends ChangeNotifier with WidgetsBindingObserver {
     return List.unmodifiable(_members);
   }
 
-  List<Member> get activeMembers =>
-      members.where((m) => m.status == '활성').toList();
+  List<Member> get activeMembers {
+    final club = _myClubs.isEmpty ? null : selectedClub;
+    if (club == null) {
+      return members.where((m) => m.status == '활성').toList();
+    }
+    return OfficialMemberCount.attendanceRoster(
+      clubId: club.id,
+      creatorUserId: club.creatorId,
+      roster: members,
+    );
+  }
+
+  void _keepActiveMembersMissingFromBundle(List<Member> previous) {
+    if (_isDemoSession) return;
+    final clubs = <String, Club>{
+      for (final c in [..._myClubs, ..._allClubs]) c.id: c,
+    };
+    for (final club in clubs.values) {
+      if (_legacyMockClubIds.contains(club.id)) continue;
+      for (final m in previous) {
+        if (m.status != '활성') continue;
+        if (!_memberRowBelongsToClub(m, club)) continue;
+        if (_members.any((x) => x.id == m.id)) continue;
+        if (ClubOpsSync.isMemberRemoved(m.id)) continue;
+        if (_alreadyOnRoster(club.id, m, club.creatorId)) continue;
+        _members.add(m);
+      }
+    }
+  }
+
+  bool _memberRowBelongsToClub(Member m, Club club) {
+    if (m.id == 'm_creator_${club.id}' || m.id.startsWith('m_${club.id}_')) {
+      return true;
+    }
+    final creator = club.creatorId.trim();
+    return creator.isNotEmpty && m.id == creator;
+  }
+
+  bool _alreadyOnRoster(String clubId, Member row, String creatorUserId) {
+    final roster = _members.where((m) {
+      if (m.status == '탈퇴' || m.status == '강퇴') return false;
+      return m.id == 'm_creator_$clubId' ||
+          m.id.startsWith('m_${clubId}_') ||
+          (creatorUserId.isNotEmpty && m.id == creatorUserId);
+    });
+    return OfficialMemberCount.attendanceRoster(
+      clubId: clubId,
+      creatorUserId: creatorUserId,
+      roster: [...roster, row],
+    ).every((m) => m.id != row.id);
+  }
   List<Member> get regularMembers =>
       activeMembers.where((m) => m.memberType == '정회원').toList();
   List<Member> get guestMembers =>
