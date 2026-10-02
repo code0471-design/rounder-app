@@ -1910,6 +1910,60 @@ class ClubProvider extends ChangeNotifier with WidgetsBindingObserver {
     return true;
   }
 
+  /// 방장 자리에 다른 사람 이름이 있으면, 서버 방장을 그 줄에 덮지 않는다.
+  /// 번호·표시 이름이 안 맞아 위 이전이 빠져도, 한글 이름이 다르면 둘 다 남긴다.
+  bool _releaseCreatorSeatForSomeoneElse(
+    String clubId,
+    String creatorUserId,
+    List<Member> remote,
+  ) {
+    final seatId = 'm_creator_$clubId';
+    final seatIdx = _members.indexWhere((m) => m.id == seatId);
+    if (seatIdx < 0) return false;
+    final seat = _members[seatIdx];
+    Member? incoming;
+    for (final raw in remote) {
+      final id = Member.canonicalRosterId(
+        clubId: clubId,
+        rawId: raw.id,
+        creatorUserId: creatorUserId,
+      );
+      if (id == seatId) {
+        incoming = raw;
+        break;
+      }
+    }
+    if (incoming == null) return false;
+    if (!RosterDedupe.areDifferentPeople(seat.name, incoming.name)) {
+      return false;
+    }
+    final uid = (_persistAuthUserId ?? currentUserId).trim();
+    if (uid.isEmpty || _userIdsMatch(uid, creatorUserId)) return false;
+    final parked = Member.rosterId(clubId, uid);
+    if (parked == seatId) return false;
+    final keepIdx = _members.indexWhere((m) => m.id == parked);
+    final club = _clubById(clubId);
+    final open = club == null
+        ? MemberJoinDate.createdAtFromClubId(clubId)
+        : MemberJoinDate.resolvedClubCreatedAt(club);
+    if (keepIdx >= 0) {
+      _members[keepIdx] = RosterDedupe.mergeMember(
+        _members[keepIdx],
+        seat,
+        notBefore: open,
+      );
+      _members.removeAt(seatIdx);
+    } else {
+      _members[seatIdx] = seat.withId(parked);
+    }
+    _applyRosterIdRemap(
+      clubId,
+      {seatId: parked},
+      {for (final m in _members) m.id: m.name},
+    );
+    return true;
+  }
+
   @visibleForTesting
   Future<void> mergeRemoteRosterForTest(String clubId, List<Member> remote) =>
       _mergeRemoteRoster(clubId, remote);
@@ -1942,6 +1996,9 @@ class ClubProvider extends ChangeNotifier with WidgetsBindingObserver {
     }
     var changed = false;
     if (_moveMyRowOffCreatorSeat(clubId, creatorUserId)) changed = true;
+    if (_releaseCreatorSeatForSomeoneElse(clubId, creatorUserId, remote)) {
+      changed = true;
+    }
     for (final raw in remote) {
       final id = Member.canonicalRosterId(
         clubId: clubId,

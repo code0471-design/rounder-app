@@ -50,6 +50,19 @@ void main() {
     expect(result.members.single.role, '총무');
   });
 
+  test('방장 계정 줄이라도 한글 이름이 다르면 다른 회원으로 남긴다', () {
+    final result = RosterDedupe.collapseMembers(
+      members: [
+        _m(id: 'm_creator_c1', name: '안경헌', role: '정회원'),
+        _m(id: 'm_c1_uidA', name: '장창현', role: '총무'),
+      ],
+      clubId: 'c1',
+      creatorAuthIds: {'uidA'},
+    );
+    expect(result.droppedIds, isEmpty);
+    expect(result.members.map((m) => m.name).toSet(), {'안경헌', '장창현'});
+  });
+
   test('다른 이름 회원은 그대로 둔다', () {
     final result = RosterDedupe.collapseMembers(
       members: [

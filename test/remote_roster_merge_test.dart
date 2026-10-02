@@ -123,4 +123,29 @@ void main() {
     expect(clubs.hasPaid(myId, 'ds_year', year: 2026), isTrue,
         reason: '행을 옮겼는데 납부 기록이 끊기면 안 된다');
   });
+
+  test('방장 자리 이름이 내 계정과 달라도 서버 방장은 빠지지 않는다', () async {
+    clubs.addMember(Member(
+      id: 'm_creator_$clubId',
+      name: '안경현',
+      gender: '남',
+      memberType: '정회원',
+      role: '정회원',
+      joinDate: DateTime(2026, 9, 1),
+    ));
+
+    await clubs.mergeRemoteRosterForTest(clubId, [
+      remoteRow(id: hostUid, name: '장창현', role: '총무'),
+      remoteRow(id: myUid, name: '안경헌', role: '정회원', phone: '010-4511-0471'),
+    ]);
+
+    final roster = clubs.activeMembers;
+    expect(roster.any((m) => m.name == '장창현'), isTrue,
+        reason: '방장 자리에 내 이름이 있어도 서버 방장은 보여야 한다');
+    expect(roster.length, greaterThan(1));
+    expect(
+      roster.where((m) => m.id == 'm_creator_$clubId').single.name,
+      '장창현',
+    );
+  });
 }

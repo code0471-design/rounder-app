@@ -52,6 +52,9 @@ class RosterDedupe {
       final sameName = m.name.trim().isNotEmpty &&
           m.name.trim() == creator.name.trim() &&
           !ClubMemberRole.isOfficer(m.role);
+      // 계정 id 가 같아도 한글 이름이 다르면 다른 사람이다.
+      // 합치면 방장 자리에 앉은 내 이름만 남고 총무가 사라진다.
+      if (areDifferentPeople(creator.name, m.name)) continue;
       if (suffixMatch || sameName) {
         drop[m.id] = m;
       }
@@ -105,6 +108,9 @@ class RosterDedupe {
         final sameName = creatorName.isNotEmpty &&
             (m['name'] as String? ?? '').trim() == creatorName &&
             !ClubMemberRole.isOfficer(role);
+        if (areDifferentPeople(creatorName, m['name'] as String? ?? '')) {
+          continue;
+        }
         if (aliases.contains(suffix) || sameName) {
           dropped.add(id);
           _mergeMemberMap(maps[creatorIdx], m);
@@ -239,6 +245,14 @@ class RosterDedupe {
               ? extra.address
               : keep.address,
     );
+  }
+
+  /// 둘 다 한글 실명이고 글자가 다르면 한 사람으로 합치지 않는다.
+  static bool areDifferentPeople(String a, String b) {
+    final left = a.trim();
+    final right = b.trim();
+    if (left.isEmpty || right.isEmpty || left == right) return false;
+    return _looksKorean(left) && _looksKorean(right);
   }
 
   static bool _isWeakName(String name) {
