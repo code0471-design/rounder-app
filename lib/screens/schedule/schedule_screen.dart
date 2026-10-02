@@ -13,7 +13,8 @@ import '../../widgets/ad_banner.dart';
 import '../../widgets/golf_course_field.dart';
 import '../../utils/reservation_sms_parser.dart';
 import '../../utils/date_picker_utils.dart';
-import '../../domain/services/attendance_stats.dart';
+import '../../domain/services/attendance_stats.dart';
+import '../../domain/services/round_attendance.dart';
 import '../../widgets/reservation_sms_fill_banner.dart';
 import 'past_schedule_import_screen.dart';
 
@@ -431,31 +432,13 @@ class _ScheduleCard extends StatelessWidget {
                     (s) => s.id == schedule.id,
                     orElse: () => schedule,
                   );
-                  final regular = prov.regularMembers.length;
-                  final guestIds = {
-                    for (final m in prov.guestMembers) m.id
-                  };
-                  final memberIds = {
-                    for (final m in prov.activeMembers) m.id
-                  };
-                  final valid = latest.responses
-                      .where((r) => memberIds.contains(r.memberId))
-                      .toList();
-                  final attend =
-                      valid.where((r) => r.response == '참석').length;
-                  final decline = valid
-                      .where((r) =>
-                          r.response == '불참' &&
-                          !guestIds.contains(r.memberId))
-                      .length;
-                  final respondedRegular = valid
-                      .where((r) =>
-                          (r.response == '참석' || r.response == '불참') &&
-                          !guestIds.contains(r.memberId))
-                      .map((r) => r.memberId)
-                      .toSet();
-                  final noRes =
-                      (regular - respondedRegular.length).clamp(0, regular);
+                  final tally = RoundAttendance.of(
+                    roster: prov.activeMembers,
+                    responses: latest.responses,
+                  );
+                  final attend = tally.attend;
+                  final decline = tally.decline;
+                  final noRes = tally.noResponse;
                   return Row(
                     children: [
                       Expanded(
@@ -2737,23 +2720,20 @@ class _AttendanceCard extends StatelessWidget {
           (s) => s.id == schedule.id,
           orElse: () => schedule,
         );
-        final memberIds = {for (final m in provider.activeMembers) m.id};
-        final guestIds = {for (final m in provider.guestMembers) m.id};
-        final responses = latest.responses
-            .where((r) => memberIds.contains(r.memberId))
-            .toList();
-        final confirmed = responses.where((r) => r.response == '참석').toList();
-        final declined  = responses
-            .where((r) => r.response == '불참' && !guestIds.contains(r.memberId))
-            .toList();
-        final respondedRegular = {
-          ...confirmed.where((r) => !guestIds.contains(r.memberId)).map((r) => r.memberId),
-          ...declined.map((r) => r.memberId),
-        };
-        final noResponse = provider.regularMembers
-            .where((m) => !respondedRegular.contains(m.id))
-            .length;
-        final total = provider.regularMembers.length;
+        final tally = RoundAttendance.of(
+          roster: provider.activeMembers,
+          responses: latest.responses,
+        );
+        final confirmed = [
+          for (final id in tally.attendIds)
+            latest.responses.firstWhere((r) => r.memberId == id),
+        ];
+        final declined = [
+          for (final id in tally.declineIds)
+            latest.responses.firstWhere((r) => r.memberId == id),
+        ];
+        final noResponse = tally.noResponse;
+        final total = tally.total;
 
         return Container(
           decoration: BoxDecoration(
@@ -2790,7 +2770,7 @@ class _AttendanceCard extends StatelessWidget {
                             fontWeight: FontWeight.w800,
                             color: AppColors.ink)),
                     const Spacer(),
-                    Text('정회원 $total명',
+                    Text(tally.headLabel,
                         style: const TextStyle(
                             fontSize: 12, color: AppColors.textSecondary)),
                   ],

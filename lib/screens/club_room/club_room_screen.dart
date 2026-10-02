@@ -3,6 +3,7 @@ import 'dart:async';
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
+import '../../domain/services/round_attendance.dart';
 import '../../models/club_model.dart';
 import '../../models/member_role.dart';
 import '../../providers/club_provider.dart';
@@ -1235,32 +1236,14 @@ class _AttendanceCard extends StatelessWidget {
           return const SizedBox.shrink();
         }
 
-        final roster = prov.activeMembers;
-        final memberIds = {for (final m in roster) m.id};
-        final responses = nextSchedule.responses
-            .where((r) => memberIds.contains(r.memberId))
-            .toList();
-        final guestIds = {for (final m in prov.guestMembers) m.id};
-        final guestNames = {for (final m in prov.guestMembers) m.name};
-        bool isGuest(AttendanceResponse r) =>
-            guestIds.contains(r.memberId) || guestNames.contains(r.memberName);
-
-        final confirmedList =
-            responses.where((r) => r.response == '참석').toList();
-        final confirmed = confirmedList.length;
-        final guestAttend =
-            confirmedList.where(isGuest).length;
-        final declined = responses
-            .where((r) => r.response == '불참')
-            .length;
-        final respondedIds = {
-          ...confirmedList.map((r) => r.memberId),
-          ...responses
-              .where((r) => r.response == '불참')
-              .map((r) => r.memberId),
-        };
-        final noResponse =
-            roster.where((m) => !respondedIds.contains(m.id)).length;
+        final tally = RoundAttendance.of(
+          roster: prov.activeMembers,
+          responses: nextSchedule.responses,
+        );
+        final confirmed = tally.attend;
+        final guestAttend = tally.guestAttend;
+        final declined = tally.decline;
+        final noResponse = tally.noResponse;
         Widget mini(String status, String countLabel, Color fg) {
           return Expanded(
             child: Container(
