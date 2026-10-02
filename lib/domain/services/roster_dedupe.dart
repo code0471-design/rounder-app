@@ -148,6 +148,12 @@ class RosterDedupe {
         });
       final keep = ranked.first;
       for (final extra in ranked.skip(1)) {
+        if (areDifferentPeople(
+          '${keep['name'] ?? ''}',
+          '${extra['name'] ?? ''}',
+        )) {
+          continue;
+        }
         _mergeMemberMap(keep, extra);
         dropped.add('${extra['id']}');
       }
@@ -314,6 +320,7 @@ class RosterDedupe {
       final ranked = [...group]..sort((a, b) => _keepScore(b).compareTo(_keepScore(a)));
       var keep = ranked.first;
       for (final extra in ranked.skip(1)) {
+        if (areDifferentPeople(keep.name, extra.name)) continue;
         final keepIdx = next.indexWhere((m) => m.id == keep.id);
         if (keepIdx < 0) continue;
         keep = mergeMember(

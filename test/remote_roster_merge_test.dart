@@ -1,4 +1,5 @@
 import 'package:flutter_test/flutter_test.dart';
+import 'package:golf_rounder/data/repositories/club_repository.dart';
 import 'package:golf_rounder/di/app_dependencies.dart';
 import 'package:golf_rounder/domain/services/app_data_bootstrap_service.dart';
 import 'package:golf_rounder/models/club_model.dart';
@@ -146,6 +147,52 @@ void main() {
     expect(
       roster.where((m) => m.id == 'm_creator_$clubId').single.name,
       '장창현',
+    );
+  });
+
+  test('번호가 같아도 총무 줄을 내 줄로 지우지 않는다', () async {
+    await clubs.mergeRemoteRosterForTest(clubId, [
+      remoteRow(
+        id: hostUid,
+        name: '장창현',
+        role: '총무',
+        phone: '010-4511-0471',
+      ),
+      remoteRow(
+        id: myUid,
+        name: '안경헌',
+        role: '정회원',
+        phone: '010-4511-0471',
+      ),
+    ]);
+
+    expect(
+      clubs.activeMembers.map((m) => m.name).toSet(),
+      {'장창현', '안경헌'},
+    );
+  });
+
+  test('명단이 지워져도 소속 계정이 있으면 방장을 다시 넣는다', () {
+    clubs.addMember(Member(
+      id: Member.rosterId(clubId, myUid),
+      name: '안경헌',
+      gender: '남',
+      memberType: '정회원',
+      role: '정회원',
+      phone: '010-4511-0471',
+    ));
+    final restored = clubs.restoreMembersFromAccountsForTest(clubId, [
+      const ClubMemberAccount(
+        userId: hostUid,
+        role: '총무',
+        name: '장창현',
+        phone: '010-0000-0000',
+      ),
+    ]);
+    expect(restored, isTrue);
+    expect(
+      clubs.activeMembers.map((m) => m.name).toSet(),
+      {'안경헌', '장창현'},
     );
   });
 }

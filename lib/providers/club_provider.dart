@@ -1702,7 +1702,10 @@ class ClubProvider extends ChangeNotifier with WidgetsBindingObserver {
           .timeout(const Duration(seconds: 8));
       if (accounts.isNotEmpty) {
         _clubAccounts[clubId] = accounts;
-        if (_dropUnmemberedAccountRows(clubId) && !_suppressPersist) {
+        final restored = _restoreMembersFromAccounts(clubId);
+        final dropped = _dropUnmemberedAccountRows(clubId);
+        if ((restored || dropped) && !_suppressPersist) {
+          notifyListeners();
           _persistImmediately();
         }
       }
@@ -1783,6 +1786,79 @@ class ClubProvider extends ChangeNotifier with WidgetsBindingObserver {
     return true;
   }
 
+  /// 명단 줄이 지워져도 소속 계정이 있으면 그 사람을 다시 넣는다.
+  /// 알라딘·볼케이노처럼 방장 줄만 없어지고 나 혼자 남던 경우다.
+  bool _restoreMembersFromAccounts(String clubId) {
+    if (_isDemoSession || clubId.isEmpty) return false;
+    if (_legacyMockClubIds.contains(clubId)) return false;
+    final accounts = _clubAccounts[clubId];
+    if (accounts == null || accounts.isEmpty) return false;
+    final creator = (_clubById(clubId)?.creatorId ?? '').trim();
+    var changed = false;
+    for (final account in accounts) {
+      final uid = account.userId.trim();
+      final name = account.name.trim();
+      if (uid.isEmpty || name.isEmpty || isPlaceholderMemberName(name)) {
+        continue;
+      }
+      final rosterId = Member.rosterId(clubId, uid);
+      final seatId = 'm_creator_$clubId';
+      final already = _members.any((m) {
+        if (m.status == '탈퇴' || m.status == '강퇴') return false;
+        if (m.id == rosterId || m.id == uid) return true;
+        if (creator.isNotEmpty &&
+            _userIdsMatch(uid, creator) &&
+            m.id == seatId &&
+            !RosterDedupe.areDifferentPeople(m.name, name)) {
+          return true;
+        }
+        return false;
+      });
+      if (already) continue;
+      if (ClubOpsSync.isForeignLeftoverMember(
+        id: rosterId,
+        name: name,
+        clubId: clubId,
+        creatorUserId: creator,
+      )) {
+        continue;
+      }
+      var id = rosterId;
+      if (creator.isNotEmpty && _userIdsMatch(uid, creator)) {
+        final seat = _members.where((m) => m.id == seatId).firstOrNull;
+        if (seat == null || !RosterDedupe.areDifferentPeople(seat.name, name)) {
+          id = seatId;
+        }
+      }
+      final role = account.role.trim().isEmpty ? '정회원' : account.role.trim();
+      ClubOpsSync.unmarkMemberRemoved(id);
+      ClubOpsSync.unmarkMemberRemoved(rosterId);
+      ClubOpsSync.unmarkMemberRemoved(uid);
+      _members.add(Member(
+        id: id,
+        name: name,
+        gender: '남',
+        phone: account.phone.trim().isEmpty ? null : account.phone.trim(),
+        memberType: ClubMemberRole.memberTypeForRole(role),
+        role: role,
+        status: '활성',
+      ));
+      changed = true;
+    }
+    return changed;
+  }
+
+  @visibleForTesting
+  bool restoreMembersFromAccountsForTest(
+    String clubId,
+    List<ClubMemberAccount> accounts,
+  ) {
+    _clubAccounts[clubId] = accounts;
+    final changed = _restoreMembersFromAccounts(clubId);
+    if (changed) notifyListeners();
+    return changed;
+  }
+
   /// 명단 행을 전화번호로 계정에 잇는다. 예전 행(`m1`)은 이 길로만 찾는다.
   String _accountIdByRosterPhone(String clubId, String memberId) {
     final accounts = _clubAccounts[clubId];
@@ -1823,6 +1899,10 @@ class ClubProvider extends ChangeNotifier with WidgetsBindingObserver {
       if (!Member.isClubRosterId(clubId, m.id)) continue;
       if (m.id == 'm_creator_$clubId') continue; // 방장 자리는 따로 처리
       if (MemberPhoneIndex.digitsOf(m.phone) != myPhone) continue;
+      // 번호가 복사된 총무를 내 줄로 합치면 그 사람이 서버에서도 지워진다.
+      if (RosterDedupe.areDifferentPeople(m.name, _members[mineIdx].name)) {
+        continue;
+      }
       absorbed[m.id] = myId;
     }
     if (absorbed.isEmpty) return false;
@@ -1881,6 +1961,9 @@ class ClubProvider extends ChangeNotifier with WidgetsBindingObserver {
     final seatRow = _members[seatIdx];
     final myPhone = MemberPhoneIndex.digitsOf(_accountPhone);
     final seatPhone = MemberPhoneIndex.digitsOf(seatRow.phone);
+    if (RosterDedupe.areDifferentPeople(seatRow.name, _currentUserName)) {
+      return false;
+    }
     final looksLikeMe = (myPhone.isNotEmpty && seatPhone == myPhone) ||
         seatRow.name.trim() == _currentUserName.trim();
     if (!looksLikeMe) return false;

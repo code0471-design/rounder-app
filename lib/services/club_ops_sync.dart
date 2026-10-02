@@ -908,6 +908,12 @@ class ClubOpsSync {
     _removedMemberIds.add(memberId);
   }
 
+  /// 잘못 지운 표식. 소속 계정이 아직 있으면 명단에 다시 넣을 수 있다.
+  static void unmarkMemberRemoved(String memberId) {
+    if (memberId.isEmpty) return;
+    _removedMemberIds.remove(memberId);
+  }
+
   static bool isMemberRemoved(String memberId) =>
       memberId.isNotEmpty && _removedMemberIds.contains(memberId);
 

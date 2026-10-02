@@ -56,11 +56,13 @@ class ClubMemberAccount {
     required this.userId,
     this.role = '',
     this.phone = '',
+    this.name = '',
   });
 
   final String userId;
   final String role;
   final String phone;
+  final String name;
 
   bool get isGuest => role.contains('게스트');
 }

@@ -112,6 +112,19 @@ void main() {
     expect(result.members.any((m) => m.name == 'Jeongwon Leeee'), isFalse);
   });
 
+  test('번호가 같아도 한글 이름이 다르면 합치지 않는다', () {
+    const phone = '01045110471';
+    final result = RosterDedupe.collapseSamePhone(
+      members: [
+        _m(id: 'm_c1_me', name: '안경헌', role: '정회원', phone: phone),
+        _m(id: 'm_c1_host', name: '장창현', role: '총무', phone: phone),
+      ],
+      clubId: 'c1',
+    );
+    expect(result.droppedIds, isEmpty);
+    expect(result.members.map((m) => m.name).toSet(), {'안경헌', '장창현'});
+  });
+
   test('번호가 다른 회원은 합치지 않는다', () {
     final result = RosterDedupe.collapseSamePhone(
       members: [

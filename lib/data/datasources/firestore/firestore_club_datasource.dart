@@ -313,12 +313,19 @@ class FirestoreClubDataSource {
         if (uid.isEmpty) continue;
         final role = '${doc.data()['role'] ?? ''}'.trim();
         var phone = '';
+        var name = '';
         try {
           final user =
               await _db.collection(FirestorePaths.users).doc(uid).get();
           phone = '${user.data()?['phone'] ?? ''}'.trim();
+          name = '${user.data()?['name'] ?? ''}'.trim();
         } catch (_) {}
-        out.add(ClubMemberAccount(userId: uid, role: role, phone: phone));
+        out.add(ClubMemberAccount(
+          userId: uid,
+          role: role,
+          phone: phone,
+          name: name,
+        ));
       }
       return out;
     } on FirebaseException catch (e) {
