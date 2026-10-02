@@ -199,6 +199,9 @@ void main() {
     expect(room.contains("label: '다른 모임 찾기'"), isTrue);
     expect(room.contains("label: '모임찾기'"), isFalse);
     expect(room.contains('_goToPlatformHome'), isTrue);
+    expect(room.contains('_goToPlatformHome(context)'), isTrue,
+        reason: '모임 홈에서 시스템 뒤로가기는 내 모임으로 간다');
+    expect(room.contains('홈 탭 루트: 아무것도 안 함'), isFalse);
     expect(room.contains("pushNamedAndRemoveUntil('/main'"), isTrue);
     expect(
       room.indexOf('club.name'),

@@ -478,18 +478,20 @@ class _ClubRoomScreenState extends State<ClubRoomScreen> {
   @override
   Widget build(BuildContext context) {
     return PopScope(
-      // 시스템 뒤로가기 처리:
-      //   1. 탭 내 하위 화면이 있으면 → 해당 탭 Navigator pop
-      //   2. 홈 탭이 아니면 → 홈 탭으로 이동
-      //   3. 홈 탭 루트면 → 차단 (모임 방 탈출은 헤더 ← 버튼으로만)
+      // 시스템 뒤로가기:
+      //   1. 탭 안에 쌓인 화면이 있으면 그 화면을 닫는다
+      //   2. 홈이 아니면 모임 홈으로 온다
+      //   3. 모임 홈이면 내 모임으로 나간다
       canPop: false,
       onPopInvokedWithResult: (didPop, _) {
+        if (didPop) return;
         if (_canPopCurrentTab) {
           _navigatorKeys[_tabIndex].currentState?.pop();
         } else if (_tabIndex != 0) {
           setState(() => _tabIndex = 0);
+        } else {
+          _goToPlatformHome(context);
         }
-        // 홈 탭 루트: 아무것도 안 함
       },
       child: Consumer<ClubProvider>(
         builder: (context, provider, _) {
