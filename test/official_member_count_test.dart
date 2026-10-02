@@ -93,6 +93,19 @@ void main() {
     expect(dupRoster.any((m) => m.name == '이영희'), isTrue);
   });
 
+  test('방장 자리에 내 이름이 있어도 이름이 다른 회원은 화면에 남는다', () {
+    const host = 'kakao_host';
+    final roster = OfficialMemberCount.attendanceRoster(
+      clubId: clubId,
+      creatorUserId: host,
+      roster: [
+        _m('m_creator_$clubId', '안경헌', role: '정회원'),
+        _m('m_${clubId}_$host', '장창현', role: '총무'),
+      ],
+    );
+    expect(roster.map((m) => m.name).toSet(), {'안경헌', '장창현'});
+  });
+
   test('게스트는 모임찾기 회원수가 아니다', () {
     expect(
       OfficialMemberCount.of(

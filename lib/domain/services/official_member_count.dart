@@ -1,6 +1,7 @@
 import '../../models/club_model.dart';
 import '../../models/member_role.dart';
 import '../../services/club_ops_sync.dart';
+import 'roster_dedupe.dart';
 
 /// 모임찾기·내 모임 회원수.
 ///
@@ -69,6 +70,7 @@ abstract final class OfficialMemberCount {
             memberId: creatorRow.id,
           );
     final seen = <String>{};
+    final nameByKey = <String, String>{};
     final out = <Member>[];
     for (final m in active) {
       if (ClubOpsSync.isForeignLeftoverMember(
@@ -91,7 +93,16 @@ abstract final class OfficialMemberCount {
           !ClubMemberRole.isOfficer(m.role)) {
         key = creatorKey;
       }
+      final name = m.name.trim();
+      final priorName = nameByKey[key] ?? '';
+      if (key.isNotEmpty &&
+          priorName.isNotEmpty &&
+          RosterDedupe.areDifferentPeople(priorName, name)) {
+        // 방장 자리를 내 이름이 차지해도, 이름이 다른 회원은 화면에서 빼지 않는다.
+        key = '$key|$name';
+      }
       if (key.isEmpty || !seen.add(key)) continue;
+      if (name.isNotEmpty) nameByKey[key] = name;
       out.add(m);
     }
     return out;
