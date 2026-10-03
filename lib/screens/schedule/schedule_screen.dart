@@ -3524,8 +3524,7 @@ class _ScheduleFormSheetState extends State<_ScheduleFormSheet> {
   }) {
     final dateStr =
         '${roundDate.month}월 ${roundDate.day}일 (${['월','화','수','목','금','토','일'][roundDate.weekday-1]})';
-    final memberCount = provider.members.where((m) =>
-        m.status == '활성').length;
+    final memberCount = provider.regularMembers.length;
 
     showDialog(
       context: context,

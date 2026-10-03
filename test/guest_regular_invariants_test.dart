@@ -26,14 +26,25 @@ void main() {
     expect(dues.contains('regularSince ?? member.joinDate'), isTrue);
   });
 
-  test('홈 참석 현황은 게스트를 미답변에서 빼지 않는다', () {
-    final home = read('lib/screens/club_room/club_room_screen.dart');
+  test('일정 등록 알림톡은 정회원 수만 안내한다', () {
+    final schedule = read('lib/screens/schedule/schedule_screen.dart');
+    expect(schedule.contains('provider.regularMembers.length'), isTrue);
     expect(
-      home.contains('prov.regularMembers'),
+      schedule.contains("m.status == '활성').length"),
       isFalse,
-      reason: '홈 참석 현황 미답변에서 게스트를 빼면 안 된다',
+      reason: '게스트까지 세면 참석여부 요청 인원이 커진다',
     );
-    expect(home.contains('roster.where((m) => !respondedIds.contains(m.id))'), isTrue);
+  });
+
+  test('홈·일정 미답변은 정회원만 센다', () {
+    final tally = read('lib/domain/services/round_attendance.dart');
+    expect(tally.contains('!guestIds.contains(id) && !answered.contains(id)'),
+        isTrue);
+    expect(
+      tally.contains('미답변은 정회원만'),
+      isTrue,
+      reason: '게스트는 신청할 수 있어도 미답변 대상이 아니다',
+    );
   });
 
   test('초대 링크는 게스트/정회원을 읽고 가입신청으로 바꾸지 않는다', () {

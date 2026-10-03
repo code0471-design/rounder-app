@@ -19,8 +19,8 @@ AttendanceResponse _r(String id, String response) => AttendanceResponse(
     );
 
 void main() {
-  test('정회원과 게스트를 같은 명단으로 센다', () {
-    final tally = RoundAttendance.of(
+  test('미답변은 정회원만 세고 게스트는 신청해야 참석에 들어간다', () {
+    final unanswered = RoundAttendance.of(
       roster: [
         _m('a', '정회원'),
         _m('b', '정회원'),
@@ -29,13 +29,25 @@ void main() {
       ],
       responses: const [],
     );
-    expect(tally.attend, 0);
-    expect(tally.decline, 0);
-    expect(tally.noResponse, 4);
-    expect(tally.total, 4);
-    expect(tally.regularCount, 3);
-    expect(tally.guestCount, 1);
-    expect(tally.headLabel, '정회원 3명 · 게스트 1명');
+    expect(unanswered.attend, 0);
+    expect(unanswered.decline, 0);
+    expect(unanswered.noResponse, 3);
+    expect(unanswered.total, 3);
+    expect(unanswered.regularCount, 3);
+    expect(unanswered.guestCount, 1);
+    expect(unanswered.headLabel, '정회원 3명 · 게스트 1명');
+
+    final guestJoined = RoundAttendance.of(
+      roster: [
+        _m('a', '정회원'),
+        _m('g', '게스트'),
+      ],
+      responses: [_r('g', '참석')],
+    );
+    expect(guestJoined.attend, 1);
+    expect(guestJoined.guestAttend, 1);
+    expect(guestJoined.noResponse, 1);
+    expect(guestJoined.total, 2);
   });
 
   test('같은 사람 응답이 두 줄이어도 한 명이다', () {

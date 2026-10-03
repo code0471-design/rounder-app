@@ -2,8 +2,8 @@ import '../../models/club_model.dart';
 
 /// 홈·일정 목록·일정 상세가 같은 참석 숫자를 쓰게 하는 집계.
 ///
-/// 정회원만 세면 홈(전체)과 일정(정회원)이 한 명씩 어긋난다.
-/// 게스트도 응답 대상이므로 활성 명단 전체를 한 번씩만 센다.
+/// 미답변은 정회원만. 게스트는 신청하면 참석/불참에 들어가고,
+/// 안 하면 미답변으로 세지 않는다.
 class RoundAttendance {
   final List<String> attendIds;
   final List<String> declineIds;
@@ -24,7 +24,7 @@ class RoundAttendance {
   int get attend => attendIds.length;
   int get decline => declineIds.length;
 
-  /// 참석 + 불참 + 미답변. 활성 명단 수와 같다.
+  /// 참석 + 불참 + 정회원 미답변. 응답 안 한 게스트는 넣지 않는다.
   int get total => attend + decline + noResponse;
 
   String get headLabel {
@@ -63,7 +63,9 @@ class RoundAttendance {
     return RoundAttendance(
       attendIds: attendIds,
       declineIds: declineIds,
-      noResponse: ids.where((id) => !answered.contains(id)).length,
+      noResponse: ids
+          .where((id) => !guestIds.contains(id) && !answered.contains(id))
+          .length,
       regularCount: ids.length - guestIds.length,
       guestCount: guestIds.length,
       guestAttend: attendIds.where(guestIds.contains).length,
