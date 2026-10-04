@@ -74,8 +74,10 @@ void main() {
         .readAsStringSync();
     final schedule =
         File('lib/screens/schedule/schedule_screen.dart').readAsStringSync();
-    expect(home.contains('RoundAttendance.of('), isTrue);
-    expect(schedule.contains('RoundAttendance.of('), isTrue);
+    expect(home.contains('attendanceTallyFor('), isTrue);
+    expect(schedule.contains('attendanceTallyFor('), isTrue);
+    expect(home.contains('RoundAttendance.of('), isFalse);
+    expect(schedule.contains('RoundAttendance.of('), isFalse);
     expect(schedule.contains('regular - respondedRegular'), isFalse);
     expect(
       schedule.contains("provider.regularMembers\n            .where"),

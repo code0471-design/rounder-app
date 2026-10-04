@@ -166,6 +166,114 @@ void main() {
     expect(merged.members.any((m) => m.id == 'm_c_test_u2'), isTrue);
   });
 
+  test('빈 원격 참석이 로컬 참석을 덮지 않는다', () {
+    final kept = ClubOpsSync.mergeAttendanceResponses(
+      [
+        {
+          'memberId': 'a',
+          'response': '참석',
+          'respondedAt': '2026-10-01T00:00:00.000',
+        },
+      ],
+      <dynamic>[],
+    );
+    expect(kept.single['memberId'], 'a');
+    expect(kept.single['response'], '참석');
+
+    final newer = ClubOpsSync.mergeAttendanceResponses(
+      [
+        {
+          'memberId': 'a',
+          'response': '참석',
+          'respondedAt': '2026-10-01T00:00:00.000',
+        },
+      ],
+      [
+        {
+          'memberId': 'a',
+          'response': '불참',
+          'respondedAt': '2026-10-02T00:00:00.000',
+        },
+      ],
+    );
+    expect(newer.single['response'], '불참');
+
+    final local = ClubDataBundle(
+      selectedClubIndex: 0,
+      freshClubIds: {'c_test'},
+      myClubs: [
+        Club(
+          id: 'c_test',
+          name: '테스트',
+          myRole: '총무',
+          memberCount: 2,
+          region: '서울',
+          industry: 'IT',
+          teamCount: 4,
+        ),
+      ],
+      allClubs: const [],
+      joinRequests: const [],
+      members: const [],
+      activities: const [],
+      announcements: const [],
+      appNotifications: const [],
+      duesSettings: const [],
+      duesPayments: const [],
+      paymentRequests: const [],
+      transactions: const [],
+      schedules: [
+        RoundSchedule(
+          id: 's1',
+          clubId: 'c_test',
+          title: '10월',
+          roundDate: DateTime(2026, 10, 10),
+          teeTime: '07:00',
+          courseName: 'A',
+          teamCount: 4,
+          status: ScheduleStatus.upcoming,
+          createdBy: '안경헌',
+          responses: [
+            AttendanceResponse(
+              memberId: 'a',
+              memberName: 'A',
+              response: '참석',
+              respondedAt: DateTime(2026, 10, 1),
+            ),
+          ],
+        ),
+      ],
+      photos: const [],
+      groupAssignments: const {},
+      adApplications: const [],
+      adNotifications: const [],
+      sponsorApplications: const [],
+      pointEvents: const {},
+      awardRecords: const [],
+      thankYouMessages: const [],
+      waitingList: const [],
+      alimtalkSettings: const {},
+    );
+    final merged = ClubOpsSync.applyRemoteSlice(local, 'c_test', {
+      'schedules': [
+        {
+          'id': 's1',
+          'clubId': 'c_test',
+          'title': '10월',
+          'roundDate': DateTime(2026, 10, 10).toIso8601String(),
+          'teeTime': '07:00',
+          'courseName': 'A',
+          'teamCount': 4,
+          'status': 'upcoming',
+          'createdBy': '안경헌',
+          'responses': <dynamic>[],
+        },
+      ],
+    });
+    expect(merged.schedules.single.responses.single.memberId, 'a');
+    expect(merged.schedules.single.responses.single.response, '참석');
+  });
+
   test('빈 원격 일정은 로컬 일정을 지우지 않는다', () {
     final local = ClubDataBundle(
       selectedClubIndex: 0,

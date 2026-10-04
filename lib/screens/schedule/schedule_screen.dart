@@ -432,10 +432,7 @@ class _ScheduleCard extends StatelessWidget {
                     (s) => s.id == schedule.id,
                     orElse: () => schedule,
                   );
-                  final tally = RoundAttendance.of(
-                    roster: prov.activeMembers,
-                    responses: latest.responses,
-                  );
+                  final tally = prov.attendanceTallyFor(latest);
                   final attend = tally.attend;
                   final decline = tally.decline;
                   final noRes = tally.noResponse;
@@ -2720,10 +2717,7 @@ class _AttendanceCard extends StatelessWidget {
           (s) => s.id == schedule.id,
           orElse: () => schedule,
         );
-        final tally = RoundAttendance.of(
-          roster: provider.activeMembers,
-          responses: latest.responses,
-        );
+        final tally = provider.attendanceTallyFor(latest);
         final confirmed = [
           for (final id in tally.attendIds)
             latest.responses.firstWhere((r) => r.memberId == id),

@@ -14,6 +14,7 @@ import '../domain/services/group_assignment_service.dart';
 import '../domain/services/join_request_service.dart';
 import '../domain/services/club_name_policy.dart';
 import '../domain/services/official_member_count.dart';
+import '../domain/services/round_attendance.dart';
 import '../domain/data/sample_club_filter.dart';
 import '../domain/services/roster_dedupe.dart';
 import '../models/club_model.dart';
@@ -50,6 +51,10 @@ class ClubProvider extends ChangeNotifier with WidgetsBindingObserver {
   bool _membershipGateReady = false;
   final Set<String> _confirmedClubIds = {};
   bool _applyingCloudOps = false;
+  /// pull/watch/hydrate 중간에는 숫자 화면을 다시 그리지 않는다.
+  bool _suppressRosterNotify = false;
+  final Map<String, int> _lastHeadcount = {};
+  final Map<String, RoundAttendance> _lastAttendance = {};
   /// 설정에서 고친 모임 정보. pull/watch 가 옛 번들을 넣어도 되돌리지 않는다.
   final Map<String, Club> _clubInfoOverrides = {};
   String? _watchingClubId;
@@ -466,6 +471,8 @@ class ClubProvider extends ChangeNotifier with WidgetsBindingObserver {
         _myClubs.clear();
         break;
     }
+    _lastHeadcount.clear();
+    _lastAttendance.clear();
     _selectedClubIndex = 0;
 
     final saved = await ClubPersistence.load(authUserId);
@@ -662,6 +669,7 @@ class ClubProvider extends ChangeNotifier with WidgetsBindingObserver {
     }
     _applyingCloudOps = true;
     _suppressPersist = true;
+    _suppressRosterNotify = true;
     try {
       var bundle = _exportBundle();
       final userMerged = await ClubOpsSync.pullMergeUser(
@@ -697,6 +705,7 @@ class ClubProvider extends ChangeNotifier with WidgetsBindingObserver {
       debugPrint('[ClubProvider] cloud pull fail: $e');
     } finally {
       _suppressPersist = false;
+      _suppressRosterNotify = false;
       _applyingCloudOps = false;
       // 로컬만 있던 데이터를 서버에 최초 반영
       unawaited(_persistNow());
@@ -756,8 +765,16 @@ class ClubProvider extends ChangeNotifier with WidgetsBindingObserver {
       _queuedWatchRemote = remote;
       return;
     }
+    unawaited(_applyWatchedClubOpsAsync(clubId, remote));
+  }
+
+  Future<void> _applyWatchedClubOpsAsync(
+    String clubId,
+    Map<String, dynamic> remote,
+  ) async {
     _applyingCloudOps = true;
     _suppressPersist = true;
+    _suppressRosterNotify = true;
     final beforeSig = _galleryWatchSignature();
     try {
       final merged = ClubOpsSync.applyRemoteSlice(
@@ -768,11 +785,12 @@ class ClubProvider extends ChangeNotifier with WidgetsBindingObserver {
       _importBundle(merged);
       _syncNextRound(clubId);
       _reconcileLiveMemberCounts();
-      unawaited(_hydrateRosterFromServer(clubId));
+      await _hydrateRosterFromServer(clubId);
     } catch (e) {
       debugPrint('[ClubProvider] cloud watch apply fail: $e');
     } finally {
       _suppressPersist = false;
+      _suppressRosterNotify = false;
       _applyingCloudOps = false;
       if (beforeSig != _galleryWatchSignature()) {
         notifyListeners();
@@ -799,7 +817,7 @@ class ClubProvider extends ChangeNotifier with WidgetsBindingObserver {
     final waitPart = _waitingList.map((w) => '${w.scheduleId}:${w.memberId}').join(',');
     final memberPart =
         _members.map((m) =>
-            '${m.id}:${m.name}:${m.status}:${m.photoUrl ?? ''}:${m.birthDate?.millisecondsSinceEpoch ?? 0}')
+            '${m.id}:${m.name}:${m.status}:${m.memberType}:${m.photoUrl ?? ''}:${m.birthDate?.millisecondsSinceEpoch ?? 0}')
             .join(',');
     // 댓글 수 포함 — 다른 기기가 댓글을 달면 공지 개수는 그대로라 놓쳤다.
     final announcePart =
@@ -1705,7 +1723,7 @@ class ClubProvider extends ChangeNotifier with WidgetsBindingObserver {
         final restored = _restoreMembersFromAccounts(clubId);
         final dropped = _dropUnmemberedAccountRows(clubId);
         if ((restored || dropped) && !_suppressPersist) {
-          notifyListeners();
+          if (!_suppressRosterNotify) notifyListeners();
           _persistImmediately();
         }
       }
@@ -2157,7 +2175,7 @@ class ClubProvider extends ChangeNotifier with WidgetsBindingObserver {
     } else {
       unawaited(_recountOfficialMemberCount(clubId));
     }
-    notifyListeners();
+    if (!_suppressRosterNotify) notifyListeners();
     if (!_suppressPersist) _persistImmediately();
   }
 
@@ -3173,7 +3191,7 @@ class ClubProvider extends ChangeNotifier with WidgetsBindingObserver {
 
   /// 카드에 적는 인원. 게스트를 포함한 활성 명단이다.
   /// 같은 사람 줄이 늘었다 줄어도 숫자는 그대로다.
-  /// 명단이 아직 없으면 저장된 숫자를 그대로 둔다.
+  /// 명단이 잠깐 비어도 방금 센 숫자를 유지한다.
   int activeHeadcount(String clubId) {
     final club = _clubById(clubId);
     final roster = OfficialMemberCount.attendanceRoster(
@@ -3181,8 +3199,47 @@ class ClubProvider extends ChangeNotifier with WidgetsBindingObserver {
       creatorUserId: club?.creatorId ?? '',
       roster: membersForClub(clubId),
     );
-    if (roster.isNotEmpty) return roster.length;
+    if (roster.isNotEmpty) {
+      _lastHeadcount[clubId] = roster.length;
+      return roster.length;
+    }
+    final kept = _lastHeadcount[clubId];
+    if (kept != null && kept > 0) return kept;
     return club?.memberCount ?? 0;
+  }
+
+  List<Member> activeMembersOf(String clubId) {
+    final club = _clubById(clubId);
+    return OfficialMemberCount.attendanceRoster(
+      clubId: clubId,
+      creatorUserId: club?.creatorId ?? '',
+      roster: membersForClub(clubId).where((m) => m.status == '활성'),
+    );
+  }
+
+  RoundSchedule? nextUpcomingScheduleOf(String clubId) {
+    final list = _schedules
+        .where((s) =>
+            s.clubId == clubId &&
+            s.status == ScheduleStatus.upcoming &&
+            !s.isDateOver)
+        .toList();
+    list.sort((a, b) => a.roundDate.compareTo(b.roundDate));
+    return list.isEmpty ? null : list.first;
+  }
+
+  /// 동기화 중간에는 직전에 맞았던 참석 숫자를 유지한다.
+  RoundAttendance attendanceTallyFor(RoundSchedule schedule) {
+    final next = RoundAttendance.of(
+      roster: activeMembersOf(schedule.clubId),
+      responses: schedule.responses,
+    );
+    if ((_suppressRosterNotify || _applyingCloudOps) &&
+        _lastAttendance.containsKey(schedule.id)) {
+      return _lastAttendance[schedule.id]!;
+    }
+    _lastAttendance[schedule.id] = next;
+    return next;
   }
 
   /// 어드민·동기화용 — 특정 모임의 회원 목록
@@ -6748,24 +6805,44 @@ class ClubProvider extends ChangeNotifier with WidgetsBindingObserver {
     _selectedClubIndex = index;
     if (index >= 0 && index < _myClubs.length) {
       _syncNextRound(_myClubs[index].id);
-      unawaited(_hydrateRosterFromServer(_myClubs[index].id));
     }
     ensureCreatorMembers();
     _watchSelectedClubOps();
     notifyListeners();
+    if (index >= 0 && index < _myClubs.length) {
+      unawaited(_refreshSelectedClubRoster(_myClubs[index].id));
+    }
   }
 
   /// id로 모임 선택 (ClubRoomScreen 진입 시)
   void selectClubById(String clubId) {
     final idx = _myClubs.indexWhere((c) => c.id == clubId);
-    if (idx != -1) {
-      _selectedClubIndex = idx;
-      _syncNextRound(clubId);
-      ensureCreatorMembers();
-      unawaited(_hydrateRosterFromServer(clubId));
-      unawaited(hydrateClubAccounts(clubId));
-      _watchSelectedClubOps();
+    if (idx == -1) return;
+    _selectedClubIndex = idx;
+    _syncNextRound(clubId);
+    ensureCreatorMembers();
+    _watchSelectedClubOps();
+    notifyListeners();
+    unawaited(_refreshSelectedClubRoster(clubId));
+  }
+
+  Future<void> _refreshSelectedClubRoster(String clubId) async {
+    if (_applyingCloudOps || _suppressRosterNotify) return;
+    _applyingCloudOps = true;
+    _suppressRosterNotify = true;
+    try {
+      await _hydrateRosterFromServer(clubId);
+    } finally {
+      _suppressRosterNotify = false;
+      _applyingCloudOps = false;
       notifyListeners();
+      final queuedId = _queuedWatchClubId;
+      final queued = _queuedWatchRemote;
+      _queuedWatchClubId = null;
+      _queuedWatchRemote = null;
+      if (queued != null && queuedId == clubId) {
+        _applyWatchedClubOps(clubId, queued);
+      }
     }
   }
 

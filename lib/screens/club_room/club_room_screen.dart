@@ -3,7 +3,6 @@ import 'dart:async';
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
-import '../../domain/services/round_attendance.dart';
 import '../../models/club_model.dart';
 import '../../models/member_role.dart';
 import '../../providers/club_provider.dart';
@@ -153,7 +152,7 @@ class _ClubRoomScreenState extends State<ClubRoomScreen> {
         p.requestOpenJoinRequests();
       }
       p.selectClubById(widget.club.id);
-      if (p.ensureCreatorMembers()) p.notifyListeners();
+      p.ensureCreatorMembers();
       // 직책 수정/인수인계 후 Club.myRole 불일치 복구
       p.syncMyRoleFromMemberRoster();
       if (widget.openJoinRequests) {
@@ -950,9 +949,9 @@ class ClubHomeTab extends StatelessWidget {
 
   Widget _buildNextRoundSection(
       BuildContext context, ClubProvider provider) {
-    final nextSchedule = provider.nextUpcomingSchedule;
+    final nextSchedule = provider.nextUpcomingScheduleOf(widget.club.id);
 
-    if (provider.upcomingSchedules.isEmpty) {
+    if (nextSchedule == null) {
       return Container(
         width: double.infinity,
         padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 30),
@@ -1205,6 +1204,7 @@ class ClubHomeTab extends StatelessWidget {
             ),
             _AttendanceCard(
               provider: provider,
+              clubId: widget.club.id,
               embedded: true,
               onTap: openDetail,
             ),
@@ -1218,10 +1218,12 @@ class ClubHomeTab extends StatelessWidget {
 // ── 출석 현황 카드 (실시간 응답 + 카운트) ──
 class _AttendanceCard extends StatelessWidget {
   final ClubProvider provider;
+  final String clubId;
   final VoidCallback? onTap;
   final bool embedded;
   const _AttendanceCard({
     required this.provider,
+    required this.clubId,
     this.onTap,
     this.embedded = false,
   });
@@ -1230,16 +1232,13 @@ class _AttendanceCard extends StatelessWidget {
   Widget build(BuildContext context) {
     return Consumer<ClubProvider>(
       builder: (context, prov, _) {
-        final nextSchedule = prov.nextUpcomingSchedule;
+        final nextSchedule = prov.nextUpcomingScheduleOf(clubId);
 
         if (nextSchedule == null) {
           return const SizedBox.shrink();
         }
 
-        final tally = RoundAttendance.of(
-          roster: prov.activeMembers,
-          responses: nextSchedule.responses,
-        );
+        final tally = prov.attendanceTallyFor(nextSchedule);
         final confirmed = tally.attend;
         final guestAttend = tally.guestAttend;
         final declined = tally.decline;

@@ -128,7 +128,7 @@ class ClubOpsSync {
 
         // 이 폰에 없는 일정은 지우지 않는다. 예전 목록을 통째로 올리면
         // 다른 폰에서 방금 만든 일정이 서버에서 사라진다.
-        slice['schedules'] = capScheduleAttendance(mergeRowsById(
+        slice['schedules'] = capScheduleAttendance(mergeScheduleRows(
           local: slice['schedules'] as List? ?? const [],
           remote: remote['schedules'] as List? ?? const [],
           localWins: true,
@@ -282,12 +282,91 @@ class ClubOpsSync {
     }
     return [
       ...others,
-      ...capScheduleAttendance(mergeRowsById(
+      ...capScheduleAttendance(mergeScheduleRows(
         local: localClub,
         remote: remoteClub,
         localWins: false,
       )),
     ];
+  }
+
+  /// 같은 일정은 응답을 합친다. 빈 원격 응답이 로컬 참석을 지우지 않는다.
+  @visibleForTesting
+  static List<dynamic> mergeScheduleRows({
+    required List local,
+    required List remote,
+    required bool localWins,
+  }) {
+    final localBy = <String, Map<String, dynamic>>{};
+    final remoteBy = <String, Map<String, dynamic>>{};
+    void index(List rows, Map<String, Map<String, dynamic>> into) {
+      for (final e in rows) {
+        if (e is! Map) continue;
+        final id = '${e['id'] ?? ''}'.trim();
+        if (id.isEmpty) continue;
+        into[id] = Map<String, dynamic>.from(e);
+      }
+    }
+
+    index(local, localBy);
+    index(remote, remoteBy);
+    final ids = <String>{...localBy.keys, ...remoteBy.keys};
+    return [
+      for (final id in ids)
+        _mergeOneSchedule(
+          local: localBy[id],
+          remote: remoteBy[id],
+          localWins: localWins,
+        ),
+    ];
+  }
+
+  static Map<String, dynamic> _mergeOneSchedule({
+    Map<String, dynamic>? local,
+    Map<String, dynamic>? remote,
+    required bool localWins,
+  }) {
+    if (local == null) return Map<String, dynamic>.from(remote ?? const {});
+    if (remote == null) return Map<String, dynamic>.from(local);
+    final first = localWins ? remote : local;
+    final second = localWins ? local : remote;
+    final out = <String, dynamic>{
+      ...Map<String, dynamic>.from(first),
+      ...Map<String, dynamic>.from(second),
+    };
+    out['responses'] = mergeAttendanceResponses(
+      local['responses'],
+      remote['responses'],
+    );
+    return out;
+  }
+
+  @visibleForTesting
+  static List<dynamic> mergeAttendanceResponses(Object? a, Object? b) {
+    final byId = <String, Map<String, dynamic>>{};
+    void take(Object? raw) {
+      if (raw is! List) return;
+      for (final e in raw) {
+        if (e is! Map) continue;
+        final id = '${e['memberId'] ?? ''}'.trim();
+        if (id.isEmpty) continue;
+        final row = Map<String, dynamic>.from(e);
+        final prev = byId[id];
+        if (prev == null) {
+          byId[id] = row;
+          continue;
+        }
+        final prevAt = DateTime.tryParse('${prev['respondedAt'] ?? ''}');
+        final nextAt = DateTime.tryParse('${row['respondedAt'] ?? ''}');
+        if (nextAt != null && (prevAt == null || nextAt.isAfter(prevAt))) {
+          byId[id] = row;
+        }
+      }
+    }
+
+    take(a);
+    take(b);
+    return byId.values.toList();
   }
 
   /// 동시 참석이 정원보다 많으면 먼저 응답한 사람만 남긴다.
