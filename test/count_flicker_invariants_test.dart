@@ -25,7 +25,7 @@ void main() {
   test('홈·일정은 모임 id로 참석을 센다', () {
     final home = File('lib/screens/club_room/club_room_screen.dart')
         .readAsStringSync();
-    expect(home.contains('nextUpcomingScheduleOf(widget.club.id)'), isTrue);
+    expect(home.contains('nextUpcomingScheduleOf(clubId)'), isTrue);
     expect(home.contains('attendanceTallyFor('), isTrue);
     expect(home.contains('prov.nextUpcomingSchedule;'), isFalse);
   });

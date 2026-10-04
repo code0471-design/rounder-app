@@ -949,7 +949,7 @@ class ClubHomeTab extends StatelessWidget {
 
   Widget _buildNextRoundSection(
       BuildContext context, ClubProvider provider) {
-    final nextSchedule = provider.nextUpcomingScheduleOf(widget.club.id);
+    final nextSchedule = provider.nextUpcomingScheduleOf(clubId);
 
     if (nextSchedule == null) {
       return Container(
@@ -1204,7 +1204,7 @@ class ClubHomeTab extends StatelessWidget {
             ),
             _AttendanceCard(
               provider: provider,
-              clubId: widget.club.id,
+              clubId: clubId,
               embedded: true,
               onTap: openDetail,
             ),
