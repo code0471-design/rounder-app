@@ -19,6 +19,15 @@ void main() {
     expect(screen.contains("'시상 저장'"), isFalse);
     expect(screen.contains('_saveAwards(close: false);'), isTrue,
         reason: '수상자 확인·삭제 시 즉시 저장');
+    expect(screen.contains("id: 'ar_\${widget.schedule.id}_\${award.name}'"),
+        isTrue,
+        reason: '시상 저장 id 는 항목 a1 이 아니라 시상명으로 고정');
+    expect(screen.contains("id: 'ar_\${widget.schedule.id}_\${award.id}'"),
+        isFalse,
+        reason: 'rec.id 를 다시 붙이면 저장마다 줄이 늘어난다');
+    expect(screen.contains('id: rec.id'), isFalse,
+        reason: '불러올 때 rec.id 를 항목 id 로 쓰면 다음 저장 id 가 길어진다');
+    expect(screen.contains('id: itemId'), isTrue);
     expect(screen.contains('_saveScores'), isTrue);
     expect(screen.contains('_saveAwards'), isTrue);
     expect(screen.contains('_saveAll'), isFalse);

@@ -1494,6 +1494,139 @@ void main() {
     expect(ids, isNot(contains('kakao_host')));
   });
 
+  test('같은 일정·같은 시상명이 다른 id 면 한 줄로 합친다', () {
+    final collapsed = ClubOpsSync.collapseAwardRecords([
+      {
+        'id': 'ar_s1_a1',
+        'scheduleId': 's1',
+        'awardName': '메달리스트',
+        'winnerIds': ['m1'],
+        'winnerNames': ['이정원'],
+        'recordedAt': '2026-09-15T07:00:00.000',
+      },
+      {
+        'id': 'ar_s1_ar_s1_a1',
+        'scheduleId': 's1',
+        'awardName': '메달리스트',
+        'winnerIds': ['m1'],
+        'winnerNames': ['이정원'],
+        'recordedAt': '2026-09-15T08:00:00.000',
+      },
+      {
+        'id': 'ar_s1_a2',
+        'scheduleId': 's1',
+        'awardName': '니어리스트',
+        'winnerIds': ['m2'],
+        'winnerNames': ['안경헌'],
+        'recordedAt': '2026-09-15T07:00:00.000',
+      },
+    ]);
+    expect(collapsed.length, 2, reason: '메달리스트가 저장마다 두 줄이면 횟수가 두 배다');
+    expect(
+      collapsed.where((e) => e['awardName'] == '메달리스트').length,
+      1,
+    );
+    expect(collapsed.singleWhere((e) => e['awardName'] == '메달리스트')['id'],
+        'ar_s1_메달리스트');
+  });
+
+  test('원격 옛 시상과 로컬 새 id 를 합쳐도 횟수가 늘지 않는다', () {
+    final local = ClubDataBundle(
+      selectedClubIndex: 0,
+      freshClubIds: {'c_test'},
+      myClubs: [
+        Club(
+          id: 'c_test',
+          name: '테스트',
+          myRole: '총무',
+          memberCount: 1,
+          region: '서울',
+          industry: 'IT',
+          teamCount: 4,
+        ),
+      ],
+      allClubs: const [],
+      joinRequests: const [],
+      members: const [],
+      activities: const [],
+      announcements: const [],
+      appNotifications: const [],
+      duesSettings: const [],
+      duesPayments: const [],
+      paymentRequests: const [],
+      transactions: const [],
+      schedules: [
+        RoundSchedule(
+          id: 's1',
+          clubId: 'c_test',
+          title: '추가월례회',
+          roundDate: DateTime(2026, 9, 15),
+          teeTime: '07:30',
+          courseName: 'A',
+          teamCount: 1,
+          status: ScheduleStatus.done,
+          createdBy: '이정원',
+        ),
+      ],
+      photos: const [],
+      groupAssignments: const {},
+      adApplications: const [],
+      adNotifications: const [],
+      sponsorApplications: const [],
+      pointEvents: const {},
+      awardRecords: [
+        AwardRecord(
+          id: 'ar_s1_ar_s1_a1',
+          scheduleId: 's1',
+          scheduleName: '추가월례회',
+          awardName: '메달리스트',
+          awardIcon: '🥇',
+          winnerIds: const ['m1'],
+          winnerNames: const ['이정원'],
+          recordedAt: DateTime(2026, 9, 15, 8),
+        ),
+      ],
+      roundScores: const [],
+      thankYouMessages: const [],
+      waitingList: const [],
+      alimtalkSettings: const {},
+    );
+    final merged = ClubOpsSync.applyRemoteSlice(local, 'c_test', {
+      'clubId': 'c_test',
+      'schedules': [
+        {
+          'id': 's1',
+          'clubId': 'c_test',
+          'title': '추가월례회',
+          'roundDate': DateTime(2026, 9, 15).toIso8601String(),
+          'teeTime': '07:30',
+          'courseName': 'A',
+          'teamCount': 1,
+          'status': 'done',
+          'createdBy': '이정원',
+          'responses': <dynamic>[],
+        },
+      ],
+      'awardRecords': [
+        {
+          'id': 'ar_s1_a1',
+          'scheduleId': 's1',
+          'scheduleName': '추가월례회',
+          'awardName': '메달리스트',
+          'awardIcon': '🥇',
+          'winnerIds': ['m1'],
+          'winnerNames': ['이정원'],
+          'winnerNote': null,
+          'recordedAt': DateTime(2026, 9, 15, 7).toIso8601String(),
+        },
+      ],
+      'members': <dynamic>[],
+    });
+    expect(merged.awardRecords.length, 1,
+        reason: '회원탭 다시 들어갈 때마다 시상 줄이 늘면 안 된다');
+    expect(merged.awardRecords.single.awardName, '메달리스트');
+  });
+
   test('강남 시상에 남은 장창현 이름은 그 모임 회원 이름으로 고친다', () {
     const gangnam = 'c_1788832826557';
     final fixed = ClubOpsSync.rewriteLeftoverAwardWinnerNames(

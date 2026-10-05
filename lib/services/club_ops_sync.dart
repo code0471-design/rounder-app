@@ -143,14 +143,16 @@ class ClubOpsSync {
           remote: remote['waitingList'] as List? ?? const [],
           localWins: true,
         ));
-        slice['awardRecords'] = rewriteLeftoverAwardWinnerNames(
-          awards: mergeRowsById(
-            local: slice['awardRecords'] as List? ?? const [],
-            remote: remote['awardRecords'] as List? ?? const [],
-            localWins: true,
+        slice['awardRecords'] = collapseAwardRecords(
+          rewriteLeftoverAwardWinnerNames(
+            awards: mergeRowsById(
+              local: slice['awardRecords'] as List? ?? const [],
+              remote: remote['awardRecords'] as List? ?? const [],
+              localWins: true,
+            ),
+            members: slice['members'] as List? ?? const [],
+            clubId: clubId,
           ),
-          members: slice['members'] as List? ?? const [],
-          clubId: clubId,
         );
         slice['roundScores'] = mergeRowsById(
           local: slice['roundScores'] as List? ?? const [],
@@ -1474,14 +1476,16 @@ class ClubOpsSync {
       );
     }
 
-    encoded['awardRecords'] = rewriteLeftoverAwardWinnerNames(
-      awards: _mergeRecordsByScheduleId(
-        localList: encoded['awardRecords'] as List?,
-        remoteList: remote['awardRecords'] as List?,
-        scheduleIds: scheduleIds,
+    encoded['awardRecords'] = collapseAwardRecords(
+      rewriteLeftoverAwardWinnerNames(
+        awards: _mergeRecordsByScheduleId(
+          localList: encoded['awardRecords'] as List?,
+          remoteList: remote['awardRecords'] as List?,
+          scheduleIds: scheduleIds,
+        ),
+        members: encoded['members'] as List? ?? const [],
+        clubId: clubId,
       ),
-      members: encoded['members'] as List? ?? const [],
-      clubId: clubId,
     );
     encoded['roundScores'] = _mergeRecordsByScheduleId(
       localList: encoded['roundScores'] as List?,
@@ -1761,6 +1765,43 @@ class ClubOpsSync {
       out.add(e);
     }
     return out;
+  }
+
+  /// 같은 일정·같은 시상명이 다른 id 로 여러 줄이면 최신 한 줄만 남긴다.
+  /// 저장할 때마다 ar_일정_a1 → ar_일정_ar_일정_a1 로 늘어 횟수가 두 배씩 가던 원인.
+  @visibleForTesting
+  static List<dynamic> collapseAwardRecords(List awards) {
+    final byKey = <String, Map<String, dynamic>>{};
+    final order = <String>[];
+    DateTime recordedAtOf(Map<String, dynamic> m) {
+      final raw = m['recordedAt'];
+      if (raw is DateTime) return raw;
+      return DateTime.tryParse('$raw') ??
+          DateTime.fromMillisecondsSinceEpoch(0);
+    }
+
+    for (final e in awards) {
+      if (e is! Map) continue;
+      final m = Map<String, dynamic>.from(e);
+      final sid = '${m['scheduleId'] ?? ''}'.trim();
+      final name = '${m['awardName'] ?? ''}'.trim();
+      if (sid.isEmpty || name.isEmpty) continue;
+      final key = '$sid\u0000$name';
+      final prev = byKey[key];
+      if (prev == null) {
+        m['id'] = 'ar_${sid}_$name';
+        m['awardName'] = name;
+        byKey[key] = m;
+        order.add(key);
+        continue;
+      }
+      if (!recordedAtOf(m).isBefore(recordedAtOf(prev))) {
+        m['id'] = 'ar_${sid}_$name';
+        m['awardName'] = name;
+        byKey[key] = m;
+      }
+    }
+    return [for (final k in order) byKey[k]!];
   }
 
   /// 시상 winnerId 가 이 모임 회원이면 지금 명단 이름을 쓴다.

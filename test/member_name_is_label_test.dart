@@ -100,7 +100,7 @@ void main() {
     expect(clubs.getMemberAwardCount(creatorId, year: 2026), 1);
     expect(
       clubs.regularAwardWinnerNames(
-        clubs.allAwardRecords.where((r) => r.id == 'ar_name').first,
+        clubs.allAwardRecords.where((r) => r.scheduleId == 's_name').first,
       ),
       ['김안경'],
     );

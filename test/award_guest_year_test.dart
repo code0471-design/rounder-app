@@ -63,10 +63,11 @@ void main() {
   });
 
   test('게스트만 탄 시상은 월별 이름에도 안 나온다', () {
-    final guestAward = clubs.allAwardRecords.firstWhere((r) => r.id == 'ar_guest');
+    final guestAward =
+        clubs.allAwardRecords.firstWhere((r) => r.scheduleId == 's_guest');
     expect(clubs.regularAwardWinnerNames(guestAward), isEmpty);
     final regularAward =
-        clubs.allAwardRecords.firstWhere((r) => r.id == 'ar_regular');
+        clubs.allAwardRecords.firstWhere((r) => r.scheduleId == 's_reg');
     expect(clubs.regularAwardWinnerNames(regularAward), isNotEmpty);
     final years = clubs.awardYearsAvailable();
     expect(years.contains(DateTime.now().year), isTrue);
@@ -121,8 +122,29 @@ void main() {
       winnerNames: const ['장창현'],
       recordedAt: DateTime(2026, 9, 1),
     ));
-    final rec = clubs.allAwardRecords.firstWhere((r) => r.id == 'ar_ghost');
+    final rec = clubs.allAwardRecords.firstWhere((r) => r.scheduleId == 's_ghost');
     expect(clubs.visibleAwardWinnerNames(rec), ['안경현']);
     expect(clubs.visibleAwardWinnerNames(rec), isNot(contains('장창현')));
+  });
+
+  test('같은 시상을 다른 id 로 다시 저장해도 횟수는 한 번이다', () {
+    final before = clubs.getMemberAwardCount(regularId, year: 2026);
+    clubs.saveAwardsForSchedule('s_reg', [
+      AwardRecord(
+        id: 'ar_s_reg_ar_s_reg_a1',
+        scheduleId: 's_reg',
+        scheduleName: '테스트라운드',
+        awardName: '메달리스트',
+        awardIcon: '🥇',
+        winnerIds: [regularId],
+        winnerNames: const ['안경현'],
+        recordedAt: DateTime(2026, 9, 2),
+      ),
+    ]);
+    expect(clubs.getMemberAwardCount(regularId, year: 2026), before);
+    expect(
+      clubs.awardRecordsFor('s_reg').where((r) => r.awardName == '메달리스트').length,
+      1,
+    );
   });
 }

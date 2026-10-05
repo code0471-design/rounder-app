@@ -2951,9 +2951,7 @@ class ClubProvider extends ChangeNotifier with WidgetsBindingObserver {
     _seasonLocks
       ..clear()
       ..addAll(b.seasonLocks);
-    _awardRecords
-      ..clear()
-      ..addAll(b.awardRecords);
+    _replaceAwardRecords(b.awardRecords);
     _rewriteAwardWinnerLabels();
     _roundScores
       ..clear()
@@ -4709,7 +4707,7 @@ class ClubProvider extends ChangeNotifier with WidgetsBindingObserver {
       ));
     }
     if (awardRecords.isNotEmpty) {
-      _awardRecords.addAll(awardRecords);
+      _replaceAwardRecords([..._awardRecords, ...awardRecords]);
     }
 
     notifyListeners();
@@ -11181,11 +11179,44 @@ class ClubProvider extends ChangeNotifier with WidgetsBindingObserver {
 
   final List<RoundScoreRecord> _roundScores = [];
 
-  List<AwardRecord> get allAwardRecords => List.unmodifiable(_awardRecords);
+  List<AwardRecord> get allAwardRecords =>
+      List.unmodifiable(_dedupeAwardRecords(_awardRecords));
 
-  List<AwardRecord> awardRecordsFor(String scheduleId) => _awardRecords
-      .where((r) => r.scheduleId == scheduleId)
-      .toList(growable: false);
+  List<AwardRecord> awardRecordsFor(String scheduleId) => _dedupeAwardRecords(
+        _awardRecords.where((r) => r.scheduleId == scheduleId),
+      );
+
+  /// 같은 일정·같은 시상명은 최신 한 줄. 저장·동기화가 id 를 바꿔도 두 번 세지 않는다.
+  List<AwardRecord> _dedupeAwardRecords(Iterable<AwardRecord> records) {
+    final byKey = <String, AwardRecord>{};
+    for (final r in records) {
+      final name = r.awardName.trim();
+      if (r.scheduleId.isEmpty || name.isEmpty) continue;
+      final key = '${r.scheduleId}\u0000$name';
+      final prev = byKey[key];
+      if (prev == null || !r.recordedAt.isBefore(prev.recordedAt)) {
+        byKey[key] = AwardRecord(
+          id: 'ar_${r.scheduleId}_$name',
+          scheduleId: r.scheduleId,
+          scheduleName: r.scheduleName,
+          awardName: name,
+          awardIcon: r.awardIcon,
+          winnerIds: r.winnerIds,
+          winnerNames: r.winnerNames,
+          winnerNote: r.winnerNote,
+          recordedAt: r.recordedAt,
+        );
+      }
+    }
+    return byKey.values.toList(growable: false);
+  }
+
+  void _replaceAwardRecords(Iterable<AwardRecord> records) {
+    final next = _dedupeAwardRecords(records);
+    _awardRecords
+      ..clear()
+      ..addAll(next);
+  }
 
   RoundScoreRecord? roundScoreFor(String scheduleId) =>
       _roundScores.where((r) => r.scheduleId == scheduleId).firstOrNull;
@@ -11195,10 +11226,10 @@ class ClubProvider extends ChangeNotifier with WidgetsBindingObserver {
     return s?.roundDate ?? r.recordedAt;
   }
 
-  List<AwardRecord> awardsInYear(int year) => _awardRecords
-      .where((r) =>
-          awardEventDate(r).year == year && _awardBelongsToSelectedClub(r))
-      .toList(growable: false);
+  List<AwardRecord> awardsInYear(int year) => _dedupeAwardRecords(
+        _awardRecords.where((r) =>
+            awardEventDate(r).year == year && _awardBelongsToSelectedClub(r)),
+      );
 
   /// 시상 원장은 기기 전역이다. 선택 모임이 아니면 횟수에 넣지 않는다.
   /// (이름만 같으면 다른 모임 시상까지 강남 미용모임 5회로 보이던 원인)
@@ -11409,9 +11440,10 @@ class ClubProvider extends ChangeNotifier with WidgetsBindingObserver {
 
   /// 시상 기록 저장
   void saveAwardRecord(AwardRecord record) {
-    _awardRecords.removeWhere(
-        (r) => r.scheduleId == record.scheduleId && r.awardName == record.awardName);
-    _awardRecords.add(record);
+    _awardRecords.removeWhere((r) =>
+        r.scheduleId == record.scheduleId &&
+        r.awardName.trim() == record.awardName.trim());
+    _replaceAwardRecords([..._awardRecords, record]);
     // 수상자에게 포인트 적립 (없으면 추가)
     for (final winnerId in record.winnerIds) {
       addMembershipPoint(
@@ -11428,7 +11460,7 @@ class ClubProvider extends ChangeNotifier with WidgetsBindingObserver {
   /// 한 일정의 시상을 통째로 저장 (수상자 없는 항목은 삭제)
   void saveAwardsForSchedule(String scheduleId, List<AwardRecord> records) {
     _awardRecords.removeWhere((r) => r.scheduleId == scheduleId);
-    _awardRecords.addAll(records);
+    _replaceAwardRecords([..._awardRecords, ...records]);
     notifyListeners();
     _persistImmediately();
   }

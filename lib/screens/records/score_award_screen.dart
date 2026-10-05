@@ -166,10 +166,21 @@ class _ScoreAwardScreenState extends State<ScoreAwardScreen>
     }
     final savedAwards = provider.awardRecordsFor(widget.schedule.id);
     if (savedAwards.isEmpty) return;
+    // rec.id 를 항목 id 로 쓰면 다음 저장이 ar_일정_ar_일정_a1 로 늘어난다.
+    final latestByName = <String, AwardRecord>{};
     for (final rec in savedAwards) {
+      final name = rec.awardName.trim();
+      if (name.isEmpty) continue;
+      final prev = latestByName[name];
+      if (prev == null || !rec.recordedAt.isBefore(prev.recordedAt)) {
+        latestByName[name] = rec;
+      }
+    }
+    for (final rec in latestByName.values) {
       final i = _awards.indexWhere((a) => a.name == rec.awardName);
+      final itemId = i >= 0 ? _awards[i].id : 'a_${rec.awardName}';
       final item = _AwardItem(
-        id: rec.id,
+        id: itemId,
         name: rec.awardName,
         icon: rec.awardIcon,
         allowCustom: true,
@@ -606,7 +617,7 @@ class _ScoreAwardScreenState extends State<ScoreAwardScreen>
     for (final award in _awards) {
       if (!award.hasWinner) continue;
       records.add(AwardRecord(
-        id: 'ar_${widget.schedule.id}_${award.id}',
+        id: 'ar_${widget.schedule.id}_${award.name}',
         scheduleId: widget.schedule.id,
         scheduleName: widget.schedule.displayTitle,
         awardName: award.name,
