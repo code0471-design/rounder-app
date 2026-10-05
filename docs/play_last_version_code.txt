@@ -1,4 +1,5 @@
-199
+200
+# 200 은 이 채팅에서 Codemagic/Play(비공개 테스트) 안내. 시상 저장·회원탭에서 횟수가 두 배씩 올라가던 것.
 # 199 는 이 채팅에서 Codemagic/Play(비공개 테스트) 안내. 예정 월회비 미리 납부.
 # 198 은 이 채팅에서 Codemagic/Play(비공개 테스트) 안내. 197 AAB가 ClubHomeTab widget 컴파일 실패.
 # 197 은 이 채팅에서 Codemagic/Play(비공개 테스트) 안내. 숫자 깜빡임 + 미답변 정회원만.
