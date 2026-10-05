@@ -66,6 +66,8 @@ void main() {
     );
     expect(finance.contains('미납 \$unpaidCount'), isTrue);
     expect(finance.contains('예정 \$scheduledCount'), isTrue);
+    expect(finance.contains('DuesPeriodEligibility.canRecord'), isTrue,
+        reason: '예정 달도 미리 납부할 수 있어야 한다');
     expect(finance.contains('미납 \${totalCount - paidCount}'), isFalse,
         reason: '미납이 음수가 되면 안 됨');
     expect(finance.contains("Text('새 회비 만들기'"), isTrue,
@@ -404,7 +406,7 @@ void main() {
     expect(finance.contains('_showBulkPaymentDialog'), isTrue,
         reason: '일괄 납부도 개별처럼 잔고 반영 여부를 물어야 한다');
     expect(finance.contains('잔고에 반영하지 않기'), isTrue);
-    expect(finance.contains('chip == DuesChip.unpaid &&'), isTrue);
+    expect(finance.contains('DuesPeriodEligibility.canRecord(chip)'), isTrue);
     expect(finance.contains("m.status != '탈퇴'"), isTrue,
         reason: '일괄 선택 줄에서 member. 를 쓰면 컴파일이 깨진다');
     expect(finance.contains("member.status != '탈퇴'"), isFalse);
@@ -412,7 +414,10 @@ void main() {
         reason: '이미 납부한 회원 체크박스는 흐려서 선택 불가로 보여야 한다');
     expect(finance.contains('value: bulkEnabled && bulkSelected'), isTrue,
         reason: '납부 완료 회원이 체크된 채로 비활성화되면 아직 되는 줄 안다');
-    expect(finance.contains('if (chip != DuesChip.unpaid) return;'), isTrue);
+    expect(
+      finance.contains('if (!DuesPeriodEligibility.canRecord(chip)) return;'),
+      isTrue,
+    );
     expect(finance.contains('amountForPeriod'), isTrue,
         reason: '일괄 납부도 기간별 금액을 써야 200% 회비가 어긋나지 않는다');
     final start = finance.indexOf('_bulkSelectedIds.isEmpty');

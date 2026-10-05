@@ -100,6 +100,23 @@ void main() {
       ),
       DuesChip.scheduled,
     );
+    expect(DuesPeriodEligibility.canRecord(DuesChip.scheduled), isTrue);
+    expect(DuesPeriodEligibility.canRecord(DuesChip.unpaid), isTrue);
+    expect(DuesPeriodEligibility.canRecord(DuesChip.beforeJoin), isFalse);
+  });
+
+  test('미리 낸 다음 달은 예정이 아니라 납부다', () {
+    expect(
+      DuesPeriodEligibility.classify(
+        member: _m(id: 'a', join: DateTime(2026, 1, 1)),
+        type: DuesType.monthly,
+        year: 2026,
+        month: 10,
+        hasPaid: true,
+        asOf: asOf,
+      ),
+      DuesChip.paid,
+    );
   });
 
   test('탈퇴한 달부터 숨기고 그전 달은 탈퇴 배지로 남긴다', () {

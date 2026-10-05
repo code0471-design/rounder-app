@@ -973,7 +973,8 @@ class _PaymentStatusTabState extends State<_PaymentStatusTab> {
                             builder: (_) {
                               final eligible = members
                                   .where((m) =>
-                                      chips[m.id] == DuesChip.unpaid &&
+                                      DuesPeriodEligibility.canRecord(
+                                          chips[m.id] ?? DuesChip.unpaid) &&
                                       m.status != '탈퇴')
                                   .map((m) => m.id)
                                   .toSet();
@@ -1032,7 +1033,9 @@ class _PaymentStatusTabState extends State<_PaymentStatusTab> {
                                     final selectedMembers = members
                                         .where((m) =>
                                             _bulkSelectedIds.contains(m.id) &&
-                                            chips[m.id] == DuesChip.unpaid &&
+                                            DuesPeriodEligibility.canRecord(
+                                                chips[m.id] ??
+                                                    DuesChip.unpaid) &&
                                             m.status != '탈퇴')
                                         .toList();
                                     if (selectedMembers.isEmpty) return;
@@ -1060,7 +1063,7 @@ class _PaymentStatusTabState extends State<_PaymentStatusTab> {
                     final chip = chips[m.id] ?? DuesChip.unpaid;
                     final paid = chip == DuesChip.paid;
                     final canCharge = chip == DuesChip.paid ||
-                        chip == DuesChip.unpaid;
+                        DuesPeriodEligibility.canRecord(chip);
                     // 나의 대기 중인 요청 조회
                     final myRequest = provider.myPendingRequest(
                       memberId: m.id,
@@ -1077,9 +1080,10 @@ class _PaymentStatusTabState extends State<_PaymentStatusTab> {
                       showBulkCheckbox: widget.isAdmin,
                       bulkSelected: _bulkSelectedIds.contains(m.id),
                       bulkEnabled:
-                          chip == DuesChip.unpaid && m.status != '탈퇴',
+                          DuesPeriodEligibility.canRecord(chip) &&
+                              m.status != '탈퇴',
                       onBulkToggle: (v) {
-                        if (chip != DuesChip.unpaid) return;
+                        if (!DuesPeriodEligibility.canRecord(chip)) return;
                         setState(() {
                           if (v) {
                             _bulkSelectedIds.add(m.id);
@@ -1918,7 +1922,7 @@ class _MemberPaymentTile extends StatelessWidget {
       return _duesPayStatusChip(chip: chip, onTap: onToggle);
     }
 
-    if (chip == DuesChip.beforeJoin || chip == DuesChip.scheduled) {
+    if (chip == DuesChip.beforeJoin) {
       return _duesPayStatusChip(chip: chip);
     }
 
@@ -2016,11 +2020,11 @@ class _MemberPaymentTile extends StatelessWidget {
         );
       }
 
-      // 미납 + 요청 없음 → 본인에게만 미납 뱃지 + 입금 확인 요청
+      // 미납·예정 + 요청 없음 → 본인에게만 상태 뱃지 + 입금 확인 요청
       return Row(
         mainAxisSize: MainAxisSize.min,
         children: [
-          _duesPayStatusChip(chip: DuesChip.unpaid),
+          _duesPayStatusChip(chip: chip),
           const SizedBox(width: 6),
           GestureDetector(
             onTap: onRequestPayment,

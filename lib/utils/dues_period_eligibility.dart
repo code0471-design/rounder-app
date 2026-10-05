@@ -70,6 +70,8 @@ abstract final class DuesPeriodEligibility {
       }
     }
 
+    if (hasPaid) return DuesChip.paid;
+
     if (type == DuesType.monthly) {
       final viewMonth = month ?? 1;
       if (yearMonth(year, viewMonth) > yearMonth(asOf.year, asOf.month)) {
@@ -79,7 +81,10 @@ abstract final class DuesPeriodEligibility {
       return DuesChip.scheduled;
     }
 
-    if (hasPaid) return DuesChip.paid;
     return DuesChip.unpaid;
   }
+
+  /// 미납·예정(미리 낼 달)만 납부 처리. 가입 전은 아니다.
+  static bool canRecord(DuesChip chip) =>
+      chip == DuesChip.unpaid || chip == DuesChip.scheduled;
 }
