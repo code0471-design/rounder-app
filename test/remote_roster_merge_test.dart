@@ -174,6 +174,68 @@ void main() {
     );
   });
 
+  test('명단에 없어도 가입 계정이면 회원으로 그대로 나온다', () {
+    clubs.addMember(Member(
+      id: Member.rosterId(clubId, myUid),
+      name: '안경헌',
+      gender: '남',
+      memberType: '정회원',
+      role: '정회원',
+      phone: '010-4511-0471',
+    ));
+    clubs.cacheClubAccountsForTest(clubId, const [
+      ClubMemberAccount(
+        userId: myUid,
+        role: '정회원',
+        name: '안경헌',
+        phone: '010-4511-0471',
+      ),
+      ClubMemberAccount(
+        userId: hostUid,
+        role: '회장',
+        name: '장창현',
+        phone: '010-0000-0000',
+      ),
+    ]);
+    expect(
+      clubs.membersForClub(clubId).map((m) => m.name).toSet(),
+      {'안경헌', '장창현'},
+      reason: '원클럽처럼 가입 소속이면 명단 줄이 없어도 회원이다',
+    );
+    expect(clubs.activeHeadcount(clubId), 2);
+  });
+
+  test('짧은 번들이 와도 가입 계정은 빠지지 않는다', () {
+    clubs.addMember(Member(
+      id: Member.rosterId(clubId, myUid),
+      name: '안경헌',
+      gender: '남',
+      memberType: '정회원',
+      role: '정회원',
+      phone: '010-4511-0471',
+    ));
+    clubs.cacheClubAccountsForTest(clubId, const [
+      ClubMemberAccount(
+        userId: myUid,
+        role: '정회원',
+        name: '안경헌',
+        phone: '010-4511-0471',
+      ),
+      ClubMemberAccount(
+        userId: hostUid,
+        role: '회장',
+        name: '장창현',
+        phone: '010-0000-0000',
+      ),
+    ]);
+    clubs.importBundleForTest(clubs.exportBundleForTest());
+    expect(
+      clubs.membersForClub(clubId).map((m) => m.name).toSet(),
+      {'안경헌', '장창현'},
+    );
+    expect(clubs.activeHeadcount(clubId), 2);
+  });
+
   test('명단이 지워져도 소속 계정이 있으면 방장을 다시 넣는다', () {
     clubs.addMember(Member(
       id: Member.rosterId(clubId, myUid),

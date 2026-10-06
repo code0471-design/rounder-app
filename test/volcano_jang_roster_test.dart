@@ -1,4 +1,5 @@
 import 'package:flutter_test/flutter_test.dart';
+import 'package:golf_rounder/data/repositories/club_repository.dart';
 import 'package:golf_rounder/di/app_dependencies.dart';
 import 'package:golf_rounder/domain/services/app_data_bootstrap_service.dart';
 import 'package:golf_rounder/models/club_model.dart';
@@ -15,6 +16,7 @@ void main() {
   Future<ClubProvider> openClub({
     required String clubId,
     required String clubName,
+    bool includeJang = true,
   }) async {
     SharedPreferences.setMockInitialValues({});
     ClubOpsSync.resetMemberTombstones();
@@ -48,13 +50,15 @@ void main() {
     ));
     clubs.selectClubById(clubId);
 
-    clubs.addMember(Member(
-      id: 'm_creator_$clubId',
-      name: '장창현',
-      gender: '남',
-      memberType: '정회원',
-      role: '회장',
-    ));
+    if (includeJang) {
+      clubs.addMember(Member(
+        id: 'm_creator_$clubId',
+        name: '장창현',
+        gender: '남',
+        memberType: '정회원',
+        role: '회장',
+      ));
+    }
     clubs.addMember(Member(
       id: Member.rosterId(clubId, 'kakao_jung'),
       name: '이정원',
@@ -111,5 +115,45 @@ void main() {
     const clubId = 'c_1888888888888';
     final clubs = await openClub(clubId: clubId, clubName: '새 모임');
     await expectPresidentKept(clubs, clubId);
+  });
+
+  test('로컬 명단에 없어도 가입 계정이면 볼케이노에 그대로 나온다', () async {
+    const clubId = 'c_1787397091896';
+    final clubs = await openClub(
+      clubId: clubId,
+      clubName: '볼케이노~~',
+      includeJang: false,
+    );
+    expect(
+      clubs.membersForClub(clubId).any((m) => m.name == '장창현'),
+      isFalse,
+    );
+    clubs.cacheClubAccountsForTest(clubId, const [
+      ClubMemberAccount(
+        userId: 'kakao_jang',
+        role: '회장',
+        name: '장창현',
+      ),
+      ClubMemberAccount(
+        userId: 'kakao_jung',
+        role: '부회장',
+        name: '이정원',
+      ),
+      ClubMemberAccount(
+        userId: 'yang',
+        role: '정회원',
+        name: '양우석',
+      ),
+      ClubMemberAccount(
+        userId: 'kakao_ahn',
+        role: '게스트',
+        name: '안경헌',
+      ),
+    ]);
+    expect(
+      clubs.membersForClub(clubId).map((m) => m.name).toSet(),
+      {'장창현', '이정원', '양우석', '안경헌'},
+    );
+    expect(clubs.activeHeadcount(clubId), 4);
   });
 }

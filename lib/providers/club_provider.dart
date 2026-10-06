@@ -1821,18 +1821,15 @@ class ClubProvider extends ChangeNotifier with WidgetsBindingObserver {
       }
       final rosterId = Member.rosterId(clubId, uid);
       final seatId = 'm_creator_$clubId';
-      final already = _members.any((m) {
-        if (m.status == '탈퇴' || m.status == '강퇴') return false;
-        if (m.id == rosterId || m.id == uid) return true;
-        if (creator.isNotEmpty &&
-            _userIdsMatch(uid, creator) &&
-            m.id == seatId &&
-            !RosterDedupe.areDifferentPeople(m.name, name)) {
-          return true;
-        }
-        return false;
-      });
-      if (already) continue;
+      if (_joinedAccountAlreadyVisible(
+        clubId: clubId,
+        creatorUserId: creator,
+        roster: _rawRosterRowsForClub(clubId),
+        uid: uid,
+        name: name,
+      )) {
+        continue;
+      }
       if (ClubOpsSync.isForeignLeftoverMember(
         id: rosterId,
         name: name,
@@ -1875,6 +1872,16 @@ class ClubProvider extends ChangeNotifier with WidgetsBindingObserver {
     final changed = _restoreMembersFromAccounts(clubId);
     if (changed) notifyListeners();
     return changed;
+  }
+
+  /// 소속 계정만 심는다. 명단 줄은 건드리지 않는다.
+  /// 원클럽처럼 "가입하면 회원 탭에 그대로" 보이는지 확인할 때 쓴다.
+  @visibleForTesting
+  void cacheClubAccountsForTest(
+    String clubId,
+    List<ClubMemberAccount> accounts,
+  ) {
+    _clubAccounts[clubId] = accounts;
   }
 
   /// 명단 행을 전화번호로 계정에 잇는다. 예전 행(`m1`)은 이 길로만 찾는다.
@@ -2983,6 +2990,9 @@ class ClubProvider extends ChangeNotifier with WidgetsBindingObserver {
     repairRosterJoinDates();
     _syncSelfDisplayName();
     _backfillMissingAttendancePoints();
+    for (final clubId in List<String>.from(_clubAccounts.keys)) {
+      _restoreMembersFromAccounts(clubId);
+    }
   }
 
   // ── 내가 속한 모임 선택 인덱스 ─────────────────────────
@@ -3198,6 +3208,12 @@ class ClubProvider extends ChangeNotifier with WidgetsBindingObserver {
       roster: membersForClub(clubId),
     );
     if (roster.isNotEmpty) {
+      final prev = _lastHeadcount[clubId];
+      if (_clubAccounts[clubId] == null &&
+          prev != null &&
+          prev > roster.length) {
+        return prev;
+      }
       _lastHeadcount[clubId] = roster.length;
       return roster.length;
     }
@@ -3240,23 +3256,93 @@ class ClubProvider extends ChangeNotifier with WidgetsBindingObserver {
     return next;
   }
 
+  List<Member> _rawRosterRowsForClub(String clubId) {
+    final creator = (_clubById(clubId)?.creatorId ?? '').trim();
+    return _members.where((m) {
+      if (m.id == 'm_creator_$clubId' || m.id.startsWith('m_${clubId}_')) {
+        return true;
+      }
+      return creator.isNotEmpty && m.id == creator;
+    }).toList();
+  }
+
+  bool _joinedAccountAlreadyVisible({
+    required String clubId,
+    required String creatorUserId,
+    required List<Member> roster,
+    required String uid,
+    required String name,
+  }) {
+    final rosterId = Member.rosterId(clubId, uid);
+    for (final m in roster) {
+      if (m.status == '탈퇴' || m.status == '강퇴') continue;
+      if (m.id == rosterId || m.id == uid) return true;
+      if (creatorUserId.isNotEmpty &&
+          _userIdsMatch(uid, creatorUserId) &&
+          m.id == 'm_creator_$clubId') {
+        return true;
+      }
+      if (name.isNotEmpty && !RosterDedupe.areDifferentPeople(m.name, name)) {
+        return true;
+      }
+    }
+    return false;
+  }
+
+  /// 원클럽과 같다. 가입 소속 계정이 있으면 명단 줄이 비어도 회원으로 보여 준다.
+  List<Member> _withJoinedAccounts(String clubId, List<Member> rows) {
+    if (_isDemoSession || clubId.isEmpty) return rows;
+    if (_legacyMockClubIds.contains(clubId)) return rows;
+    final accounts = _clubAccounts[clubId];
+    if (accounts == null || accounts.isEmpty) return rows;
+    final creator = (_clubById(clubId)?.creatorId ?? '').trim();
+    final out = List<Member>.from(rows);
+    for (final account in accounts) {
+      final uid = account.userId.trim();
+      final name = account.name.trim();
+      if (uid.isEmpty || name.isEmpty || isPlaceholderMemberName(name)) {
+        continue;
+      }
+      if (ClubOpsSync.isForeignLeftoverMember(
+        id: Member.rosterId(clubId, uid),
+        name: name,
+        clubId: clubId,
+        creatorUserId: creator,
+      )) {
+        continue;
+      }
+      if (_joinedAccountAlreadyVisible(
+        clubId: clubId,
+        creatorUserId: creator,
+        roster: out,
+        uid: uid,
+        name: name,
+      )) {
+        continue;
+      }
+      final role = account.role.trim().isEmpty ? '정회원' : account.role.trim();
+      out.add(withoutSeedDisplayName(Member(
+        id: Member.rosterId(clubId, uid),
+        name: name,
+        gender: '남',
+        phone: account.phone.trim().isEmpty ? null : account.phone.trim(),
+        memberType: ClubMemberRole.memberTypeForRole(role),
+        role: role,
+        status: '활성',
+      )));
+    }
+    return out;
+  }
+
   /// 어드민·동기화용 — 특정 모임의 회원 목록
   List<Member> membersForClub(String clubId) {
     final fresh = _freshClubIds.contains(clubId);
     final legacy = _legacyMockClubIds.contains(clubId);
     if (fresh || !legacy) {
-      final creator = (_clubById(clubId)?.creatorId ?? '').trim();
-      return _members
-          .where((m) {
-            if (m.id == 'm_creator_$clubId' ||
-                m.id.startsWith('m_${clubId}_')) {
-              return true;
-            }
-            // 생성자가 카카오 id 그대로 남아 있으면 회원 탭에서 빠진다.
-            return creator.isNotEmpty && m.id == creator;
-          })
-          .map(withoutSeedDisplayName)
-          .toList();
+      return _withJoinedAccounts(
+        clubId,
+        _rawRosterRowsForClub(clubId).map(withoutSeedDisplayName).toList(),
+      );
     }
     // c1~c5 데모 모임은 공유 mock 회원 명단
     return List.unmodifiable(_members);
