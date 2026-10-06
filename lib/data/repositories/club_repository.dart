@@ -48,6 +48,13 @@ abstract class ClubRepository {
 
   /// 이 모임에 소속된 **계정** 목록. 푸시 대상은 명단 행이 아니라 계정이다.
   Future<List<ClubMemberAccount>> fetchClubMemberAccounts(String clubId);
+
+  /// 소속은 있는데 회원 문서가 없으면 원클럽처럼 회원 문서를 만든다.
+  Future<int> ensureJoinedMemberDocs({
+    required String clubId,
+    required List<ClubMemberAccount> accounts,
+    String creatorUserId = '',
+  });
 }
 
 /// 모임 소속 계정 한 명. 명단 행 id 와 계정 id 를 잇는 데 쓴다.

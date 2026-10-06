@@ -68,6 +68,14 @@ class _FakeClubRepository implements ClubRepository {
       const [];
 
   @override
+  Future<int> ensureJoinedMemberDocs({
+    required String clubId,
+    required List<ClubMemberAccount> accounts,
+    String creatorUserId = '',
+  }) async =>
+      0;
+
+  @override
   Future<List<Club>> fetchDiscoverableClubs() async => [_club];
 
   @override

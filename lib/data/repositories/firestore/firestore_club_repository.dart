@@ -91,6 +91,18 @@ class FirestoreClubRepository implements ClubRepository {
       _dataSource.fetchClubMemberAccounts(clubId);
 
   @override
+  Future<int> ensureJoinedMemberDocs({
+    required String clubId,
+    required List<ClubMemberAccount> accounts,
+    String creatorUserId = '',
+  }) =>
+      _dataSource.ensureJoinedMemberDocs(
+        clubId: clubId,
+        accounts: accounts,
+        creatorUserId: creatorUserId,
+      );
+
+  @override
   Future<int> recountMemberCount(String clubId) =>
       _dataSource.recountMemberCount(clubId);
 

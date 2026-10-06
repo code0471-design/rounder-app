@@ -1722,7 +1722,29 @@ class ClubProvider extends ChangeNotifier with WidgetsBindingObserver {
         _clubAccounts[clubId] = accounts;
         final restored = _restoreMembersFromAccounts(clubId);
         final dropped = _dropUnmemberedAccountRows(clubId);
-        if ((restored || dropped) && !_suppressPersist) {
+        var created = 0;
+        try {
+          created = await AppDependencies.instance.clubRepository
+              .ensureJoinedMemberDocs(
+                clubId: clubId,
+                accounts: accounts,
+                creatorUserId: _clubById(clubId)?.creatorId ?? '',
+              )
+              .timeout(const Duration(seconds: 8));
+        } catch (e) {
+          debugPrint('[ClubProvider] ensure member docs $clubId skip: $e');
+        }
+        if (created > 0) {
+          try {
+            final remote = await AppDependencies.instance.memberRepository
+                .fetchMembers(clubId)
+                .timeout(const Duration(seconds: 8));
+            await _mergeRemoteRoster(clubId, remote);
+          } catch (e) {
+            debugPrint('[ClubProvider] refresh members $clubId skip: $e');
+          }
+        }
+        if ((restored || dropped || created > 0) && !_suppressPersist) {
           if (!_suppressRosterNotify) notifyListeners();
           _persistImmediately();
         }

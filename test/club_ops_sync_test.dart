@@ -2123,4 +2123,47 @@ void main() {
     );
     expect(merged.single['reopenedAt'], '2026-12-10T00:00:00.000');
   });
+
+  test('가입 소속이 있는데 회원 문서가 없으면 만든다', () {
+    expect(
+      ClubOpsSync.shouldCreateJoinedMemberDoc(
+        clubId: 'c_1790768750847',
+        creatorUserId: 'kakao_5049673364',
+        userId: 'kakao_5049673364',
+        name: '장창현',
+        existingMemberIds: {
+          'google_107587661463302574049',
+          'kakao_5044456654',
+          'kakao_5087241992',
+        },
+      ),
+      isTrue,
+    );
+  });
+
+  test('이미 회원 문서가 있으면 다시 만들지 않는다', () {
+    expect(
+      ClubOpsSync.shouldCreateJoinedMemberDoc(
+        clubId: 'c_1789296617949',
+        creatorUserId: 'kakao_5044456654',
+        userId: 'kakao_5049673364',
+        name: '장창현',
+        existingMemberIds: {'kakao_5044456654', 'kakao_5049673364'},
+      ),
+      isFalse,
+    );
+  });
+
+  test('아레나 찌꺼기 이름은 회원 문서를 만들지 않는다', () {
+    expect(
+      ClubOpsSync.shouldCreateJoinedMemberDoc(
+        clubId: 'c_1786973797931',
+        creatorUserId: 'kakao_5044456654',
+        userId: 'kakao_5049673364',
+        name: '장창현',
+        existingMemberIds: const {},
+      ),
+      isFalse,
+    );
+  });
 }

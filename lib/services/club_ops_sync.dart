@@ -1739,6 +1739,35 @@ class ClubOpsSync {
     return clubId == 'c_1786973797931';
   }
 
+  /// 소속 계정이 있는데 회원 문서가 없으면 원클럽처럼 문서를 만든다.
+  /// 아레나 찌꺼기 이름은 만들지 않는다.
+  @visibleForTesting
+  static bool shouldCreateJoinedMemberDoc({
+    required String clubId,
+    required String creatorUserId,
+    required String userId,
+    required String name,
+    required Set<String> existingMemberIds,
+  }) {
+    final uid = userId.trim();
+    final n = name.trim();
+    if (uid.isEmpty || n.isEmpty) return false;
+    if (isForeignLeftoverMember(
+      id: uid,
+      name: n,
+      clubId: clubId,
+      creatorUserId: creatorUserId,
+    )) {
+      return false;
+    }
+    for (final id in existingMemberIds) {
+      final row = id.trim();
+      if (row.isEmpty) continue;
+      if (row == uid || row.endsWith('_$uid')) return false;
+    }
+    return true;
+  }
+
   @visibleForTesting
   static List<dynamic> dropForeignLeftoverMembers({
     required List members,

@@ -10,6 +10,8 @@ import '../../../models/club_model.dart';
 import '../../mappers/club_mapper.dart';
 import '../../mappers/member_mapper.dart';
 import '../../repositories/club_repository.dart';
+import '../../../models/member_role.dart';
+import '../../../services/club_ops_sync.dart';
 import 'firestore_membership_count.dart';
 
 /// clubs 컬렉션 Raw I/O (Repository 하위 계층)
@@ -331,6 +333,67 @@ class FirestoreClubDataSource {
     } on FirebaseException catch (e) {
       debugPrint('[FirestoreClubDataSource] 소속 계정 조회 실패: $e');
       return const [];
+    }
+  }
+
+  /// 소속 계정이 있는데 회원 문서가 없으면 원클럽처럼 문서를 만든다.
+  Future<int> ensureJoinedMemberDocs({
+    required String clubId,
+    required List<ClubMemberAccount> accounts,
+    String creatorUserId = '',
+  }) async {
+    if (clubId.isEmpty || accounts.isEmpty) return 0;
+    try {
+      final snap =
+          await _db.collection(FirestorePaths.clubMembers(clubId)).get();
+      final existing = <String>{};
+      for (final doc in snap.docs) {
+        existing.add(doc.id);
+        final uid = '${doc.data()['user_id'] ?? ''}'.trim();
+        if (uid.isNotEmpty) existing.add(uid);
+        final stored = '${doc.data()['id'] ?? ''}'.trim();
+        if (stored.isNotEmpty) existing.add(stored);
+      }
+      var created = 0;
+      for (final account in accounts) {
+        final uid = account.userId.trim();
+        final name = account.name.trim();
+        if (!ClubOpsSync.shouldCreateJoinedMemberDoc(
+          clubId: clubId,
+          creatorUserId: creatorUserId,
+          userId: uid,
+          name: name,
+          existingMemberIds: existing,
+        )) {
+          continue;
+        }
+        final role = account.role.trim().isEmpty ? '정회원' : account.role.trim();
+        final member = Member(
+          id: uid,
+          name: name,
+          gender: '남',
+          phone: account.phone.trim().isEmpty ? null : account.phone.trim(),
+          memberType: ClubMemberRole.memberTypeForRole(role),
+          role: role,
+          status: '활성',
+          joinDate: DateTime.now(),
+        );
+        final data = MemberMapper.toMap(member);
+        data['user_id'] = uid;
+        await _db.doc(FirestorePaths.clubMemberDoc(clubId, uid)).set(
+              data,
+              SetOptions(merge: true),
+            );
+        existing.add(uid);
+        created++;
+      }
+      if (created > 0) {
+        await recountClubMemberCount(_db, clubId);
+      }
+      return created;
+    } on FirebaseException catch (e) {
+      debugPrint('[FirestoreClubDataSource] 가입 회원 문서 보정 실패: $e');
+      return 0;
     }
   }
 

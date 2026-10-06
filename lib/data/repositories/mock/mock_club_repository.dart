@@ -216,4 +216,12 @@ class MockClubRepository implements ClubRepository {
             phone: m.phone ?? '',
           ),
       ];
+
+  @override
+  Future<int> ensureJoinedMemberDocs({
+    required String clubId,
+    required List<ClubMemberAccount> accounts,
+    String creatorUserId = '',
+  }) async =>
+      0;
 }
