@@ -7223,14 +7223,19 @@ class ClubProvider extends ChangeNotifier with WidgetsBindingObserver {
         final m = _members[i];
         if (!_isMyRosterRowFor(club, m.id)) continue;
         if (m.name.trim() == target) continue;
-        // 이름만 장창현이라고 덮으면 볼케이노 실제 회장이 이정원으로 바뀐다.
-        // 아레나 방장 칸 찌꺼기만 내 이름으로 되돌린다.
+        // 방장 칸이 내 자리로 보여도, 앉아 있는 사람이 다른 실명이면
+        // 어떤 모임이든 내 이름으로 덮지 않는다. 아레나 찌꺼기만 예외.
         final leftover = ClubOpsSync.isForeignLeftoverMember(
           id: m.id,
           name: m.name,
           clubId: club.id,
           creatorUserId: club.creatorId,
         );
+        if (!isPlaceholderMemberName(m.name) &&
+            RosterDedupe.areDifferentPeople(m.name, target) &&
+            !leftover) {
+          continue;
+        }
         if (!isPlaceholderMemberName(m.name) && !leftover) continue;
         _members[i] = m.copyWith(name: target);
         _relabelMemberDisplayName(m.id, target);
@@ -7461,7 +7466,16 @@ class ClubProvider extends ChangeNotifier with WidgetsBindingObserver {
 
   bool _isMyRosterRowById(Club club, String memberId) {
     if (memberId == 'm_creator_${club.id}') {
-      return _iAmClubCreator(club);
+      if (!_iAmClubCreator(club)) return false;
+      final seat = _members.where((m) => m.id == memberId).firstOrNull;
+      // 생성자 id 가 나여도 방장 칸에 다른 실명이 있으면 그 사람 줄이다.
+      // 볼케이노만이 아니라 모든 모임에서 사진·이름을 덮어 쓰던 경로.
+      if (seat != null &&
+          !isPlaceholderMemberName(seat.name) &&
+          RosterDedupe.areDifferentPeople(seat.name, _currentUserName)) {
+        return false;
+      }
+      return true;
     }
     final prefix = 'm_${club.id}_';
     if (!memberId.startsWith(prefix)) return false;

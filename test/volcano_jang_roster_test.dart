@@ -6,14 +6,16 @@ import 'package:golf_rounder/providers/club_provider.dart';
 import 'package:golf_rounder/services/club_ops_sync.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
-/// 볼케이노 회장 장창현은 그 모임 사람이다.
-/// 이정원 폰이 방장 칸을 내 행으로 보고 이름을 덮어 회원수가 3↔4로 깜빡이던 경로.
+/// 방장 칸에 다른 실명이 있으면 그 모임 사람이다.
+/// 이정원 폰이 생성자로 보여도 회장 이름을 덮어 회원수가 깜빡이던 경로.
+/// 볼케이노만이 아니라 아무 모임이나 같다.
 void main() {
   TestWidgetsFlutterBinding.ensureInitialized();
 
-  const clubId = 'c_1787397091896';
-
-  test('이정원 이름 복구가 볼케이노 회장 장창현을 지우지 않는다', () async {
+  Future<ClubProvider> openClub({
+    required String clubId,
+    required String clubName,
+  }) async {
     SharedPreferences.setMockInitialValues({});
     ClubOpsSync.resetMemberTombstones();
     AppDependencies.instance.init(offlineMock: true);
@@ -26,7 +28,7 @@ void main() {
 
     final club = Club(
       id: clubId,
-      name: '볼케이노~~',
+      name: clubName,
       myRole: '부회장',
       memberCount: 4,
       creatorId: 'kakao_jung',
@@ -74,19 +76,40 @@ void main() {
       memberType: '게스트',
       role: '게스트',
     ));
+    return clubs;
+  }
 
+  Future<void> expectPresidentKept(ClubProvider clubs, String clubId) async {
     expect(clubs.activeHeadcount(clubId), 4);
     clubs.repairMyDisplayName('이정원');
     clubs.importBundleForTest(clubs.exportBundleForTest());
 
     final names = clubs.membersForClub(clubId).map((m) => m.name).toSet();
     expect(names, contains('장창현'),
-        reason: '이정원이 생성자로 보여도 볼케이노 회장 장창현은 그 모임 사람이다');
+        reason: '이정원이 생성자로 보여도 그 모임 회장 실명은 덮으면 안 된다');
     expect(names, contains('이정원'));
     expect(clubs.activeHeadcount(clubId), 4);
     expect(
       clubs.membersForClub(clubId).any((m) => m.name == '장창현' && m.role == '회장'),
       isTrue,
     );
+  }
+
+  test('볼케이노 회장 장창현은 이정원 이름 복구에 안 덮인다', () async {
+    const clubId = 'c_1787397091896';
+    final clubs = await openClub(clubId: clubId, clubName: '볼케이노~~');
+    await expectPresidentKept(clubs, clubId);
+  });
+
+  test('강남처럼 다른 모임에서도 회장 실명은 안 덮인다', () async {
+    const clubId = 'c_1788832826557';
+    final clubs = await openClub(clubId: clubId, clubName: '강남 미용모임');
+    await expectPresidentKept(clubs, clubId);
+  });
+
+  test('새로 만든 모임 id 에서도 회장 실명은 안 덮인다', () async {
+    const clubId = 'c_1888888888888';
+    final clubs = await openClub(clubId: clubId, clubName: '새 모임');
+    await expectPresidentKept(clubs, clubId);
   });
 }

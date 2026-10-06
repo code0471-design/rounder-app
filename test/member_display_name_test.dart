@@ -322,7 +322,9 @@ void main() {
       expect(fn.contains('isPlaceholderMemberName(m.name)'), isTrue,
           reason: '사람이 고친 이름을 덮어쓰면 안 된다');
       expect(fn.contains('isForeignLeftoverMember'), isTrue,
-          reason: '아레나 찌꺼기만 덮는다. 볼케이노 실제 회장 장창현은 둔다');
+          reason: '아레나 찌꺼기만 덮는다. 다른 모임 회장 실명은 둔다');
+      expect(fn.contains('areDifferentPeople'), isTrue,
+          reason: '볼케이노만이 아니라 방장 칸의 다른 실명은 모든 모임에서 둔다');
       expect(fn.contains('_persistImmediately()'), isTrue,
           reason: '고쳐 놓고 저장을 안 하면 다음 실행에 또 홍길동이다');
     });
@@ -354,8 +356,14 @@ void main() {
         provider.indexOf('bool _isMyRosterRowFor('),
         provider.indexOf('bool _isMyRosterRowFor(') + 900,
       );
+      final byId = provider.substring(
+        provider.indexOf('bool _isMyRosterRowById('),
+        provider.indexOf('bool _rosterHasIdLinkedRowOfMine('),
+      );
       expect(fn.contains("'m_creator_\${club.id}'"), isTrue);
-      expect(fn.contains("'m_\${club.id}_'"), isTrue);
+      expect(byId.contains("'m_\${club.id}_'"), isTrue);
+      expect(byId.contains('areDifferentPeople'), isTrue,
+          reason: '방장 칸에 다른 실명이 있으면 모든 모임에서 내 행이 아니다');
       // 실계정도 currentUserId 가 m1 이라, 맨 'm1' 행까지 잡으면
       // 데모 시드 회원 이름을 바꿔 버린다.
       expect(fn.contains('_userIdsMatch(memberId, currentUserId)'), isFalse);
