@@ -128,7 +128,7 @@ void main() {
       clubs.membersForClub(clubId).any((m) => m.name == '장창현'),
       isFalse,
     );
-    clubs.cacheClubAccountsForTest(clubId, const [
+    clubs.restoreMembersFromAccountsForTest(clubId, const [
       ClubMemberAccount(
         userId: 'kakao_jang',
         role: '회장',

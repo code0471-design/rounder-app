@@ -183,7 +183,7 @@ void main() {
       role: '정회원',
       phone: '010-4511-0471',
     ));
-    clubs.cacheClubAccountsForTest(clubId, const [
+    clubs.restoreMembersFromAccountsForTest(clubId, const [
       ClubMemberAccount(
         userId: myUid,
         role: '정회원',
@@ -203,6 +203,84 @@ void main() {
       reason: '원클럽처럼 가입 소속이면 명단 줄이 없어도 회원이다',
     );
     expect(clubs.activeHeadcount(clubId), 2);
+  });
+
+  test('서버 명단은 ops 번들이 짧아도 빠지지 않는다', () {
+    clubs.addMember(Member(
+      id: Member.rosterId(clubId, myUid),
+      name: '안경헌',
+      gender: '남',
+      memberType: '정회원',
+      role: '정회원',
+      phone: '010-4511-0471',
+    ));
+    clubs.cacheServerMembersForTest(clubId, [
+      remoteRow(
+        id: myUid,
+        name: '안경헌',
+        role: '정회원',
+        phone: '010-4511-0471',
+      ),
+      remoteRow(id: hostUid, name: '장창현', role: '회장'),
+    ]);
+    clubs.importBundleForTest(clubs.exportBundleForTest());
+    expect(
+      clubs.membersForClub(clubId).map((m) => m.name).toSet(),
+      {'안경헌', '장창현'},
+    );
+    expect(clubs.activeHeadcount(clubId), 2);
+  });
+
+  test('방장 칸이 다른 사람으로 바뀌어도 원래 가입자는 남는다', () {
+    clubs.addMember(Member(
+      id: 'm_creator_$clubId',
+      name: '장창현',
+      gender: '남',
+      memberType: '정회원',
+      role: '회장',
+    ));
+    clubs.addMember(Member(
+      id: Member.rosterId(clubId, myUid),
+      name: '안경헌',
+      gender: '남',
+      memberType: '정회원',
+      role: '정회원',
+      phone: '010-4511-0471',
+    ));
+    clubs.cacheClubAccountsForTest(clubId, const [
+      ClubMemberAccount(
+        userId: hostUid,
+        role: '회장',
+        name: '장창현',
+      ),
+      ClubMemberAccount(
+        userId: myUid,
+        role: '정회원',
+        name: '안경헌',
+        phone: '010-4511-0471',
+      ),
+    ]);
+    clubs.importWithMembersForTest([
+      Member(
+        id: 'm_creator_$clubId',
+        name: '이정원',
+        gender: '남',
+        memberType: '정회원',
+        role: '부회장',
+      ),
+      Member(
+        id: Member.rosterId(clubId, myUid),
+        name: '안경헌',
+        gender: '남',
+        memberType: '정회원',
+        role: '정회원',
+        phone: '010-4511-0471',
+      ),
+    ]);
+    expect(
+      clubs.membersForClub(clubId).map((m) => m.name).toSet(),
+      {'장창현', '이정원', '안경헌'},
+    );
   });
 
   test('짧은 번들이 와도 가입 계정은 빠지지 않는다', () {

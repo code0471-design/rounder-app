@@ -1734,6 +1734,8 @@ class ClubProvider extends ChangeNotifier with WidgetsBindingObserver {
 
   /// 모임 → 소속 계정. 푸시 대상은 명단 행이 아니라 이 계정들이다.
   final Map<String, List<ClubMemberAccount>> _clubAccounts = {};
+  /// 원클럽과 같다. 서버 `members` 스냅샷이 그 모임 명단이다.
+  final Map<String, List<Member>> _serverMembers = {};
   final Map<String, List<JoinOfficer>> _joinOfficersByClub = {};
 
   /// 그 모임 생성자가 아닌 장창현 소셜 행은 테스터 폰에도 안 남긴다.
@@ -1882,6 +1884,77 @@ class ClubProvider extends ChangeNotifier with WidgetsBindingObserver {
     List<ClubMemberAccount> accounts,
   ) {
     _clubAccounts[clubId] = accounts;
+  }
+
+  @visibleForTesting
+  void cacheServerMembersForTest(String clubId, List<Member> remote) {
+    _serverMembers[clubId] = List<Member>.from(remote);
+  }
+
+  String _accountUidForName(String clubId, String name) {
+    for (final a in _clubAccounts[clubId] ?? const <ClubMemberAccount>[]) {
+      if (a.name.trim().isEmpty) continue;
+      if (!RosterDedupe.areDifferentPeople(a.name, name)) {
+        return a.userId.trim();
+      }
+    }
+    return '';
+  }
+
+  String _rosterUidOf(String clubId, String memberId, String creatorUserId) {
+    if (memberId == 'm_creator_$clubId') return creatorUserId;
+    final prefix = 'm_${clubId}_';
+    if (memberId.startsWith(prefix)) return memberId.substring(prefix.length);
+    return memberId;
+  }
+
+  /// 서버 명단·소속 계정을 `_members` 에 심는다. 표시용 덧씌우기가 아니다.
+  void _syncJoinedRoster(String clubId) {
+    if (_isDemoSession || clubId.isEmpty) return;
+    if (_legacyMockClubIds.contains(clubId)) return;
+    final server = _serverMembers[clubId];
+    if (server != null && server.isNotEmpty) {
+      _addMissingJoinedMembers(clubId, server);
+    }
+    _restoreMembersFromAccounts(clubId);
+  }
+
+  bool _addMissingJoinedMembers(String clubId, List<Member> remote) {
+    final creatorUserId = (_clubById(clubId)?.creatorId ?? '').trim();
+    var changed = false;
+    for (final raw in remote) {
+      if (raw.status == '탈퇴' || raw.status == '강퇴') continue;
+      final id = Member.canonicalRosterId(
+        clubId: clubId,
+        rawId: raw.id,
+        creatorUserId: creatorUserId,
+      );
+      final row = id == raw.id ? raw : raw.withId(id);
+      if (DemoFinanceStrip.isGhostName(row.name) ||
+          DemoFinanceStrip.isGhostMemberId(id) ||
+          DemoFinanceStrip.isGhostMemberId(raw.id)) {
+        continue;
+      }
+      if (ClubOpsSync.isForeignLeftoverMember(
+        id: id,
+        name: row.name,
+        clubId: clubId,
+        creatorUserId: creatorUserId,
+      )) {
+        continue;
+      }
+      if (_members.any((m) =>
+          m.status != '탈퇴' &&
+          m.status != '강퇴' &&
+          (m.id == id || m.id == raw.id))) {
+        continue;
+      }
+      if (ClubOpsSync.isMemberRemoved(id)) continue;
+      if (_alreadyOnRoster(clubId, row, creatorUserId)) continue;
+      _members.add(row);
+      changed = true;
+    }
+    return changed;
   }
 
   /// 명단 행을 전화번호로 계정에 잇는다. 예전 행(`m1`)은 이 길로만 찾는다.
@@ -2083,10 +2156,44 @@ class ClubProvider extends ChangeNotifier with WidgetsBindingObserver {
   void importBundleForTest(ClubDataBundle b) => _importBundle(b);
 
   @visibleForTesting
+  void importWithMembersForTest(List<Member> members) {
+    final b = _exportBundle();
+    _importBundle(ClubDataBundle(
+      selectedClubIndex: b.selectedClubIndex,
+      freshClubIds: b.freshClubIds,
+      myClubs: b.myClubs,
+      allClubs: b.allClubs,
+      joinRequests: b.joinRequests,
+      members: members,
+      activities: b.activities,
+      announcements: b.announcements,
+      appNotifications: b.appNotifications,
+      duesSettings: b.duesSettings,
+      duesPayments: b.duesPayments,
+      paymentRequests: b.paymentRequests,
+      transactions: b.transactions,
+      schedules: b.schedules,
+      photos: b.photos,
+      groupAssignments: b.groupAssignments,
+      adApplications: b.adApplications,
+      adNotifications: b.adNotifications,
+      sponsorApplications: b.sponsorApplications,
+      pointEvents: b.pointEvents,
+      seasonLocks: b.seasonLocks,
+      awardRecords: b.awardRecords,
+      roundScores: b.roundScores,
+      thankYouMessages: b.thankYouMessages,
+      waitingList: b.waitingList,
+      alimtalkSettings: b.alimtalkSettings,
+    ));
+  }
+
+  @visibleForTesting
   void addActivityForTest(ActivityItem item) => _activities.insert(0, item);
 
   Future<void> _mergeRemoteRoster(String clubId, List<Member> remote) async {
     if (clubId.isEmpty || remote.isEmpty) return;
+    _serverMembers[clubId] = List<Member>.from(remote);
     var creatorUserId = (_clubById(clubId)?.creatorId ?? '').trim();
     if (creatorUserId.isEmpty) {
       for (final m in remote) {
@@ -2990,8 +3097,14 @@ class ClubProvider extends ChangeNotifier with WidgetsBindingObserver {
     repairRosterJoinDates();
     _syncSelfDisplayName();
     _backfillMissingAttendancePoints();
-    for (final clubId in List<String>.from(_clubAccounts.keys)) {
-      _restoreMembersFromAccounts(clubId);
+    final clubIds = <String>{
+      ..._clubAccounts.keys,
+      ..._serverMembers.keys,
+      for (final c in _myClubs) c.id,
+      for (final c in _allClubs) c.id,
+    };
+    for (final clubId in clubIds) {
+      _syncJoinedRoster(clubId);
     }
   }
 
@@ -3279,7 +3392,8 @@ class ClubProvider extends ChangeNotifier with WidgetsBindingObserver {
       if (m.id == rosterId || m.id == uid) return true;
       if (creatorUserId.isNotEmpty &&
           _userIdsMatch(uid, creatorUserId) &&
-          m.id == 'm_creator_$clubId') {
+          m.id == 'm_creator_$clubId' &&
+          !RosterDedupe.areDifferentPeople(m.name, name)) {
         return true;
       }
       if (name.isNotEmpty && !RosterDedupe.areDifferentPeople(m.name, name)) {
@@ -3289,60 +3403,14 @@ class ClubProvider extends ChangeNotifier with WidgetsBindingObserver {
     return false;
   }
 
-  /// 원클럽과 같다. 가입 소속 계정이 있으면 명단 줄이 비어도 회원으로 보여 준다.
-  List<Member> _withJoinedAccounts(String clubId, List<Member> rows) {
-    if (_isDemoSession || clubId.isEmpty) return rows;
-    if (_legacyMockClubIds.contains(clubId)) return rows;
-    final accounts = _clubAccounts[clubId];
-    if (accounts == null || accounts.isEmpty) return rows;
-    final creator = (_clubById(clubId)?.creatorId ?? '').trim();
-    final out = List<Member>.from(rows);
-    for (final account in accounts) {
-      final uid = account.userId.trim();
-      final name = account.name.trim();
-      if (uid.isEmpty || name.isEmpty || isPlaceholderMemberName(name)) {
-        continue;
-      }
-      if (ClubOpsSync.isForeignLeftoverMember(
-        id: Member.rosterId(clubId, uid),
-        name: name,
-        clubId: clubId,
-        creatorUserId: creator,
-      )) {
-        continue;
-      }
-      if (_joinedAccountAlreadyVisible(
-        clubId: clubId,
-        creatorUserId: creator,
-        roster: out,
-        uid: uid,
-        name: name,
-      )) {
-        continue;
-      }
-      final role = account.role.trim().isEmpty ? '정회원' : account.role.trim();
-      out.add(withoutSeedDisplayName(Member(
-        id: Member.rosterId(clubId, uid),
-        name: name,
-        gender: '남',
-        phone: account.phone.trim().isEmpty ? null : account.phone.trim(),
-        memberType: ClubMemberRole.memberTypeForRole(role),
-        role: role,
-        status: '활성',
-      )));
-    }
-    return out;
-  }
-
   /// 어드민·동기화용 — 특정 모임의 회원 목록
   List<Member> membersForClub(String clubId) {
     final fresh = _freshClubIds.contains(clubId);
     final legacy = _legacyMockClubIds.contains(clubId);
     if (fresh || !legacy) {
-      return _withJoinedAccounts(
-        clubId,
-        _rawRosterRowsForClub(clubId).map(withoutSeedDisplayName).toList(),
-      );
+      return _rawRosterRowsForClub(clubId)
+          .map(withoutSeedDisplayName)
+          .toList();
     }
     // c1~c5 데모 모임은 공유 mock 회원 명단
     return List.unmodifiable(_members);
@@ -3370,7 +3438,23 @@ class ClubProvider extends ChangeNotifier with WidgetsBindingObserver {
       for (final m in previous) {
         if (m.status != '활성') continue;
         if (!_memberRowBelongsToClub(m, club)) continue;
-        if (_members.any((x) => x.id == m.id)) continue;
+        final existing = _members.where((x) => x.id == m.id).firstOrNull;
+        if (existing != null) {
+          if (!RosterDedupe.areDifferentPeople(existing.name, m.name)) {
+            continue;
+          }
+          final uid = _accountUidForName(club.id, m.name);
+          final moved = m.withId(Member.rosterId(
+            club.id,
+            uid.isNotEmpty ? uid : 'kept_${m.name.hashCode}',
+          ));
+          if (moved.id == m.id) continue;
+          if (_members.any((x) => x.id == moved.id)) continue;
+          if (ClubOpsSync.isMemberRemoved(moved.id)) continue;
+          if (_alreadyOnRoster(club.id, moved, club.creatorId)) continue;
+          _members.add(moved);
+          continue;
+        }
         if (ClubOpsSync.isMemberRemoved(m.id)) continue;
         if (_alreadyOnRoster(club.id, m, club.creatorId)) continue;
         _members.add(m);
@@ -3387,17 +3471,13 @@ class ClubProvider extends ChangeNotifier with WidgetsBindingObserver {
   }
 
   bool _alreadyOnRoster(String clubId, Member row, String creatorUserId) {
-    final roster = _members.where((m) {
-      if (m.status == '탈퇴' || m.status == '강퇴') return false;
-      return m.id == 'm_creator_$clubId' ||
-          m.id.startsWith('m_${clubId}_') ||
-          (creatorUserId.isNotEmpty && m.id == creatorUserId);
-    });
-    return OfficialMemberCount.attendanceRoster(
+    return _joinedAccountAlreadyVisible(
       clubId: clubId,
       creatorUserId: creatorUserId,
-      roster: [...roster, row],
-    ).every((m) => m.id != row.id);
+      roster: _rawRosterRowsForClub(clubId),
+      uid: _rosterUidOf(clubId, row.id, creatorUserId),
+      name: row.name,
+    );
   }
   List<Member> get regularMembers =>
       activeMembers.where((m) => m.memberType == '정회원').toList();
