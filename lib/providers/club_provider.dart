@@ -7223,8 +7223,14 @@ class ClubProvider extends ChangeNotifier with WidgetsBindingObserver {
         final m = _members[i];
         if (!_isMyRosterRowFor(club, m.id)) continue;
         if (m.name.trim() == target) continue;
-        final leftover = leftoverStolenNames.contains(m.name.trim()) &&
-            m.name.trim() != target;
+        // 이름만 장창현이라고 덮으면 볼케이노 실제 회장이 이정원으로 바뀐다.
+        // 아레나 방장 칸 찌꺼기만 내 이름으로 되돌린다.
+        final leftover = ClubOpsSync.isForeignLeftoverMember(
+          id: m.id,
+          name: m.name,
+          clubId: club.id,
+          creatorUserId: club.creatorId,
+        );
         if (!isPlaceholderMemberName(m.name) && !leftover) continue;
         _members[i] = m.copyWith(name: target);
         _relabelMemberDisplayName(m.id, target);

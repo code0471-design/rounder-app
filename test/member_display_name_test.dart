@@ -213,14 +213,14 @@ void main() {
       expect(sync.contains('static List<dynamic> _mergeMembersById({'), isTrue);
       final pushSite = sync.substring(
         sync.indexOf("final remoteMembers = remote['members'] as List?"),
-        sync.indexOf("final remoteMembers = remote['members'] as List?") + 400,
+        sync.indexOf("final remoteMembers = remote['members'] as List?") + 800,
       );
       expect(pushSite.contains('_mergeMembersById('), isTrue);
       expect(pushSite.contains('remoteWins: false'), isTrue);
 
       final pullSite = sync.substring(
         sync.indexOf("// members: 합집합"),
-        sync.indexOf("// members: 합집합") + 500,
+        sync.indexOf("// members: 합집합") + 1400,
       );
       expect(pullSite.contains('_mergeMembersById('), isTrue);
       expect(pullSite.contains('remoteWins: true'), isTrue);
@@ -321,8 +321,8 @@ void main() {
       expect(fn.contains('_isMyRosterRowFor(club, m.id)'), isTrue);
       expect(fn.contains('isPlaceholderMemberName(m.name)'), isTrue,
           reason: '사람이 고친 이름을 덮어쓰면 안 된다');
-      expect(fn.contains('leftoverStolenNames'), isTrue,
-          reason: '내 행에 남은 장창현 이름은 찌꺼기다');
+      expect(fn.contains('isForeignLeftoverMember'), isTrue,
+          reason: '아레나 찌꺼기만 덮는다. 볼케이노 실제 회장 장창현은 둔다');
       expect(fn.contains('_persistImmediately()'), isTrue,
           reason: '고쳐 놓고 저장을 안 하면 다음 실행에 또 홍길동이다');
     });
