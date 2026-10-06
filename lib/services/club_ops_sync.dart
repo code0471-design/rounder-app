@@ -1768,11 +1768,13 @@ class ClubOpsSync {
   }
 
   /// 같은 일정·같은 시상명이 다른 id 로 여러 줄이면 최신 한 줄만 남긴다.
-  /// 저장할 때마다 ar_일정_a1 → ar_일정_ar_일정_a1 로 늘어 횟수가 두 배씩 가던 원인.
+  /// 한 줄짜리 id 까지 바꾸면 watch 가 매번 persist 하고 명단 이름 복구가
+  /// 같이 돌아 회원수가 깜빡인다. 중복일 때만 id 를 고정한다.
   @visibleForTesting
   static List<dynamic> collapseAwardRecords(List awards) {
     final byKey = <String, Map<String, dynamic>>{};
     final order = <String>[];
+    final counts = <String, int>{};
     DateTime recordedAtOf(Map<String, dynamic> m) {
       final raw = m['recordedAt'];
       if (raw is DateTime) return raw;
@@ -1787,19 +1789,25 @@ class ClubOpsSync {
       final name = '${m['awardName'] ?? ''}'.trim();
       if (sid.isEmpty || name.isEmpty) continue;
       final key = '$sid\u0000$name';
+      counts[key] = (counts[key] ?? 0) + 1;
       final prev = byKey[key];
       if (prev == null) {
-        m['id'] = 'ar_${sid}_$name';
         m['awardName'] = name;
         byKey[key] = m;
         order.add(key);
         continue;
       }
       if (!recordedAtOf(m).isBefore(recordedAtOf(prev))) {
-        m['id'] = 'ar_${sid}_$name';
         m['awardName'] = name;
         byKey[key] = m;
       }
+    }
+    for (final key in order) {
+      if ((counts[key] ?? 0) < 2) continue;
+      final m = byKey[key]!;
+      final sid = '${m['scheduleId'] ?? ''}'.trim();
+      final name = '${m['awardName'] ?? ''}'.trim();
+      m['id'] = 'ar_${sid}_$name';
     }
     return [for (final k in order) byKey[k]!];
   }

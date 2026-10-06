@@ -45,6 +45,8 @@ void main() {
     expect(scoreFn.contains('{bool merge = false}'), isTrue);
     expect(codec.contains("'roundScores'"), isTrue);
     expect(provider.contains('regularAwardRankingForYear'), isTrue);
+    expect(provider.contains('한 줄이면 id 를 바꾸지 않는다'), isTrue,
+        reason: '시상 합치기가 매번 id 를 바꾸면 동기화가 명단까지 다시 돌린다');
     final preview =
         File('lib/widgets/score_award_results.dart').readAsStringSync();
     expect(preview.contains('i += 3'), isTrue, reason: '스코어는 한 줄에 3명');

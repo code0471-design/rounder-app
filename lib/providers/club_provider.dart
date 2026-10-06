@@ -11206,29 +11206,38 @@ class ClubProvider extends ChangeNotifier with WidgetsBindingObserver {
         _awardRecords.where((r) => r.scheduleId == scheduleId),
       );
 
-  /// 같은 일정·같은 시상명은 최신 한 줄. 저장·동기화가 id 를 바꿔도 두 번 세지 않는다.
+  /// 같은 일정·같은 시상명은 최신 한 줄. 한 줄이면 id 를 바꾸지 않는다.
+  /// (시상 저장마다 id 를 갈아 동기화가 다시 돌고 회원수가 깜빡이던 경로)
   List<AwardRecord> _dedupeAwardRecords(Iterable<AwardRecord> records) {
     final byKey = <String, AwardRecord>{};
+    final counts = <String, int>{};
     for (final r in records) {
       final name = r.awardName.trim();
       if (r.scheduleId.isEmpty || name.isEmpty) continue;
       final key = '${r.scheduleId}\u0000$name';
+      counts[key] = (counts[key] ?? 0) + 1;
       final prev = byKey[key];
       if (prev == null || !r.recordedAt.isBefore(prev.recordedAt)) {
-        byKey[key] = AwardRecord(
-          id: 'ar_${r.scheduleId}_$name',
-          scheduleId: r.scheduleId,
-          scheduleName: r.scheduleName,
-          awardName: name,
-          awardIcon: r.awardIcon,
-          winnerIds: r.winnerIds,
-          winnerNames: r.winnerNames,
-          winnerNote: r.winnerNote,
-          recordedAt: r.recordedAt,
-        );
+        byKey[key] = r;
       }
     }
-    return byKey.values.toList(growable: false);
+    return [
+      for (final entry in byKey.entries)
+        if ((counts[entry.key] ?? 0) < 2)
+          entry.value
+        else
+          AwardRecord(
+            id: 'ar_${entry.value.scheduleId}_${entry.value.awardName.trim()}',
+            scheduleId: entry.value.scheduleId,
+            scheduleName: entry.value.scheduleName,
+            awardName: entry.value.awardName.trim(),
+            awardIcon: entry.value.awardIcon,
+            winnerIds: entry.value.winnerIds,
+            winnerNames: entry.value.winnerNames,
+            winnerNote: entry.value.winnerNote,
+            recordedAt: entry.value.recordedAt,
+          ),
+    ];
   }
 
   void _replaceAwardRecords(Iterable<AwardRecord> records) {

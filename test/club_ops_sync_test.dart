@@ -1528,6 +1528,26 @@ void main() {
     );
     expect(collapsed.singleWhere((e) => e['awardName'] == '메달리스트')['id'],
         'ar_s1_메달리스트');
+    expect(
+      collapsed.singleWhere((e) => e['awardName'] == '니어리스트')['id'],
+      'ar_s1_a2',
+      reason: '한 줄짜리 시상 id 를 바꾸면 watch 가 다시 돌고 회원수가 깜빡인다',
+    );
+  });
+
+  test('시상이 한 줄이면 id 를 그대로 둔다', () {
+    final collapsed = ClubOpsSync.collapseAwardRecords([
+      {
+        'id': 'ar_s1_a1',
+        'scheduleId': 's1',
+        'awardName': '메달리스트',
+        'winnerIds': ['m1'],
+        'winnerNames': ['이정원'],
+        'recordedAt': '2026-09-15T07:00:00.000',
+      },
+    ]);
+    expect(collapsed.single['id'], 'ar_s1_a1',
+        reason: '중복이 아닌데 id 를 갈아끼우면 시상 저장 뒤 명단이 다시 돌아간다');
   });
 
   test('원격 옛 시상과 로컬 새 id 를 합쳐도 횟수가 늘지 않는다', () {
