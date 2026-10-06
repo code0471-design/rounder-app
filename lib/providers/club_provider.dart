@@ -573,9 +573,22 @@ class ClubProvider extends ChangeNotifier with WidgetsBindingObserver {
     _applyRosterRolesToMyClubs();
     // 데모 모임(c1~c5) 회원수 — 과거에 저장된 임의값이 남아있어도 실제 명단 기준으로 교정
     _reconcileLegacyMemberCounts();
-    _reconcileLiveMemberCounts();
+    // 실계정은 로컬 짧은 명단으로 카드 숫자를 먼저 확정하지 않는다.
+    if (_isDemoSession) {
+      _reconcileLiveMemberCounts();
+    }
     // 내 모임 → Mock 저장소(어드민·모임찾기) 강제 동기화
     _syncMyClubsToMockStore();
+
+    if (!_isDemoSession &&
+        AppDependencies.instance.isInitialized &&
+        !AppDependencies.instance.isOfflineMockMode) {
+      await Future.wait([
+        for (final c in List<Club>.from(_myClubs))
+          _hydrateRosterFromServer(c.id),
+      ]);
+      _reconcileLiveMemberCounts();
+    }
 
     // 홈은 저장된 내 모임을 바로 보여 준다. 서버 소속 정리는 뒤에서.
     notifyListeners();
@@ -2701,6 +2714,7 @@ class ClubProvider extends ChangeNotifier with WidgetsBindingObserver {
   void _reconcileLiveMemberCounts() {
     for (final c in List<Club>.from(_myClubs)) {
       if (_legacyMockClubIds.contains(c.id)) continue;
+      if (!_rosterReady(c.id)) continue;
       final n = activeHeadcount(c.id);
       if (n <= 0 || c.memberCount == n) continue;
       _setMemberCount(c.id, n);
@@ -3332,9 +3346,17 @@ class ClubProvider extends ChangeNotifier with WidgetsBindingObserver {
     );
   }
 
+  bool _rosterReady(String clubId) {
+    final accounts = _clubAccounts[clubId];
+    if (accounts != null && accounts.isNotEmpty) return true;
+    final server = _serverMembers[clubId];
+    return server != null && server.isNotEmpty;
+  }
+
   /// 카드에 적는 인원. 게스트를 포함한 활성 명단이다.
   /// 같은 사람 줄이 늘었다 줄어도 숫자는 그대로다.
   /// 명단이 잠깐 비어도 방금 센 숫자를 유지한다.
+  /// 서버 소속을 받기 전에는 로컬이 짧다고 숫자를 내리지 않는다.
   int activeHeadcount(String clubId) {
     final club = _clubById(clubId);
     final roster = OfficialMemberCount.attendanceRoster(
@@ -3342,13 +3364,13 @@ class ClubProvider extends ChangeNotifier with WidgetsBindingObserver {
       creatorUserId: club?.creatorId ?? '',
       roster: membersForClub(clubId),
     );
+    if (!_rosterReady(clubId)) {
+      final prev = _lastHeadcount[clubId] ?? 0;
+      final clubN = club?.memberCount ?? 0;
+      final n = roster.length > clubN ? roster.length : clubN;
+      return n > prev ? n : prev;
+    }
     if (roster.isNotEmpty) {
-      final prev = _lastHeadcount[clubId];
-      if (_clubAccounts[clubId] == null &&
-          prev != null &&
-          prev > roster.length) {
-        return prev;
-      }
       _lastHeadcount[clubId] = roster.length;
       return roster.length;
     }
@@ -7262,7 +7284,9 @@ class ClubProvider extends ChangeNotifier with WidgetsBindingObserver {
         joinDate: club.createdAt,
       ));
       _freshClubIds.add(club.id);
-      _setMemberCount(club.id, 1);
+      if (club.memberCount < 1) {
+        _setMemberCount(club.id, 1);
+      }
       try {
         AppDependencies.instance.mockDataStore?.addMember(
           clubId: club.id,

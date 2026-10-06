@@ -156,4 +156,22 @@ void main() {
     );
     expect(clubs.activeHeadcount(clubId), 4);
   });
+
+  test('서버 소속을 받기 전에 로컬 명단이 짧아도 카드 인원을 내리지 않는다', () async {
+    const clubId = 'c_1790768750847';
+    final clubs = await openClub(
+      clubId: clubId,
+      clubName: '볼케이노~~',
+      includeJang: false,
+    );
+    expect(
+      clubs.membersForClub(clubId).any((m) => m.name == '장창현'),
+      isFalse,
+    );
+    expect(
+      clubs.activeHeadcount(clubId),
+      4,
+      reason: '첫 화면에서 짧은 로컬 명단으로 인원을 내리면 안 된다',
+    );
+  });
 }
