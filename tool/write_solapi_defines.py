@@ -6,6 +6,7 @@
 import json
 import os
 import sys
+from typing import Tuple
 
 ROUNDER_OTP = "KA01TP260827200825010BAkqpx4TyCt"
 ONECLUB_OTP = "KA01TP2608272010352785egDZKZOntL"
@@ -20,7 +21,28 @@ def env(name: str, default: str = "") -> str:
     return s
 
 
+def google_client_ids(app_env: str) -> Tuple[str, str]:
+    path = os.path.join("firebase_config", app_env, "env.json")
+    try:
+        with open(path, encoding="utf-8") as f:
+            data = json.load(f)
+    except OSError:
+        sys.exit("missing %s — Google 로그인 클라이언트 ID 를 넣을 수 없습니다" % path)
+    ios = str(data.get("googleIosClientId") or "").strip()
+    server = str(data.get("googleServerClientId") or "").strip()
+    if not ios or not server:
+        sys.exit("firebase_config/%s/env.json 에 Google 클라이언트 ID 가 없습니다" % app_env)
+    return ios, server
+
+
+app_env = env("APP_ENV", "prod")
+if app_env not in ("staging", "prod"):
+    sys.exit("APP_ENV must be staging or prod (got %s)" % app_env)
+google_ios, google_server = google_client_ids(app_env)
+
 defs = {
+    "GOOGLE_IOS_CLIENT_ID": google_ios,
+    "GOOGLE_SERVER_CLIENT_ID": google_server,
     "SOLAPI_API_KEY": env("SOLAPI_API_KEY"),
     "SOLAPI_API_SECRET": env("SOLAPI_API_SECRET"),
     "SOLAPI_OTP_TEMPLATE_ID": env("SOLAPI_OTP_TEMPLATE_ID", ROUNDER_OTP),
@@ -60,6 +82,7 @@ defs = {
     "SOLAPI_SENDER_PHONE": env("SOLAPI_SENDER_PHONE", "01045110471"),
 }
 
+print("APP_ENV=%s GOOGLE_IOS_CLIENT_ID prefix=%s" % (app_env, google_ios.split("-", 1)[0]))
 print("SOLAPI_API_KEY length=%d" % len(defs["SOLAPI_API_KEY"]))
 print("SOLAPI_API_SECRET length=%d" % len(defs["SOLAPI_API_SECRET"]))
 print("SOLAPI_OTP_TEMPLATE_ID=%s" % defs["SOLAPI_OTP_TEMPLATE_ID"])

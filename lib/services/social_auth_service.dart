@@ -68,13 +68,15 @@ abstract final class SocialAuthService {
 
   static Future<void> ensureGoogleInitialized() async {
     if (_googleInitialized) return;
+    // iOS는 Info.plist GIDClientID 를 쓴다. Dart clientId 가 다르면
+    // 구글 버튼이 아무 반응 없이 실패한다 (App Store 2.1a).
+    final usePlistClient = !kIsWeb &&
+        defaultTargetPlatform == TargetPlatform.iOS;
+    final iosClient = SocialAuthConfig.googleIosClientId.trim();
+    final serverClient = SocialAuthConfig.googleServerClientId.trim();
     await GoogleSignIn.instance.initialize(
-      clientId: SocialAuthConfig.googleIosClientId.trim().isEmpty
-          ? null
-          : SocialAuthConfig.googleIosClientId.trim(),
-      serverClientId: SocialAuthConfig.googleServerClientId.trim().isEmpty
-          ? null
-          : SocialAuthConfig.googleServerClientId.trim(),
+      clientId: usePlistClient ? null : (iosClient.isEmpty ? null : iosClient),
+      serverClientId: serverClient.isEmpty ? null : serverClient,
     );
     _googleInitialized = true;
   }
@@ -143,7 +145,9 @@ abstract final class SocialAuthService {
   static Future<SocialProfile> _signInWithGoogle() async {
     await ensureGoogleInitialized();
     try {
-      final account = await GoogleSignIn.instance.authenticate();
+      final account = await GoogleSignIn.instance
+          .authenticate(scopeHint: const ['email', 'profile'])
+          .timeout(const Duration(seconds: 60));
       final idToken = account.authentication.idToken;
 
       if (!RuntimeMode.useOfflineMock &&
@@ -164,6 +168,10 @@ abstract final class SocialAuthService {
         name: (name == null || name.isEmpty) ? '회원' : name,
         email: account.email,
         photoUrl: account.photoUrl,
+      );
+    } on TimeoutException {
+      throw const SocialAuthException(
+        '구글 로그인이 지연되고 있습니다. 다시 시도해 주세요.',
       );
     } on GoogleSignInException catch (e) {
       debugPrint('[SocialAuth] Google login failed: ${e.code} ${e.description}');

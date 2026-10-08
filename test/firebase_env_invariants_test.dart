@@ -224,6 +224,11 @@ void main() {
           isTrue,
           reason: 'APP_ENV 를 안 넘기면 Dart 쪽이 항상 스테이징을 본다:\n$cmd',
         );
+        expect(
+          cmd.contains('solapi_defines.json'),
+          isTrue,
+          reason: '구글 클라이언트 ID 도 이 파일로 넣는다. 빠지면 스토어 구글 로그인이 죽는다:\n$cmd',
+        );
       }
     });
 
