@@ -5191,7 +5191,26 @@ class ClubProvider extends ChangeNotifier with WidgetsBindingObserver {
     return out;
   }
 
-  List<Member> scheduleChangeAlimtalkRecipients(String scheduleId) {
+  List<Member> scheduleChangeAlimtalkRecipients(
+    String scheduleId, {
+    bool attendeesOnly = false,
+  }) {
+    if (attendeesOnly) {
+      final schedule =
+          _schedules.where((s) => s.id == scheduleId).firstOrNull;
+      if (schedule == null) return [];
+      final byId = {for (final m in _members) m.id: m};
+      final out = <Member>[];
+      final seen = <String>{};
+      for (final r in schedule.responses) {
+        if (r.response != '참석') continue;
+        final m = byId[r.memberId];
+        if (m == null || seen.contains(m.id)) continue;
+        seen.add(m.id);
+        out.add(m);
+      }
+      return out;
+    }
     final out = <Member>[...regularMembers];
     final seen = {for (final m in out) m.id};
     final schedule =
@@ -5623,7 +5642,10 @@ class ClubProvider extends ChangeNotifier with WidgetsBindingObserver {
   }
 
   /// 일정 변경 푸시 — 보내기를 고른 뒤에만 호출한다.
-  void notifyScheduleChanged(String scheduleId) {
+  void notifyScheduleChanged(
+    String scheduleId, {
+    bool attendeesOnly = false,
+  }) {
     final schedule = scheduleById(scheduleId);
     if (schedule == null) return;
     final club = _myClubs.where((c) => c.id == schedule.clubId).firstOrNull ??
@@ -5632,7 +5654,11 @@ class ClubProvider extends ChangeNotifier with WidgetsBindingObserver {
     _notifyHqPush(
       typeId: HqPushCatalog.scheduleChange,
       userIds: [
-        for (final m in scheduleChangeAlimtalkRecipients(scheduleId)) m.id,
+        for (final m in scheduleChangeAlimtalkRecipients(
+          scheduleId,
+          attendeesOnly: attendeesOnly,
+        ))
+          m.id,
       ],
       appType: AppNotificationType.scheduleChanged,
       clubId: schedule.clubId,
@@ -5647,12 +5673,18 @@ class ClubProvider extends ChangeNotifier with WidgetsBindingObserver {
   }
 
   /// 일정 변경 알림톡 — 변경 직후 보내기를 고른 경우에만 호출한다.
-  void sendScheduleChangeAlimtalk(String scheduleId) {
+  void sendScheduleChangeAlimtalk(
+    String scheduleId, {
+    bool attendeesOnly = false,
+  }) {
     final schedule = scheduleById(scheduleId);
     if (schedule == null) return;
     _dispatchClubAlimtalk(
       hqTypeId: HqAlimtalkCatalog.scheduleChangeId,
-      members: scheduleChangeAlimtalkRecipients(scheduleId),
+      members: scheduleChangeAlimtalkRecipients(
+        scheduleId,
+        attendeesOnly: attendeesOnly,
+      ),
       variablesFor: (m) => _alimtalkScheduleVars(schedule, m),
     );
   }

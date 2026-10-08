@@ -3445,9 +3445,18 @@ class _ScheduleFormSheetState extends State<_ScheduleFormSheet> {
       setState(() => _saving = false);
       if (materialChanged) {
         final send = await AlimtalkUtils.promptScheduleChange(context);
-        if (send == true) {
-          provider.notifyScheduleChanged(updated.id);
-          provider.sendScheduleChangeAlimtalk(updated.id);
+        final attendeesOnly =
+            send == ScheduleChangeNotifyChoice.attendees;
+        if (send == ScheduleChangeNotifyChoice.allMembers ||
+            attendeesOnly) {
+          provider.notifyScheduleChanged(
+            updated.id,
+            attendeesOnly: attendeesOnly,
+          );
+          provider.sendScheduleChangeAlimtalk(
+            updated.id,
+            attendeesOnly: attendeesOnly,
+          );
         }
       }
       if (mounted) Navigator.pop(context);

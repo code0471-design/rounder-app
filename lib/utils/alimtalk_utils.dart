@@ -7,6 +7,9 @@ import '../screens/alimtalk/alimtalk_settings_screen.dart';
 import '../services/hq_alimtalk_catalog.dart';
 import '../theme/app_theme.dart';
 
+/// 일정 변경 안내를 누구에게 보낼지. 다른 알림톡 종류는 쓰지 않는다.
+enum ScheduleChangeNotifyChoice { allMembers, attendees, skip }
+
 /// 카카오 알림톡 발송 플로우 (mock)
 class AlimtalkUtils {
   /// 본사(전 모임) 사용중 AND 해당 모임 로컬 사용중일 때만 true
@@ -58,11 +61,12 @@ class AlimtalkUtils {
     );
   }
 
-  static Future<bool?> promptScheduleChange([BuildContext? context]) {
+  static Future<ScheduleChangeNotifyChoice?> promptScheduleChange(
+      [BuildContext? context]) {
     final ctx = context ?? AppNavigator.context;
-    if (ctx == null) return Future.value(false);
+    if (ctx == null) return Future.value(ScheduleChangeNotifyChoice.skip);
 
-    return showDialog<bool>(
+    return showDialog<ScheduleChangeNotifyChoice>(
       context: ctx,
       useRootNavigator: true,
       barrierDismissible: false,
@@ -70,26 +74,50 @@ class AlimtalkUtils {
         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
         title: const Text('알림·알림톡 발송',
             style: TextStyle(fontWeight: FontWeight.w700, fontSize: 17)),
-        content: const Text(
-          '라운딩 일정이 변경되었습니다.\n회원에게 앱 알림과 알림톡을 보낼까요?\n참석 여부는 그대로 유지됩니다.',
-          style: TextStyle(fontSize: 14, height: 1.5),
-        ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(dialogCtx, false),
-            child: const Text('안 보내기'),
-          ),
-          ElevatedButton(
-            onPressed: () => Navigator.pop(dialogCtx, true),
-            style: ElevatedButton.styleFrom(
-              backgroundColor: AppColors.primary,
-              foregroundColor: Colors.white,
-              shape: RoundedRectangleBorder(
-                  borderRadius: BorderRadius.circular(8)),
+        content: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+            const Text(
+              '라운딩 일정이 변경되었습니다.\n회원에게 앱 알림과 알림톡을 보낼까요?\n참석 여부는 그대로 유지됩니다.',
+              style: TextStyle(fontSize: 14, height: 1.5),
             ),
-            child: const Text('보내기'),
-          ),
-        ],
+            const SizedBox(height: 16),
+            ElevatedButton(
+              onPressed: () => Navigator.pop(
+                dialogCtx,
+                ScheduleChangeNotifyChoice.allMembers,
+              ),
+              style: ElevatedButton.styleFrom(
+                backgroundColor: AppColors.primary,
+                foregroundColor: Colors.white,
+                shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(8)),
+              ),
+              child: const Text('전체 회원에게 보내기'),
+            ),
+            const SizedBox(height: 8),
+            OutlinedButton(
+              onPressed: () => Navigator.pop(
+                dialogCtx,
+                ScheduleChangeNotifyChoice.attendees,
+              ),
+              style: OutlinedButton.styleFrom(
+                foregroundColor: AppColors.primary,
+                shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(8)),
+              ),
+              child: const Text('참석 신청한 회원에게 보내기'),
+            ),
+            TextButton(
+              onPressed: () => Navigator.pop(
+                dialogCtx,
+                ScheduleChangeNotifyChoice.skip,
+              ),
+              child: const Text('보내지 않기'),
+            ),
+          ],
+        ),
       ),
     );
   }
@@ -178,7 +206,7 @@ class AlimtalkUtils {
   }
 
   /// 일정 변경 — 보내기를 고른 뒤에만 발송한다.
-  static Future<bool?> runScheduleChangeFlow({
+  static Future<ScheduleChangeNotifyChoice?> runScheduleChangeFlow({
     required ClubProvider provider,
     required RoundSchedule schedule,
     List<String>? recipientNames,
@@ -189,11 +217,18 @@ class AlimtalkUtils {
       hqTypeId: HqAlimtalkCatalog.scheduleChangeId,
       clubFlag: (s) => s.promptOnScheduleChange,
     );
-    if (!ok) return false;
+    if (!ok) return ScheduleChangeNotifyChoice.skip;
     final send = await promptScheduleChange(context);
-    if (send == true) {
-      provider.notifyScheduleChanged(schedule.id);
-      provider.sendScheduleChangeAlimtalk(schedule.id);
+    final attendeesOnly = send == ScheduleChangeNotifyChoice.attendees;
+    if (send == ScheduleChangeNotifyChoice.allMembers || attendeesOnly) {
+      provider.notifyScheduleChanged(
+        schedule.id,
+        attendeesOnly: attendeesOnly,
+      );
+      provider.sendScheduleChangeAlimtalk(
+        schedule.id,
+        attendeesOnly: attendeesOnly,
+      );
     }
     return send;
   }

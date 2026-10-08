@@ -191,6 +191,16 @@ void main() {
       expect(src.substring(updStart, updEnd).contains('responses: const []'),
           isFalse,
           reason: '일정 변경이 참석을 지우면 재응답 전에는 포인트·조편성이 끊긴다');
+      final recipients = src.indexOf(
+        'List<Member> scheduleChangeAlimtalkRecipients(',
+      );
+      final recipientsEnd = src.indexOf('Future<SolapiResult> sendClubAlimtalk(');
+      final recipientBody = src.substring(recipients, recipientsEnd);
+      expect(recipientBody.contains('bool attendeesOnly = false'), isTrue);
+      expect(recipientBody.contains("if (r.response != '참석') continue;"), isTrue,
+          reason: '참석 신청만 고르면 참석이라고 한 사람에게만 간다');
+      expect(recipientBody.contains('...regularMembers'), isTrue,
+          reason: '전체는 기존처럼 정회원 전원이다');
       final start = src.indexOf('void finalizeAssignment(');
       final end = src.indexOf('void sendGroupFinalizeAlimtalk(');
       expect(src.substring(start, end).contains('_dispatchClubAlimtalk'), isFalse);
@@ -204,6 +214,13 @@ void main() {
       expect(src, contains('sendScheduleUploadAlimtalk'));
       expect(src, contains('sendScheduleChangeAlimtalk'));
       expect(src, contains('앱 알림과 알림톡을 보낼까요'));
+      expect(src, contains('전체 회원에게 보내기'));
+      expect(src, contains('참석 신청한 회원에게 보내기'));
+      expect(src, contains('보내지 않기'));
+      expect(src, contains('ScheduleChangeNotifyChoice.attendees'));
+      expect(src, contains('attendeesOnly: attendeesOnly'));
+      expect(src, contains("child: const Text('보내기')"));
+      expect(src, contains('sendScheduleUploadAlimtalk(schedule.id)'));
       expect(src, isNot(contains('recipientNames: provider.attendanceAlimtalkRecipientNames()')),
           reason: '발송 화면을 또 열면 두 번 나간다');
     });

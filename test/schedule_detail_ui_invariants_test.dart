@@ -431,6 +431,10 @@ void main() {
     expect(source.contains('sendScheduleUploadAlimtalk'), isTrue);
     expect(source.contains('notifyScheduleChanged'), isTrue);
     expect(source.contains('sendScheduleChangeAlimtalk'), isTrue);
+    expect(source.contains('ScheduleChangeNotifyChoice.attendees'), isTrue);
+    expect(source.contains('attendeesOnly: attendeesOnly'), isTrue);
+    expect(source.contains('sendScheduleChangeAlimtalk(updated.id);'), isFalse,
+        reason: '대상 없이 보내면 전체·참석 선택이 무시된다');
     expect(source.contains('promptOnScheduleChange)'), isFalse,
         reason: '일정 변경 얼럿을 모임 알림톡 ON에만 묶으면 주소·시간 바꿔도 안내가 안 나간다');
     expect(source.contains('onCreated:'), isTrue);
