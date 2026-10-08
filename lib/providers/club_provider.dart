@@ -1773,6 +1773,13 @@ class ClubProvider extends ChangeNotifier with WidgetsBindingObserver {
   final Map<String, List<Member>> _serverMembers = {};
   final Map<String, List<JoinOfficer>> _joinOfficersByClub = {};
 
+  Set<String> _joinedUserIdsFor(String clubId) {
+    return {
+      for (final a in _clubAccounts[clubId] ?? const <ClubMemberAccount>[])
+        if (a.userId.trim().isNotEmpty) a.userId.trim(),
+    };
+  }
+
   /// 그 모임 생성자가 아닌 장창현 소셜 행은 테스터 폰에도 안 남긴다.
   /// 로컬만 가리면 서버 명단을 받는 다른 폰에는 그대로 보인다.
   bool _dropLeftoverStolenForeignRoster() {
@@ -1789,6 +1796,7 @@ class ClubProvider extends ChangeNotifier with WidgetsBindingObserver {
           name: m.name,
           clubId: club.id,
           creatorUserId: club.creatorId,
+          joinedUserIds: _joinedUserIdsFor(club.id),
         )) {
           continue;
         }
@@ -1872,6 +1880,7 @@ class ClubProvider extends ChangeNotifier with WidgetsBindingObserver {
         name: name,
         clubId: clubId,
         creatorUserId: creator,
+        joinedUserIds: _joinedUserIdsFor(clubId),
       )) {
         continue;
       }
@@ -1956,6 +1965,12 @@ class ClubProvider extends ChangeNotifier with WidgetsBindingObserver {
 
   bool _addMissingJoinedMembers(String clubId, List<Member> remote) {
     final creatorUserId = (_clubById(clubId)?.creatorId ?? '').trim();
+    final joined = {
+      ..._joinedUserIdsFor(clubId),
+      for (final raw in remote)
+        if (_rosterUidOf(clubId, raw.id, creatorUserId).isNotEmpty)
+          _rosterUidOf(clubId, raw.id, creatorUserId),
+    };
     var changed = false;
     for (final raw in remote) {
       if (raw.status == '탈퇴' || raw.status == '강퇴') continue;
@@ -1975,6 +1990,7 @@ class ClubProvider extends ChangeNotifier with WidgetsBindingObserver {
         name: row.name,
         clubId: clubId,
         creatorUserId: creatorUserId,
+        joinedUserIds: joined,
       )) {
         continue;
       }
@@ -3354,6 +3370,7 @@ class ClubProvider extends ChangeNotifier with WidgetsBindingObserver {
       clubId: clubId,
       creatorUserId: club?.creatorId ?? '',
       roster: membersForClub(clubId),
+      joinedUserIds: _joinedUserIdsFor(clubId),
     );
   }
 
@@ -3374,6 +3391,7 @@ class ClubProvider extends ChangeNotifier with WidgetsBindingObserver {
       clubId: clubId,
       creatorUserId: club?.creatorId ?? '',
       roster: membersForClub(clubId),
+      joinedUserIds: _joinedUserIdsFor(clubId),
     );
     if (!_rosterReady(clubId)) {
       final prev = _lastHeadcount[clubId] ?? 0;
@@ -3396,6 +3414,7 @@ class ClubProvider extends ChangeNotifier with WidgetsBindingObserver {
       clubId: clubId,
       creatorUserId: club?.creatorId ?? '',
       roster: membersForClub(clubId).where((m) => m.status == '활성'),
+      joinedUserIds: _joinedUserIdsFor(clubId),
     );
   }
 
@@ -3452,6 +3471,15 @@ class ClubProvider extends ChangeNotifier with WidgetsBindingObserver {
         return true;
       }
       if (name.isNotEmpty && !RosterDedupe.areDifferentPeople(m.name, name)) {
+        if (ClubOpsSync.isForeignLeftoverMember(
+          id: m.id,
+          name: m.name,
+          clubId: clubId,
+          creatorUserId: creatorUserId,
+          joinedUserIds: _joinedUserIdsFor(clubId),
+        )) {
+          continue;
+        }
         return true;
       }
     }
@@ -3480,6 +3508,7 @@ class ClubProvider extends ChangeNotifier with WidgetsBindingObserver {
       clubId: club.id,
       creatorUserId: club.creatorId,
       roster: roster,
+      joinedUserIds: _joinedUserIdsFor(club.id),
     );
   }
 
@@ -7485,6 +7514,7 @@ class ClubProvider extends ChangeNotifier with WidgetsBindingObserver {
           name: m.name,
           clubId: club.id,
           creatorUserId: club.creatorId,
+          joinedUserIds: _joinedUserIdsFor(club.id),
         );
         if (!isPlaceholderMemberName(m.name) &&
             RosterDedupe.areDifferentPeople(m.name, target) &&
@@ -9940,6 +9970,7 @@ class ClubProvider extends ChangeNotifier with WidgetsBindingObserver {
         name: _currentUserName,
         clubId: club.id,
         creatorUserId: club.creatorId,
+        joinedUserIds: _joinedUserIdsFor(club.id),
       )) {
         continue;
       }

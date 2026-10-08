@@ -1756,6 +1756,7 @@ class ClubOpsSync {
     required String name,
     required String clubId,
     required String creatorUserId,
+    Set<String> joinedUserIds = const {},
   }) {
     final stolenName = leftoverStolenNames.contains(name.trim());
     final stolenUid = leftoverStolenUserIds.any(
@@ -1764,7 +1765,13 @@ class ClubOpsSync {
     if (!stolenName && !stolenUid) return false;
     // 아레나 방장 칸에만 이름만 남은 찌꺼기다. 그 모임만 뺀다.
     // 다른 모임에서 이름만 보고 지우면 총무가 정회원 폰에서 사라진다.
-    return clubId == 'c_1786973797931';
+    if (clubId != 'c_1786973797931') return false;
+    // 초대로 진짜 가입한 계정은 찌꺼기가 아니다.
+    for (final uid in leftoverStolenUserIds) {
+      if (!joinedUserIds.contains(uid)) continue;
+      if (id == uid || id.endsWith('_$uid')) return false;
+    }
+    return true;
   }
 
   /// 소속 계정이 있는데 회원 문서가 없으면 원클럽처럼 문서를 만든다.
@@ -1785,6 +1792,7 @@ class ClubOpsSync {
       name: n,
       clubId: clubId,
       creatorUserId: creatorUserId,
+      joinedUserIds: {uid},
     )) {
       return false;
     }
@@ -1825,6 +1833,7 @@ class ClubOpsSync {
       name: name,
       clubId: clubId,
       creatorUserId: creatorUserId,
+      joinedUserIds: joinedUserIds,
     )) {
       return true;
     }

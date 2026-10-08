@@ -28,6 +28,7 @@ abstract final class OfficialMemberCount {
     required String clubId,
     required String creatorUserId,
     required Iterable<Member> roster,
+    Set<String> joinedUserIds = const {},
   }) {
     final seen = <String>{};
     for (final m in roster) {
@@ -38,6 +39,7 @@ abstract final class OfficialMemberCount {
         name: m.name,
         clubId: clubId,
         creatorUserId: creatorUserId,
+        joinedUserIds: joinedUserIds,
       )) {
         continue;
       }
@@ -57,6 +59,7 @@ abstract final class OfficialMemberCount {
     required String clubId,
     required String creatorUserId,
     required Iterable<Member> roster,
+    Set<String> joinedUserIds = const {},
   }) {
     final active = roster.where((m) => m.status == '활성').toList();
     final creatorRow =
@@ -78,6 +81,7 @@ abstract final class OfficialMemberCount {
         name: m.name,
         clubId: clubId,
         creatorUserId: creatorUserId,
+        joinedUserIds: joinedUserIds,
       )) {
         continue;
       }

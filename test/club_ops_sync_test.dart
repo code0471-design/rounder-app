@@ -1715,6 +1715,17 @@ void main() {
       isFalse,
       reason: '새로 만든 모임의 방장 장창현까지 지우면 정회원 폰에는 본인만 남는다',
     );
+    expect(
+      ClubOpsSync.isForeignLeftoverMember(
+        id: 'm_c_1786973797931_kakao_5049673364',
+        name: '장창현',
+        clubId: 'c_1786973797931',
+        creatorUserId: 'kakao_5044456654',
+        joinedUserIds: {'kakao_5049673364'},
+      ),
+      isFalse,
+      reason: '아레나에 초대로 가입한 장창현은 명단에 나와야 한다',
+    );
     final shown = ClubOpsSync.assignClubRosterIds(
       [
         {'id': 'kakao_5049673364', 'name': '장창현', 'role': '총무'},
@@ -2154,7 +2165,7 @@ void main() {
     );
   });
 
-  test('아레나 찌꺼기 이름은 회원 문서를 만들지 않는다', () {
+  test('아레나에 가입한 장창현은 회원 문서를 만든다', () {
     expect(
       ClubOpsSync.shouldCreateJoinedMemberDoc(
         clubId: 'c_1786973797931',
@@ -2163,7 +2174,8 @@ void main() {
         name: '장창현',
         existingMemberIds: const {},
       ),
-      isFalse,
+      isTrue,
+      reason: '초대로 들어온 정회원은 찌꺼기가 아니다',
     );
   });
 
