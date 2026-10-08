@@ -76,7 +76,7 @@ class SolapiService {
   );
   static const scheduleChangeTemplateId = String.fromEnvironment(
     'SOLAPI_TEMPLATE_ID_SCHEDULE_CHANGE',
-    defaultValue: 'KA01TP260819170717941dD6OSJifLZy',
+    defaultValue: 'KA01TP261008051648581eSgWbj2szsW',
   );
   static const d1ReminderTemplateId = String.fromEnvironment(
     'SOLAPI_TEMPLATE_ID_D1',

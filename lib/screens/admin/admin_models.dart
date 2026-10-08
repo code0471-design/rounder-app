@@ -598,7 +598,7 @@ abstract final class AdminCatalog {
       timing: PushTimingKind.immediate,
       audienceDetail: '전체 정회원 + 참석 게스트',
       preview:
-          '{{모임명}} {{일정명}} 일정이 변경되었습니다.\n변경 일시: {{일시}}\n변경 장소: {{장소}}\n다시 참석 여부를 알려주세요.',
+          '[ROUNDER] {{모임명}}\n{{이름}} 회원님. 가입하신 {{모임명}} 일정이 변경되었습니다.\n{{일정명}}\n변경 일시: {{일시}}\n변경 장소: {{장소}}\n앱에서 다시 참석 여부를 확인해 주세요.',
     ),
     HqAlimtalkType(
       id: 'atk_d1_reminder',
@@ -689,7 +689,7 @@ abstract final class AdminCatalog {
       name: '일정 변경 재참석 안내',
       category: '모임',
       preview:
-          '{{모임명}} {{일정명}} 일정이 변경되었습니다.\n변경 일시: {{일시}}\n변경 장소: {{장소}}\n다시 참석 여부를 알려주세요.',
+          '[ROUNDER] {{모임명}}\n{{이름}} 회원님. 가입하신 {{모임명}} 일정이 변경되었습니다.\n{{일정명}}\n변경 일시: {{일시}}\n변경 장소: {{장소}}\n앱에서 다시 참석 여부를 확인해 주세요.',
     ),
     AlimtalkTemplate(
       id: 'T010',

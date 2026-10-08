@@ -55,9 +55,12 @@ class _AlimtalkSendScreenState extends State<AlimtalkSendScreen> {
             '${s.displayTitle}\n${s.courseName} · $date\n\n'
             '앱에서 조편성을 확인해 주세요.',
       AlimtalkSendKind.scheduleChanged =>
-        '[ROUNDER] ${widget.clubName}\n일정이 변경되었습니다.\n\n'
-            '${s.displayTitle}\n${s.courseName} · $date\n\n'
-            '변경된 일정을 확인하시고 참석 여부를 다시 신청해 주세요.',
+        '[ROUNDER] ${widget.clubName}\n'
+            '회원님. 가입하신 ${widget.clubName} 일정이 변경되었습니다.\n\n'
+            '${s.displayTitle}\n\n'
+            '변경 일시: $date\n'
+            '변경 장소: ${s.courseName}\n\n'
+            '앱에서 다시 참석 여부를 확인해 주세요.',
     };
   }
 
