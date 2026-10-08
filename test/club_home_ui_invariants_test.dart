@@ -230,4 +230,15 @@ void main() {
     expect(room.contains('onReentered()'), isTrue);
     expect(room.contains('from != _financeTabIndex'), isTrue);
   });
+
+  test('어느 모임에 들어가도 알림은 내 모임과 같은 전체 목록이다', () {
+    expect(room.contains('prov.visibleNotifications'), isTrue);
+    expect(room.contains('provider.visibleUnreadNotificationCount'), isTrue);
+    expect(room.contains('markAllVisibleNotificationsRead'), isTrue);
+    expect(room.contains('removeAllVisibleNotifications'), isTrue);
+    expect(room.contains('notificationsForClub'), isFalse);
+    expect(room.contains('unreadNotificationCountFor'), isFalse);
+    expect(room.contains('markAllNotificationsReadForClub'), isFalse);
+    expect(room.contains('removeAllNotificationsForClub'), isFalse);
+  });
 }

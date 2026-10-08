@@ -541,7 +541,7 @@ class _ClubRoomScreenState extends State<ClubRoomScreen> {
   // ────────────────────────────────────────
   Widget _buildHeader(
       BuildContext context, ClubProvider provider, Club club) {
-    final unread = provider.unreadNotificationCountFor(club.id);
+    final unread = provider.visibleUnreadNotificationCount;
 
     void handleBack() {
       if (_canPopCurrentTab) {
@@ -582,14 +582,16 @@ class _ClubRoomScreenState extends State<ClubRoomScreen> {
         _showNotificationPanel(
           context,
           provider,
-          onJoinRequest: () {
-            openTab(3);
+          onJoinRequest: (clubId) {
+            final here = widget.club.id;
+            final target = clubId.trim().isEmpty ? here : clubId;
+            if (target == here) openTab(3);
             WidgetsBinding.instance.addPostFrameCallback((_) {
               if (!mounted) return;
               MembersScreen.showJoinRequestsSheet(
                 context,
                 context.read<ClubProvider>(),
-                clubId: provider.selectedClub.id,
+                clubId: target,
               );
             });
           },
@@ -2686,10 +2688,8 @@ class _FinanceSummaryCard extends StatelessWidget {
 void _showNotificationPanel(
   BuildContext context,
   ClubProvider provider, {
-  VoidCallback? onJoinRequest,
+  void Function(String clubId)? onJoinRequest,
 }) {
-    final clubId = provider.selectedClub.id;
-
     showModalBottomSheet(
       context: context,
       isScrollControlled: true,
@@ -2703,8 +2703,8 @@ void _showNotificationPanel(
         maxChildSize: 0.9,
         builder: (ctx, scrollCtrl) => Consumer<ClubProvider>(
           builder: (context, prov, __) {
-            final notifs = prov.notificationsForClub(clubId);
-            final unread = prov.unreadNotificationCountFor(clubId);
+            final notifs = prov.visibleNotifications;
+            final unread = prov.visibleUnreadNotificationCount;
 
             return Column(
               children: [
@@ -2740,15 +2740,13 @@ void _showNotificationPanel(
                       const Spacer(),
                       if (unread > 0)
                         TextButton(
-                          onPressed: () =>
-                              prov.markAllNotificationsReadForClub(clubId),
+                          onPressed: prov.markAllVisibleNotificationsRead,
                           child: const Text('모두 읽음',
                               style: TextStyle(fontSize: 12)),
                         ),
                       if (notifs.isNotEmpty)
                         TextButton(
-                          onPressed: () =>
-                              prov.removeAllNotificationsForClub(clubId),
+                          onPressed: prov.removeAllVisibleNotifications,
                           child: const Text('전체 삭제',
                               style: TextStyle(
                                   fontSize: 12, color: AppColors.danger)),
@@ -2799,7 +2797,7 @@ void _showNotificationPanel(
                                     if (n.type ==
                                         AppNotificationType.joinRequest) {
                                       Navigator.pop(context);
-                                      onJoinRequest?.call();
+                                      onJoinRequest?.call(n.clubId);
                                     }
                                   },
                                   borderRadius:
@@ -2841,6 +2839,19 @@ void _showNotificationPanel(
                                             crossAxisAlignment:
                                                 CrossAxisAlignment.start,
                                             children: [
+                                              if (n.clubName.trim().isNotEmpty) ...[
+                                                Text(
+                                                  n.clubName,
+                                                  style: TextStyle(
+                                                    fontSize: 11,
+                                                    fontWeight: FontWeight.w600,
+                                                    color: isUnread
+                                                        ? AppColors.primary
+                                                        : AppColors.textTertiary,
+                                                  ),
+                                                ),
+                                                const SizedBox(height: 4),
+                                              ],
                                               Text(
                                                 n.title,
                                                 style: TextStyle(
