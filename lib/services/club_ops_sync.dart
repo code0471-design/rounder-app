@@ -1180,8 +1180,36 @@ class ClubOpsSync {
     String memberDocId,
   ) async {
     if (!_enabled || clubId.isEmpty || memberDocId.isEmpty) return;
-    markMemberRemoved(memberDocId);
     try {
+      final uid = memberDocUserId(clubId, memberDocId);
+      var creator = '';
+      var name = '';
+      final joined = <String>{};
+      if (uid.isNotEmpty) {
+        final clubSnap = await _db.doc(FirestorePaths.clubDoc(clubId)).get();
+        creator =
+            '${clubSnap.data()?['creator_id'] ?? clubSnap.data()?['creatorId'] ?? ''}'
+                .trim();
+        final mem =
+            await _db.doc(FirestorePaths.userMembershipDoc(uid, clubId)).get();
+        if (mem.exists) joined.add(uid);
+        final memberSnap =
+            await _db.doc(FirestorePaths.clubMemberDoc(clubId, memberDocId)).get();
+        name = '${memberSnap.data()?['name'] ?? ''}'.trim();
+      }
+      if (!shouldDeleteClubMemberDoc(
+        clubId: clubId,
+        memberDocId: memberDocId,
+        creatorUserId: creator,
+        joinedUserIds: joined,
+        name: name,
+      )) {
+        debugPrint(
+          '[ClubOpsSync] keep joined member doc $memberDocId club=$clubId',
+        );
+        return;
+      }
+      markMemberRemoved(memberDocId);
       await _db.doc(FirestorePaths.clubMemberDoc(clubId, memberDocId)).delete();
       debugPrint('[ClubOpsSync] deleted member doc $memberDocId club=$clubId');
     } catch (e) {
@@ -1766,6 +1794,44 @@ class ClubOpsSync {
       if (row == uid || row.endsWith('_$uid')) return false;
     }
     return true;
+  }
+
+  /// 명단 문서 id 에서 계정 id 를 꺼낸다. `m_{모임}_{uid}` 또는 uid.
+  @visibleForTesting
+  static String memberDocUserId(String clubId, String memberDocId) {
+    final id = memberDocId.trim();
+    if (id.isEmpty || clubId.trim().isEmpty) return '';
+    if (id == 'm_creator_$clubId') return '';
+    final prefix = 'm_${clubId}_';
+    if (id.startsWith(prefix)) return id.substring(prefix.length);
+    return id;
+  }
+
+  /// 가입한 사람·그 모임 생성자 회원 문서는 지우면 안 된다.
+  /// 지우면 다음 실행에서 그 사람이 없고, 첫 화면에 인원이 짧게 나온다.
+  /// 아레나 찌꺼기만 지운다.
+  @visibleForTesting
+  static bool shouldDeleteClubMemberDoc({
+    required String clubId,
+    required String memberDocId,
+    required String creatorUserId,
+    required Set<String> joinedUserIds,
+    String name = '',
+  }) {
+    final uid = memberDocUserId(clubId, memberDocId);
+    final id = uid.isNotEmpty ? uid : memberDocId.trim();
+    if (isForeignLeftoverMember(
+      id: id,
+      name: name,
+      clubId: clubId,
+      creatorUserId: creatorUserId,
+    )) {
+      return true;
+    }
+    if (uid.isEmpty) return true;
+    final creator = creatorUserId.trim();
+    if (creator.isNotEmpty && uid == creator) return false;
+    return !joinedUserIds.contains(uid);
   }
 
   @visibleForTesting

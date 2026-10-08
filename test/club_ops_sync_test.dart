@@ -2166,4 +2166,39 @@ void main() {
       isFalse,
     );
   });
+
+  test('가입한 사람·방장 회원 문서는 지우지 않는다', () {
+    expect(
+      ClubOpsSync.shouldDeleteClubMemberDoc(
+        clubId: 'c_1789270673471',
+        memberDocId: 'kakao_5049673364',
+        creatorUserId: 'kakao_5049673364',
+        joinedUserIds: const {},
+        name: '장창현',
+      ),
+      isFalse,
+      reason: '방장 문서를 지우면 알라딘처럼 회장이 빠진다',
+    );
+    expect(
+      ClubOpsSync.shouldDeleteClubMemberDoc(
+        clubId: 'c_1790768750847',
+        memberDocId: 'kakao_5087241992',
+        creatorUserId: 'kakao_5049673364',
+        joinedUserIds: {'kakao_5087241992'},
+        name: '양우석',
+      ),
+      isFalse,
+    );
+    expect(
+      ClubOpsSync.shouldDeleteClubMemberDoc(
+        clubId: 'c_1786973797931',
+        memberDocId: 'kakao_5049673364',
+        creatorUserId: 'kakao_5044456654',
+        joinedUserIds: const {},
+        name: '장창현',
+      ),
+      isTrue,
+      reason: '아레나 찌꺼기만 지운다',
+    );
+  });
 }

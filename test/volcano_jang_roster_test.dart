@@ -174,4 +174,47 @@ void main() {
       reason: '첫 화면에서 짧은 로컬 명단으로 인원을 내리면 안 된다',
     );
   });
+
+  test('가입하지 않은 계정은 볼케이노 명단에 안 남는다', () async {
+    const clubId = 'c_1790768750847';
+    final clubs = await openClub(clubId: clubId, clubName: '볼케이노~~');
+    clubs.addMember(Member(
+      id: Member.rosterId(
+        clubId,
+        'apple_001645.605702e359b24d13940a4516776f9cc9.1142',
+      ),
+      name: 'John Apple',
+      gender: '남',
+      memberType: '정회원',
+      role: '정회원',
+    ));
+    clubs.restoreMembersFromAccountsForTest(clubId, const [
+      ClubMemberAccount(
+        userId: 'kakao_jang',
+        role: '회장',
+        name: '장창현',
+      ),
+      ClubMemberAccount(
+        userId: 'kakao_jung',
+        role: '부회장',
+        name: '이정원',
+      ),
+      ClubMemberAccount(
+        userId: 'yang',
+        role: '정회원',
+        name: '양우석',
+      ),
+      ClubMemberAccount(
+        userId: 'kakao_ahn',
+        role: '게스트',
+        name: '안경헌',
+      ),
+    ]);
+    expect(clubs.dropUnmemberedAccountRowsForTest(clubId), isTrue);
+    expect(
+      clubs.membersForClub(clubId).map((m) => m.name).toSet(),
+      {'장창현', '이정원', '양우석', '안경헌'},
+    );
+    expect(clubs.activeHeadcount(clubId), 4);
+  });
 }

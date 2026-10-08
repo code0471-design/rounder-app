@@ -1802,13 +1802,10 @@ class ClubProvider extends ChangeNotifier with WidgetsBindingObserver {
   }
 
   /// 서버 소속이 없는 소셜 계정 명단 행은 지운다.
-  /// 장창현이 아레나 총무로 다시 붙던 경로.
-  bool _dropUnmemberedAccountRows(String clubId) {
-    // 가입 기록 문서가 없는 총무까지 지우면 회원 탭에 본인만 남는다.
-    // 이 정리는 아레나 방장 칸 찌꺼기에만 쓴다.
-    if (clubId != 'c_1786973797931') return false;
+  /// 가입한 사람은 남기고, ops 에만 있는 남의 계정은 빼다.
+  bool _dropUnmemberedAccountRows(String clubId, {bool force = false}) {
     if (_isDemoSession || clubId.isEmpty) return false;
-    if (AppDependencies.instance.isOfflineMockMode) return false;
+    if (!force && AppDependencies.instance.isOfflineMockMode) return false;
     final accounts = _clubAccounts[clubId];
     if (accounts == null || accounts.isEmpty) return false;
     final allowed = <String>{
@@ -1818,7 +1815,8 @@ class ClubProvider extends ChangeNotifier with WidgetsBindingObserver {
     final creator = (_clubById(clubId)?.creatorId ?? '').trim();
     if (creator.isNotEmpty) allowed.add(creator);
 
-    final drop = <Member>[];
+    final leftover = <Member>[];
+    final extra = <Member>[];
     for (final m in _members) {
       if (!Member.isClubRosterId(clubId, m.id)) continue;
       if (m.id == 'm_creator_$clubId') continue;
@@ -1827,12 +1825,24 @@ class ClubProvider extends ChangeNotifier with WidgetsBindingObserver {
       if (!MemberPhoneIndex.isSocialAccountRosterId(clubId, m.id)) continue;
       final suffix = m.id.substring(prefix.length);
       if (allowed.contains(suffix)) continue;
-      drop.add(m);
+      if (ClubOpsSync.isForeignLeftoverMember(
+        id: m.id,
+        name: m.name,
+        clubId: clubId,
+        creatorUserId: creator,
+      )) {
+        leftover.add(m);
+      } else {
+        extra.add(m);
+      }
     }
-    if (drop.isEmpty) return false;
-    ClubOpsSync.seedRemovedMembers(drop.map((m) => m.id));
-    _members.removeWhere((m) => drop.any((d) => d.id == m.id));
-    for (final m in drop) {
+    if (leftover.isEmpty && extra.isEmpty) return false;
+    if (leftover.isNotEmpty) {
+      ClubOpsSync.seedRemovedMembers(leftover.map((m) => m.id));
+    }
+    final dropIds = {...leftover.map((m) => m.id), ...extra.map((m) => m.id)};
+    _members.removeWhere((m) => dropIds.contains(m.id));
+    for (final m in leftover) {
       final digits = MemberPhoneIndex.digitsOf(m.phone);
       if (digits.isNotEmpty) {
         unawaited(MemberPhoneIndex.removeClub(digits, clubId));
@@ -1907,6 +1917,13 @@ class ClubProvider extends ChangeNotifier with WidgetsBindingObserver {
   ) {
     _clubAccounts[clubId] = accounts;
     final changed = _restoreMembersFromAccounts(clubId);
+    if (changed) notifyListeners();
+    return changed;
+  }
+
+  @visibleForTesting
+  bool dropUnmemberedAccountRowsForTest(String clubId) {
+    final changed = _dropUnmemberedAccountRows(clubId, force: true);
     if (changed) notifyListeners();
     return changed;
   }
@@ -2054,11 +2071,22 @@ class ClubProvider extends ChangeNotifier with WidgetsBindingObserver {
       );
       _members.removeWhere((m) => m.id == oldId);
       ClubOpsSync.markMemberRemoved(oldId);
-      // 서버 명단에도 남아 있으면 다음 실행에서 다시 내려온다
-      unawaited(ClubOpsSync.deleteClubMemberDoc(
-        clubId,
-        oldId.substring('m_${clubId}_'.length),
-      ));
+      final joined = <String>{
+        for (final a in _clubAccounts[clubId] ?? const <ClubMemberAccount>[])
+          if (a.userId.trim().isNotEmpty) a.userId.trim(),
+      };
+      final docId = oldId.startsWith('m_${clubId}_')
+          ? oldId.substring('m_${clubId}_'.length)
+          : oldId;
+      if (ClubOpsSync.shouldDeleteClubMemberDoc(
+        clubId: clubId,
+        memberDocId: docId,
+        creatorUserId: club?.creatorId ?? '',
+        joinedUserIds: joined,
+        name: old.name,
+      )) {
+        unawaited(ClubOpsSync.deleteClubMemberDoc(clubId, docId));
+      }
       debugPrint('[ClubProvider] $clubId 중복 명단 $oldId → $myId 합침');
     }
     _applyRosterIdRemap(
