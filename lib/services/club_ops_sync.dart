@@ -1766,10 +1766,12 @@ class ClubOpsSync {
     // 아레나 방장 칸에만 이름만 남은 찌꺼기다. 그 모임만 뺀다.
     // 다른 모임에서 이름만 보고 지우면 총무가 정회원 폰에서 사라진다.
     if (clubId != 'c_1786973797931') return false;
-    // 초대로 진짜 가입한 계정은 찌꺼기가 아니다.
     for (final uid in leftoverStolenUserIds) {
-      if (!joinedUserIds.contains(uid)) continue;
-      if (id == uid || id.endsWith('_$uid')) return false;
+      if (id != uid && !id.endsWith('_$uid')) continue;
+      // 소속을 아직 모르면 가입 줄을 찌꺼기로 지우지 않는다.
+      // 모르는데 지우면 첫 화면에서 빠지고 새로고침 후에야 돌아온다.
+      if (joinedUserIds.isEmpty) return false;
+      return !joinedUserIds.contains(uid);
     }
     return true;
   }
@@ -1848,7 +1850,17 @@ class ClubOpsSync {
     required List members,
     required String clubId,
     required String creatorUserId,
+    Set<String> joinedUserIds = const {},
   }) {
+    final known = {
+      ...joinedUserIds,
+      for (final e in members)
+        if (e is Map)
+          for (final uid in leftoverStolenUserIds)
+            if ('${e['id'] ?? ''}' == uid ||
+                '${e['id'] ?? ''}'.endsWith('_$uid'))
+              uid,
+    };
     final out = <dynamic>[];
     for (final e in members) {
       if (e is! Map) {
@@ -1862,9 +1874,13 @@ class ClubOpsSync {
         name: name,
         clubId: clubId,
         creatorUserId: creatorUserId,
+        joinedUserIds: known,
       )) {
         markMemberRemoved(id);
         continue;
+      }
+      if (leftoverStolenUserIds.any((u) => id == u || id.endsWith('_$u'))) {
+        unmarkMemberRemoved(id);
       }
       out.add(e);
     }

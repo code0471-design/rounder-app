@@ -58,6 +58,7 @@ class ClubProvider extends ChangeNotifier with WidgetsBindingObserver {
   /// 설정에서 고친 모임 정보. pull/watch 가 옛 번들을 넣어도 되돌리지 않는다.
   final Map<String, Club> _clubInfoOverrides = {};
   String? _watchingClubId;
+  String? _pendingRosterRefreshClubId;
   String? _watchingMembersClubId;
   StreamSubscription<List<Member>>? _memberWatchSub;
   Timer? _persistTimer;
@@ -722,6 +723,12 @@ class ClubProvider extends ChangeNotifier with WidgetsBindingObserver {
       _applyingCloudOps = false;
       // 로컬만 있던 데이터를 서버에 최초 반영
       unawaited(_persistNow());
+      notifyListeners();
+      final pending = _pendingRosterRefreshClubId;
+      _pendingRosterRefreshClubId = null;
+      if (pending != null) {
+        unawaited(_refreshSelectedClubRoster(pending));
+      }
     }
   }
 
@@ -789,6 +796,7 @@ class ClubProvider extends ChangeNotifier with WidgetsBindingObserver {
     _suppressPersist = true;
     _suppressRosterNotify = true;
     final beforeSig = _galleryWatchSignature();
+    final beforeRoster = _rosterWatchSignature(clubId);
     try {
       final merged = ClubOpsSync.applyRemoteSlice(
         _exportBundle(),
@@ -799,13 +807,17 @@ class ClubProvider extends ChangeNotifier with WidgetsBindingObserver {
       _syncNextRound(clubId);
       _reconcileLiveMemberCounts();
       await _hydrateRosterFromServer(clubId);
+      if (ensureMyRosterRow(clubId)) {
+        _reconcileLiveMemberCounts();
+      }
     } catch (e) {
       debugPrint('[ClubProvider] cloud watch apply fail: $e');
     } finally {
       _suppressPersist = false;
       _suppressRosterNotify = false;
       _applyingCloudOps = false;
-      if (beforeSig != _galleryWatchSignature()) {
+      if (beforeSig != _galleryWatchSignature() ||
+          beforeRoster != _rosterWatchSignature(clubId)) {
         notifyListeners();
       }
       final queuedId = _queuedWatchClubId;
@@ -816,6 +828,12 @@ class ClubProvider extends ChangeNotifier with WidgetsBindingObserver {
         _applyWatchedClubOps(clubId, queued);
       }
     }
+  }
+
+  String _rosterWatchSignature(String clubId) {
+    return membersForClub(clubId)
+        .map((m) => '${m.id}:${m.name}:${m.status}')
+        .join(',');
   }
 
   String _galleryWatchSignature() {
@@ -1798,6 +1816,9 @@ class ClubProvider extends ChangeNotifier with WidgetsBindingObserver {
           creatorUserId: club.creatorId,
           joinedUserIds: _joinedUserIdsFor(club.id),
         )) {
+          continue;
+        }
+        if (_isCurrentUserJoinedRosterRow(club.id, m.id)) {
           continue;
         }
         drop.add(m.id);
@@ -7106,12 +7127,24 @@ class ClubProvider extends ChangeNotifier with WidgetsBindingObserver {
     unawaited(_refreshSelectedClubRoster(clubId));
   }
 
+  Future<void> refreshVisibleClubRoster(String clubId) async {
+    await _hydrateRosterFromServer(clubId);
+    if (ensureMyRosterRow(clubId)) {
+      _reconcileLiveMemberCounts();
+    }
+    notifyListeners();
+  }
+
   Future<void> _refreshSelectedClubRoster(String clubId) async {
-    if (_applyingCloudOps || _suppressRosterNotify) return;
+    if (_applyingCloudOps || _suppressRosterNotify) {
+      _pendingRosterRefreshClubId = clubId;
+      return;
+    }
     _applyingCloudOps = true;
     _suppressRosterNotify = true;
     try {
       await _hydrateRosterFromServer(clubId);
+      ensureMyRosterRow(clubId);
     } finally {
       _suppressRosterNotify = false;
       _applyingCloudOps = false;
@@ -7122,6 +7155,11 @@ class ClubProvider extends ChangeNotifier with WidgetsBindingObserver {
       _queuedWatchRemote = null;
       if (queued != null && queuedId == clubId) {
         _applyWatchedClubOps(clubId, queued);
+      }
+      final pending = _pendingRosterRefreshClubId;
+      _pendingRosterRefreshClubId = null;
+      if (pending != null && pending != clubId) {
+        unawaited(_refreshSelectedClubRoster(pending));
       }
     }
   }
@@ -7749,6 +7787,13 @@ class ClubProvider extends ChangeNotifier with WidgetsBindingObserver {
     return _rosterRowMatchesMyPhone(club.id, memberId);
   }
 
+  bool _isCurrentUserJoinedRosterRow(String clubId, String memberId) {
+    final uid = (_persistAuthUserId ?? '').trim();
+    if (uid.isEmpty) return false;
+    if (!_myClubs.any((c) => c.id == clubId)) return false;
+    return memberId == uid || memberId.endsWith('_$uid');
+  }
+
   bool _isMyRosterRowById(Club club, String memberId) {
     if (memberId == 'm_creator_${club.id}') {
       if (!_iAmClubCreator(club)) return false;
@@ -7795,6 +7840,9 @@ class ClubProvider extends ChangeNotifier with WidgetsBindingObserver {
     return MemberPhoneIndex.digitsOf(row.phone) == mine;
   }
 
+  @visibleForTesting
+  bool ensureMyRosterRowForTest(String clubId) => ensureMyRosterRow(clubId);
+
   /// 초대 가입이 userId 그대로 들어가 명단에 안 보이던 행을 `m_{clubId}_{userId}`로 보정한다.
   bool ensureMyRosterRow(String clubId) {
     final uid = (_persistAuthUserId ?? currentUserId).trim();
@@ -7816,11 +7864,6 @@ class ClubProvider extends ChangeNotifier with WidgetsBindingObserver {
       }
     }
     if (iAmCreator && _members.any((m) => m.id == 'm_creator_$clubId')) {
-      return false;
-    }
-    if (club != null &&
-        ClubMemberRole.isOfficer(club.myRole) &&
-        _members.any((m) => m.id == 'm_creator_$clubId')) {
       return false;
     }
 

@@ -389,6 +389,60 @@ void main() {
     expect(clubs.activeHeadcount(arena) >= 2, isTrue);
   });
 
+  test('아레나 가입 장창현은 소속 조회 전에도 명단에 남는다', () {
+    const arena = 'c_1786973797931';
+    clubs.hydrateFromBootstrap(AppBootstrapSnapshot(
+      userId: myUid,
+      myClubs: [
+        Club(
+          id: arena,
+          name: '아레나 골프회',
+          myRole: '회장',
+          memberCount: 3,
+          creatorId: 'kakao_5044456654',
+          region: '서울',
+          industry: '골프',
+          teamCount: 4,
+          description: '',
+          createdAt: DateTime(2026, 9, 1),
+        ),
+      ],
+      discoverableClubs: const [],
+      membersByClubId: const {},
+      financeByClubId: const {},
+      loadedAt: DateTime(2026, 10, 8),
+    ));
+    clubs.selectClubById(arena);
+    clubs.importWithMembersForTest([
+      Member(
+        id: 'm_creator_$arena',
+        name: '안경헌',
+        gender: '남',
+        memberType: '정회원',
+        role: '회장',
+      ),
+      Member(
+        id: 'm_${arena}_kakao_5049673364',
+        name: '장창현',
+        gender: '남',
+        memberType: '정회원',
+        role: '정회원',
+      ),
+      Member(
+        id: 'm_${arena}_$myUid',
+        name: '안경헌',
+        gender: '남',
+        memberType: '정회원',
+        role: '회장',
+      ),
+    ]);
+    expect(
+      clubs.membersForClub(arena).map((m) => m.name).toSet(),
+      contains('장창현'),
+      reason: '첫 화면에서 2명만 보이다가 새로고침 후에야 3명이 되면 안 된다',
+    );
+  });
+
   test('명단을 합친다고 가입 회원 문서를 지우지 않는다', () {
     final provider = File('lib/providers/club_provider.dart').readAsStringSync();
     final prune = provider.substring(

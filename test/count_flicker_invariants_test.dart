@@ -28,6 +28,8 @@ void main() {
     expect(home.contains('nextUpcomingScheduleOf(clubId)'), isTrue);
     expect(home.contains('attendanceTallyFor('), isTrue);
     expect(home.contains('prov.nextUpcomingSchedule;'), isFalse);
+    expect(home.contains('refreshVisibleClubRoster(clubId)'), isTrue,
+        reason: '모임 홈 새로고침이 가짜 delay 면 명단이 그대로다');
   });
 
   test('명단이 잠깐 비어도 방금 센 회원수를 유지한다', () async {

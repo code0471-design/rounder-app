@@ -1726,6 +1726,41 @@ void main() {
       isFalse,
       reason: '아레나에 초대로 가입한 장창현은 명단에 나와야 한다',
     );
+    expect(
+      ClubOpsSync.isForeignLeftoverMember(
+        id: 'm_c_1786973797931_kakao_5049673364',
+        name: '장창현',
+        clubId: 'c_1786973797931',
+        creatorUserId: 'kakao_5044456654',
+      ),
+      isFalse,
+      reason: '소속을 아직 모르면 가입 줄을 첫 화면에서 지우면 안 된다',
+    );
+    final arenaKept = ClubOpsSync.dropForeignLeftoverMembers(
+      members: [
+        {
+          'id': 'm_creator_c_1786973797931',
+          'name': '안경헌',
+          'role': '회장',
+        },
+        {
+          'id': 'm_c_1786973797931_kakao_5049673364',
+          'name': '장창현',
+          'role': '정회원',
+        },
+      ],
+      clubId: 'c_1786973797931',
+      creatorUserId: 'kakao_5044456654',
+    );
+    expect(
+      arenaKept.map((e) => (e as Map)['name']),
+      ['안경헌', '장창현'],
+      reason: '새로고침 전에 가입 장창현이 빠져 2명으로 보이면 안 된다',
+    );
+    expect(
+      ClubOpsSync.isMemberRemoved('m_c_1786973797931_kakao_5049673364'),
+      isFalse,
+    );
     final shown = ClubOpsSync.assignClubRosterIds(
       [
         {'id': 'kakao_5049673364', 'name': '장창현', 'role': '총무'},

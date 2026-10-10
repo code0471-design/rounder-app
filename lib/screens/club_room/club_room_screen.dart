@@ -693,7 +693,7 @@ class ClubHomeTab extends StatelessWidget {
         return RefreshIndicator(
           color: AppColors.primary,
           onRefresh: () async =>
-              await Future.delayed(const Duration(seconds: 1)),
+              provider.refreshVisibleClubRoster(clubId),
           child: SingleChildScrollView(
             physics: const AlwaysScrollableScrollPhysics(),
             child: Column(
