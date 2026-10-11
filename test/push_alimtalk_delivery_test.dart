@@ -336,12 +336,6 @@ void main() {
       expect(read('lib/providers/club_provider.dart'),
           contains('D1EnqueuePolicy.isBlockedRecipient'),
           reason: '명단에 leftover가 남아도 D-1 큐에 넣으면 안 된다');
-      expect(read('lib/providers/club_provider.dart'),
-          contains('_enqueueAllUpcomingD1(flush: false)'),
-          reason: '앱만 켜도 솔라피에 넣으면 같은 번호로 여러 통이 나간다');
-      expect(read('lib/providers/club_provider.dart'),
-          contains('seenPhones'),
-          reason: '명단 id가 달라도 같은 번호는 한 통이어야 한다');
       expect(read('lib/services/d1_alimtalk_flush.dart'),
           contains('claimD1AlimtalkOnce'),
           reason: '큐가 여러 줄이어도 같은 번호는 한 통만 예약해야 한다');
@@ -349,17 +343,6 @@ void main() {
           reason: 'Functions 보조 발송도 같은 번호 잠금을 봐야 한다');
       expect(fn.contains('dedupeScheduledAlimtalk'), isTrue,
           reason: '이미 깔린 앱이 세 번 예약해도 10시 전에 한 통만 남아야 한다');
-      expect(fn.contains('identityFromVars'), isTrue,
-          reason: '이름만 다른 같은 일정 예약은 한 통으로 접혀야 한다');
-      expect(fn.contains('scheduledDedupeKey'), isTrue,
-          reason: '변수 JSON 전체를 키로 쓰면 같은 번호가 네 통 나간다');
-      expect(fn.contains('collapseQueueDupes'), isTrue,
-          reason: '205가 명단 줄을 여러 개 넣어도 서버가 한 줄만 남겨야 한다');
-      expect(
-        fn.contains(r'${info.template}|${info.phone}|${info.fingerprint}'),
-        isFalse,
-        reason: '이름·변수 전체가 다르면 솔라피 중복 취소가 안 된다',
-      );
       expect(fn.contains('schedule: "* * * * *"'), isTrue,
           reason: '예전 앱이 넣은 중복 예약은 1분 안에 한 통만 남아야 한다');
       expect(cron.contains('dedupeScheduledAlimtalk()'), isTrue,

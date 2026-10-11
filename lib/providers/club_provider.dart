@@ -91,9 +91,8 @@ class ClubProvider extends ChangeNotifier with WidgetsBindingObserver {
     unawaited(HqPushCatalog.load());
     unawaited(HqAlimtalkCatalog.load());
     _syncAllNextRounds();
-    // 큐만 맞춘다. 켤 때마다 솔라피에 넣으면 같은 번호로 여러 통이 나간다.
-    unawaited(_enqueueAllUpcomingD1(flush: false));
-    unawaited(syncAllDuesD1Reminders(flush: false));
+    unawaited(_enqueueAllUpcomingD1());
+    unawaited(syncAllDuesD1Reminders());
     notifyListeners();
   }
 
@@ -2603,7 +2602,6 @@ class ClubProvider extends ChangeNotifier with WidgetsBindingObserver {
         userId: _persistAuthUserId ?? '',
         clubId: club.id,
         creatorUserId: club.creatorId,
-        joinedUserIds: _joinedUserIdsFor(club.id),
       )) {
         continue;
       }
@@ -2616,7 +2614,6 @@ class ClubProvider extends ChangeNotifier with WidgetsBindingObserver {
           userId: roster,
           clubId: club.id,
           creatorUserId: club.creatorId,
-          joinedUserIds: _joinedUserIdsFor(club.id),
         )) {
           continue;
         }
@@ -5363,7 +5360,6 @@ class ClubProvider extends ChangeNotifier with WidgetsBindingObserver {
 
   List<Member> _d1RsvpMembers(String clubId) {
     final creator = _clubCreatorId(clubId);
-    final joined = _joinedUserIdsFor(clubId);
     final list = membersForClub(clubId)
         .where((m) => m.status == '활성' && m.memberType == '정회원')
         .where((m) => !D1EnqueuePolicy.isBlockedRecipient(
@@ -5371,7 +5367,6 @@ class ClubProvider extends ChangeNotifier with WidgetsBindingObserver {
               userId: m.id,
               clubId: clubId,
               creatorUserId: creator,
-              joinedUserIds: joined,
             ))
         .toList();
     if (clubId == selectedClub.id) {
@@ -5384,7 +5379,6 @@ class ClubProvider extends ChangeNotifier with WidgetsBindingObserver {
             userId: me.id,
             clubId: clubId,
             creatorUserId: creator,
-            joinedUserIds: joined,
           )) {
         list.add(me);
       }
@@ -5397,7 +5391,7 @@ class ClubProvider extends ChangeNotifier with WidgetsBindingObserver {
       _allClubs.where((c) => c.id == clubId).firstOrNull?.name ??
       selectedClub.name;
 
-  Future<void> _enqueueAllUpcomingD1({bool flush = true}) async {
+  Future<void> _enqueueAllUpcomingD1() async {
     final myIds = {for (final c in _myClubs) c.id};
     for (final s in _schedules) {
       if (!myIds.contains(s.clubId)) continue;
@@ -5405,7 +5399,7 @@ class ClubProvider extends ChangeNotifier with WidgetsBindingObserver {
       if (s.status != ScheduleStatus.upcoming) continue;
       await _enqueueD1RsvpReminders(s, flush: false);
     }
-    if (flush) await flushDueD1Alimtalk();
+    await flushDueD1Alimtalk();
   }
 
   /// 참석 회원만 D-1 큐. 불참·미응답은 빼서 정회원 전원으로 새지 않게 한다.
@@ -5434,25 +5428,9 @@ class ClubProvider extends ChangeNotifier with WidgetsBindingObserver {
       if (inbox.isNotEmpty) attendingCanonical.add(inbox);
     }
     final seen = <String>{};
-    final seenPhones = <String>{};
     for (final m in official) {
       final userId = _fcmInboxIdFor(m.id, clubId: schedule.clubId);
       if (userId.isEmpty) continue;
-      final phoneKey = D1EnqueuePolicy.canonicalPhone(m.phone ?? '');
-      if (phoneKey.length >= 10 && !seenPhones.add(phoneKey)) {
-        await PushNotificationService.syncD1Reminder(
-          scheduleId: schedule.id,
-          userId: m.id,
-          roundDate: schedule.roundDate,
-          clubId: schedule.clubId,
-          clubName: clubName,
-          scheduleTitle: schedule.displayTitle,
-          enqueue: false,
-          creatorUserId: creator,
-          joinedUserIds: _joinedUserIdsFor(schedule.clubId),
-        );
-        continue;
-      }
       if (!seen.add(userId)) {
         await PushNotificationService.syncD1Reminder(
           scheduleId: schedule.id,
@@ -5463,7 +5441,6 @@ class ClubProvider extends ChangeNotifier with WidgetsBindingObserver {
           scheduleTitle: schedule.displayTitle,
           enqueue: false,
           creatorUserId: creator,
-          joinedUserIds: _joinedUserIdsFor(schedule.clubId),
         );
         continue;
       }
@@ -5482,7 +5459,6 @@ class ClubProvider extends ChangeNotifier with WidgetsBindingObserver {
         place: place,
         creatorUserId: creator,
         aliasUserIds: {m.id},
-        joinedUserIds: _joinedUserIdsFor(schedule.clubId),
       );
     }
     for (final r in schedule.responses) {
@@ -5490,21 +5466,6 @@ class ClubProvider extends ChangeNotifier with WidgetsBindingObserver {
       final userId = _fcmInboxIdFor(r.memberId, clubId: schedule.clubId);
       if (userId.isEmpty || !seen.add(userId)) continue;
       final member = memberById(r.memberId);
-      final phoneKey = D1EnqueuePolicy.canonicalPhone(member?.phone ?? '');
-      if (phoneKey.length >= 10 && !seenPhones.add(phoneKey)) {
-        await PushNotificationService.syncD1Reminder(
-          scheduleId: schedule.id,
-          userId: userId,
-          roundDate: schedule.roundDate,
-          clubId: schedule.clubId,
-          clubName: clubName,
-          scheduleTitle: schedule.displayTitle,
-          enqueue: false,
-          creatorUserId: creator,
-          joinedUserIds: _joinedUserIdsFor(schedule.clubId),
-        );
-        continue;
-      }
       await PushNotificationService.syncD1Reminder(
         scheduleId: schedule.id,
         userId: userId,
@@ -5519,7 +5480,6 @@ class ClubProvider extends ChangeNotifier with WidgetsBindingObserver {
         place: place,
         creatorUserId: creator,
         aliasUserIds: {r.memberId},
-        joinedUserIds: _joinedUserIdsFor(schedule.clubId),
       );
     }
     if (flush) await flushDueD1Alimtalk();
@@ -5551,7 +5511,6 @@ class ClubProvider extends ChangeNotifier with WidgetsBindingObserver {
       place: place,
       creatorUserId: _clubCreatorId(schedule.clubId),
       aliasUserIds: {memberId},
-      joinedUserIds: _joinedUserIdsFor(schedule.clubId),
     );
     await flushDueD1Alimtalk();
   }
@@ -5571,7 +5530,7 @@ class ClubProvider extends ChangeNotifier with WidgetsBindingObserver {
     );
   }
 
-  Future<void> syncAllDuesD1Reminders({bool flush = true}) async {
+  Future<void> syncAllDuesD1Reminders() async {
     if (_myClubs.isEmpty) return;
     for (final club in _myClubs) {
       for (final s in _duesSettings) {
@@ -5582,7 +5541,7 @@ class ClubProvider extends ChangeNotifier with WidgetsBindingObserver {
         await syncDuesD1Reminders(s, club: club, flush: false);
       }
     }
-    if (flush) await flushDueD1Alimtalk();
+    await flushDueD1Alimtalk();
   }
 
   Future<void> syncDuesD1Reminders(
@@ -5615,7 +5574,6 @@ class ClubProvider extends ChangeNotifier with WidgetsBindingObserver {
           userId: m.id,
           clubId: target.id,
           creatorUserId: target.creatorId,
-          joinedUserIds: _joinedUserIdsFor(target.id),
         )) {
           continue;
         }

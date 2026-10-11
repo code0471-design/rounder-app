@@ -48,6 +48,42 @@ void main() {
       expect(src, contains('ImagePickerAndroid'));
     });
 
+    test('Play에 올릴 번들에 사진 전체 권한이 없다', () {
+      final manifest = read('android/app/src/main/AndroidManifest.xml');
+      expect(
+        manifest.contains('android.permission.READ_MEDIA_IMAGES'),
+        isTrue,
+      );
+      expect(
+        manifest.contains('android.permission.READ_MEDIA_VIDEO'),
+        isTrue,
+      );
+      expect(
+        'READ_MEDIA_IMAGES'.allMatches(manifest).length,
+        1,
+        reason: '권한을 다시 요청하면 Play가 205처럼 게시를 막는다',
+      );
+      expect(
+        manifest.contains('tools:node="remove"'),
+        isTrue,
+        reason: '플러그인이 다시 넣어도 병합에서 빠져야 한다',
+      );
+      expect(
+        manifest.contains(
+          'android:name="android.permission.READ_MEDIA_IMAGES"\n'
+          '        tools:node="remove"',
+        ),
+        isTrue,
+      );
+      expect(
+        manifest.contains(
+          'android:name="android.permission.READ_MEDIA_VIDEO"\n'
+          '        tools:node="remove"',
+        ),
+        isTrue,
+      );
+    });
+
     test('선택 함수가 초과 여부를 함께 돌려준다', () {
       final src = read('lib/screens/schedule/round_photo_widgets.dart');
 
