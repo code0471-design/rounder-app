@@ -49,6 +49,7 @@ abstract final class D1EnqueuePolicy {
     required String userId,
     required String clubId,
     String creatorUserId = '',
+    Set<String> joinedUserIds = const {},
   }) {
     final creator = creatorUserId.trim().isNotEmpty
         ? creatorUserId.trim()
@@ -58,6 +59,7 @@ abstract final class D1EnqueuePolicy {
       name: name,
       clubId: clubId,
       creatorUserId: creator,
+      joinedUserIds: joinedUserIds,
     );
   }
 

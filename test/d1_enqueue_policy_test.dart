@@ -51,6 +51,45 @@ void main() {
       isFalse,
       reason: '알라딘 방장 본인 일정은 나가야 한다',
     );
+    expect(
+      D1EnqueuePolicy.isBlockedRecipient(
+        name: '장창현',
+        userId: jang,
+        clubId: arena,
+        joinedUserIds: {jang},
+      ),
+      isFalse,
+      reason: '초대로 아레나에 들어온 장창현은 D-1을 받아야 한다',
+    );
+  });
+
+  test('안경헌 명단 id가 여러 개여도 같은 일정·같은 번호는 한 통이다', () {
+    const sched = 'sched_1789795736509';
+    const sendOn = '2026-10-11';
+    final keys = {
+      D1EnqueuePolicy.sendDedupKey(
+        scheduleId: sched,
+        sendOn: sendOn,
+        phone: '010-4511-0471',
+      ),
+      D1EnqueuePolicy.sendDedupKey(
+        scheduleId: sched,
+        sendOn: sendOn,
+        phone: '01045110471',
+      ),
+      D1EnqueuePolicy.sendDedupKey(
+        scheduleId: sched,
+        sendOn: sendOn,
+        phone: '821045110471',
+      ),
+      D1EnqueuePolicy.sendDedupKey(
+        scheduleId: sched,
+        sendOn: sendOn,
+        phone: '010-4511-0471',
+      ),
+    };
+    expect(keys, hasLength(1),
+        reason: '같은 번호로 명단 줄이 네 개면 알림톡이 네 통 나간다');
   });
 
   test('같은 모임·같은 날 월회비 설정이 두 개여도 번호당 한 통이다', () {

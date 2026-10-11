@@ -304,6 +304,7 @@ abstract final class PushNotificationService {
     String? place,
     String creatorUserId = '',
     Iterable<String> aliasUserIds = const [],
+    Set<String> joinedUserIds = const {},
   }) async {
     if (!HqRemoteSettings.available) return;
     if (userId.isEmpty) return;
@@ -312,6 +313,7 @@ abstract final class PushNotificationService {
       userId: userId,
       clubId: clubId,
       creatorUserId: creatorUserId,
+      joinedUserIds: joinedUserIds,
     )) {
       enqueue = false;
     }

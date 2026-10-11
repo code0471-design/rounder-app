@@ -336,6 +336,12 @@ void main() {
       expect(read('lib/providers/club_provider.dart'),
           contains('D1EnqueuePolicy.isBlockedRecipient'),
           reason: '명단에 leftover가 남아도 D-1 큐에 넣으면 안 된다');
+      expect(read('lib/providers/club_provider.dart'),
+          contains('_enqueueAllUpcomingD1(flush: false)'),
+          reason: '앱만 켜도 솔라피에 넣으면 같은 번호로 여러 통이 나간다');
+      expect(read('lib/providers/club_provider.dart'),
+          contains('seenPhones'),
+          reason: '명단 id가 달라도 같은 번호는 한 통이어야 한다');
       expect(read('lib/services/d1_alimtalk_flush.dart'),
           contains('claimD1AlimtalkOnce'),
           reason: '큐가 여러 줄이어도 같은 번호는 한 통만 예약해야 한다');

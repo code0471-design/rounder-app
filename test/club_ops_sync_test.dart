@@ -1733,8 +1733,8 @@ void main() {
         clubId: 'c_1786973797931',
         creatorUserId: 'kakao_5044456654',
       ),
-      isFalse,
-      reason: '소속을 아직 모르면 가입 줄을 첫 화면에서 지우면 안 된다',
+      isTrue,
+      reason: '소속을 모르면 D-1 은 막고, 첫 화면은 줄에 있는 uid 로 남긴다',
     );
     final arenaKept = ClubOpsSync.dropForeignLeftoverMembers(
       members: [
