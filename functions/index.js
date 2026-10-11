@@ -384,6 +384,61 @@ function sendDedupKey(d, phone) {
   return `${sched}|${d.sendOn || ""}|${canonicalPhone(phone)}`;
 }
 
+function normText(value) {
+  return String(value || "").replace(/\s+/g, " ").trim();
+}
+
+/// 이름은 빼다. 명단 줄마다 이름이 다르면 같은 일정·같은 번호가 네 통이 된다.
+function identityFromVars(template, vars) {
+  const v = vars || {};
+  if (template === DUES_TEMPLATE) {
+    return [normText(v["#{모임명}"]), normText(v["#{기한}"]), normText(v["#{금액}"])].join("|");
+  }
+  return [
+    normText(v["#{모임명}"]),
+    normText(v["#{일정명}"]),
+    normText(v["#{일시}"]),
+    normText(v["#{장소}"]),
+  ].join("|");
+}
+
+function scheduledDedupeKey(info, ymd) {
+  return `${info.template}|${info.phone}|${ymd || ""}|${info.identity}`;
+}
+
+function queueRoundKey(d, phone) {
+  if (d && d.kind === "dues") {
+    return `dues|${d.clubId || ""}|${d.sendOn || ""}|${phone}`;
+  }
+  const title = normText(d && d.scheduleTitle);
+  const when = normText(d && d.whenText);
+  if (title || when) {
+    return `d1|${(d && d.clubId) || ""}|${(d && d.sendOn) || ""}|${phone}|${title}|${when}`;
+  }
+  return `d1|${(d && d.scheduleId) || ""}|${(d && d.sendOn) || ""}|${phone}`;
+}
+
+function queueScheduledIdentity(d, phone) {
+  const isDues = d && d.kind === "dues";
+  const template = isDues ? DUES_TEMPLATE : D1_TEMPLATE;
+  const vars = isDues
+    ? {
+        "#{모임명}": d.clubName,
+        "#{기한}": d.dueText,
+        "#{금액}": d.amount,
+      }
+    : {
+        "#{모임명}": d.clubName,
+        "#{일정명}": d.scheduleTitle,
+        "#{일시}": d.whenText,
+        "#{장소}": d.place,
+      };
+  return scheduledDedupeKey(
+    { template, phone, identity: identityFromVars(template, vars) },
+    d.sendOn || "",
+  );
+}
+
 async function resolvePushUserId(d) {
   const raw = String(d.userId || "").trim();
   const canon = canonicalUserId(raw, d.clubId);
@@ -575,7 +630,11 @@ async function scheduledGroupTarget(groupId) {
     const vars =
       (msgs[0] && msgs[0].kakaoOptions && msgs[0].kakaoOptions.variables) ||
       {};
-    return { template, phone, fingerprint: JSON.stringify(vars) };
+    return {
+      template,
+      phone,
+      identity: identityFromVars(template, vars),
+    };
   }
 
 async function cancelScheduledGroup(groupId) {
@@ -595,7 +654,7 @@ function ymdFromScheduled(group) {
   return dt.toLocaleDateString("en-CA", { timeZone: "Asia/Seoul" });
 }
 
-async function lockQueuePhone(phone, sendOn) {
+async function lockQueuePhone(phone, sendOn, identity) {
   if (!sendOn) return;
   const snap = await getFirestore()
     .collection("d1_queue")
@@ -603,7 +662,9 @@ async function lockQueuePhone(phone, sendOn) {
     .get();
   for (const doc of snap.docs) {
     const d = doc.data() || {};
-    if (canonicalPhone(d.phone) !== phone) continue;
+    const p = canonicalPhone(d.phone);
+    if (p !== phone) continue;
+    if (identity && queueScheduledIdentity(d, p) !== identity) continue;
     await claimAlimtalkOnce(onceSched(d), d.sendOn, phone);
     await doc.ref.set(
       { alimtalkScheduled: true, alimtalkSent: true },
@@ -612,27 +673,91 @@ async function lockQueuePhone(phone, sendOn) {
   }
 }
 
+async function collapseQueueDupes(sendOn) {
+  if (!sendOn) return;
+  const snap = await getFirestore()
+    .collection("d1_queue")
+    .where("sendOn", "==", sendOn)
+    .get();
+  const buckets = new Map();
+  for (const doc of snap.docs) {
+    const d = doc.data() || {};
+    const phone = canonicalPhone(d.phone);
+    if (phone.length < 10) continue;
+    const key = queueRoundKey(d, phone);
+    if (!buckets.has(key)) buckets.set(key, []);
+    buckets.get(key).push({ doc, d, phone });
+  }
+  for (const list of buckets.values()) {
+    if (list.length < 2) continue;
+    list.sort((a, b) => String(a.doc.id).localeCompare(String(b.doc.id)));
+    const keep =
+      list.find((x) => x.d.alimtalkSent === true || x.d.alimtalkScheduled === true) ||
+      list[0];
+    const keepSched = onceSched(keep.d);
+    for (const row of list) {
+      if (row.doc.id === keep.doc.id) continue;
+      if (onceSched(row.d) !== keepSched) {
+        await claimAlimtalkOnce(onceSched(row.d), row.d.sendOn, row.phone);
+      }
+      if (row.d.alimtalkSent === true && row.d.alimtalkScheduled === true) continue;
+      await row.doc.ref.set(
+        { alimtalkSent: true, alimtalkScheduled: true },
+        { merge: true },
+      );
+    }
+  }
+}
+
+async function collapseUpcomingQueueDupes() {
+  const snap = await getFirestore()
+    .collection("d1_queue")
+    .where("sendOn", ">=", seoulYmd())
+    .get();
+  const days = new Set();
+  for (const doc of snap.docs) {
+    const sendOn = String((doc.data() || {}).sendOn || "");
+    if (sendOn) days.add(sendOn);
+  }
+  for (const sendOn of days) {
+    await collapseQueueDupes(sendOn);
+  }
+}
+
+async function reservedScheduledKeys() {
+  const keys = new Set();
+  const groups = await listScheduledGroups();
+  for (const g of groups) {
+    const info = await scheduledGroupTarget(g.groupId);
+    if (!info) continue;
+    keys.add(scheduledDedupeKey(info, ymdFromScheduled(g)));
+  }
+  return keys;
+}
+
 async function dedupeScheduledAlimtalk() {
   const groups = await listScheduledGroups();
   const buckets = new Map();
   for (const g of groups) {
     const info = await scheduledGroupTarget(g.groupId);
     if (!info) continue;
-    const key = `${info.template}|${info.phone}|${info.fingerprint}`;
+    const key = scheduledDedupeKey(info, ymdFromScheduled(g));
     if (!buckets.has(key)) buckets.set(key, []);
-    buckets.get(key).push(g);
+    buckets.get(key).push({ group: g, info });
   }
   for (const [key, list] of buckets) {
     list.sort((a, b) =>
-      String(a.dateCreated || "").localeCompare(String(b.dateCreated || "")),
+      String(a.group.dateCreated || "").localeCompare(String(b.group.dateCreated || "")),
     );
-    for (const g of list.slice(1)) {
-      const ok = await cancelScheduledGroup(g.groupId);
-      console.log("d1 duplicate cancel", key, g.groupId, ok);
+    for (const row of list.slice(1)) {
+      const ok = await cancelScheduledGroup(row.group.groupId);
+      console.log("d1 duplicate cancel", key, row.group.groupId, ok);
     }
-    const phone = key.split("|")[1];
-    const sendOn = ymdFromScheduled(list[0]);
-    if (phone) await lockQueuePhone(phone, sendOn);
+    const keep = list[0];
+    const sendOn = ymdFromScheduled(keep.group);
+    if (keep.info.phone) {
+      await lockQueuePhone(keep.info.phone, sendOn, key);
+    }
   }
 }
 
@@ -642,6 +767,8 @@ async function flushDueD1Alimtalk() {
   if (seoulHour() === 10 && seoulMinute() < 10) return;
   // 10:20이 지나면 오후에 따라 보내지 않는다.
   if (seoulHour() > 10 || seoulMinute() > 20) return;
+  await collapseQueueDupes(seoulYmd());
+  const reserved = await reservedScheduledKeys();
   const snap = await getFirestore()
     .collection("d1_queue")
     .where("sendOn", "==", seoulYmd())
@@ -677,11 +804,13 @@ async function flushDueD1Alimtalk() {
       continue;
     }
     const key = sendDedupKey(d, phone);
-    if (claimed.has(key)) {
+    const roundKey = queueScheduledIdentity(d, phone);
+    if (claimed.has(key) || claimed.has(roundKey) || reserved.has(roundKey)) {
       await doc.ref.set({ alimtalkSent: true, alimtalkScheduled: true }, { merge: true });
       continue;
     }
     claimed.add(key);
+    claimed.add(roundKey);
     const onceOk = await claimAlimtalkOnce(onceSched(d), d.sendOn, phone);
     if (onceOk !== true) {
       if (onceOk === false) {
@@ -719,6 +848,8 @@ async function flushDueD1Alimtalk() {
 }
 
 async function sendUnscheduledD1Alimtalk() {
+  await collapseQueueDupes(seoulYmd());
+  const reserved = await reservedScheduledKeys();
   const snap = await getFirestore()
     .collection("d1_queue")
     .where("sendOn", "==", seoulYmd())
@@ -740,7 +871,8 @@ async function sendUnscheduledD1Alimtalk() {
     }
     if (phone.length < 10) continue;
     const key = sendDedupKey(d, phone);
-    if (seen.has(key)) {
+    const roundKey = queueScheduledIdentity(d, phone);
+    if (seen.has(key) || seen.has(roundKey) || reserved.has(roundKey)) {
       await doc.ref.set(
         { alimtalkSent: true, alimtalkScheduled: true },
         { merge: true },
@@ -748,6 +880,7 @@ async function sendUnscheduledD1Alimtalk() {
       continue;
     }
     seen.add(key);
+    seen.add(roundKey);
     const onceOk = await claimAlimtalkOnce(onceSched(d), d.sendOn, phone);
     if (onceOk !== true) {
       if (onceOk === false) {
@@ -825,6 +958,7 @@ exports.sendD1Reminders = onSchedule(
       // 문서를 지우면 알림톡 재시도가 끊긴다. 푸시만 표시한다.
       await doc.ref.set({ pushSent: true }, { merge: true });
     }
+    await collapseUpcomingQueueDupes();
     await dedupeScheduledAlimtalk();
     await sendUnscheduledD1Alimtalk();
   }
@@ -838,6 +972,7 @@ exports.flushD1Alimtalk = onSchedule(
     secrets: ["SOLAPI_API_KEY", "SOLAPI_API_SECRET"],
   },
   async () => {
+    await collapseUpcomingQueueDupes();
     await dedupeScheduledAlimtalk();
     await flushDueD1Alimtalk();
   }
@@ -851,6 +986,20 @@ exports.dedupeScheduledD1Alimtalk = onSchedule(
     secrets: ["SOLAPI_API_KEY", "SOLAPI_API_SECRET"],
   },
   async () => {
+    await collapseUpcomingQueueDupes();
     await dedupeScheduledAlimtalk();
+  }
+);
+
+exports.collapseD1QueueOnWrite = onDocumentWritten(
+  {
+    document: "d1_queue/{id}",
+    region: REGION,
+  },
+  async (event) => {
+    const after = event.data?.after?.data() || {};
+    const sendOn = String(after.sendOn || event.data?.before?.data()?.sendOn || "");
+    if (!sendOn) return;
+    await collapseQueueDupes(sendOn);
   }
 );
