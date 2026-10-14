@@ -3,6 +3,7 @@ import 'dart:convert';
 
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:flutter/foundation.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 
 import '../core/firebase/firestore_paths.dart';
 import '../di/app_dependencies.dart';
@@ -45,6 +46,7 @@ class ClubOpsSync {
   }) async {
     if (!_enabled || clubId.isEmpty) return;
     try {
+      await ensureDuesTombstonesLoaded();
       final full = ClubDataCodec.encode(bundle);
       final slice = _sliceForClub(full, clubId);
       final photos = (slice.remove('photos') as List<dynamic>? ?? []);
@@ -76,11 +78,21 @@ class ClubOpsSync {
         if (localPayments.isEmpty && remotePayments.isNotEmpty) {
           slice['duesPayments'] = remotePayments;
         }
-        final localSettings = slice['duesSettings'] as List? ?? const [];
-        final remoteSettings = remote['duesSettings'] as List? ?? const [];
-        if (localSettings.isEmpty && remoteSettings.isNotEmpty) {
-          slice['duesSettings'] = remoteSettings;
-        }
+        adoptRemoteRemovedDues(clubId, remote);
+        final localSettings = withoutRemovedDuesSettings(
+          slice['duesSettings'] as List?,
+          clubId,
+        );
+        final remoteSettings = withoutRemovedDuesSettings(
+          remote['duesSettings'] as List?,
+          clubId,
+        );
+        // 이 폰 목록이 통째로 비었을 때만 서버 회비를 유지한다.
+        // 총무가 일부만 지운 경우는 그 삭제를 서버 옛 목록으로 되돌리지 않는다.
+        slice['duesSettings'] = localSettings.isEmpty && remoteSettings.isNotEmpty
+            ? remoteSettings
+            : localSettings;
+        slice['removedDuesSettingIds'] = removedDuesSettingIdsForClub(clubId);
         // 초대 가입자가 자기 명단만 들고 올리면 기존 회원이 지워진다 → 합친다
         final localMembers = slice['members'] as List? ?? const [];
         final remoteMembers = remote['members'] as List? ?? const [];
@@ -138,6 +150,20 @@ class ClubOpsSync {
               indexKey: 'led',
               payloadKey: 'transactions',
             )) {
+          // 일정 문서를 못 읽었으면 번들 전체는 올리지 않는다.
+          // 회비 삭제만은 남겨 둔다. 안 그러면 새 버전이 서버 옛 활성회비를 다시 붙인다.
+          try {
+            await _db.doc(FirestorePaths.clubOpsBundle(clubId)).set(
+              {
+                'duesSettings': slice['duesSettings'],
+                'removedDuesSettingIds': slice['removedDuesSettingIds'],
+                'updatedAt': FieldValue.serverTimestamp(),
+              },
+              SetOptions(merge: true),
+            );
+          } catch (e) {
+            debugPrint('[ClubOpsSync] dues deletion patch skip: $e');
+          }
           debugPrint(
             '[ClubOpsSync] skip push, overflow sidecar not loaded club=$clubId',
           );
@@ -228,6 +254,7 @@ class ClubOpsSync {
 
       await _pushOverflowDocs(clubId, schYears, ledYears, previousYears);
 
+      slice['removedDuesSettingIds'] = removedDuesSettingIdsForClub(clubId);
       slice['updatedAt'] = FieldValue.serverTimestamp();
       await _db
           .doc(FirestorePaths.clubOpsBundle(clubId))
@@ -760,6 +787,7 @@ class ClubOpsSync {
         }
         return null;
       }
+      await ensureDuesTombstonesLoaded();
       final remote = Map<String, dynamic>.from(snap.data()!);
       await _attachOverflowDocs(clubId, remote);
       final photosSnap =
@@ -905,13 +933,79 @@ class ClubOpsSync {
 
   static final Set<String> _removedMemberIds = {};
   static final Set<String> _removedDuesSettingIds = {};
+  static const _kRemovedDuesPrefs = 'club_ops_removed_dues_settings';
+  static Future<void>? _duesTombstoneLoad;
 
   static String duesTombstoneKey(String clubId, String settingId) =>
       '$clubId|$settingId';
 
+  /// 회비 삭제는 메모리에만 있으면 앱을 다시 켤 때 사라진다.
+  /// 그러면 서버에 남은 예전 회비가 활성 목록으로 되살아난다.
+  static Future<void> ensureDuesTombstonesLoaded() {
+    return _duesTombstoneLoad ??= _loadDuesTombstones();
+  }
+
+  static Future<void> _loadDuesTombstones() async {
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      final list = prefs.getStringList(_kRemovedDuesPrefs) ?? const <String>[];
+      _removedDuesSettingIds.addAll(list);
+    } catch (_) {
+      debugPrint('[ClubOpsSync] dues tombstone load skip');
+    }
+  }
+
+  static Future<void> _persistDuesTombstones() async {
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      await prefs.setStringList(
+        _kRemovedDuesPrefs,
+        _removedDuesSettingIds.toList(),
+      );
+    } catch (_) {
+      debugPrint('[ClubOpsSync] dues tombstone save skip');
+    }
+  }
+
   static void markDuesSettingRemoved(String settingId, {required String clubId}) {
     if (settingId.isEmpty || clubId.isEmpty) return;
     _removedDuesSettingIds.add(duesTombstoneKey(clubId, settingId));
+    unawaited(_persistDuesTombstones());
+  }
+
+  /// 서버 번들에 적힌 삭제 목록. 재설치·다른 폰도 같은 회비를 다시 붙이지 않는다.
+  static void adoptRemoteRemovedDues(String clubId, Map<String, dynamic> remote) {
+    final raw = remote['removedDuesSettingIds'];
+    if (raw is! List) return;
+    var changed = false;
+    for (final id in raw) {
+      final settingId = '$id'.trim();
+      if (settingId.isEmpty) continue;
+      if (_removedDuesSettingIds.add(duesTombstoneKey(clubId, settingId))) {
+        changed = true;
+      }
+    }
+    if (changed) unawaited(_persistDuesTombstones());
+  }
+
+  @visibleForTesting
+  static List<String> removedDuesSettingIdsForClub(String clubId) {
+    final prefix = '$clubId|';
+    final ids = <String>[
+      for (final key in _removedDuesSettingIds)
+        if (key.startsWith(prefix)) key.substring(prefix.length),
+    ]..sort();
+    return ids;
+  }
+
+  @visibleForTesting
+  static List<dynamic> withoutRemovedDuesSettings(List? list, String clubId) {
+    return [
+      for (final e in list ?? const [])
+        if (e is! Map ||
+            !isDuesSettingRemoved('${e['id'] ?? ''}', clubId: clubId))
+          e,
+    ];
   }
 
   static bool isDuesSettingRemoved(String settingId, {required String clubId}) {
@@ -923,6 +1017,7 @@ class ClubOpsSync {
   @visibleForTesting
   static void resetDuesSettingTombstones() {
     _removedDuesSettingIds.clear();
+    _duesTombstoneLoad = Future<void>.value();
   }
 
   static final Set<String> _removedWaitingIds = {};
@@ -1440,6 +1535,7 @@ class ClubOpsSync {
     String clubId,
     Map<String, dynamic> remote,
   ) {
+    adoptRemoteRemovedDues(clubId, remote);
     final encoded = ClubDataCodec.encode(local);
 
     List<dynamic> replaceClubList(List? localList, List? remoteList) {
@@ -1521,6 +1617,7 @@ class ClubOpsSync {
         remote['duesSettings'] as List?,
       );
     }
+    _dropFinanceForRemovedDues(encoded, clubId);
 
     encoded['awardRecords'] = collapseAwardRecords(
       rewriteLeftoverAwardWinnerNames(
@@ -2253,6 +2350,43 @@ class ClubOpsSync {
     take(localRaw);
     take(remoteRaw);
     return out;
+  }
+
+  /// 지운 회비의 납부·입금요청·회비 수입은 설정과 같이 빼야 잔고가 되살아나지 않는다.
+  static void _dropFinanceForRemovedDues(
+    Map<String, dynamic> encoded,
+    String clubId,
+  ) {
+    final removed = removedDuesSettingIdsForClub(clubId).toSet();
+    if (removed.isEmpty) return;
+
+    final paymentIds = <String>{};
+    final payments = <dynamic>[];
+    for (final e in encoded['duesPayments'] as List? ?? const []) {
+      if (e is! Map) {
+        payments.add(e);
+        continue;
+      }
+      final settingId = '${e['duesSettingId'] ?? ''}';
+      if (removed.contains(settingId)) {
+        final id = '${e['id'] ?? ''}';
+        if (id.isNotEmpty) paymentIds.add(id);
+        continue;
+      }
+      payments.add(e);
+    }
+    encoded['duesPayments'] = payments;
+    encoded['paymentRequests'] = [
+      for (final e in encoded['paymentRequests'] as List? ?? const [])
+        if (e is! Map || !removed.contains('${e['duesSettingId'] ?? ''}')) e,
+    ];
+    encoded['transactions'] = [
+      for (final e in encoded['transactions'] as List? ?? const [])
+        if (!(e is Map &&
+            e['source'] == 'dues' &&
+            paymentIds.contains('${e['duesPaymentId'] ?? ''}')))
+          e,
+    ];
   }
 
   static List<dynamic> _mergeDuesSettings(

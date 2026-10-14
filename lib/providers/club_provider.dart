@@ -799,6 +799,7 @@ class ClubProvider extends ChangeNotifier with WidgetsBindingObserver {
     final beforeSig = _galleryWatchSignature();
     final beforeRoster = _rosterWatchSignature(clubId);
     try {
+      await ClubOpsSync.ensureDuesTombstonesLoaded();
       final merged = ClubOpsSync.applyRemoteSlice(
         _exportBundle(),
         clubId,

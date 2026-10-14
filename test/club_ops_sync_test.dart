@@ -1942,6 +1942,122 @@ void main() {
         reason: '회비를 지운 뒤 동기화가 다시 넣으면 삭제가 안 된다');
   });
 
+  test('앱을 다시 열어도 서버에 기록된 회비 삭제는 활성으로 되살리지 않는다', () {
+    ClubOpsSync.resetDuesSettingTombstones();
+    addTearDown(ClubOpsSync.resetDuesSettingTombstones);
+
+    final local = ClubDataBundle(
+      selectedClubIndex: 0,
+      freshClubIds: {'c_test'},
+      myClubs: [
+        Club(
+          id: 'c_test',
+          name: '테스트',
+          myRole: '총무',
+          memberCount: 1,
+          region: '서울',
+          industry: 'IT',
+          teamCount: 4,
+        ),
+      ],
+      allClubs: const [],
+      joinRequests: const [],
+      members: const [],
+      activities: const [],
+      announcements: const [],
+      appNotifications: const [],
+      duesSettings: [
+        DuesSetting(
+          id: 'ds_2026',
+          type: DuesType.monthly,
+          amount: 50000,
+          title: '2026년 월회비',
+          createdAt: DateTime(2026, 1, 1),
+          clubId: 'c_test',
+        ),
+      ],
+      duesPayments: const [],
+      paymentRequests: const [],
+      transactions: [
+        Transaction(
+          id: 'tx_keep',
+          type: TxType.expense,
+          amount: 3000,
+          category: '식대',
+          title: '식대',
+          date: DateTime(2026, 3, 1),
+          recordedBy: '총무',
+          source: TxSource.manual,
+          clubId: 'c_test',
+        ),
+      ],
+      schedules: const [],
+      photos: const [],
+      groupAssignments: const {},
+      adApplications: const [],
+      adNotifications: const [],
+      sponsorApplications: const [],
+      pointEvents: const {},
+      awardRecords: const [],
+      thankYouMessages: const [],
+      waitingList: const [],
+      alimtalkSettings: const {},
+    );
+    final merged = ClubOpsSync.applyRemoteSlice(local, 'c_test', {
+      'removedDuesSettingIds': ['ds_old'],
+      'duesSettings': [
+        {
+          'id': 'ds_2026',
+          'type': 'monthly',
+          'amount': 50000,
+          'title': '2026년 월회비',
+          'createdAt': DateTime(2026, 1, 1).toIso8601String(),
+          'isActive': true,
+          'clubId': 'c_test',
+          'amountHistory': <dynamic>[],
+        },
+        {
+          'id': 'ds_old',
+          'type': 'special',
+          'amount': 20000,
+          'title': '특별회비',
+          'createdAt': DateTime(2026, 2, 1).toIso8601String(),
+          'isActive': true,
+          'clubId': 'c_test',
+          'amountHistory': <dynamic>[],
+        },
+      ],
+      'duesPayments': [
+        {
+          'id': 'pay_old',
+          'memberId': 'm1',
+          'memberName': '회원',
+          'duesSettingId': 'ds_old',
+          'amount': 20000,
+          'paidAt': DateTime(2026, 2, 2).toIso8601String(),
+          'recordedBy': '총무',
+        },
+      ],
+      'transactions': [
+        {
+          'id': 'tx_old',
+          'type': 'income',
+          'amount': 20000,
+          'category': '회비',
+          'title': '특별회비',
+          'date': DateTime(2026, 2, 2).toIso8601String(),
+          'recordedBy': '총무',
+          'source': 'dues',
+          'duesPaymentId': 'pay_old',
+          'clubId': 'c_test',
+        },
+      ],
+    });
+    expect(merged.duesSettings.map((d) => d.id), ['ds_2026']);
+    expect(merged.duesPayments, isEmpty);
+    expect(merged.transactions.map((t) => t.id), ['tx_keep']);
+  });
+
   test('회비 수정은 원격 옛 제목으로 돌아가지 않는다', () {
     ClubOpsSync.resetDuesSettingTombstones();
     addTearDown(ClubOpsSync.resetDuesSettingTombstones);
