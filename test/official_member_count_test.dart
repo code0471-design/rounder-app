@@ -47,7 +47,21 @@ void main() {
           _m('m_${arena}_kakao_other', '다른회원'),
         ],
       ),
+      2,
+      reason: '가입 목록이 오기 전에 방장 칸을 빼면 인원이 늘었다 줄었다 한다',
+    );
+    expect(
+      OfficialMemberCount.of(
+        clubId: arena,
+        creatorUserId: 'kakao_5044456654',
+        joinedUserIds: {'kakao_5044456654'},
+        roster: [
+          _m('m_creator_$arena', '장창현'),
+          _m('m_${arena}_kakao_other', '다른회원'),
+        ],
+      ),
       1,
+      reason: '가입하지 않은 아레나 방장 칸 이름만 뺀다',
     );
     expect(
       OfficialMemberCount.of(

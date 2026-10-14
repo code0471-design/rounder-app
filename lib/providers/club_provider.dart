@@ -1917,7 +1917,7 @@ class ClubProvider extends ChangeNotifier with WidgetsBindingObserver {
       ClubOpsSync.unmarkMemberRemoved(id);
       ClubOpsSync.unmarkMemberRemoved(rosterId);
       ClubOpsSync.unmarkMemberRemoved(uid);
-      _members.add(Member(
+      final draft = Member(
         id: id,
         name: name,
         gender: '남',
@@ -1925,7 +1925,9 @@ class ClubProvider extends ChangeNotifier with WidgetsBindingObserver {
         memberType: ClubMemberRole.memberTypeForRole(role),
         role: role,
         status: '활성',
-      ));
+      );
+      final photo = MemberPhoto.fill(member: draft, roster: _members);
+      _members.add(photo == null ? draft : draft.copyWith(photoUrl: photo));
       changed = true;
     }
     return changed;
@@ -3478,7 +3480,7 @@ class ClubProvider extends ChangeNotifier with WidgetsBindingObserver {
         }
       }
       final role = account.role.trim().isEmpty ? '정회원' : account.role.trim();
-      extra.add(Member(
+      final draft = Member(
         id: id,
         name: name,
         gender: '남',
@@ -3486,7 +3488,9 @@ class ClubProvider extends ChangeNotifier with WidgetsBindingObserver {
         memberType: ClubMemberRole.memberTypeForRole(role),
         role: role,
         status: '활성',
-      ));
+      );
+      final photo = MemberPhoto.fill(member: draft, roster: _members);
+      extra.add(photo == null ? draft : draft.copyWith(photoUrl: photo));
     }
     if (extra.isEmpty) return rows;
     return [...rows, ...extra];
@@ -7189,7 +7193,11 @@ class ClubProvider extends ChangeNotifier with WidgetsBindingObserver {
     _syncNextRound(clubId);
     ensureCreatorMembers();
     _watchSelectedClubOps();
-    notifyListeners();
+    // 가입 계정이 이미 있으면 그 명단으로 첫 화면을 그린다.
+    // 아직 없으면 계정 조회가 끝난 뒤에 그린다. 먼저 그리면 2명이었다가 3명이 된다.
+    if ((_clubAccounts[clubId] ?? const <ClubMemberAccount>[]).isNotEmpty) {
+      notifyListeners();
+    }
     unawaited(_refreshSelectedClubRoster(clubId));
   }
 

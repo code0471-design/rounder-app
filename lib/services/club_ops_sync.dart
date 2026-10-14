@@ -1784,13 +1784,12 @@ class ClubOpsSync {
     // 아레나 방장 칸에만 이름만 남은 찌꺼기다. 그 모임만 뺀다.
     // 다른 모임에서 이름만 보고 지우면 총무가 정회원 폰에서 사라진다.
     if (clubId != 'c_1786973797931') return false;
+    // 가입이 확인된 사람은 찌꺼기가 아니다. 줄을 지웠다 다시 넣으면 사진이 빠진다.
     for (final uid in leftoverStolenUserIds) {
-      if (id != uid && !id.endsWith('_$uid')) continue;
-      // 소속을 아직 모르면 가입 줄을 찌꺼기로 지우지 않는다.
-      // 모르는데 지우면 첫 화면에서 빠지고 새로고침 후에야 돌아온다.
-      if (joinedUserIds.isEmpty) return false;
-      return !joinedUserIds.contains(uid);
+      if (joinedUserIds.contains(uid)) return false;
     }
+    // 소속 목록이 오기 전에 지우면 첫 화면에서 빠졌다가 나중에 다시 붙는다.
+    if (joinedUserIds.isEmpty) return false;
     return true;
   }
 

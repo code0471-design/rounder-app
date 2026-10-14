@@ -1702,8 +1702,30 @@ void main() {
         clubId: 'c_1786973797931',
         creatorUserId: 'kakao_5049673364',
       ),
+      isFalse,
+      reason: '소속을 모르면 방장 칸도 첫 화면에서 지우지 않는다',
+    );
+    expect(
+      ClubOpsSync.isForeignLeftoverMember(
+        id: 'm_creator_c_1786973797931',
+        name: '장창현',
+        clubId: 'c_1786973797931',
+        creatorUserId: 'kakao_5044456654',
+        joinedUserIds: {'kakao_5044456654'},
+      ),
       isTrue,
-      reason: '아레나 방장 자리에 남은 장창현은 찌꺼기다',
+      reason: '가입 목록에 장창현이 없으면 아레나 방장 칸 이름은 찌꺼기다',
+    );
+    expect(
+      ClubOpsSync.isForeignLeftoverMember(
+        id: 'm_creator_c_1786973797931',
+        name: '장창현',
+        clubId: 'c_1786973797931',
+        creatorUserId: 'kakao_5049673364',
+        joinedUserIds: {'kakao_5049673364'},
+      ),
+      isFalse,
+      reason: '가입한 장창현은 방장 칸이어도 지우지 않는다',
     );
     expect(
       ClubOpsSync.isForeignLeftoverMember(

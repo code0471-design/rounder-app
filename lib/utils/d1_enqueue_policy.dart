@@ -50,6 +50,17 @@ abstract final class D1EnqueuePolicy {
     required String clubId,
     String creatorUserId = '',
   }) {
+    const arena = 'c_1786973797931';
+    const jang = 'kakao_5049673364';
+    final id = userId.trim();
+    // 명단 표시와 분리한다. 아레나에 이름만 남은 줄로 회비 알림이 나가지 않게 한다.
+    if (clubId == arena &&
+        (name.trim() == '장창현' ||
+            id == jang ||
+            id.endsWith('_$jang') ||
+            id == 'm_creator_$arena')) {
+      return true;
+    }
     final creator = creatorUserId.trim().isNotEmpty
         ? creatorUserId.trim()
         : (leftoverAllowClubCreators[clubId] ?? '');

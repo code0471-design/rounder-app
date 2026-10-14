@@ -472,6 +472,49 @@ void main() {
     expect(clubs.activeMembers.map((m) => m.name).toSet(), first);
   });
 
+  test('다른 모임에 있는 장창현 사진을 가입 줄에 붙인다', () {
+    const arena = 'c_1786973797931';
+    clubs.hydrateFromBootstrap(AppBootstrapSnapshot(
+      userId: myUid,
+      myClubs: [
+        Club(
+          id: arena,
+          name: '아레나 골프회',
+          myRole: '회장',
+          memberCount: 2,
+          creatorId: 'kakao_5044456654',
+          region: '서울',
+          industry: '골프',
+          teamCount: 4,
+          description: '',
+          createdAt: DateTime(2026, 9, 1),
+        ),
+      ],
+      discoverableClubs: const [],
+      membersByClubId: const {},
+      financeByClubId: const {},
+      loadedAt: DateTime(2026, 10, 8),
+    ));
+    clubs.selectClubById(arena);
+    clubs.addMember(Member(
+      id: 'm_c_other_kakao_5049673364',
+      name: '장창현',
+      gender: '남',
+      memberType: '정회원',
+      role: '정회원',
+      photoUrl: 'jang-photo',
+    ));
+    clubs.cacheClubAccountsForTest(arena, const [
+      ClubMemberAccount(
+        userId: 'kakao_5049673364',
+        role: '정회원',
+        name: '장창현',
+      ),
+    ]);
+    final jang = clubs.activeMembers.where((m) => m.name == '장창현').single;
+    expect(jang.photoUrl, 'jang-photo');
+  });
+
   test('명단을 합친다고 가입 회원 문서를 지우지 않는다', () {
     final provider = File('lib/providers/club_provider.dart').readAsStringSync();
     final prune = provider.substring(
