@@ -126,6 +126,24 @@ class ClubOpsSync {
           slice['roundScores'] = remoteScores;
         }
 
+        // 연도 문서를 못 읽었는데 빈 목록으로 올리면 sch_YYYY 가 지워진다.
+        // 새 폰에 일정이 없다고 서버 일정을 지우지 않는다.
+        if (overflowPayloadMissing(
+          remote: remote,
+          indexKey: 'sch',
+          payloadKey: 'schedules',
+        ) ||
+            overflowPayloadMissing(
+              remote: remote,
+              indexKey: 'led',
+              payloadKey: 'transactions',
+            )) {
+          debugPrint(
+            '[ClubOpsSync] skip push, overflow sidecar not loaded club=$clubId',
+          );
+          return;
+        }
+
         // 이 폰에 없는 일정은 지우지 않는다. 예전 목록을 통째로 올리면
         // 다른 폰에서 방금 만든 일정이 서버에서 사라진다.
         slice['schedules'] = capScheduleAttendance(mergeScheduleRows(
@@ -2458,6 +2476,20 @@ class ClubOpsSync {
         await _db.doc(FirestorePaths.clubOpsLedgerYear(clubId, year)).delete();
       } catch (_) {}
     }
+  }
+
+  /// 인덱스에 연도가 있는데 본문 키가 없으면 사이드카를 못 읽은 것이다.
+  /// 이때 빈 목록을 올리면 그 해 일정이 서버에서 지워진다.
+  @visibleForTesting
+  static bool overflowPayloadMissing({
+    required Map<String, dynamic> remote,
+    required String indexKey,
+    required String payloadKey,
+  }) {
+    final index = remote['overflowYears'];
+    if (index is! Map) return false;
+    if (ClubOpsOverflow.yearsOf(index[indexKey]).isEmpty) return false;
+    return !remote.containsKey(payloadKey);
   }
 
   static Future<void> _attachOverflowDocs(

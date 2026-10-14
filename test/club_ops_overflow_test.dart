@@ -1,3 +1,5 @@
+import 'dart:io';
+
 import 'package:flutter_test/flutter_test.dart';
 import 'package:golf_rounder/services/club_ops_overflow.dart';
 import 'package:golf_rounder/services/club_ops_sync.dart';
@@ -145,6 +147,57 @@ void main() {
     ClubOpsOverflow.markOverflowUnavailable(remoteWithoutKeys);
     expect(remoteWithoutKeys.containsKey('schedules'), isFalse);
     expect(remoteWithoutKeys.containsKey('transactions'), isFalse);
+    expect(
+      ClubOpsSync.overflowPayloadMissing(
+        remote: remoteWithoutKeys,
+        indexKey: 'sch',
+        payloadKey: 'schedules',
+      ),
+      isTrue,
+      reason: '사이드카를 못 읽으면 빈 일정을 서버에 올리면 안 된다',
+    );
+    expect(
+      ClubOpsSync.overflowPayloadMissing(
+        remote: remoteWithoutKeys,
+        indexKey: 'led',
+        payloadKey: 'transactions',
+      ),
+      isTrue,
+    );
+  });
+
+  test('빈 폰은 못 읽은 연도 일정을 서버에서 지우지 않는다', () {
+    final src = File('lib/services/club_ops_sync.dart').readAsStringSync();
+    final push = src.substring(
+      src.indexOf('Future<void> pushClubOps'),
+      src.indexOf('static List<dynamic> mergeRowsById'),
+    );
+    expect(push.contains('overflowPayloadMissing('), isTrue);
+    expect(
+      push.contains('skip push, overflow sidecar not loaded'),
+      isTrue,
+    );
+    final skip = push.indexOf('skip push, overflow sidecar not loaded');
+    final write = push.indexOf('_pushOverflowDocs(');
+    expect(skip, lessThan(write));
+  });
+
+  test('읽은 일정이 있으면 푸시를 막지 않는다', () {
+    expect(
+      ClubOpsSync.overflowPayloadMissing(
+        remote: {
+          'overflowYears': {
+            'sch': [2026],
+          },
+          'schedules': <dynamic>[
+            {'id': 's1'},
+          ],
+        },
+        indexKey: 'sch',
+        payloadKey: 'schedules',
+      ),
+      isFalse,
+    );
   });
 }
 

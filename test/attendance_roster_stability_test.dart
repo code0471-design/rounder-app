@@ -101,6 +101,11 @@ void main() {
     expect(clubs.regularMembers.length, regular,
         reason: '방장과 같은 사람 줄이 생겨도 정회원 수는 그대로다');
     expect(clubs.activeMembers.length, active);
+    expect(
+      clubs.activeHeadcount(clubId),
+      clubs.activeMembers.length,
+      reason: '카드 인원과 회원 탭 인원이 페이지마다 다르면 안 된다',
+    );
   });
 
   test('탈퇴한 회원은 짧은 명단에서 빠진다', () {

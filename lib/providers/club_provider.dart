@@ -13,6 +13,7 @@ import '../domain/services/demo_finance_strip.dart';
 import '../domain/services/group_assignment_service.dart';
 import '../domain/services/join_request_service.dart';
 import '../domain/services/club_name_policy.dart';
+import '../domain/services/member_photo.dart';
 import '../domain/services/official_member_count.dart';
 import '../domain/services/round_attendance.dart';
 import '../domain/data/sample_club_filter.dart';
@@ -3403,40 +3404,92 @@ class ClubProvider extends ChangeNotifier with WidgetsBindingObserver {
   }
 
   /// 카드에 적는 인원. 게스트를 포함한 활성 명단이다.
-  /// 같은 사람 줄이 늘었다 줄어도 숫자는 그대로다.
+  /// 같은 사람 줄이 둘이면 한 명으로 센다.
   /// 명단이 잠깐 비어도 방금 센 숫자를 유지한다.
   /// 서버 소속을 받기 전에는 로컬이 짧다고 숫자를 내리지 않는다.
   int activeHeadcount(String clubId) {
     final club = _clubById(clubId);
-    final roster = OfficialMemberCount.attendanceRoster(
-      clubId: clubId,
-      creatorUserId: club?.creatorId ?? '',
-      roster: membersForClub(clubId),
-      joinedUserIds: _joinedUserIdsFor(clubId),
-    );
+    final n = activeMembersOf(clubId).length;
     if (!_rosterReady(clubId)) {
       final prev = _lastHeadcount[clubId] ?? 0;
       final clubN = club?.memberCount ?? 0;
-      final n = roster.length > clubN ? roster.length : clubN;
-      return n > prev ? n : prev;
+      final shown = n > clubN ? n : clubN;
+      return shown > prev ? shown : prev;
     }
-    if (roster.isNotEmpty) {
-      _lastHeadcount[clubId] = roster.length;
-      return roster.length;
+    if (n > 0) {
+      _lastHeadcount[clubId] = n;
+      return n;
     }
     final kept = _lastHeadcount[clubId];
     if (kept != null && kept > 0) return kept;
     return club?.memberCount ?? 0;
   }
 
+  /// 회원 탭·참석·카드가 같은 줄을 본다.
+  /// 가입 계정이 있으면 명단 줄이 늦게 붙어도 그 사람을 바로 보여 준다.
+  /// 방장 칸과 계정 칸이 같은 사람이면 한 줄만 둔다.
   List<Member> activeMembersOf(String clubId) {
     final club = _clubById(clubId);
     return OfficialMemberCount.attendanceRoster(
       clubId: clubId,
       creatorUserId: club?.creatorId ?? '',
-      roster: membersForClub(clubId).where((m) => m.status == '활성'),
+      roster: _rosterWithJoinedAccounts(clubId).where((m) => m.status == '활성'),
       joinedUserIds: _joinedUserIdsFor(clubId),
     );
+  }
+
+  List<Member> _rosterWithJoinedAccounts(String clubId) {
+    final rows = membersForClub(clubId);
+    if (_isDemoSession || _legacyMockClubIds.contains(clubId)) return rows;
+    final accounts = _clubAccounts[clubId];
+    if (accounts == null || accounts.isEmpty) return rows;
+    final creator = (_clubById(clubId)?.creatorId ?? '').trim();
+    final extra = <Member>[];
+    for (final account in accounts) {
+      final uid = account.userId.trim();
+      final name = account.name.trim();
+      if (uid.isEmpty || name.isEmpty || isPlaceholderMemberName(name)) {
+        continue;
+      }
+      final rosterId = Member.rosterId(clubId, uid);
+      if (_joinedAccountAlreadyVisible(
+        clubId: clubId,
+        creatorUserId: creator,
+        roster: [...rows, ...extra],
+        uid: uid,
+        name: name,
+      )) {
+        continue;
+      }
+      if (ClubOpsSync.isForeignLeftoverMember(
+        id: rosterId,
+        name: name,
+        clubId: clubId,
+        creatorUserId: creator,
+        joinedUserIds: _joinedUserIdsFor(clubId),
+      )) {
+        continue;
+      }
+      var id = rosterId;
+      if (creator.isNotEmpty && _userIdsMatch(uid, creator)) {
+        final seat = rows.where((m) => m.id == 'm_creator_$clubId').firstOrNull;
+        if (seat == null || !RosterDedupe.areDifferentPeople(seat.name, name)) {
+          id = 'm_creator_$clubId';
+        }
+      }
+      final role = account.role.trim().isEmpty ? '정회원' : account.role.trim();
+      extra.add(Member(
+        id: id,
+        name: name,
+        gender: '남',
+        phone: account.phone.trim().isEmpty ? null : account.phone.trim(),
+        memberType: ClubMemberRole.memberTypeForRole(role),
+        role: role,
+        status: '활성',
+      ));
+    }
+    if (extra.isEmpty) return rows;
+    return [...rows, ...extra];
   }
 
   RoundSchedule? nextUpcomingScheduleOf(String clubId) {
@@ -3511,26 +3564,39 @@ class ClubProvider extends ChangeNotifier with WidgetsBindingObserver {
   List<Member> membersForClub(String clubId) {
     final fresh = _freshClubIds.contains(clubId);
     final legacy = _legacyMockClubIds.contains(clubId);
-    if (fresh || !legacy) {
-      return _rawRosterRowsForClub(clubId)
-          .map(withoutSeedDisplayName)
-          .toList();
-    }
-    // c1~c5 데모 모임은 공유 mock 회원 명단
-    return List.unmodifiable(_members);
+    final rows = (fresh || !legacy)
+        ? _rawRosterRowsForClub(clubId).map(withoutSeedDisplayName).toList()
+        : List<Member>.from(_members);
+    return _withSharedPhotos(rows);
   }
 
-  /// 원클럽과 같다. 가입돼 있고 활성인 회원은 회원 탭에 그대로 둔다.
+  List<Member> _withSharedPhotos(List<Member> rows) {
+    if (rows.isEmpty) return rows;
+    final uid = (_persistAuthUserId ?? currentUserId).trim();
+    final out = <Member>[];
+    for (final m in rows) {
+      final filled = MemberPhoto.fill(
+        member: m,
+        roster: _members,
+        selfPhoto: _accountPhotoUrl,
+        isSelf: uid.isNotEmpty && (m.id == uid || m.id.endsWith('_$uid')),
+      );
+      if (filled == null || filled == (m.photoUrl ?? '').trim()) {
+        out.add(m);
+      } else {
+        out.add(m.copyWith(photoUrl: filled));
+      }
+    }
+    return out;
+  }
+
+  /// 원클럽과 같다. 가입돼 있고 활성인 회원을 보여 준다.
+  /// 카드 숫자와 회원 탭이 어긋나지 않게 같은 명단을 쓴다.
   List<Member> get activeMembers {
-    final club = _myClubs.isEmpty ? null : selectedClub;
-    final roster = members.where((m) => m.status == '활성');
-    if (club == null) return roster.toList();
-    return OfficialMemberCount.attendanceRoster(
-      clubId: club.id,
-      creatorUserId: club.creatorId,
-      roster: roster,
-      joinedUserIds: _joinedUserIdsFor(club.id),
-    );
+    if (_myClubs.isEmpty) {
+      return members.where((m) => m.status == '활성').toList();
+    }
+    return activeMembersOf(selectedClub.id);
   }
 
   void _keepActiveMembersMissingFromBundle(List<Member> previous) {

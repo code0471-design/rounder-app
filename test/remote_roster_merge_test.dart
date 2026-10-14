@@ -443,6 +443,35 @@ void main() {
     );
   });
 
+  test('가입 계정은 다른 화면을 다녀와도 같은 인원으로 보인다', () {
+    clubs.addMember(Member(
+      id: Member.rosterId(clubId, myUid),
+      name: '안경헌',
+      gender: '남',
+      memberType: '정회원',
+      role: '정회원',
+      phone: '010-4511-0471',
+    ));
+    clubs.cacheClubAccountsForTest(clubId, const [
+      ClubMemberAccount(
+        userId: myUid,
+        role: '정회원',
+        name: '안경헌',
+        phone: '010-4511-0471',
+      ),
+      ClubMemberAccount(
+        userId: hostUid,
+        role: '회장',
+        name: '장창현',
+        phone: '010-0000-0000',
+      ),
+    ]);
+    final first = clubs.activeMembers.map((m) => m.name).toSet();
+    expect(first, {'안경헌', '장창현'});
+    expect(clubs.activeHeadcount(clubId), first.length);
+    expect(clubs.activeMembers.map((m) => m.name).toSet(), first);
+  });
+
   test('명단을 합친다고 가입 회원 문서를 지우지 않는다', () {
     final provider = File('lib/providers/club_provider.dart').readAsStringSync();
     final prune = provider.substring(
