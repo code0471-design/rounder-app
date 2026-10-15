@@ -329,6 +329,7 @@ class ClubDataCodec {
         'regularSince': _dt(m.regularSince),
         'memberTypeUpdatedAt': _dt(m.memberTypeUpdatedAt),
         'leftAt': _dt(m.leftAt),
+        'statusUpdatedAt': _dt(m.statusUpdatedAt),
         'address': m.address,
         'memo': m.memo,
         'status': m.status,
@@ -353,6 +354,8 @@ class ClubDataCodec {
         memberTypeUpdatedAt: _parseDt(j['memberTypeUpdatedAt']) ??
             _parseDt(j['member_type_updated_at']),
         leftAt: _parseDt(j['leftAt']) ?? _parseDt(j['left_at']),
+        statusUpdatedAt: _parseDt(j['statusUpdatedAt']) ??
+            _parseDt(j['status_updated_at']),
         address: j['address'] as String?,
         memo: j['memo'] as String?,
         status: j['status'] as String? ?? '활성',

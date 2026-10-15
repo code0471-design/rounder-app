@@ -165,6 +165,7 @@ class FirestoreJoinRequestDataSource {
         birthDate: request.userBirthDate,
         joinDate: DateTime.now(),
         status: '활성',
+        statusUpdatedAt: DateTime.now(),
       );
       final memberData = MemberMapper.toMap(
         member,

@@ -1,4 +1,5 @@
 import 'package:flutter_test/flutter_test.dart';
+import 'package:golf_rounder/domain/services/official_member_count.dart';
 import 'package:golf_rounder/models/club_model.dart';
 import 'package:golf_rounder/services/club_data_codec.dart';
 import 'package:golf_rounder/services/club_ops_sync.dart';
@@ -1205,6 +1206,102 @@ void main() {
       final row = merged.members.firstWhere((m) => m.id == 'm_c_test_left');
       expect(row.status, '탈퇴');
       expect(row.leftAt, leftAt);
+    });
+
+    test('탈퇴보다 늦은 재가입은 한 명으로 다시 활성이다', () {
+      const id = 'm_c_test_rejoin';
+      ClubOpsSync.seedRemovedMembers([id]);
+      final leftAt = DateTime(2026, 8, 1, 9);
+      final rejoinedAt = DateTime(2026, 10, 14, 15);
+      final local = bundleWith([
+        Member(
+          id: 'm_c_test_keep',
+          name: '안경헌',
+          gender: '남',
+          memberType: '정회원',
+          role: '총무',
+          joinDate: DateTime(2024, 1, 1),
+          status: '활성',
+        ),
+        Member(
+          id: id,
+          name: '박재가입',
+          gender: '남',
+          memberType: '정회원',
+          role: '일반',
+          joinDate: DateTime(2024, 1, 1),
+          status: '탈퇴',
+          leftAt: leftAt,
+          statusUpdatedAt: leftAt,
+        ),
+      ]);
+      final remote = remoteMember(id, '박재가입', '활성');
+      remote['statusUpdatedAt'] = rejoinedAt.toIso8601String();
+      final merged = ClubOpsSync.applyRemoteSlice(
+        local,
+        'c_test',
+        remoteWith([
+          remoteMember('m_c_test_keep', '안경헌', '활성'),
+          remote,
+        ]),
+      );
+      final rows = merged.members.where((m) => m.id == id).toList();
+      expect(rows, hasLength(1));
+      expect(rows.single.status, '활성');
+      expect(rows.single.leftAt, isNull);
+      expect(ClubOpsSync.isMemberRemoved(id), isFalse);
+      final roster = OfficialMemberCount.attendanceRoster(
+        clubId: 'c_test',
+        creatorUserId: '',
+        roster: merged.members,
+      );
+      expect(roster.where((m) => m.name == '박재가입'), hasLength(1));
+      expect(
+        OfficialMemberCount.of(
+          clubId: 'c_test',
+          creatorUserId: '',
+          roster: merged.members,
+        ),
+        roster.length,
+      );
+      expect(
+        OfficialMemberCount.of(
+          clubId: 'c_test',
+          creatorUserId: '',
+          roster: merged.members,
+        ),
+        2,
+      );
+    });
+
+    test('탈퇴보다 이른 활성 시각은 재가입으로 보지 않는다', () {
+      const id = 'm_c_test_stale';
+      ClubOpsSync.markMemberRemoved(id);
+      final leftAt = DateTime(2026, 10, 1, 12);
+      final local = bundleWith([
+        Member(
+          id: id,
+          name: '박탈퇴',
+          gender: '남',
+          memberType: '정회원',
+          role: '일반',
+          joinDate: DateTime(2024, 1, 1),
+          status: '탈퇴',
+          leftAt: leftAt,
+          statusUpdatedAt: leftAt,
+        ),
+      ]);
+      final remote = remoteMember(id, '박탈퇴', '활성');
+      remote['statusUpdatedAt'] = DateTime(2026, 9, 1).toIso8601String();
+      final merged = ClubOpsSync.applyRemoteSlice(
+        local,
+        'c_test',
+        remoteWith([remote]),
+      );
+      final row = merged.members.firstWhere((m) => m.id == id);
+      expect(row.status, '탈퇴');
+      expect(row.leftAt, leftAt);
+      expect(ClubOpsSync.isMemberRemoved(id), isTrue);
     });
 
     test('로컬 강퇴 행이 있으면 상태를 지킨다 (기록 보존)', () {

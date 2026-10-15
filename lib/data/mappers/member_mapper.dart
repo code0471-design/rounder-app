@@ -35,6 +35,8 @@ abstract final class MemberMapper {
         memberTypeUpdatedAt: _asDateTime(data['member_type_updated_at']) ??
             _asDateTime(data['memberTypeUpdatedAt']),
         leftAt: _asDateTime(data['left_at']) ?? _asDateTime(data['leftAt']),
+        statusUpdatedAt: _asDateTime(data['status_updated_at']) ??
+            _asDateTime(data['statusUpdatedAt']),
         address: data['address'] as String?,
         memo: data['memo'] as String?,
         status: data['status'] as String? ?? '활성',
@@ -77,6 +79,8 @@ abstract final class MemberMapper {
           'member_type_updated_at':
               member.memberTypeUpdatedAt!.toIso8601String(),
         'left_at': member.leftAt?.toIso8601String(),
+        if (member.statusUpdatedAt != null)
+          'status_updated_at': member.statusUpdatedAt!.toIso8601String(),
         'address': member.address,
         'memo': member.memo,
         'status': member.status,

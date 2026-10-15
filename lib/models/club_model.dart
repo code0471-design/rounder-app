@@ -340,7 +340,10 @@ class Member {
   final DateTime? regularSince;
   /// 유형(정회원/게스트)을 마지막으로 바꾼 시각. 원격 빈 값이 전환을 되돌리지 않게 한다.
   final DateTime? memberTypeUpdatedAt;
-  final DateTime? leftAt;     // 탈퇴일. 문서 삭제 없이 status: 탈퇴 + left_at
+  /// 탈퇴일. 문서 삭제 없이 status: 탈퇴 + left_at
+  final DateTime? leftAt;
+  /// 탈퇴 뒤 다시 활성으로 바뀐 시각. 이 시각이 탈퇴보다 뒤면 재가입이다.
+  final DateTime? statusUpdatedAt;
   final String? address;
   final String? memo;
   final String status;        // 활성, 탈퇴
@@ -388,6 +391,7 @@ class Member {
         regularSince: regularSince,
         memberTypeUpdatedAt: memberTypeUpdatedAt,
         leftAt: leftAt,
+        statusUpdatedAt: statusUpdatedAt,
         address: address,
         memo: memo,
         status: status,
@@ -410,6 +414,7 @@ class Member {
     this.regularSince,
     this.memberTypeUpdatedAt,
     this.leftAt,
+    this.statusUpdatedAt,
     this.address,
     this.memo,
     this.status = '활성',
@@ -448,6 +453,7 @@ class Member {
     DateTime? memberTypeUpdatedAt,
     DateTime? leftAt,
     bool clearLeftAt = false,
+    DateTime? statusUpdatedAt,
     String? address,
     String? memo,
     String? status,
@@ -470,6 +476,7 @@ class Member {
           clearRegularSince ? null : (regularSince ?? this.regularSince),
       memberTypeUpdatedAt: memberTypeUpdatedAt ?? this.memberTypeUpdatedAt,
       leftAt: clearLeftAt ? null : (leftAt ?? this.leftAt),
+      statusUpdatedAt: statusUpdatedAt ?? this.statusUpdatedAt,
       address: address ?? this.address,
       memo: memo ?? this.memo,
       status: status ?? this.status,
@@ -479,10 +486,14 @@ class Member {
   }
 
   /// 문서는 남기고 탈퇴 처리. 이미 탈퇴일이 있으면 유지한다.
-  Member asLeft({DateTime? at}) => copyWith(
-        status: '탈퇴',
-        leftAt: leftAt ?? at ?? DateTime.now(),
-      );
+  Member asLeft({DateTime? at}) {
+    final when = at ?? DateTime.now();
+    return copyWith(
+      status: '탈퇴',
+      leftAt: leftAt ?? when,
+      statusUpdatedAt: when,
+    );
+  }
 }
 
 // ────────────────────────────────────────────────────────────

@@ -1108,6 +1108,31 @@ class ClubOpsSync {
   static bool isMemberRemoved(String memberId) =>
       memberId.isNotEmpty && _removedMemberIds.contains(memberId);
 
+  /// 탈퇴·강퇴 뒤 다시 승인된 행인지.
+  ///
+  /// 시각이 없는 원격 '활성'은 예전 버그(홍길동 되살아남)라서 받지 않는다.
+  /// 재가입 시각이 이 폰의 탈퇴 시각보다 뒤일 때만 활성으로 되돌린다.
+  @visibleForTesting
+  static bool remoteReactivationWins({
+    required String? localStatus,
+    required DateTime? localLeftAt,
+    required DateTime? localStatusUpdatedAt,
+    required String remoteStatus,
+    required DateTime? remoteStatusUpdatedAt,
+  }) {
+    if (remoteStatus != '활성' || remoteStatusUpdatedAt == null) return false;
+    if ((localStatus ?? '활성') == '활성') return false;
+    final localAt = localStatusUpdatedAt ?? localLeftAt;
+    if (localAt == null) return false;
+    return remoteStatusUpdatedAt.isAfter(localAt);
+  }
+
+  static DateTime? _statusAt(Object? raw) {
+    if (raw is DateTime) return raw;
+    if (raw is String && raw.isNotEmpty) return DateTime.tryParse(raw);
+    return null;
+  }
+
   /// 로컬에 남은 강퇴·탈퇴 회원을 tombstone 으로 등록한다.
   /// 앱 재시작으로 메모리 표식이 날아가도 원격이 되살리지 못하게 한다.
   static void seedRemovedMembers(Iterable<String> memberIds) {
@@ -2170,7 +2195,22 @@ class ClubOpsSync {
       if (id != null && _removedMemberIds.contains(id)) {
         // 로컬에 강퇴·탈퇴 행이 있으면 그걸 남긴다 (기록 보존 + 명단에서 숨김).
         // 원격에만 있으면 우리가 지운 회원이 되살아나는 것이므로 버린다.
+        // 다만 탈퇴보다 늦은 재가입 시각이 있으면 그 활성 행을 받는다.
         final localRow = localById[id];
+        final remoteRow = remoteByJoin[id];
+        if (localRow != null &&
+            remoteRow != null &&
+            remoteReactivationWins(
+              localStatus: '${localRow['status'] ?? ''}',
+              localLeftAt: _statusAt(localRow['leftAt']),
+              localStatusUpdatedAt: _statusAt(localRow['statusUpdatedAt']),
+              remoteStatus: '${remoteRow['status'] ?? ''}',
+              remoteStatusUpdatedAt: _statusAt(remoteRow['statusUpdatedAt']),
+            )) {
+          unmarkMemberRemoved(id);
+          out.add(e);
+          continue;
+        }
         if (localRow != null) out.add(localRow);
         continue;
       }

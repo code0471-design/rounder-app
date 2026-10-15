@@ -2326,6 +2326,27 @@ class ClubProvider extends ChangeNotifier with WidgetsBindingObserver {
       final idx = _members.indexWhere((m) =>
           m.id == id ||
           (m.id == raw.id && Member.isClubRosterId(clubId, m.id)));
+      if (idx >= 0 &&
+          ClubOpsSync.remoteReactivationWins(
+            localStatus: _members[idx].status,
+            localLeftAt: _members[idx].leftAt,
+            localStatusUpdatedAt: _members[idx].statusUpdatedAt,
+            remoteStatus: row.status,
+            remoteStatusUpdatedAt: row.statusUpdatedAt,
+          )) {
+        ClubOpsSync.unmarkMemberRemoved(id);
+        ClubOpsSync.unmarkMemberRemoved(raw.id);
+        ClubOpsSync.unmarkMemberRemoved(_members[idx].id);
+        _members[idx] = _preferLocalMemberProfile(row, _members[idx], clubId)
+            .copyWith(
+          status: '활성',
+          clearLeftAt: true,
+          statusUpdatedAt: row.statusUpdatedAt,
+          name: row.name.trim().isNotEmpty ? row.name : _members[idx].name,
+        );
+        changed = true;
+        continue;
+      }
       if (idx < 0) {
         if (ClubOpsSync.isMemberRemoved(id)) continue;
         if (_alreadyOnRoster(clubId, row, creatorUserId)) continue;
@@ -9354,6 +9375,10 @@ class ClubProvider extends ChangeNotifier with WidgetsBindingObserver {
     // selectedClub 이 아니라 req.clubId 로 붙인다. 로컬 필터용 rosterId.
     final rosterId = Member.rosterId(req.clubId, req.userId);
     final existingRow = _members.where((m) => m.id == rosterId).firstOrNull;
+    final rejoinedAt = DateTime.now();
+    // 탈퇴 표식이 남아 있으면 다른 폰이 이 활성 행을 버린다.
+    ClubOpsSync.unmarkMemberRemoved(rosterId);
+    ClubOpsSync.unmarkMemberRemoved(req.userId);
     final newMember = Member(
       id: rosterId,
       name: req.userName,
@@ -9364,8 +9389,9 @@ class ClubProvider extends ChangeNotifier with WidgetsBindingObserver {
       phone: req.userPhone,
       photoUrl: req.userPhotoUrl,
       birthDate: req.userBirthDate,
-      joinDate: existingRow?.joinDate ?? DateTime.now(),
+      joinDate: existingRow?.joinDate ?? rejoinedAt,
       status: '활성',
+      statusUpdatedAt: rejoinedAt,
       referrerId: req.referrerId,
       referrerName: req.referrerName,
     );
@@ -9639,11 +9665,13 @@ class ClubProvider extends ChangeNotifier with WidgetsBindingObserver {
             mid == _persistAuthUserId ||
             leavingIds.contains(mid)) {
           _members[i] = _members[i].asLeft();
+          ClubOpsSync.markMemberRemoved(mid);
         }
       } else if (mid == 'm_creator_$resolvedId' ||
           mid.startsWith('m_${resolvedId}_') ||
           mid == currentUserId) {
         _members[i] = _members[i].asLeft();
+        ClubOpsSync.markMemberRemoved(mid);
       }
     }
 
@@ -10229,7 +10257,11 @@ class ClubProvider extends ChangeNotifier with WidgetsBindingObserver {
     if (idx == -1) return;
     final member = _members[idx];
     if (member.status == '강퇴') return;
-    _members[idx] = member.copyWith(status: '강퇴');
+    _members[idx] = member.copyWith(
+      status: '강퇴',
+      statusUpdatedAt: DateTime.now(),
+      leftAt: member.leftAt ?? DateTime.now(),
+    );
     // 원격 watch/pull 이 옛 '활성' 행으로 되살리지 못하게 표시한다.
     ClubOpsSync.markMemberRemoved(memberId);
 
