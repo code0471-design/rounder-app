@@ -257,4 +257,81 @@ void main() {
       DuesChip.paid,
     );
   });
+
+  test('탈퇴했다가 다시 들어온 달은 미납이 아니라 미가입이다', () {
+    final rejoined = Member(
+      id: 'back',
+      name: '박재가입',
+      gender: '남',
+      memberType: '정회원',
+      role: '일반',
+      joinDate: DateTime(2026, 1, 1),
+      status: '활성',
+      awayPeriods: MemberAway.closing(
+        _m(
+          id: 'back',
+          join: DateTime(2026, 1, 1),
+          status: '탈퇴',
+          left: DateTime(2026, 8, 1),
+        ),
+        DateTime(2026, 10, 14),
+      ),
+    );
+    expect(
+      DuesPeriodEligibility.classify(
+        member: rejoined,
+        type: DuesType.monthly,
+        year: 2026,
+        month: 7,
+        hasPaid: false,
+        asOf: asOf,
+      ),
+      DuesChip.unpaid,
+    );
+    expect(
+      DuesPeriodEligibility.classify(
+        member: rejoined,
+        type: DuesType.monthly,
+        year: 2026,
+        month: 8,
+        hasPaid: false,
+        asOf: asOf,
+      ),
+      DuesChip.away,
+    );
+    expect(
+      DuesPeriodEligibility.classify(
+        member: rejoined,
+        type: DuesType.monthly,
+        year: 2026,
+        month: 9,
+        hasPaid: false,
+        asOf: asOf,
+      ),
+      DuesChip.away,
+    );
+    expect(
+      DuesPeriodEligibility.classify(
+        member: rejoined,
+        type: DuesType.monthly,
+        year: 2026,
+        month: 10,
+        hasPaid: false,
+        asOf: asOf,
+      ),
+      DuesChip.scheduled,
+    );
+    expect(
+      DuesPeriodEligibility.classify(
+        member: rejoined,
+        type: DuesType.monthly,
+        year: 2026,
+        month: 8,
+        hasPaid: true,
+        asOf: asOf,
+      ),
+      DuesChip.paid,
+    );
+    expect(DuesPeriodEligibility.canRecord(DuesChip.away), isFalse);
+  });
 }

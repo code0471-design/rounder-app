@@ -323,6 +323,47 @@ class JoinRequest {
 // ────────────────────────────────────────────────────────────
 //  Member
 // ────────────────────────────────────────────────────────────
+
+/// 탈퇴했다가 다시 들어온 빈 기간. 그 달은 회비에서 미가입이다.
+class MemberAway {
+  final DateTime from;
+  final DateTime until;
+
+  const MemberAway({required this.from, required this.until});
+
+  /// 탈퇴일이 있으면 재가입 시각까지의 기간을 하나 더한다.
+  static List<MemberAway> closing(Member? existing, DateTime rejoinedAt) {
+    final prior = existing?.awayPeriods ?? const <MemberAway>[];
+    final left = existing?.leftAt;
+    if (left == null || !rejoinedAt.isAfter(left)) return List<MemberAway>.from(prior);
+    return [...prior, MemberAway(from: left, until: rejoinedAt)];
+  }
+
+  static List<MemberAway> union(Iterable<MemberAway> a, Iterable<MemberAway> b) {
+    final seen = <String>{};
+    final out = <MemberAway>[];
+    for (final gap in [...a, ...b]) {
+      final key = '${gap.from.toIso8601String()}|${gap.until.toIso8601String()}';
+      if (!seen.add(key)) continue;
+      out.add(gap);
+    }
+    return out;
+  }
+
+  static List<MemberAway> decodeList(Object? raw) {
+    if (raw is! List) return const [];
+    final out = <MemberAway>[];
+    for (final item in raw) {
+      if (item is! Map) continue;
+      final from = DateTime.tryParse('${item['from'] ?? ''}');
+      final until = DateTime.tryParse('${item['until'] ?? ''}');
+      if (from == null || until == null || !until.isAfter(from)) continue;
+      out.add(MemberAway(from: from, until: until));
+    }
+    return out;
+  }
+}
+
 class Member {
   final String id;
   final String name;
@@ -344,6 +385,8 @@ class Member {
   final DateTime? leftAt;
   /// 탈퇴 뒤 다시 활성으로 바뀐 시각. 이 시각이 탈퇴보다 뒤면 재가입이다.
   final DateTime? statusUpdatedAt;
+  /// 탈퇴했다가 다시 들어온 기간. 회비 화면에서 그 달을 미가입으로 보여 준다.
+  final List<MemberAway> awayPeriods;
   final String? address;
   final String? memo;
   final String status;        // 활성, 탈퇴
@@ -392,6 +435,7 @@ class Member {
         memberTypeUpdatedAt: memberTypeUpdatedAt,
         leftAt: leftAt,
         statusUpdatedAt: statusUpdatedAt,
+        awayPeriods: awayPeriods,
         address: address,
         memo: memo,
         status: status,
@@ -415,6 +459,7 @@ class Member {
     this.memberTypeUpdatedAt,
     this.leftAt,
     this.statusUpdatedAt,
+    this.awayPeriods = const [],
     this.address,
     this.memo,
     this.status = '활성',
@@ -454,6 +499,7 @@ class Member {
     DateTime? leftAt,
     bool clearLeftAt = false,
     DateTime? statusUpdatedAt,
+    List<MemberAway>? awayPeriods,
     String? address,
     String? memo,
     String? status,
@@ -477,6 +523,7 @@ class Member {
       memberTypeUpdatedAt: memberTypeUpdatedAt ?? this.memberTypeUpdatedAt,
       leftAt: clearLeftAt ? null : (leftAt ?? this.leftAt),
       statusUpdatedAt: statusUpdatedAt ?? this.statusUpdatedAt,
+      awayPeriods: awayPeriods ?? this.awayPeriods,
       address: address ?? this.address,
       memo: memo ?? this.memo,
       status: status ?? this.status,

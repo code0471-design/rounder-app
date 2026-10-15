@@ -243,6 +243,7 @@ class RosterDedupe {
         notBefore: notBefore,
       ),
       leftAt: keep.leftAt ?? extra.leftAt,
+      awayPeriods: MemberAway.union(keep.awayPeriods, extra.awayPeriods),
       status: keep.status == '탈퇴' || extra.status == '탈퇴'
           ? '탈퇴'
           : keep.status,

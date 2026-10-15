@@ -2342,6 +2342,7 @@ class ClubProvider extends ChangeNotifier with WidgetsBindingObserver {
           status: '활성',
           clearLeftAt: true,
           statusUpdatedAt: row.statusUpdatedAt,
+          awayPeriods: MemberAway.union(row.awayPeriods, _members[idx].awayPeriods),
           name: row.name.trim().isNotEmpty ? row.name : _members[idx].name,
         );
         changed = true;
@@ -8794,6 +8795,7 @@ class ClubProvider extends ChangeNotifier with WidgetsBindingObserver {
       clearLeftAt: true,
       statusUpdatedAt: rejoinedAt,
       memberTypeUpdatedAt: rejoinedAt,
+      awayPeriods: MemberAway.closing(existingRow, rejoinedAt),
     );
 
     try {
@@ -9406,6 +9408,7 @@ class ClubProvider extends ChangeNotifier with WidgetsBindingObserver {
       joinDate: existingRow?.joinDate ?? rejoinedAt,
       status: '활성',
       statusUpdatedAt: rejoinedAt,
+      awayPeriods: MemberAway.closing(existingRow, rejoinedAt),
       referrerId: req.referrerId,
       referrerName: req.referrerName,
     );

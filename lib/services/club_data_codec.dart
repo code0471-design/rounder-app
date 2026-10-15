@@ -330,6 +330,10 @@ class ClubDataCodec {
         'memberTypeUpdatedAt': _dt(m.memberTypeUpdatedAt),
         'leftAt': _dt(m.leftAt),
         'statusUpdatedAt': _dt(m.statusUpdatedAt),
+        'awayPeriods': [
+          for (final gap in m.awayPeriods)
+            {'from': _dt(gap.from), 'until': _dt(gap.until)},
+        ],
         'address': m.address,
         'memo': m.memo,
         'status': m.status,
@@ -356,6 +360,9 @@ class ClubDataCodec {
         leftAt: _parseDt(j['leftAt']) ?? _parseDt(j['left_at']),
         statusUpdatedAt: _parseDt(j['statusUpdatedAt']) ??
             _parseDt(j['status_updated_at']),
+        awayPeriods: MemberAway.decodeList(
+          j['awayPeriods'] ?? j['away_periods'],
+        ),
         address: j['address'] as String?,
         memo: j['memo'] as String?,
         status: j['status'] as String? ?? '활성',

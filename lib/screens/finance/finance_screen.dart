@@ -1711,6 +1711,10 @@ Widget _duesPayStatusChip({
       bg = const Color(0xFF9CA3AF);
       label = '가입 전';
       break;
+    case DuesChip.away:
+      bg = const Color(0xFF9CA3AF);
+      label = '미가입';
+      break;
     case DuesChip.scheduled:
       bg = const Color(0xFF9CA3AF);
       label = '예정';
@@ -1792,7 +1796,9 @@ class _MemberPaymentTile extends StatelessWidget {
     if (chip == DuesChip.paid) {
       avatarBg = AppColors.success.withValues(alpha: 0.15);
       avatarFg = AppColors.success;
-    } else if (chip == DuesChip.beforeJoin || chip == DuesChip.scheduled) {
+    } else if (chip == DuesChip.beforeJoin ||
+        chip == DuesChip.away ||
+        chip == DuesChip.scheduled) {
       avatarBg = const Color(0xFF9CA3AF).withValues(alpha: 0.18);
       avatarFg = const Color(0xFF6B7280);
     } else if (pendingRequest != null) {
@@ -1922,7 +1928,7 @@ class _MemberPaymentTile extends StatelessWidget {
       return _duesPayStatusChip(chip: chip, onTap: onToggle);
     }
 
-    if (chip == DuesChip.beforeJoin) {
+    if (chip == DuesChip.beforeJoin || chip == DuesChip.away) {
       return _duesPayStatusChip(chip: chip);
     }
 

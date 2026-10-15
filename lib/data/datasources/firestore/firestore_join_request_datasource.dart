@@ -153,6 +153,10 @@ class FirestoreJoinRequestDataSource {
 
       final existingMember = await memberRef.get();
       final existingMembership = await membershipRef.get();
+      final rejoinedAt = DateTime.now();
+      final previous = existingMember.data() == null
+          ? null
+          : MemberMapper.fromMap(request.userId, existingMember.data()!);
       final member = Member(
         id: request.userId,
         name: request.userName,
@@ -165,7 +169,8 @@ class FirestoreJoinRequestDataSource {
         birthDate: request.userBirthDate,
         joinDate: DateTime.now(),
         status: '활성',
-        statusUpdatedAt: DateTime.now(),
+        statusUpdatedAt: rejoinedAt,
+        awayPeriods: MemberAway.closing(previous, rejoinedAt),
       );
       final memberData = MemberMapper.toMap(
         member,

@@ -37,6 +37,9 @@ abstract final class MemberMapper {
         leftAt: _asDateTime(data['left_at']) ?? _asDateTime(data['leftAt']),
         statusUpdatedAt: _asDateTime(data['status_updated_at']) ??
             _asDateTime(data['statusUpdatedAt']),
+        awayPeriods: MemberAway.decodeList(
+          data['away_periods'] ?? data['awayPeriods'],
+        ),
         address: data['address'] as String?,
         memo: data['memo'] as String?,
         status: data['status'] as String? ?? '활성',
@@ -81,6 +84,14 @@ abstract final class MemberMapper {
         'left_at': member.leftAt?.toIso8601String(),
         if (member.statusUpdatedAt != null)
           'status_updated_at': member.statusUpdatedAt!.toIso8601String(),
+        if (member.awayPeriods.isNotEmpty)
+          'away_periods': [
+            for (final gap in member.awayPeriods)
+              {
+                'from': gap.from.toIso8601String(),
+                'until': gap.until.toIso8601String(),
+              },
+          ],
         'address': member.address,
         'memo': member.memo,
         'status': member.status,

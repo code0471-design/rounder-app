@@ -1,7 +1,7 @@
 import '../models/club_model.dart';
 
 /// 회비납부 탭 한 칸 칩. hidden 은 목록에 안 넣는다.
-enum DuesChip { hidden, beforeJoin, scheduled, paid, unpaid }
+enum DuesChip { hidden, beforeJoin, away, scheduled, paid, unpaid }
 
 /// 가입·탈퇴·예정. 정회원만. 게스트는 대상이 아니다.
 abstract final class DuesPeriodEligibility {
@@ -72,6 +72,11 @@ abstract final class DuesPeriodEligibility {
 
     if (hasPaid) return DuesChip.paid;
 
+    final away = type == DuesType.monthly
+        ? isAwayMonth(member, year, month ?? 1)
+        : isAwayYear(member, year);
+    if (away) return DuesChip.away;
+
     if (type == DuesType.monthly) {
       final viewMonth = month ?? 1;
       if (yearMonth(year, viewMonth) > yearMonth(asOf.year, asOf.month)) {
@@ -84,7 +89,26 @@ abstract final class DuesPeriodEligibility {
     return DuesChip.unpaid;
   }
 
-  /// 미납·예정(미리 낼 달)만 납부 처리. 가입 전은 아니다.
+  /// 미납·예정(미리 낼 달)만 납부 처리. 가입 전·미가입은 아니다.
   static bool canRecord(DuesChip chip) =>
       chip == DuesChip.unpaid || chip == DuesChip.scheduled;
+
+  /// 탈퇴한 달부터 다시 들어온 달 전까지. 같은 달에 돌아오면 그 달은 미가입이 아니다.
+  static bool isAwayMonth(Member member, int year, int month) {
+    final view = yearMonth(year, month);
+    for (final gap in member.awayPeriods) {
+      final start = yearMonth(gap.from.year, gap.from.month);
+      final end = yearMonth(gap.until.year, gap.until.month);
+      if (view >= start && view < end) return true;
+    }
+    return false;
+  }
+
+  /// 그 해 열두 달이 모두 탈퇴 기간일 때만 연회비도 미가입이다.
+  static bool isAwayYear(Member member, int year) {
+    for (var month = 1; month <= 12; month++) {
+      if (!isAwayMonth(member, year, month)) return false;
+    }
+    return true;
+  }
 }

@@ -288,6 +288,7 @@ void main() {
     expect(finance.contains('bg = AppColors.success'), isTrue);
     expect(finance.contains('bg = AppColors.danger'), isTrue);
     expect(finance.contains("'가입 전'"), isTrue);
+    expect(finance.contains("'미가입'"), isTrue);
     expect(finance.contains("'예정'"), isTrue);
     expect(
       finance.contains("color: Colors.white,"),

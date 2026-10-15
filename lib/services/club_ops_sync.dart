@@ -2178,6 +2178,19 @@ class ClubOpsSync {
         remoteByJoin[id],
         remoteWins: remoteWins,
       );
+      final gaps = MemberAway.union(
+        MemberAway.decodeList(localByJoin[id]?['awayPeriods']),
+        MemberAway.decodeList(remoteByJoin[id]?['awayPeriods']),
+      );
+      if (gaps.isNotEmpty) {
+        e['awayPeriods'] = [
+          for (final gap in gaps)
+            {
+              'from': gap.from.toIso8601String(),
+              'until': gap.until.toIso8601String(),
+            },
+        ];
+      }
     }
     if (_removedMemberIds.isEmpty) return merged;
 
