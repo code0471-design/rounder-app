@@ -1304,6 +1304,43 @@ void main() {
       expect(ClubOpsSync.isMemberRemoved(id), isTrue);
     });
 
+    test('초대 재가입 직후 서버에 남은 탈퇴 행은 활성을 덮지 않는다', () {
+      const id = 'm_c_test_invite';
+      ClubOpsSync.markMemberRemoved(id);
+      final rejoinedAt = DateTime(2026, 10, 15, 16);
+      final local = bundleWith([
+        Member(
+          id: id,
+          name: '박초대',
+          gender: '남',
+          memberType: '정회원',
+          role: '일반',
+          joinDate: DateTime(2024, 1, 1),
+          status: '활성',
+          statusUpdatedAt: rejoinedAt,
+        ),
+      ]);
+      final remote = remoteMember(id, '박초대', '탈퇴');
+      remote['leftAt'] = DateTime(2026, 8, 1).toIso8601String();
+      remote['statusUpdatedAt'] = DateTime(2026, 8, 1).toIso8601String();
+      final merged = ClubOpsSync.applyRemoteSlice(
+        local,
+        'c_test',
+        remoteWith([remote]),
+      );
+      final row = merged.members.singleWhere((m) => m.id == id);
+      expect(row.status, '활성');
+      expect(row.leftAt, isNull);
+      expect(
+        OfficialMemberCount.of(
+          clubId: 'c_test',
+          creatorUserId: '',
+          roster: merged.members,
+        ),
+        1,
+      );
+    });
+
     test('로컬 강퇴 행이 있으면 상태를 지킨다 (기록 보존)', () {
       ClubOpsSync.markMemberRemoved('m_c_test_kicked');
       final local = bundleWith([

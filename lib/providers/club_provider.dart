@@ -8774,6 +8774,7 @@ class ClubProvider extends ChangeNotifier with WidgetsBindingObserver {
 
     final existingRow = _members.where((m) => m.id == rosterId).firstOrNull;
     final joinedAt = existingRow?.joinDate ?? DateTime.now();
+    final rejoinedAt = DateTime.now();
     final member = _selfMember(
       id: rosterId,
       name: userName,
@@ -8789,7 +8790,10 @@ class ClubProvider extends ChangeNotifier with WidgetsBindingObserver {
           ? null
           : existingRow.copyWith(clearRegularSince: asGuest),
     ).copyWith(
-      memberTypeUpdatedAt: DateTime.now(),
+      status: '활성',
+      clearLeftAt: true,
+      statusUpdatedAt: rejoinedAt,
+      memberTypeUpdatedAt: rejoinedAt,
     );
 
     try {
@@ -8828,19 +8832,28 @@ class ClubProvider extends ChangeNotifier with WidgetsBindingObserver {
       _freshClubIds.add(clubId);
     }
 
+    // 탈퇴 표식은 지우지 않는다. 지우면 아직 서버에 남은 탈퇴 행이
+    // 방금 넣은 활성을 다시 덮는다. 다른 폰은 재가입 시각으로 활성만 받는다.
+    _leftClubIds.removeWhere((id) => clubIdAliases(clubId).contains(id));
+    final leftAuth = _persistAuthUserId;
+    if (leftAuth != null) unawaited(_saveLeftClubIds(leftAuth));
+
     // 예전 초대 가입은 userId 그대로 넣어서 명단 필터에 안 걸렸다. 고쳐서 다시 넣는다.
     _members.removeWhere((m) => m.id == currentUserId && m.id != rosterId);
 
-    final alreadyListed = _members.any((m) => m.id == rosterId);
-    if (!alreadyListed) {
+    final existingIdx = _members.indexWhere((m) => m.id == rosterId);
+    final wasActive = existingIdx >= 0 && _members[existingIdx].status == '활성';
+    if (existingIdx < 0) {
       _members.add(member);
+    } else if (!wasActive) {
+      _members[existingIdx] = member;
     }
     try {
       AppDependencies.instance.mockDataStore?.addMember(
         clubId: clubId,
         member: member,
         alsoAsIds: [authUserId, currentUserId],
-        bumpCount: !alreadyListed,
+        bumpCount: !wasActive,
       );
     } catch (_) {}
 
@@ -8863,6 +8876,7 @@ class ClubProvider extends ChangeNotifier with WidgetsBindingObserver {
     if (!_allClubs.any((c) => c.id == clubId)) {
       _allClubs.add(joinedClub);
     }
+    _setMemberCount(clubId, _officialMemberCount(clubId));
 
     _activities.insert(
       0,

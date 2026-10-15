@@ -41,6 +41,9 @@ void main() {
       expect(fn.contains('_persistAuthUserId ?? currentUserId'), isTrue);
       expect(fn.contains('_hydrateRosterFromServer(clubId)'), isTrue);
       expect(fn.contains('addMemberViaInvite('), isTrue);
+      expect(fn.contains('statusUpdatedAt: rejoinedAt'), isTrue);
+      expect(fn.contains('else if (!wasActive)'), isTrue);
+      expect(fn.contains('unmarkMemberRemoved'), isFalse);
     });
 
     test('없는 모임 문서에 member_count 만 올려 빈 모임을 만들지 않는다', () {
