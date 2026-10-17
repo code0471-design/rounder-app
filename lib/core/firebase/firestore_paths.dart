@@ -14,6 +14,8 @@ abstract final class FirestorePaths {
   static const metaClubCatalog = '_meta/club_catalog';
   static const metaHqPush = '_meta/hq_push';
   static const metaHqAlimtalk = '_meta/hq_alimtalk';
+  /// 스토어에 올라간 최신 빌드. 앱이 자기 빌드가 더 크면 올리고, 작으면 업데이트 안내를 띄운다.
+  static const metaStoreVersion = '_meta/store_version';
   static const hqBroadcasts = 'hq_broadcasts';
   static const d1Queue = 'd1_queue';
   /// 일정·날짜·번호당 알림톡 1통. 큐 문서가 여러 개여도 이 문서가 하나면 한 통이다.

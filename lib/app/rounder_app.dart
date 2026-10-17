@@ -21,6 +21,7 @@ import '../screens/clubs/create_club_screen.dart';
 import '../screens/my_clubs/my_clubs_screen.dart';
 import '../screens/splash/splash_screen.dart';
 import '../services/deep_link_service.dart';
+import '../services/store_update_prompt.dart';
 import '../theme/app_theme.dart';
 import 'app_startup_result.dart';
 
@@ -39,6 +40,7 @@ class _RounderAppState extends State<RounderApp> {
     super.initState();
     if (!_isWebAdminMode()) {
       unawaited(DeepLinkService.instance.start());
+      StoreUpdatePrompt.scheduleAfterLaunch();
     }
   }
 
