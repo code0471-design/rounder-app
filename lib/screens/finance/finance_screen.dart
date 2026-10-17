@@ -378,7 +378,7 @@ class FinanceScreenState extends State<FinanceScreen>
             onLater: () => _finishTxPrompt(enter: false),
           );
         }
-        if (!isActualTreasurer && provider.isFinanceSetupPending) {
+        if (!isTreasurer && provider.isFinanceSetupPending) {
           return const Scaffold(
             backgroundColor: AppColors.background,
             body: _FinanceSetupPendingView(),
