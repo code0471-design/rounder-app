@@ -11313,7 +11313,7 @@ class ClubProvider extends ChangeNotifier with WidgetsBindingObserver {
     return sum;
   }
 
-  /// 선택 모임 활성 회원 포인트 랭킹 (올해, 내림차순)
+  /// 선택 모임 정회원 포인트 랭킹 (올해, 내림차순). 게스트는 빼 둔다.
   List<MapEntry<String, int>> get memberPointsRanking =>
       memberPointsRankingForYear(DateTime.now().year);
 
@@ -11322,14 +11322,24 @@ class ClubProvider extends ChangeNotifier with WidgetsBindingObserver {
     if (lock != null && lock.isClosed) {
       final rows = [...lock.ranks]
         ..sort((a, b) => a.rank.compareTo(b.rank));
-      return [for (final r in rows) MapEntry(r.memberId, r.points)];
+      return [
+        for (final r in rows)
+          if (_includeInPointsRanking(r.memberId))
+            MapEntry(r.memberId, r.points),
+      ];
     }
     return _livePointsRankingForYear(year);
   }
 
+  bool _includeInPointsRanking(String memberId) {
+    final m = memberById(memberId);
+    return m == null || m.memberType != '게스트';
+  }
+
   List<MapEntry<String, int>> _livePointsRankingForYear(int year) {
+    // 게스트는 시상에는 나와도 되고, 멤버십 포인트 랭킹에는 안 나온다.
     final result = <MapEntry<String, int>>[];
-    for (final m in activeMembers) {
+    for (final m in regularMembers) {
       result.add(MapEntry(m.id, getMembershipPoints(m.id, year: year)));
     }
     result.sort((a, b) => b.value.compareTo(a.value));

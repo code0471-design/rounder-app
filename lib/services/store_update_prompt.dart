@@ -13,7 +13,7 @@ import '../navigation/app_navigator.dart';
 import '../theme/app_theme.dart';
 
 /// pubspec `version:` 의 +build 와 같아야 한다.
-const kStoreUpdateInstalledBuild = 215;
+const kStoreUpdateInstalledBuild = 216;
 
 const _androidBuildKey = 'androidBuild';
 const _iosBuildKey = 'iosBuild';

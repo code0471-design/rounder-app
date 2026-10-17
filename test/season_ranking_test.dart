@@ -78,4 +78,18 @@ void main() {
       isFalse,
     );
   });
+
+  test('포인트 랭킹은 정회원만 넣고 게스트는 뺀다', () {
+    final src = File('lib/providers/club_provider.dart').readAsStringSync();
+    final start = src.indexOf('List<MapEntry<String, int>> _livePointsRankingForYear');
+    expect(start, greaterThan(0));
+    final fn = src.substring(
+      start,
+      src.indexOf('SeasonRankingLock? seasonLockFor'),
+    );
+    expect(fn.contains('regularMembers'), isTrue);
+    expect(fn.contains('activeMembers'), isFalse,
+        reason: '활성 회원 전체를 세면 게스트가 올해 랭킹에 나온다');
+    expect(src.contains('_includeInPointsRanking'), isTrue);
+  });
 }

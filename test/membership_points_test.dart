@@ -551,6 +551,29 @@ void main() {
       expect(ranking.first.key, myId, reason: '유일한 적립자가 1위여야 한다');
     });
 
+    test('게스트는 포인트가 있어도 랭킹에 안 나온다', () {
+      final guestId = 'm_${clubId}_guest_ahn';
+      clubs.addMember(Member(
+        id: guestId,
+        name: '안경헌',
+        gender: '남',
+        memberType: '게스트',
+        role: '게스트',
+        joinDate: DateTime(2026, 1, 1),
+      ));
+      clubs.addMembershipPoint(
+        memberId: guestId,
+        type: MembershipPointType.roundAttendance,
+        points: 10,
+        desc: '참석',
+      );
+      expect(clubs.getMembershipPoints(guestId), 10);
+      final ranking = clubs.memberPointsRanking;
+      expect(ranking.any((e) => e.key == guestId), isFalse,
+          reason: '게스트는 시상에는 나와도 되고 랭킹에는 나오면 안 된다');
+      expect(ranking.any((e) => e.key == myId), isTrue);
+    });
+
     test('다른 모임에서 받은 정시납부 +5 가 이 모임 랭킹에 안 붙는다', () async {
       clubs.addDuesSetting(DuesSetting(
         id: 'd_a',
