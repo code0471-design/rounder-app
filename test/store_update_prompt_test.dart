@@ -23,11 +23,46 @@ void main() {
     );
   });
 
-  test('컴파일 빌드 번호는 pubspec version +code 와 같다', () {
+  test('스토어 버전 이름이 더 높으면 안내한다', () {
+    expect(
+      storeVersionNameIsNewer(installed: '1.0.2', store: '1.0.3'),
+      isTrue,
+    );
+    expect(
+      storeVersionNameIsNewer(installed: '1.0.3', store: '1.0.3'),
+      isFalse,
+    );
+    expect(
+      storeVersionNameIsNewer(installed: '1.0.3', store: '1.0.2'),
+      isFalse,
+    );
+  });
+
+  test('Play HTML과 App Store lookup에서 버전 이름을 읽는다', () {
+    expect(
+      parsePlayStoreVersionName(r'''"141":[[["1.0.3"]]],"145":[]'''),
+      '1.0.3',
+    );
+    expect(
+      parsePlayStoreVersionName(r'''\"141\":[[[\"1.0.3\"]]]'''),
+      '1.0.3',
+    );
+    expect(
+      parseIosLookupVersion(
+        '{"resultCount":1,"results":[{"version":"1.0.3","trackId":1}]}',
+      ),
+      '1.0.3',
+    );
+  });
+
+  test('컴파일 버전은 pubspec version 과 같다', () {
     final line = File('pubspec.yaml')
         .readAsLinesSync()
         .firstWhere((l) => l.startsWith('version:'));
-    final code = int.parse(line.split('+').last.trim());
+    final spec = line.substring('version:'.length).trim();
+    final name = spec.split('+').first;
+    final code = int.parse(spec.split('+').last);
+    expect(kStoreUpdateInstalledVersion, name);
     expect(kStoreUpdateInstalledBuild, code);
   });
 
@@ -46,12 +81,17 @@ void main() {
     );
   });
 
-  test('업데이트 안내는 전용 서비스만 쓰고 명단·알림·재무를 건드리지 않는다', () {
+  test('업데이트 안내는 스토어를 보고, 지금 빌드를 최신으로 덮지 않는다', () {
     final src =
         File('lib/services/store_update_prompt.dart').readAsStringSync();
     expect(src.contains('업데이트 안내'), isTrue);
     expect(src.contains('새 버전이 있습니다'), isTrue);
+    expect(src.contains('itunes.apple.com/lookup'), isTrue);
+    expect(src.contains('InviteLinks.playStore'), isTrue);
     expect(src.contains('FirestorePaths.metaStoreVersion'), isTrue);
+    expect(src.contains('_readRemoteBuild'), isTrue);
+    expect(src.contains('SetOptions(merge: true)'), isFalse,
+        reason: '지금 깔린 빌드를 최신으로 쓰면 스토어 업데이트가 있어도 안내가 안 뜬다');
     expect(src.contains('club_ops_sync'), isFalse);
     expect(src.contains('ClubProvider'), isFalse);
     expect(src.contains('duesPayments'), isFalse);
