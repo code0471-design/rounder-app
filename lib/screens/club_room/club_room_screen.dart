@@ -292,14 +292,16 @@ class _ClubRoomScreenState extends State<ClubRoomScreen> {
 
   /// 재무 탭 진입 가능 여부
   /// · 게스트 차단
-  /// · 회비 미설정: 총무, 또는 총무 공석인 회장·부회장은 들어간다
+  /// · 회장·부회장·총무는 회비 설정 여부와 관계없이 들어간다
+  /// · 일반 회원만 회비 미설정일 때 막는다
   bool _canOpenFinanceTab() {
     final provider = context.read<ClubProvider>();
     if (provider.isGuestMember) {
       _showGuestRestrictedDialog();
       return false;
     }
-    if (!provider.isTreasurer && provider.isFinanceSetupPending) {
+    if (provider.isClubExecutive) return true;
+    if (provider.isFinanceSetupPending) {
       _showFinanceSetupPendingDialog();
       return false;
     }

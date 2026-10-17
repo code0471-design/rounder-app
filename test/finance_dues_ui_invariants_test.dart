@@ -216,9 +216,8 @@ void main() {
     expect(fn.contains('Navigator.of(dialogCtx, rootNavigator: true).pop()'),
         isTrue);
     expect(fn.contains('재무 초기 설정은 총무만 가능합니다.'), isTrue);
-    expect(room.contains('!provider.isTreasurer && provider.isFinanceSetupPending'),
-        isTrue,
-        reason: '총무 공석 회장까지 막으면 재무 탭에 못 들어간다');
+    expect(room.contains('if (provider.isClubExecutive) return true;'), isTrue,
+        reason: '회장은 총무가 있어도 재무 탭에 들어가야 한다');
     expect(room.contains('!provider.isActualTreasurer && provider.isFinanceSetupPending'),
         isFalse);
   });
@@ -249,9 +248,9 @@ void main() {
         reason: '총무가 아닌 사람에게 총무님 반갑습니다를 보여 주면 안 된다');
     expect(finance.contains('_FinanceSetupPendingView'), isTrue);
     expect(
-      finance.contains('if (!isTreasurer && provider.isFinanceSetupPending)'),
+      finance.contains('!provider.isClubExecutive &&'),
       isTrue,
-      reason: '총무 공석 회장에게 대기 화면을 보여 주면 재무를 설정할 수 없다',
+      reason: '회장에게 대기 화면을 보여 주면 재무 탭에 들어간 것과 같다',
     );
     expect(provider.contains('needsTreasurerFinanceOnboarding'), isTrue);
     expect(provider.contains('isActualTreasurer && isFinanceSetupPending'),
