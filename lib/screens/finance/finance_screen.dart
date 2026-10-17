@@ -378,14 +378,6 @@ class FinanceScreenState extends State<FinanceScreen>
             onLater: () => _finishTxPrompt(enter: false),
           );
         }
-        if (!isTreasurer &&
-            !provider.isClubExecutive &&
-            provider.isFinanceSetupPending) {
-          return const Scaffold(
-            backgroundColor: AppColors.background,
-            body: _FinanceSetupPendingView(),
-          );
-        }
 
         // 재무 관리(설정·초기세팅·수정)는 총무만 — Case B/C
         final isAdmin = isTreasurer;
@@ -7339,47 +7331,6 @@ void _showPdfDialog(BuildContext context, String title) {
   );
 }
 
-// ════════════════════════════════════════════════════════════
-//  회비 미설정 — 비총무 차단 화면
-// ════════════════════════════════════════════════════════════
-class _FinanceSetupPendingView extends StatelessWidget {
-  const _FinanceSetupPendingView();
-
-  @override
-  Widget build(BuildContext context) {
-    return Center(
-      child: Padding(
-        padding: const EdgeInsets.all(32),
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            Container(
-              width: 64,
-              height: 64,
-              decoration: BoxDecoration(
-                color: AppColors.primary.withValues(alpha: 0.08),
-                shape: BoxShape.circle,
-              ),
-              child: const Icon(Icons.hourglass_empty_rounded,
-                  color: AppColors.primary, size: 30),
-            ),
-            const SizedBox(height: 16),
-            const Text(
-              '아직 회비 설정 전입니다.\n총무가 최초 설정한 후 조회 가능합니다',
-              textAlign: TextAlign.center,
-              style: TextStyle(
-                fontSize: 15,
-                fontWeight: FontWeight.w700,
-                color: AppColors.textPrimary,
-                height: 1.5,
-              ),
-            ),
-          ],
-        ),
-      ),
-    );
-  }
-}
 
 // ════════════════════════════════════════════════════════════
 //  총무 최초 재무 진입 가이드

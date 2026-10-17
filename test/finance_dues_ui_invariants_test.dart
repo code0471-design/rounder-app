@@ -204,22 +204,24 @@ void main() {
         reason: '탭 안 context 로 pop 하면 재무 화면이 사라진다');
   });
 
-  test('총무가 아닌 모임은 환영 화면 대신 총무 전용 안내를 띄운다', () {
+  test('재무 탭은 정회원도 들어가고 회비 설정·납부만 총무다', () {
     final room =
         File('lib/screens/club_room/club_room_screen.dart').readAsStringSync();
-    final start = room.indexOf('void _showFinanceSetupPendingDialog(');
-    final end = room.indexOf('void _onClubSettingsTap(', start);
+    final start = room.indexOf('bool _canOpenFinanceTab(');
+    final end = room.indexOf('void _showGuestRestrictedDialog(', start);
     expect(start, greaterThan(0));
     expect(end, greaterThan(start));
     final fn = room.substring(start, end);
-    expect(fn.contains('useRootNavigator: true'), isTrue);
-    expect(fn.contains('Navigator.of(dialogCtx, rootNavigator: true).pop()'),
-        isTrue);
-    expect(fn.contains('재무 초기 설정은 총무만 가능합니다.'), isTrue);
-    expect(room.contains('if (provider.isClubExecutive) return true;'), isTrue,
-        reason: '회장은 총무가 있어도 재무 탭에 들어가야 한다');
-    expect(room.contains('!provider.isActualTreasurer && provider.isFinanceSetupPending'),
-        isFalse);
+    expect(fn.contains('isGuestMember'), isTrue);
+    expect(provider.contains('!isClubExecutive && currentMember?.memberType'),
+        isTrue,
+        reason: '게스트였다 회장이 되면 유형이 게스트로 남아도 재무 탭을 게스트로 막으면 안 된다');
+    expect(fn.contains('isFinanceSetupPending'), isFalse,
+        reason: '회비가 안 보인다고 재무 탭을 막으면 볼케이노처럼 정회원·회장이 못 들어간다');
+    expect(fn.contains('재무 초기 설정은 총무만 가능합니다.'), isFalse);
+    expect(finance.contains('final isAdmin = isTreasurer;'), isTrue,
+        reason: '회비 설정·납부는 총무만');
+    expect(finance.contains('_guardTreasurerSetup'), isTrue);
   });
 
   test('기존 잔액 등록 카드는 총무만 본다', () {
@@ -246,12 +248,9 @@ void main() {
     expect(finance.contains('needsTreasurerFinanceOnboarding'), isTrue);
     expect(finance.contains('isActualTreasurer'), isTrue,
         reason: '총무가 아닌 사람에게 총무님 반갑습니다를 보여 주면 안 된다');
-    expect(finance.contains('_FinanceSetupPendingView'), isTrue);
-    expect(
-      finance.contains('!provider.isClubExecutive &&'),
-      isTrue,
-      reason: '회장에게 대기 화면을 보여 주면 재무 탭에 들어간 것과 같다',
-    );
+    expect(finance.contains('_FinanceSetupPendingView'), isFalse,
+        reason: '회비가 안 보여도 정회원·회장은 재무 탭에 들어간다');
+    expect(finance.contains('아직 회비 설정 전입니다'), isFalse);
     expect(provider.contains('needsTreasurerFinanceOnboarding'), isTrue);
     expect(provider.contains('isActualTreasurer && isFinanceSetupPending'),
         isTrue,

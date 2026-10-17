@@ -2520,4 +2520,32 @@ void main() {
       reason: '아레나 찌꺼기만 지운다',
     );
   });
+
+  test('게스트였던 폰의 빈 회비는 사이드카 실패 때 서버 회비를 덮지 않는다', () {
+    expect(
+      ClubOpsSync.shouldPatchDuesOnOverflowSkip(
+        localSettings: const [],
+        removedIds: const [],
+      ),
+      isFalse,
+      reason: '회비 없는 폰이 [] 를 올리면 총무가 넣은 회비가 사라진다',
+    );
+    expect(
+      ClubOpsSync.shouldPatchDuesOnOverflowSkip(
+        localSettings: [
+          {'id': 'ds_1', 'clubId': 'c_test'},
+        ],
+        removedIds: const [],
+      ),
+      isTrue,
+    );
+    expect(
+      ClubOpsSync.shouldPatchDuesOnOverflowSkip(
+        localSettings: const [],
+        removedIds: const ['ds_old'],
+      ),
+      isTrue,
+      reason: '총무가 회비를 지운 삭제는 사이드카 실패여도 남겨야 한다',
+    );
+  });
 }

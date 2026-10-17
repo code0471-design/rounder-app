@@ -151,18 +151,25 @@ class ClubOpsSync {
               payloadKey: 'transactions',
             )) {
           // 일정 문서를 못 읽었으면 번들 전체는 올리지 않는다.
-          // 회비 삭제만은 남겨 둔다. 안 그러면 새 버전이 서버 옛 활성회비를 다시 붙인다.
-          try {
-            await _db.doc(FirestorePaths.clubOpsBundle(clubId)).set(
-              {
-                'duesSettings': slice['duesSettings'],
-                'removedDuesSettingIds': slice['removedDuesSettingIds'],
-                'updatedAt': FieldValue.serverTimestamp(),
-              },
-              SetOptions(merge: true),
-            );
-          } catch (e) {
-            debugPrint('[ClubOpsSync] dues deletion patch skip: $e');
+          // 회비를 이 폰에서 만들었거나 지운 경우만 회비 필드를 남긴다.
+          // 게스트→회장처럼 재무가 비어 있는 폰이 [] 로 덮으면 총무 회비가 사라진다.
+          final removedIds = removedDuesSettingIdsForClub(clubId);
+          if (shouldPatchDuesOnOverflowSkip(
+            localSettings: localSettings,
+            removedIds: removedIds,
+          )) {
+            try {
+              await _db.doc(FirestorePaths.clubOpsBundle(clubId)).set(
+                {
+                  'duesSettings': slice['duesSettings'],
+                  'removedDuesSettingIds': removedIds,
+                  'updatedAt': FieldValue.serverTimestamp(),
+                },
+                SetOptions(merge: true),
+              );
+            } catch (e) {
+              debugPrint('[ClubOpsSync] dues deletion patch skip: $e');
+            }
           }
           debugPrint(
             '[ClubOpsSync] skip push, overflow sidecar not loaded club=$clubId',
@@ -2662,6 +2669,16 @@ class ClubOpsSync {
         await _db.doc(FirestorePaths.clubOpsLedgerYear(clubId, year)).delete();
       } catch (_) {}
     }
+  }
+
+  /// 일정 사이드카를 못 읽었을 때 회비 필드만 따로 올릴지.
+  /// 로컬 회비가 비면 올리지 않는다. 빈 폰이 서버 회비를 [] 로 덮지 않게 한다.
+  @visibleForTesting
+  static bool shouldPatchDuesOnOverflowSkip({
+    required List<dynamic> localSettings,
+    required List<String> removedIds,
+  }) {
+    return localSettings.isNotEmpty || removedIds.isNotEmpty;
   }
 
   /// 인덱스에 연도가 있는데 본문 키가 없으면 사이드카를 못 읽은 것이다.

@@ -5249,7 +5249,9 @@ class ClubProvider extends ChangeNotifier with WidgetsBindingObserver {
 
   /// 현재 로그인한 사용자가 해당 모임의 '게스트' 회원인지 여부.
   /// 게스트는 재무(회비) 관련 정보 열람 및 재무 탭 진입 권한이 없다.
-  bool get isGuestMember => currentMember?.memberType == '게스트';
+  /// 직책이 회장·부회장·총무면 예전에 게스트였어도 게스트로 보지 않는다.
+  bool get isGuestMember =>
+      !isClubExecutive && currentMember?.memberType == '게스트';
 
   void updateAlimtalkSettings(
     String clubId, {
