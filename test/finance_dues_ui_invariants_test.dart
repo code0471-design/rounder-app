@@ -399,6 +399,13 @@ void main() {
     );
     expect(addBlock.contains('_dispatchClubAlimtalk'), isFalse);
     expect(addBlock.contains('syncDuesD1Reminders'), isTrue);
+    final nudgeBlock = provider.substring(
+      provider.indexOf('void sendDuesNudge'),
+      provider.indexOf('void sendDuesNudge') + 1600,
+    );
+    expect(nudgeBlock.contains("'#{금액}'"), isTrue,
+        reason: '독촉 알림톡도 회비 안내처럼 금액을 넣어야 한다');
+    expect(nudgeBlock.contains("'#{기한}'"), isTrue);
   });
 
   test('납부현황에서 여러 명을 한꺼번에 납부 처리할 수 있다', () {

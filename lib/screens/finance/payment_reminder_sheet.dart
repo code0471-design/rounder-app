@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import '../../models/club_model.dart';
 import '../../providers/club_provider.dart';
 import '../../theme/app_theme.dart';
+import '../../utils/dues_d1_schedule.dart';
 
 /// 회비납부 탭에서 연다. 지금 보고 있는 회비 + 그 월·해만.
 void showPaymentReminderSheet(
@@ -274,9 +275,19 @@ class _PaymentReminderSheetState extends State<_PaymentReminderSheet> {
             height: 48,
             child: ElevatedButton.icon(
               onPressed: () {
+                final due = widget.setting.dueDateFor(
+                  year: widget.year,
+                  month: widget.month,
+                );
                 pv.sendDuesNudge(
                   memberIds: _selectedMemberIds.toList(),
                   duesTitle: widget.setting.title,
+                  amount: widget.setting.amountForPeriod(
+                    year: widget.year,
+                    month: widget.month ?? 1,
+                  ),
+                  dueText:
+                      due == null ? null : DuesD1Schedule.dueText(due),
                 );
                 Navigator.pop(context);
                 ScaffoldMessenger.of(context).showSnackBar(

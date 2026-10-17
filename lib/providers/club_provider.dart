@@ -4728,7 +4728,12 @@ class ClubProvider extends ChangeNotifier with WidgetsBindingObserver {
   void sendDuesNudge({
     required List<String> memberIds,
     required String duesTitle,
+    int? amount,
+    String? dueText,
   }) {
+    final amountText = (amount != null && amount > 0) ? '$amount' : '';
+    final dueLabel =
+        (dueText != null && dueText.trim().isNotEmpty) ? dueText.trim() : '-';
     for (final id in memberIds) {
       final name = activeMembers.where((m) => m.id == id).firstOrNull?.name ?? '';
       _notifyHqPush(
@@ -4740,6 +4745,8 @@ class ClubProvider extends ChangeNotifier with WidgetsBindingObserver {
         vars: {
           '이름': name,
           '모임명': selectedClub.name,
+          '금액': amountText,
+          '기한': dueLabel,
         },
         targetId: duesTitle,
         notifySelf: true,
@@ -4754,6 +4761,8 @@ class ClubProvider extends ChangeNotifier with WidgetsBindingObserver {
       variablesFor: (m) => {
         '#{모임명}': selectedClub.name,
         '#{이름}': m.name.trim().isEmpty ? '회원' : m.name.trim(),
+        '#{금액}': amountText,
+        '#{기한}': dueLabel,
       },
     );
   }
