@@ -2521,6 +2521,50 @@ void main() {
     );
   });
 
+  test('회비 없는 폰은 서버 회비를 빈 목록으로 덮지 않는다', () {
+    expect(
+      ClubOpsSync.resolveDuesSettingsForPush(
+        localSettings: const [],
+        remoteSettings: [
+          {'id': 'ds_keep', 'clubId': 'c_test', 'amount': 100000},
+        ],
+        removedIds: const [],
+      ).map((e) => (e as Map)['id']),
+      ['ds_keep'],
+      reason: '총무가 올린 회비를 게스트 폰이 [] 로 지우면 안 된다',
+    );
+    expect(
+      ClubOpsSync.resolveDuesSettingsForPush(
+        localSettings: const [],
+        remoteSettings: const [],
+        removedIds: const [],
+      ),
+      isEmpty,
+    );
+    expect(
+      ClubOpsSync.resolveDuesSettingsForPush(
+        localSettings: [
+          {'id': 'ds_new', 'amount': 100000},
+        ],
+        remoteSettings: const [],
+        removedIds: const [],
+      ).map((e) => (e as Map)['id']),
+      ['ds_new'],
+      reason: '총무가 새로 만든 회비는 올라가야 한다',
+    );
+    expect(
+      ClubOpsSync.resolveDuesSettingsForPush(
+        localSettings: const [],
+        remoteSettings: [
+          {'id': 'ds_old'},
+        ],
+        removedIds: const ['ds_old'],
+      ),
+      isEmpty,
+      reason: '총무가 지운 회비는 서버 옛 목록으로 되돌리면 안 된다',
+    );
+  });
+
   test('게스트였던 폰의 빈 회비는 사이드카 실패 때 서버 회비를 덮지 않는다', () {
     expect(
       ClubOpsSync.shouldPatchDuesOnOverflowSkip(

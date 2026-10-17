@@ -83,16 +83,35 @@ class ClubOpsSync {
           slice['duesSettings'] as List?,
           clubId,
         );
-        final remoteSettings = withoutRemovedDuesSettings(
+        var remoteSettings = withoutRemovedDuesSettings(
           remote['duesSettings'] as List?,
           clubId,
         );
-        // 이 폰 목록이 통째로 비었을 때만 서버 회비를 유지한다.
+        final removedIds = removedDuesSettingIdsForClub(clubId);
+        // 이 폰에 회비가 없으면 서버 회비를 덮지 않는다.
+        // 총무가 방금 올린 뒤, 게스트였던 폰이 옛 빈 목록으로 [] 를 쓰지 않게
+        // 올리기 직전에 회비 칸만 다시 읽는다.
+        if (localSettings.isEmpty && removedIds.isEmpty) {
+          try {
+            final latest =
+                await _db.doc(FirestorePaths.clubOpsBundle(clubId)).get();
+            if (latest.exists && latest.data() != null) {
+              remoteSettings = withoutRemovedDuesSettings(
+                latest.data()!['duesSettings'] as List?,
+                clubId,
+              );
+            }
+          } catch (e) {
+            debugPrint('[ClubOpsSync] dues reread skip: $e');
+          }
+        }
         // 총무가 일부만 지운 경우는 그 삭제를 서버 옛 목록으로 되돌리지 않는다.
-        slice['duesSettings'] = localSettings.isEmpty && remoteSettings.isNotEmpty
-            ? remoteSettings
-            : localSettings;
-        slice['removedDuesSettingIds'] = removedDuesSettingIdsForClub(clubId);
+        slice['duesSettings'] = resolveDuesSettingsForPush(
+          localSettings: localSettings,
+          remoteSettings: remoteSettings,
+          removedIds: removedIds,
+        );
+        slice['removedDuesSettingIds'] = removedIds;
         // 초대 가입자가 자기 명단만 들고 올리면 기존 회원이 지워진다 → 합친다
         final localMembers = slice['members'] as List? ?? const [];
         final remoteMembers = remote['members'] as List? ?? const [];
@@ -153,7 +172,6 @@ class ClubOpsSync {
           // 일정 문서를 못 읽었으면 번들 전체는 올리지 않는다.
           // 회비를 이 폰에서 만들었거나 지운 경우만 회비 필드를 남긴다.
           // 게스트→회장처럼 재무가 비어 있는 폰이 [] 로 덮으면 총무 회비가 사라진다.
-          final removedIds = removedDuesSettingIdsForClub(clubId);
           if (shouldPatchDuesOnOverflowSkip(
             localSettings: localSettings,
             removedIds: removedIds,
@@ -2669,6 +2687,20 @@ class ClubOpsSync {
         await _db.doc(FirestorePaths.clubOpsLedgerYear(clubId, year)).delete();
       } catch (_) {}
     }
+  }
+
+  /// 이 폰 회비가 비었고 삭제도 없으면 서버 회비를 유지한다.
+  /// 총무가 지운 빈 목록(tombstone)은 그대로 올린다.
+  @visibleForTesting
+  static List<dynamic> resolveDuesSettingsForPush({
+    required List<dynamic> localSettings,
+    required List<dynamic> remoteSettings,
+    required List<String> removedIds,
+  }) {
+    if (localSettings.isEmpty && removedIds.isEmpty) {
+      return List<dynamic>.from(remoteSettings);
+    }
+    return List<dynamic>.from(localSettings);
   }
 
   /// 일정 사이드카를 못 읽었을 때 회비 필드만 따로 올릴지.
