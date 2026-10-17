@@ -99,15 +99,19 @@ class _ReservationSmsSheetState extends State<_ReservationSmsSheet> {
     Navigator.pop(context, parsed);
   }
 
+  void _hideKeyboard() => FocusManager.instance.primaryFocus?.unfocus();
+
   @override
   Widget build(BuildContext context) {
     final bottom = MediaQuery.viewInsetsOf(context).bottom;
     return Padding(
       padding: EdgeInsets.fromLTRB(20, 16, 20, 20 + bottom),
-      child: Column(
-        mainAxisSize: MainAxisSize.min,
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
+      child: SingleChildScrollView(
+        keyboardDismissBehavior: ScrollViewKeyboardDismissBehavior.onDrag,
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
           Center(
             child: Container(
               width: 40,
@@ -119,9 +123,19 @@ class _ReservationSmsSheetState extends State<_ReservationSmsSheet> {
             ),
           ),
           const SizedBox(height: 16),
-          const Text(
-            '예약 문자 붙여넣기',
-            style: TextStyle(fontSize: 17, fontWeight: FontWeight.bold),
+          Row(
+            children: [
+              const Expanded(
+                child: Text(
+                  '예약 문자 붙여넣기',
+                  style: TextStyle(fontSize: 17, fontWeight: FontWeight.bold),
+                ),
+              ),
+              TextButton(
+                onPressed: _hideKeyboard,
+                child: const Text('완료'),
+              ),
+            ],
           ),
           const SizedBox(height: 6),
           const Text(
@@ -133,6 +147,7 @@ class _ReservationSmsSheetState extends State<_ReservationSmsSheet> {
             controller: _ctrl,
             maxLines: 8,
             autofocus: true,
+            onTapOutside: (_) => _hideKeyboard(),
             decoration: InputDecoration(
               hintText: '예: 레이크사이드CC 2026년 9월 12일 07:28',
               border: OutlineInputBorder(borderRadius: BorderRadius.circular(10)),
@@ -159,6 +174,7 @@ class _ReservationSmsSheetState extends State<_ReservationSmsSheet> {
             ),
           ),
         ],
+        ),
       ),
     );
   }

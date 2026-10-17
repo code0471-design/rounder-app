@@ -317,6 +317,10 @@ void main() {
         .readAsStringSync();
     expect(banner.contains('예약 문자 붙여넣기'), isTrue);
     expect(banner.contains('parseReservationSms'), isTrue);
+    expect(banner.contains('완료'), isTrue,
+        reason: '아이폰 여러 줄 입력은 엔터가 줄바꿈이라 자판을 내릴 완료가 필요하다');
+    expect(banner.contains('onTapOutside'), isTrue);
+    expect(banner.contains('ScrollViewKeyboardDismissBehavior.onDrag'), isTrue);
   });
 
   test('일정 갤러리는 다중 선택 삭제와 삭제 후 목록 복귀가 있어야 한다', () {
