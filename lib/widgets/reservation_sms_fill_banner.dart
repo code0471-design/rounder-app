@@ -104,76 +104,98 @@ class _ReservationSmsSheetState extends State<_ReservationSmsSheet> {
   @override
   Widget build(BuildContext context) {
     final bottom = MediaQuery.viewInsetsOf(context).bottom;
+    final maxH = MediaQuery.sizeOf(context).height * 0.85;
     return Padding(
       padding: EdgeInsets.fromLTRB(20, 16, 20, 20 + bottom),
-      child: SingleChildScrollView(
-        keyboardDismissBehavior: ScrollViewKeyboardDismissBehavior.onDrag,
+      child: ConstrainedBox(
+        constraints: BoxConstraints(maxHeight: maxH),
         child: Column(
           mainAxisSize: MainAxisSize.min,
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-          Center(
-            child: Container(
-              width: 40,
-              height: 4,
-              decoration: BoxDecoration(
-                color: AppColors.divider,
-                borderRadius: BorderRadius.circular(2),
-              ),
-            ),
-          ),
-          const SizedBox(height: 16),
-          Row(
-            children: [
-              const Expanded(
-                child: Text(
-                  '예약 문자 붙여넣기',
-                  style: TextStyle(fontSize: 17, fontWeight: FontWeight.bold),
+            Center(
+              child: Container(
+                width: 40,
+                height: 4,
+                decoration: BoxDecoration(
+                  color: AppColors.divider,
+                  borderRadius: BorderRadius.circular(2),
                 ),
               ),
-              TextButton(
-                onPressed: _hideKeyboard,
-                child: const Text('완료'),
-              ),
-            ],
-          ),
-          const SizedBox(height: 6),
-          const Text(
-            '골프장 예약 문자를 넣으면 날짜, 티오프, 골프장을 채웁니다.',
-            style: TextStyle(fontSize: 13, color: AppColors.textSecondary),
-          ),
-          const SizedBox(height: 14),
-          TextField(
-            controller: _ctrl,
-            maxLines: 8,
-            autofocus: true,
-            onTapOutside: (_) => _hideKeyboard(),
-            decoration: InputDecoration(
-              hintText: '예: 레이크사이드CC 2026년 9월 12일 07:28',
-              border: OutlineInputBorder(borderRadius: BorderRadius.circular(10)),
             ),
-          ),
-          if (_error != null) ...[
-            const SizedBox(height: 8),
-            Text(
-              _error!,
-              style: const TextStyle(color: AppColors.danger, fontSize: 12),
+            const SizedBox(height: 16),
+            Row(
+              children: [
+                const Expanded(
+                  child: Text(
+                    '예약 문자 붙여넣기',
+                    style: TextStyle(fontSize: 17, fontWeight: FontWeight.bold),
+                  ),
+                ),
+                TextButton(
+                  onPressed: _hideKeyboard,
+                  child: const Text('완료'),
+                ),
+              ],
+            ),
+            const SizedBox(height: 6),
+            const Text(
+              '골프장 예약 문자를 넣으면 날짜, 티오프, 골프장을 채웁니다.',
+              style: TextStyle(fontSize: 13, color: AppColors.textSecondary),
+            ),
+            const SizedBox(height: 14),
+            Flexible(
+              child: SingleChildScrollView(
+                keyboardDismissBehavior:
+                    ScrollViewKeyboardDismissBehavior.onDrag,
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    TextField(
+                      controller: _ctrl,
+                      minLines: 4,
+                      maxLines: 8,
+                      autofocus: true,
+                      keyboardType: TextInputType.multiline,
+                      textInputAction: TextInputAction.done,
+                      onEditingComplete: _hideKeyboard,
+                      onTapOutside: (_) => _hideKeyboard(),
+                      decoration: InputDecoration(
+                        hintText: '예: 레이크사이드CC 2026년 9월 12일 07:28',
+                        border: OutlineInputBorder(
+                          borderRadius: BorderRadius.circular(10),
+                        ),
+                      ),
+                    ),
+                    if (_error != null) ...[
+                      const SizedBox(height: 8),
+                      Text(
+                        _error!,
+                        style: const TextStyle(
+                          color: AppColors.danger,
+                          fontSize: 12,
+                        ),
+                      ),
+                    ],
+                    const SizedBox(height: 16),
+                    SizedBox(
+                      width: double.infinity,
+                      height: 48,
+                      child: ElevatedButton(
+                        onPressed: _apply,
+                        style: ElevatedButton.styleFrom(
+                          backgroundColor: AppColors.primary,
+                          foregroundColor: Colors.white,
+                        ),
+                        child: const Text('일정에 채우기'),
+                      ),
+                    ),
+                  ],
+                ),
+              ),
             ),
           ],
-          const SizedBox(height: 16),
-          SizedBox(
-            width: double.infinity,
-            height: 48,
-            child: ElevatedButton(
-              onPressed: _apply,
-              style: ElevatedButton.styleFrom(
-                backgroundColor: AppColors.primary,
-                foregroundColor: Colors.white,
-              ),
-              child: const Text('일정에 채우기'),
-            ),
-          ),
-        ],
         ),
       ),
     );

@@ -319,6 +319,7 @@ void main() {
     expect(banner.contains('parseReservationSms'), isTrue);
     expect(banner.contains('완료'), isTrue,
         reason: '아이폰 여러 줄 입력은 엔터가 줄바꿈이라 자판을 내릴 완료가 필요하다');
+    expect(banner.contains('textInputAction: TextInputAction.done'), isTrue);
     expect(banner.contains('onTapOutside'), isTrue);
     expect(banner.contains('ScrollViewKeyboardDismissBehavior.onDrag'), isTrue);
   });
