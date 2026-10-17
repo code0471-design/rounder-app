@@ -4629,6 +4629,11 @@ class ClubProvider extends ChangeNotifier with WidgetsBindingObserver {
   /// 회비(재무) 최초 세팅이 아직 안 된 상태
   bool get isFinanceSetupPending => activeDuesSettings.isEmpty;
 
+  /// 총무가 잔고·회비를 아직 하나도 안 넣은 상태.
+  /// 회비 목록만 비었다고 여기면, 볼케이노처럼 잔고만 있는 모임도 막힌다.
+  bool get isInitialFinanceSetupPending =>
+      activeDuesSettings.isEmpty && !hasOpeningBalance;
+
   /// 신규 모임 총무가 재무 시작 방식(올시즌 / 이번달)을 아직 고르지 않음
   bool get needsTreasurerFinanceOnboarding =>
       isActualTreasurer && isFinanceSetupPending && !hasOpeningBalance;

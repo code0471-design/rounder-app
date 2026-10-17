@@ -216,9 +216,13 @@ void main() {
     expect(provider.contains('!isClubExecutive && currentMember?.memberType'),
         isTrue,
         reason: '게스트였다 회장이 되면 유형이 게스트로 남아도 재무 탭을 게스트로 막으면 안 된다');
-    expect(fn.contains('isFinanceSetupPending'), isFalse,
-        reason: '회비가 안 보인다고 재무 탭을 막으면 볼케이노처럼 정회원·회장이 못 들어간다');
-    expect(fn.contains('재무 초기 설정은 총무만 가능합니다.'), isFalse);
+    expect(fn.contains('isInitialFinanceSetupPending'), isTrue);
+    expect(fn.contains('provider.isFinanceSetupPending'), isFalse,
+        reason: '회비 목록만 비었다고 막으면 잔고 있는 볼케이노도 막힌다');
+    expect(fn.contains('재무 초기 설정은 총무만 가능합니다.'), isTrue);
+    expect(provider.contains('isInitialFinanceSetupPending'), isTrue);
+    expect(provider.contains('activeDuesSettings.isEmpty && !hasOpeningBalance'),
+        isTrue);
     expect(finance.contains('final isAdmin = isTreasurer;'), isTrue,
         reason: '회비 설정·납부는 총무만');
     expect(finance.contains('_guardTreasurerSetup'), isTrue);

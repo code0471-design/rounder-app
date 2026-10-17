@@ -291,16 +291,51 @@ class _ClubRoomScreenState extends State<ClubRoomScreen> {
   }
 
   /// 재무 탭 진입 가능 여부
-  /// · 게스트만 차단
-  /// · 정회원·회장·총무는 회비 설정 여부와 관계없이 들어간다
-  /// · 회비 설정·납부 처리는 화면 안에서 총무만 할 수 있다
+  /// · 게스트 차단
+  /// · 잔고·회비가 둘 다 없으면 총무만 최초 설정
+  /// · 설정이 있으면 정회원·회장도 들어가고, 회비 설정·납부만 총무
   bool _canOpenFinanceTab() {
     final provider = context.read<ClubProvider>();
     if (provider.isGuestMember) {
       _showGuestRestrictedDialog();
       return false;
     }
+    if (provider.isTreasurer) return true;
+    if (provider.isInitialFinanceSetupPending) {
+      _showFinanceSetupPendingDialog();
+      return false;
+    }
     return true;
+  }
+
+  void _showFinanceSetupPendingDialog() {
+    showDialog(
+      context: context,
+      useRootNavigator: true,
+      builder: (dialogCtx) => AlertDialog(
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+        title: const Row(
+          children: [
+            Icon(Icons.warning_amber_rounded,
+                color: AppColors.danger, size: 20),
+            SizedBox(width: 8),
+            Text('권한 없음',
+                style: TextStyle(fontWeight: FontWeight.bold, fontSize: 16)),
+          ],
+        ),
+        content: const Text(
+          '재무 초기 설정은 총무만 가능합니다.',
+          style: TextStyle(fontSize: 14, height: 1.6),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.of(dialogCtx, rootNavigator: true).pop(),
+            child: const Text('확인',
+                style: TextStyle(color: AppColors.primary)),
+          ),
+        ],
+      ),
+    );
   }
 
   /// 게스트 회원의 재무 탭 접근을 차단하고 안내 팝업을 띄운다.
