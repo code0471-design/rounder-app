@@ -362,7 +362,8 @@ class ClubOpsSync {
     ];
   }
 
-  /// 같은 일정은 응답을 합친다. 빈 원격 응답이 로컬 참석을 지우지 않는다.
+  /// 같은 일정은 응답을 합친다. 빈 참석 목록이 있는 쪽을 저장해도
+  /// 다른 쪽에 있는 참석·불참을 지우지 않는다.
   @visibleForTesting
   static List<dynamic> mergeScheduleRows({
     required List local,
@@ -2652,6 +2653,32 @@ class ClubOpsSync {
     }
   }
 
+  /// 연도 일정 저장 전에 서버에 있는 참석을 합친다.
+  /// 참석이 빈 저장이 참석·불참 응답을 덮지 않게 한다.
+  @visibleForTesting
+  static Map<String, dynamic> mergeScheduleYearPayload({
+    required Map<String, dynamic> local,
+    required Map<String, dynamic> remote,
+  }) {
+    final out = Map<String, dynamic>.from(local);
+    out['schedules'] = capScheduleAttendance(mergeScheduleRows(
+      local: local['schedules'] as List? ?? const [],
+      remote: remote['schedules'] as List? ?? const [],
+      localWins: true,
+    ));
+    out['groupAssignments'] = mergeMaps(
+      local: local['groupAssignments'],
+      remote: remote['groupAssignments'],
+      localWins: true,
+    );
+    out['waitingList'] = applyWaitingTombstones(mergeRowsById(
+      local: local['waitingList'] as List? ?? const [],
+      remote: remote['waitingList'] as List? ?? const [],
+      localWins: true,
+    ));
+    return out;
+  }
+
   static Future<void> _pushOverflowDocs(
     String clubId,
     Map<int, Map<String, dynamic>> schYears,
@@ -2659,10 +2686,24 @@ class ClubOpsSync {
     Map<String, dynamic> previousYears,
   ) async {
     for (final entry in schYears.entries) {
+      var payload = Map<String, dynamic>.from(entry.value);
+      try {
+        final snap = await _db
+            .doc(FirestorePaths.clubOpsScheduleYear(clubId, entry.key))
+            .get();
+        if (snap.exists && snap.data() != null) {
+          payload = mergeScheduleYearPayload(
+            local: payload,
+            remote: snap.data()!,
+          );
+        }
+      } catch (e) {
+        debugPrint('[ClubOpsSync] sch year merge skip: $e');
+      }
       await _db
           .doc(FirestorePaths.clubOpsScheduleYear(clubId, entry.key))
           .set({
-        ...entry.value,
+        ...payload,
         'updatedAt': FieldValue.serverTimestamp(),
       }, SetOptions(merge: false));
     }

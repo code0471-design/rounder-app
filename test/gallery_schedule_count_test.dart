@@ -139,6 +139,14 @@ void main() {
       expect(body.contains('_purgeSchedulePhotos(scheduleId)'), isTrue);
     });
 
+    test('취소하면 그 일정 참석 포인트를 되돌린다', () {
+      final idx = provider.indexOf('int cancelSchedule(');
+      final body = provider.substring(idx, idx + 900);
+      expect(body.contains('_syncAttendancePoints'), isTrue);
+      expect(body.contains("prev: '참석'"), isTrue);
+      expect(body.contains("response: '불참'"), isTrue);
+    });
+
     test('사진 정리는 persist 보다 먼저 — 한 번의 push 로 같이 반영', () {
       final idx = provider.indexOf('int cancelSchedule(');
       final body = provider.substring(idx, idx + 900);

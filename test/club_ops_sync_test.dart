@@ -167,6 +167,53 @@ void main() {
     expect(merged.members.any((m) => m.id == 'm_c_test_u2'), isTrue);
   });
 
+  test('빈 참석 저장이 서버 참석을 덮지 않는다', () {
+    final kept = ClubOpsSync.mergeAttendanceResponses(
+      <dynamic>[],
+      [
+        {
+          'memberId': 'a',
+          'response': '참석',
+          'respondedAt': '2026-10-01T00:00:00.000',
+        },
+      ],
+    );
+    expect(kept.single['memberId'], 'a');
+    expect(kept.single['response'], '참석');
+
+    final year = ClubOpsSync.mergeScheduleYearPayload(
+      local: {
+        'schedules': [
+          {
+            'id': 'sched_berhill',
+            'title': '10월 베르힐CC 영종',
+            'responses': <dynamic>[],
+          },
+        ],
+      },
+      remote: {
+        'schedules': [
+          {
+            'id': 'sched_berhill',
+            'title': '10월 베르힐CC 영종',
+            'responses': [
+              {
+                'memberId': 'yang',
+                'response': '참석',
+                'respondedAt': '2026-10-12T00:00:00.000',
+              },
+            ],
+          },
+        ],
+      },
+    );
+    final rows = year['schedules'] as List;
+    final hit = rows.cast<Map>().singleWhere((s) => s['id'] == 'sched_berhill');
+    final responses = (hit['responses'] as List).cast<Map>();
+    expect(responses.single['memberId'], 'yang');
+    expect(responses.single['response'], '참석');
+  });
+
   test('빈 원격 참석이 로컬 참석을 덮지 않는다', () {
     final kept = ClubOpsSync.mergeAttendanceResponses(
       [
