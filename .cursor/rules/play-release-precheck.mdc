@@ -24,6 +24,7 @@ Play Console API는 여기서 안 열린다. 대신 **이미 쓴 번호**를 기
 4. **원격 `codemagic-main`**에 버전 bump + yaml 수정이 **푸시된 뒤**에만 “Codemagic 돌리세요 / Play 올리세요”라고 말한다.
 5. 안내할 때 **기대 versionCode**를 한 줄로 명시하고, Codemagic 로그에 `AAB version: …+N`이 보이는지 확인하라고 적는다.
 6. **출시노트는 요청 없이 같이** 준다. 버전 bump·Codemagic/Play 안내와 같은 메시지에 한국어 + What’s New(영문)를 붙인다. Play 500자 이내, 테스터가 보는 문장만.
+7. **앱 안 업데이트 안내**는 스토어 버전 이름(1.0.3)이 같으면 안 뜬다. Play에 올라간 뒤에 `androidBuild`, App Store에 실제로 올라간 뒤에 `iosBuild` 를 운영 `_meta/store_version` 에 그 번호로 적는다. 심사 중인 iOS 번호를 먼저 적으면 스토어에 없는 업데이트를 안내한다. 앱이 자기 빌드를 최신으로 쓰면 안 된다.
 
 ## 금지
 
@@ -32,3 +33,4 @@ Play Console API는 여기서 안 열린다. 대신 **이미 쓴 번호**를 기
 - “N 올렸나요?”를 Royce에게 물어 빌드를 두 번 하게 만들기
 - 출시노트만 주고 버전/빌드 파이프라인은 미확인
 - 버전/빌드만 안내하고 출시노트를 빼먹기
+- 스토어에 올린 뒤 `_meta/store_version` 을 안 적기
