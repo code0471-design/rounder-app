@@ -684,10 +684,23 @@ class ClubOpsSync {
     if (uid == null || uid.isEmpty) return;
     try {
       final full = ClubDataCodec.encode(bundle);
+      var notifs = applyNotificationTombstones(
+        full['appNotifications'] as List? ?? const [],
+      );
+      try {
+        final existing =
+            await _db.doc(FirestorePaths.userOpsBundle(uid)).get();
+        if (existing.exists && existing.data() != null) {
+          notifs = mergeAppNotifications(
+            local: notifs,
+            remote: existing.data()!['appNotifications'] as List? ?? const [],
+          );
+        }
+      } catch (e) {
+        debugPrint('[ClubOpsSync] user_ops notif merge skip: $e');
+      }
       final payload = <String, dynamic>{
-        'appNotifications': applyNotificationTombstones(
-          full['appNotifications'] as List? ?? const [],
-        ),
+        'appNotifications': notifs,
         'removedNotificationIds': _removedNotificationIds.toList(),
         'joinRequests': full['joinRequests'],
         'updatedAtClient': DateTime.now().toIso8601String(),
@@ -728,7 +741,7 @@ class ClubOpsSync {
     }
   }
 
-  /// 신청자 알림함에 승인 건을 남긴다. 신청자 앱이 그 모임으로 들어가게 한다.
+  /// 다른 계정 알림함에 한 건을 남긴다. 일정 등록·가입 승인이 받는 사람 폰에 쌓이게 한다.
   static Future<void> appendApplicantInbox({
     required String authUserId,
     required AppNotification notification,
@@ -851,15 +864,10 @@ class ClubOpsSync {
       if (remoteRemoved is List) {
         seedRemovedNotifications(remoteRemoved.map((e) => '$e'));
       }
-      if (remote['appNotifications'] is List) {
-        encoded['appNotifications'] = applyNotificationTombstones(
-          remote['appNotifications'] as List,
-        );
-      } else {
-        encoded['appNotifications'] = applyNotificationTombstones(
-          encoded['appNotifications'] as List? ?? const [],
-        );
-      }
+      encoded['appNotifications'] = mergeAppNotifications(
+        local: encoded['appNotifications'] as List? ?? const [],
+        remote: remote['appNotifications'] as List? ?? const [],
+      );
       if (remote['joinRequests'] is List) {
         encoded['joinRequests'] = _mergeJoinRequests(
           encoded['joinRequests'] as List? ?? const [],
@@ -1100,6 +1108,19 @@ class ClubOpsSync {
   @visibleForTesting
   static void resetNotificationTombstones() {
     _removedNotificationIds.clear();
+  }
+
+  /// 다른 폰이 넣어 준 알림을 이 폰 저장이 지우지 않는다.
+  @visibleForTesting
+  static List<Map<String, dynamic>> mergeAppNotifications({
+    required List local,
+    required List remote,
+  }) {
+    return applyNotificationTombstones(mergeRowsById(
+      local: local,
+      remote: remote,
+      localWins: true,
+    ));
   }
 
   /// 원격·로컬 알림에서 삭제한 id 를 뺀다.

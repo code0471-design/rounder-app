@@ -70,6 +70,7 @@ class ClubProvider extends ChangeNotifier with WidgetsBindingObserver {
     _syncAllNextRounds();
     WidgetsBinding.instance.addObserver(this);
     PushNotificationService.onD1AlimtalkHint = flushDueD1Alimtalk;
+    PushNotificationService.onInboxItem = ingestRemotePushInbox;
     AuthProvider.onRemoteProfileHydrated = _applyHydratedAuthProfile;
   }
 
@@ -82,6 +83,9 @@ class ClubProvider extends ChangeNotifier with WidgetsBindingObserver {
     unawaited(_memberWatchSub?.cancel());
     if (AuthProvider.onRemoteProfileHydrated == _applyHydratedAuthProfile) {
       AuthProvider.onRemoteProfileHydrated = null;
+    }
+    if (PushNotificationService.onInboxItem == ingestRemotePushInbox) {
+      PushNotificationService.onInboxItem = null;
     }
     super.dispose();
   }
@@ -6771,6 +6775,69 @@ class ClubProvider extends ChangeNotifier with WidgetsBindingObserver {
     notifyListeners();
   }
 
+  /// 서버 푸시 수신함을 이 폰 알림 아이콘에 넣는다. 일정 등록은 받는 사람에게도 보여야 한다.
+  void ingestRemotePushInbox({
+    required String inboxId,
+    required String title,
+    required String body,
+    required String type,
+    required String clubId,
+  }) {
+    if (JoinRequestService.isJoinPushType(type) ||
+        JoinRequestService.isJoinResultPushType(type)) {
+      return;
+    }
+    if (type != HqPushCatalog.scheduleConfirm &&
+        type != HqPushCatalog.scheduleChange &&
+        type != HqPushCatalog.scheduleCancel &&
+        type != HqPushCatalog.d1Reminder &&
+        type != HqPushCatalog.duesRequest &&
+        type != HqPushCatalog.duesNudge &&
+        type != 'announcement') {
+      return;
+    }
+    final id = 'pi_$inboxId';
+    if (_appNotifications.any((n) => n.id == id)) return;
+    if (_appNotifications.any((n) =>
+        n.clubId == clubId && n.title == title && n.body == body)) {
+      return;
+    }
+    final clubName = [..._myClubs, ..._allClubs]
+            .where((c) => c.id == clubId)
+            .firstOrNull
+            ?.name ??
+        '';
+    final me = (_persistAuthUserId ?? currentUserId).trim();
+    addAppNotification(
+      AppNotification(
+        id: id,
+        type: _appTypeFromHqPush(type),
+        clubId: clubId,
+        clubName: clubName,
+        title: title,
+        body: body,
+        createdAt: DateTime.now(),
+        targetUserId: me.isEmpty ? null : me,
+      ),
+      hqPushTypeId: type,
+      enqueuePush: false,
+    );
+    _persistImmediately();
+  }
+
+  AppNotificationType _appTypeFromHqPush(String type) {
+    if (type == HqPushCatalog.scheduleChange) {
+      return AppNotificationType.scheduleChanged;
+    }
+    if (type == HqPushCatalog.scheduleCancel) {
+      return AppNotificationType.scheduleCancelled;
+    }
+    if (type == HqPushCatalog.d1Reminder) {
+      return AppNotificationType.schedule;
+    }
+    return AppNotificationType.announcement;
+  }
+
   void addAppNotification(
     AppNotification n, {
     String? hqPushTypeId,
@@ -6804,6 +6871,13 @@ class ClubProvider extends ChangeNotifier with WidgetsBindingObserver {
             type: hqPushTypeId ?? n.type.name,
             clubId: n.clubId,
           ));
+          // 받는 사람 알림함. FCM만 보내면 잠금화면을 놓친 뒤 아이콘이 비어 있다.
+          if (!isSelf) {
+            unawaited(ClubOpsSync.appendApplicantInbox(
+              authUserId: enqueueId,
+              notification: n,
+            ));
+          }
         }
         if (notifySelf && isSelf) {
           unawaited(PushNotificationService.showLocal(

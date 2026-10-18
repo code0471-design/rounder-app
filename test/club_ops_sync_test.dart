@@ -5,6 +5,29 @@ import 'package:golf_rounder/services/club_data_codec.dart';
 import 'package:golf_rounder/services/club_ops_sync.dart';
 
 void main() {
+  test('다른 폰이 넣어 준 알림을 이 폰 저장이 지우지 않는다', () {
+    final merged = ClubOpsSync.mergeAppNotifications(
+      local: [
+        {'id': 'mine', 'title': '내가 올린 일정'},
+      ],
+      remote: [
+        {'id': 'mine', 'title': '서버 옛 제목'},
+        {
+          'id': 'pi_happy',
+          'title': '라운딩이 등록되었습니다',
+          'clubId': 'c_happy',
+          'targetUserId': 'kakao_me',
+        },
+      ],
+    );
+    expect(merged.any((e) => e['id'] == 'pi_happy'), isTrue,
+        reason: '남이 일정 등록해서 내 알림함에 넣은 건을 내 저장이 지우면 안 된다');
+    expect(
+      merged.firstWhere((e) => e['id'] == 'mine')['title'],
+      '내가 올린 일정',
+    );
+  });
+
   test('다른 폰에 없는 일정은 올릴 때 서버 일정을 지우지 않는다', () {
     final merged = ClubOpsSync.mergeRowsById(
       local: [

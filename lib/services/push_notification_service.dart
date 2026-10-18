@@ -54,6 +54,14 @@ abstract final class PushNotificationService {
     required String body,
     required String clubId,
   })? onRemoteD1Inbox;
+  /// 푸시 수신함을 앱 알림 아이콘에도 넣는다. 잠금화면만 보고 알림함이 비면 안 된다.
+  static void Function({
+    required String inboxId,
+    required String title,
+    required String body,
+    required String type,
+    required String clubId,
+  })? onInboxItem;
   static void Function(String type, String clubId)? onOpenedFromPush;
   static String? _pendingOpenType;
   static String? _pendingOpenClubId;
@@ -835,7 +843,11 @@ abstract final class PushNotificationService {
         final col = FirebaseFirestore.instance
             .collection(FirestorePaths.pushInboxItems(userId));
         _inboxSubs.add(
-          col.limit(20).snapshots().listen(
+          col
+              .orderBy('createdAt', descending: true)
+              .limit(40)
+              .snapshots()
+              .listen(
             (snap) {
               for (final change in snap.docChanges) {
                 if (change.type != DocumentChangeType.added) continue;
@@ -846,6 +858,13 @@ abstract final class PushNotificationService {
                 final body = data?['body']?.toString() ?? '';
                 final type = data?['type']?.toString() ?? '';
                 final clubId = data?['clubId']?.toString() ?? '';
+                onInboxItem?.call(
+                  inboxId: docId,
+                  title: title,
+                  body: body,
+                  type: type,
+                  clubId: clubId,
+                );
                 if (type == HqPushCatalog.d1Reminder) {
                   onRemoteD1Inbox?.call(
                     inboxId: docId,
