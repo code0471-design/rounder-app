@@ -18,7 +18,7 @@ import '../theme/app_theme.dart';
 const kStoreUpdateInstalledVersion = '1.0.3';
 
 /// pubspec `version:` 의 +build 와 같아야 한다.
-const kStoreUpdateInstalledBuild = 224;
+const kStoreUpdateInstalledBuild = 225;
 
 const _androidBuildKey = 'androidBuild';
 const _iosBuildKey = 'iosBuild';
