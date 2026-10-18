@@ -14,6 +14,8 @@ class InviteLinks {
 
   static const playStore =
       'https://play.google.com/store/apps/details?id=$playPackage';
+  static const appStore =
+      'https://apps.apple.com/kr/app/rounder/id6800716470';
 
   static Uri inviteDeepLink(Map<String, String> query) => Uri(
         scheme: 'rounder',

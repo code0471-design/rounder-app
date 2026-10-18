@@ -64,6 +64,7 @@ class ClubProvider extends ChangeNotifier with WidgetsBindingObserver {
   StreamSubscription<List<Member>>? _memberWatchSub;
   Timer? _persistTimer;
   Timer? _cloudPushTimer;
+  bool _persistQueuedDuringApply = false;
 
   ClubProvider() {
     _normalizeScheduleTitles();
@@ -812,7 +813,6 @@ class ClubProvider extends ChangeNotifier with WidgetsBindingObserver {
       _importBundle(merged);
       _syncNextRound(clubId);
       _reconcileLiveMemberCounts();
-      await _hydrateRosterFromServer(clubId);
       if (ensureMyRosterRow(clubId)) {
         _reconcileLiveMemberCounts();
       }
@@ -822,6 +822,10 @@ class ClubProvider extends ChangeNotifier with WidgetsBindingObserver {
       _suppressPersist = false;
       _suppressRosterNotify = false;
       _applyingCloudOps = false;
+      if (_persistQueuedDuringApply) {
+        _persistQueuedDuringApply = false;
+        unawaited(_persistNow());
+      }
       if (beforeSig != _galleryWatchSignature() ||
           beforeRoster != _rosterWatchSignature(clubId)) {
         notifyListeners();
@@ -848,7 +852,8 @@ class ClubProvider extends ChangeNotifier with WidgetsBindingObserver {
         .join(',');
     // status 포함 — 다른 기기에서 일정을 취소하면 갤러리 앨범이 빠져야 한다.
     final schedPart = _schedules
-        .map((s) => '${s.id}:${s.responses.length}:${s.title}:${s.status.name}')
+        .map((s) =>
+            '${s.id}:${s.responses.map((r) => '${r.memberId}${r.response}').join(',')}:${s.title}:${s.status.name}')
         .join(',');
     final duesPart = _duesPayments.map((p) => p.id).join(',');
     final waitPart = _waitingList.map((w) => '${w.scheduleId}:${w.memberId}').join(',');
@@ -2911,7 +2916,10 @@ class ClubProvider extends ChangeNotifier with WidgetsBindingObserver {
     _stampOrphanTransactionClubIds();
     final bundle = _exportBundle();
     await ClubPersistence.save(authUserId, bundle);
-    if (_applyingCloudOps) return;
+    if (_applyingCloudOps) {
+      _persistQueuedDuringApply = true;
+      return;
+    }
     // 디바운스 푸시 — 연속 저장 시 Firestore 폭주 방지
     _cloudPushTimer?.cancel();
     _cloudPushTimer = Timer(const Duration(milliseconds: 400), () {
@@ -6014,23 +6022,22 @@ class ClubProvider extends ChangeNotifier with WidgetsBindingObserver {
           .map((r) => r.response)
           .firstOrNull;
       if (prev != '참석' && schedule.effectiveCapacity > 0) {
-        final claimed = await ClubOpsSync.claimScheduleSeat(
-          clubId: schedule.clubId,
+        final applied = respondToSchedule(
           scheduleId: scheduleId,
+          response: response,
+          memo: memo,
+          skipCapacityCheck: true,
+        );
+        unawaited(_confirmClaimedSeat(
+          scheduleId: scheduleId,
+          clubId: schedule.clubId,
           year: schedule.roundDate.year,
           memberId: myId,
           memberName: currentUserName,
           capacity: schedule.effectiveCapacity,
-        ).timeout(const Duration(seconds: 8), onTimeout: () => null);
-        if (claimed == false) return false;
-        if (claimed == true) {
-          return respondToSchedule(
-            scheduleId: scheduleId,
-            response: response,
-            memo: memo,
-            skipCapacityCheck: true,
-          );
-        }
+          prev: prev,
+        ));
+        return applied;
       }
     }
     return respondToSchedule(
@@ -6038,6 +6045,45 @@ class ClubProvider extends ChangeNotifier with WidgetsBindingObserver {
       response: response,
       memo: memo,
     );
+  }
+
+  Future<void> _confirmClaimedSeat({
+    required String scheduleId,
+    required String clubId,
+    required int year,
+    required String memberId,
+    required String memberName,
+    required int capacity,
+    required String? prev,
+  }) async {
+    final claimed = await ClubOpsSync.claimScheduleSeat(
+      clubId: clubId,
+      scheduleId: scheduleId,
+      year: year,
+      memberId: memberId,
+      memberName: memberName,
+      capacity: capacity,
+    ).timeout(const Duration(seconds: 8), onTimeout: () => null);
+    if (claimed != false) return;
+    if (prev == '참석' || prev == '불참') {
+      respondToSchedule(
+        scheduleId: scheduleId,
+        response: prev!,
+        skipCapacityCheck: true,
+      );
+      return;
+    }
+    final idx = _schedules.indexWhere((s) => s.id == scheduleId);
+    if (idx == -1) return;
+    final schedule = _schedules[idx];
+    _schedules[idx] = schedule.copyWith(
+      responses: [
+        for (final r in schedule.responses)
+          if (r.memberId != memberId) r,
+      ],
+    );
+    notifyListeners();
+    _persistImmediately();
   }
 
   /// 참석 응답 등록/수정.

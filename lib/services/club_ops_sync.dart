@@ -27,6 +27,10 @@ class ClubOpsSync {
 
   static final Map<String, StreamSubscription<DocumentSnapshot>> _clubSubs =
       {};
+  static final Map<String, List<StreamSubscription<DocumentSnapshot>>>
+      _clubSidecarSubs = {};
+  static final Map<String, Map<String, dynamic>> _watchedBundle = {};
+  static final Map<String, String> _sidecarSig = {};
   static StreamSubscription<DocumentSnapshot>? _userSub;
 
   static bool get _enabled =>
@@ -643,8 +647,16 @@ class ClubOpsSync {
           .whereType<String>(),
       ...bundle.alimtalkSettings.keys,
     };
-    for (final id in ids) {
-      if (id.isEmpty) continue;
+    String? selectedId;
+    if (bundle.myClubs.isNotEmpty) {
+      final i = bundle.selectedClubIndex.clamp(0, bundle.myClubs.length - 1);
+      selectedId = bundle.myClubs[i].id;
+    }
+    final ordered = <String>[
+      if (selectedId != null && ids.contains(selectedId)) selectedId,
+      ...ids.where((id) => id.isNotEmpty && id != selectedId),
+    ];
+    for (final id in ordered) {
       await pushClubOps(clubId: id, bundle: bundle);
     }
     await pushUserOps(bundle: bundle, authUserId: authUserId);
@@ -887,7 +899,7 @@ class ClubOpsSync {
     void Function(Map<String, dynamic> remote) onData,
   ) {
     if (!_enabled || clubId.isEmpty) return;
-    unawaited(_clubSubs.remove(clubId)?.cancel());
+    stopWatchClub(clubId);
     _clubSubs[clubId] = _db
         .doc(FirestorePaths.clubOpsBundle(clubId))
         .snapshots()
@@ -896,29 +908,66 @@ class ClubOpsSync {
       final remote = Map<String, dynamic>.from(snap.data()!);
       try {
         await _attachOverflowDocs(clubId, remote);
-        final photosSnap =
-            await _db.collection(FirestorePaths.clubPhotos(clubId)).get();
-        remote['photos'] = photosSnap.docs.map((d) {
-          final m = Map<String, dynamic>.from(d.data());
-          m['id'] = d.id;
-          return m;
-        }).toList();
       } catch (_) {}
+      _watchedBundle[clubId] = remote;
+      _syncSidecarWatches(clubId, remote, onData);
       onData(remote);
     }, onError: (e) {
       debugPrint('[ClubOpsSync] watchClub error ($clubId): $e');
     });
   }
 
+  static void _syncSidecarWatches(
+    String clubId,
+    Map<String, dynamic> remote,
+    void Function(Map<String, dynamic> remote) onData,
+  ) {
+    final index = remote['overflowYears'];
+    final schYears =
+        index is Map ? ClubOpsOverflow.yearsOf(index['sch']) : const <int>[];
+    final sig = schYears.join(',');
+    if (_sidecarSig[clubId] == sig && _clubSidecarSubs[clubId] != null) {
+      return;
+    }
+    _sidecarSig[clubId] = sig;
+    for (final s in _clubSidecarSubs.remove(clubId) ?? const []) {
+      unawaited(s.cancel());
+    }
+    final subs = <StreamSubscription<DocumentSnapshot>>[];
+    for (final year in schYears) {
+      subs.add(
+        _db
+            .doc(FirestorePaths.clubOpsScheduleYear(clubId, year))
+            .snapshots()
+            .listen((snap) {
+          if (!snap.exists || snap.data() == null) return;
+          final merged = Map<String, dynamic>.from(
+            _watchedBundle[clubId] ?? remote,
+          );
+          ClubOpsOverflow.mergeSidecarIntoRemote(merged, snap.data()!);
+          _watchedBundle[clubId] = merged;
+          onData(merged);
+        }, onError: (e) {
+          debugPrint('[ClubOpsSync] sch watch error ($clubId $year): $e');
+        }),
+      );
+    }
+    _clubSidecarSubs[clubId] = subs;
+  }
+
   static void stopWatchClub(String clubId) {
     unawaited(_clubSubs.remove(clubId)?.cancel());
+    for (final s in _clubSidecarSubs.remove(clubId) ?? const []) {
+      unawaited(s.cancel());
+    }
+    _watchedBundle.remove(clubId);
+    _sidecarSig.remove(clubId);
   }
 
   static void stopAllWatches() {
-    for (final s in _clubSubs.values) {
-      unawaited(s.cancel());
+    for (final id in _clubSubs.keys.toList()) {
+      stopWatchClub(id);
     }
-    _clubSubs.clear();
     unawaited(_userSub?.cancel());
     _userSub = null;
   }

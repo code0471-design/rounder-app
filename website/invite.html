@@ -120,6 +120,7 @@
       var play =
         "https://play.google.com/store/apps/details?id=com.golfrounder.golf" +
         (qs ? "&referrer=" + encodeURIComponent(qs) : "");
+      var appStore = "https://apps.apple.com/kr/app/rounder/id6800716470";
       var intent =
         "intent://invite" +
         (qs ? "?" + qs : "") +
@@ -150,7 +151,7 @@
         e.preventDefault();
         window.location.href = deep;
         setTimeout(function () {
-          if (!document.hidden) window.location.href = play;
+          if (!document.hidden) window.location.href = appStore;
         }, 1600);
       });
     })();
