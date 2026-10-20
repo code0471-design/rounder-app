@@ -23,6 +23,54 @@ void main() {
     );
   });
 
+  test('스토어 버전 이름이 같으면 서버 빌드가 높아도 안내하지 않는다', () {
+    expect(
+      storeUpdateNeeded(
+        installedVersion: '1.0.4',
+        installedBuild: 227,
+        storeVersion: '1.0.4',
+        remoteBuild: 999,
+      ),
+      isFalse,
+    );
+    expect(
+      storeUpdateNeeded(
+        installedVersion: '1.0.4',
+        installedBuild: 227,
+        storeVersion: '1.0.3',
+        remoteBuild: 999,
+      ),
+      isFalse,
+    );
+    expect(
+      storeUpdateNeeded(
+        installedVersion: '1.0.4',
+        installedBuild: 227,
+        storeVersion: '1.0.5',
+        remoteBuild: null,
+      ),
+      isTrue,
+    );
+    expect(
+      storeUpdateNeeded(
+        installedVersion: '1.0.4',
+        installedBuild: 227,
+        storeVersion: null,
+        remoteBuild: 228,
+      ),
+      isTrue,
+    );
+    expect(
+      storeUpdateNeeded(
+        installedVersion: '1.0.4',
+        installedBuild: 227,
+        storeVersion: '  ',
+        remoteBuild: 227,
+      ),
+      isFalse,
+    );
+  });
+
   test('스토어 버전 이름이 더 높으면 안내한다', () {
     expect(
       storeVersionNameIsNewer(installed: '1.0.2', store: '1.0.3'),

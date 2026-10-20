@@ -15,10 +15,10 @@ import '../navigation/app_navigator.dart';
 import '../theme/app_theme.dart';
 
 /// pubspec `version:` 의 name. +build 와 짝이다.
-const kStoreUpdateInstalledVersion = '1.0.3';
+const kStoreUpdateInstalledVersion = '1.0.5';
 
 /// pubspec `version:` 의 +build 와 같아야 한다.
-const kStoreUpdateInstalledBuild = 227;
+const kStoreUpdateInstalledBuild = 228;
 
 const _androidBuildKey = 'androidBuild';
 const _iosBuildKey = 'iosBuild';
@@ -56,6 +56,25 @@ bool storeVersionNameIsNewer({
 }) {
   if (installed.trim().isEmpty || store.trim().isEmpty) return false;
   return compareStoreVersionNames(installed, store) < 0;
+}
+
+/// 스토어 버전 이름을 읽었으면 그 이름만 본다.
+/// 이름이 같거나 더 낮으면, 서버 빌드 번호가 높아도 안내하지 않는다.
+/// 스토어를 못 읽었을 때만 서버 빌드 번호로 판단한다.
+bool storeUpdateNeeded({
+  required String installedVersion,
+  required int installedBuild,
+  String? storeVersion,
+  int? remoteBuild,
+}) {
+  final store = storeVersion?.trim() ?? '';
+  if (store.isNotEmpty) {
+    return storeVersionNameIsNewer(installed: installedVersion, store: store);
+  }
+  return storeUpdateIsAvailable(
+    installedBuild: installedBuild,
+    latestBuild: remoteBuild ?? 0,
+  );
 }
 
 String storeUpdateBuildKey({required bool ios}) =>
@@ -164,23 +183,19 @@ abstract final class StoreUpdatePrompt {
   }
 
   static Future<bool> _needsStoreUpdate() async {
+    String? storeName;
     try {
-      final storeName = await _fetchStoreVersionName();
-      if (storeName != null &&
-          storeVersionNameIsNewer(
-            installed: kStoreUpdateInstalledVersion,
-            store: storeName,
-          )) {
-        return true;
-      }
+      storeName = await _fetchStoreVersionName();
     } catch (e) {
       debugPrint('[StoreUpdate] store lookup skip: $e');
     }
-
-    final remoteBuild = await _readRemoteBuild();
-    return storeUpdateIsAvailable(
+    final knownStore = storeName != null && storeName.trim().isNotEmpty;
+    final remoteBuild = knownStore ? null : await _readRemoteBuild();
+    return storeUpdateNeeded(
+      installedVersion: kStoreUpdateInstalledVersion,
       installedBuild: kStoreUpdateInstalledBuild,
-      latestBuild: remoteBuild ?? 0,
+      storeVersion: storeName,
+      remoteBuild: remoteBuild,
     );
   }
 
