@@ -45,12 +45,34 @@ async function fanoutAllTokens(title, body, type) {
 }
 
 async function hqPushEnabled(typeId) {
+  const tpl = await hqPushTemplate(typeId);
+  return tpl.enabled;
+}
+
+async function hqPushTemplate(typeId) {
   const snap = await getFirestore().doc("_meta/hq_push").get();
   const types = snap.data()?.types;
-  if (!Array.isArray(types)) return true;
-  const hit = types.find((t) => t && t.id === typeId);
-  if (!hit) return true;
-  return hit.enabled !== false;
+  const hit = Array.isArray(types) ? types.find((t) => t && t.id === typeId) : null;
+  return {
+    enabled: !hit || hit.enabled !== false,
+    title: (hit && (hit.defaultTitle || hit.title)) || "회비 납부 안내",
+    body:
+      (hit && (hit.defaultBody || hit.body)) ||
+      "{{모임명}} 회비 납부를 안내드립니다. 납부 기한: {{기한}}",
+  };
+}
+
+function applyPushVars(text, person) {
+  const vars = {
+    모임명: person.clubName || "",
+    기한: person.dueText || "",
+    금액: person.amount || "",
+    이름: person.name || "",
+  };
+  return String(text || "").replace(/\{\{([^}]+)\}\}/g, (_, key) => {
+    const value = vars[String(key).trim()];
+    return value == null ? "" : String(value);
+  });
 }
 
 exports.sendPushOnInbox = onDocumentCreated(
@@ -950,6 +972,7 @@ async function sendRosterDuesReminders() {
   const tomorrow = addDays(today, 1);
   const sendOn = `${today.year}-${String(today.month).padStart(2, "0")}-${String(today.day).padStart(2, "0")}`;
   const clubs = await getFirestore().collection("clubs").get();
+  const pushTpl = await hqPushTemplate("push_dues_request");
   for (const club of clubs.docs) {
     const data = club.data() || {};
     const name = String(data.name || "").trim();
@@ -959,6 +982,7 @@ async function sendRosterDuesReminders() {
     const people = recipientsForClub({
       id: club.id,
       name,
+      creatorId: String(data.creatorId || data.creator_id || data.host_user_id || "").trim(),
       members: body.members,
       settings: body.duesSettings,
       payments: body.duesPayments,
@@ -966,6 +990,18 @@ async function sendRosterDuesReminders() {
     for (const person of people) {
       const onceOk = await claimAlimtalkOnce(`dues|${club.id}`, sendOn, person.phone);
       if (onceOk !== true) continue;
+      if (pushTpl.enabled && person.userId) {
+        const pushOnce = await claimAlimtalkOnce(`dues-push|${club.id}`, sendOn, person.phone);
+        if (pushOnce === true) {
+          await inboxPush(
+            person.userId,
+            applyPushVars(pushTpl.title, person),
+            applyPushVars(pushTpl.body, person),
+            "push_dues_request",
+            club.id,
+          );
+        }
+      }
       const sent = await sendSolapiAlimtalk({
         to: person.phone,
         templateId: process.env.SOLAPI_TEMPLATE_ID_DUES_REQUEST || DUES_TEMPLATE,
@@ -997,7 +1033,6 @@ exports.sendD1Reminders = onSchedule(
       .collection("d1_queue")
       .where("sendOn", "==", seoulYmd())
       .get();
-    const duesPushSeen = new Set();
     for (const doc of snap.docs) {
       const d = doc.data();
       if (!d.userId) continue;
@@ -1008,12 +1043,8 @@ exports.sendD1Reminders = onSchedule(
       }
       const isDues = d.kind === "dues";
       if (isDues) {
-        const key = `${d.clubId || ""}|${canonicalPhone(d.phone) || d.userId}`;
-        if (duesPushSeen.has(key)) {
-          await doc.ref.set({ pushSent: true }, { merge: true });
-          continue;
-        }
-        duesPushSeen.add(key);
+        await doc.ref.set({ pushSent: true }, { merge: true });
+        continue;
       }
       const typeId =
         d.pushType || (isDues ? "push_dues_request" : "push_d1_reminder");

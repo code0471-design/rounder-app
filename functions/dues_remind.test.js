@@ -40,6 +40,7 @@ test("내일 납부일인 미납 정회원에게만, 모임당 한 통", () => {
   assert.deepEqual(people.map((p) => p.phone), ["01045110471", "01040620830"]);
   assert.equal(people[0].clubName, "7080 골프모임");
   assert.equal(people[0].dueText, "2026.10.25");
+  assert.equal(people[0].userId, ROYCE);
 });
 
 test("이미 낸 사람과 납부일이 아닌 모임은 빠진다", () => {
@@ -69,6 +70,18 @@ test("이미 낸 사람과 납부일이 아닌 모임은 빠진다", () => {
     payments: [],
   }, tomorrow);
   assert.equal(later.length, 0);
+
+  const creator = recipientsForClub({
+    id: ARENA,
+    name: "아레나 골프회",
+    creatorId: ROYCE,
+    members: [
+      { id: `m_creator_${ARENA}`, name: "안경헌", memberType: "정회원", status: "활성", phone: "01045110471" },
+    ],
+    settings: [monthly("ds1", 25)],
+    payments: [],
+  }, tomorrow);
+  assert.equal(creator[0].userId, ROYCE);
 });
 
 test("장창현은 볼케이노 회원이면 받고, 아레나 명단 찌꺼기면 안 받는다", () => {

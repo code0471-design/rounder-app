@@ -126,6 +126,20 @@ function hasPaid(payments, clubId, member, settingId, due) {
   return false;
 }
 
+function pushUserId(club, member) {
+  const explicit = String((member && (member.userId || member.user_id)) || "").trim();
+  if (explicit) return explicit;
+  const id = String((member && member.id) || "").trim();
+  if (id === `m_creator_${club.id}`) {
+    return String(club.creatorId || "").trim();
+  }
+  const prefix = `m_${club.id}_`;
+  if (id.startsWith(prefix)) return id.slice(prefix.length);
+  const roster = id.match(/^m_(c_\d+|c\d+|seed_c\d+)_(.+)$/);
+  if (roster) return roster[2];
+  return id;
+}
+
 function isRegular(member) {
   return member && member.status === "활성" && member.memberType === "정회원";
 }
@@ -158,6 +172,7 @@ function recipientsForClub(club, tomorrow) {
       seen.add(phone);
       out.push({
         phone,
+        userId: pushUserId(club, member),
         name: String(member.name || "").trim() || "회원",
         amount: String(setting.amount ?? ""),
         dueText: dueLabel(due),
