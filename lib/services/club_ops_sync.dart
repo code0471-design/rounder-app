@@ -1981,6 +1981,33 @@ class ClubOpsSync {
   /// tombstone 된 회원만 다르게 처리한다 — 로컬 행을 지키고 원격 행은 버린다.
   ///
   /// [remoteWins] true 면 pull/watch(원격 우선), false 면 push(로컬 우선).
+  /// 어드민에 저장된 모임 이름. 폰에 남은 옛 이름보다 이 이름을 쓴다.
+  static String? newerCatalogName({
+    required String localName,
+    required String catalogName,
+  }) {
+    final catalog = catalogName.trim();
+    if (catalog.isEmpty || catalog == localName.trim()) return null;
+    return catalog;
+  }
+
+  static Future<Map<String, String>> catalogNames(Iterable<String> clubIds) async {
+    final out = <String, String>{};
+    if (!_enabled) return out;
+    for (final raw in clubIds) {
+      final clubId = raw.trim();
+      if (clubId.isEmpty || out.containsKey(clubId)) continue;
+      try {
+        final snap = await _db.doc('${FirestorePaths.clubs}/$clubId').get();
+        final name = '${snap.data()?['name'] ?? ''}'.trim();
+        if (name.isNotEmpty) out[clubId] = name;
+      } catch (e) {
+        debugPrint('[ClubOpsSync] catalog name skip $clubId: $e');
+      }
+    }
+    return out;
+  }
+
   /// 장창현처럼 그 모임 생성자도 아닌데 소셜 명단에 남은 행.
   /// 알라딘 방장 자리는 남기고, 강남·평촌·이글 같은 남의 모임만 뺀다.
   static const leftoverStolenNames = {'장창현'};

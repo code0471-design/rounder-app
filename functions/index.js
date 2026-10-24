@@ -14,6 +14,7 @@ const {
   joinPushPayload,
   joinResultPayload,
 } = require("./join_notify");
+const { seoulParts, addDays, recipientsForClub } = require("./dues_remind");
 
 const D1_TEMPLATE = "KA01TP260819170856743YpkKVjb5WfS";
 const DUES_TEMPLATE = "KA01TP260819171813223rmS1ByutYaw";
@@ -585,7 +586,7 @@ async function releaseAlimtalkOnce(scheduleId, sendOn, phone) {
 async function listScheduledGroups() {
   const now = Date.now();
   const start = new Date(now - 3 * 24 * 3600 * 1000).toISOString();
-  const end = new Date(now + 7 * 24 * 3600 * 1000).toISOString();
+  const end = new Date(now + 120 * 24 * 3600 * 1000).toISOString();
   const groups = [];
   let startKey = "";
   for (let page = 0; page < 5; page += 1) {
@@ -749,6 +750,13 @@ async function dedupeScheduledAlimtalk() {
     list.sort((a, b) =>
       String(a.group.dateCreated || "").localeCompare(String(b.group.dateCreated || "")),
     );
+    if (list[0] && list[0].info && list[0].info.template === DUES_TEMPLATE) {
+      for (const row of list) {
+        const ok = await cancelScheduledGroup(row.group.groupId);
+        console.log("dues schedule cancel", key, row.group.groupId, ok);
+      }
+      continue;
+    }
     for (const row of list.slice(1)) {
       const ok = await cancelScheduledGroup(row.group.groupId);
       console.log("d1 duplicate cancel", key, row.group.groupId, ok);
@@ -776,6 +784,13 @@ async function flushDueD1Alimtalk() {
   const claimed = new Set();
   for (const doc of snap.docs) {
     const d = doc.data();
+    if (d.kind === "dues") {
+      await doc.ref.set(
+        { alimtalkSent: true, alimtalkScheduled: true },
+        { merge: true },
+      );
+      continue;
+    }
     if (d.alimtalkSent === true || d.alimtalkScheduled === true) {
       const phone = digits(d.phone);
       if (phone.length >= 10) claimed.add(sendDedupKey(d, phone));
@@ -783,6 +798,7 @@ async function flushDueD1Alimtalk() {
   }
   for (const doc of snap.docs) {
     const d = doc.data();
+    if (d.kind === "dues") continue;
     if (d.alimtalkSent === true || d.alimtalkScheduled === true) continue;
     if (isLeftoverRecipient(d)) {
       console.log("d1 alimtalk leftover skip", doc.id);
@@ -857,6 +873,13 @@ async function sendUnscheduledD1Alimtalk() {
   const seen = new Set();
   for (const doc of snap.docs) {
     const d = doc.data() || {};
+    if (d.kind === "dues") {
+      await doc.ref.set(
+        { alimtalkSent: true, alimtalkScheduled: true },
+        { merge: true },
+      );
+      continue;
+    }
     if (d.alimtalkSent === true || d.alimtalkScheduled === true) continue;
     if (isLeftoverRecipient(d)) {
       await doc.ref.set({ alimtalkSent: true }, { merge: true });
@@ -920,6 +943,47 @@ async function sendUnscheduledD1Alimtalk() {
   }
 }
 
+async function sendRosterDuesReminders() {
+  if (seoulHour() !== 10 || seoulMinute() > 20) return;
+  if (!(await hqAlimtalkEnabled("atk_dues_request"))) return;
+  const today = seoulParts(new Date());
+  const tomorrow = addDays(today, 1);
+  const sendOn = `${today.year}-${String(today.month).padStart(2, "0")}-${String(today.day).padStart(2, "0")}`;
+  const clubs = await getFirestore().collection("clubs").get();
+  for (const club of clubs.docs) {
+    const data = club.data() || {};
+    const name = String(data.name || "").trim();
+    if (!name) continue;
+    const bundle = await club.ref.collection("ops").doc("bundle").get();
+    const body = bundle.data() || {};
+    const people = recipientsForClub({
+      id: club.id,
+      name,
+      members: body.members,
+      settings: body.duesSettings,
+      payments: body.duesPayments,
+    }, tomorrow);
+    for (const person of people) {
+      const onceOk = await claimAlimtalkOnce(`dues|${club.id}`, sendOn, person.phone);
+      if (onceOk !== true) continue;
+      const sent = await sendSolapiAlimtalk({
+        to: person.phone,
+        templateId: process.env.SOLAPI_TEMPLATE_ID_DUES_REQUEST || DUES_TEMPLATE,
+        variables: {
+          "#{이름}": person.name,
+          "#{모임명}": person.clubName,
+          "#{금액}": person.amount,
+          "#{기한}": person.dueText,
+        },
+      });
+      if (!sent.ok) {
+        await releaseAlimtalkOnce(`dues|${club.id}`, sendOn, person.phone);
+        console.log("dues remind pending", club.id, person.phone, sent.reason);
+      }
+    }
+  }
+}
+
 exports.sendD1Reminders = onSchedule(
   {
     schedule: "0 10 * * *",
@@ -928,10 +992,12 @@ exports.sendD1Reminders = onSchedule(
     secrets: ["SOLAPI_API_KEY", "SOLAPI_API_SECRET"],
   },
   async () => {
+    await sendRosterDuesReminders();
     const snap = await getFirestore()
       .collection("d1_queue")
       .where("sendOn", "==", seoulYmd())
       .get();
+    const duesPushSeen = new Set();
     for (const doc of snap.docs) {
       const d = doc.data();
       if (!d.userId) continue;
@@ -941,6 +1007,14 @@ exports.sendD1Reminders = onSchedule(
         continue;
       }
       const isDues = d.kind === "dues";
+      if (isDues) {
+        const key = `${d.clubId || ""}|${canonicalPhone(d.phone) || d.userId}`;
+        if (duesPushSeen.has(key)) {
+          await doc.ref.set({ pushSent: true }, { merge: true });
+          continue;
+        }
+        duesPushSeen.add(key);
+      }
       const typeId =
         d.pushType || (isDues ? "push_dues_request" : "push_d1_reminder");
       if (!(await hqPushEnabled(typeId))) {
@@ -974,6 +1048,7 @@ exports.flushD1Alimtalk = onSchedule(
   async () => {
     await collapseUpcomingQueueDupes();
     await dedupeScheduledAlimtalk();
+    await sendRosterDuesReminders();
     await flushDueD1Alimtalk();
   }
 );

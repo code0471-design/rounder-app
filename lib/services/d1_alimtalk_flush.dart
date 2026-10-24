@@ -44,9 +44,14 @@ abstract final class D1AlimtalkFlush {
     for (final doc in docs) {
       final d = doc.data();
       final isDues = d['kind'] == 'dues';
-      final hqTypeId = isDues
-          ? HqAlimtalkCatalog.duesRequestId
-          : HqAlimtalkCatalog.d1ReminderId;
+      if (isDues) {
+        await PushNotificationService.markD1AlimtalkSent(
+          doc.id,
+          scheduled: true,
+        );
+        continue;
+      }
+      final hqTypeId = HqAlimtalkCatalog.d1ReminderId;
       final clubId = '${d['clubId'] ?? ''}';
       if (D1EnqueuePolicy.isBlockedRecipient(
         name: '${d['memberName'] ?? ''}',

@@ -680,6 +680,33 @@ class ClubProvider extends ChangeNotifier with WidgetsBindingObserver {
     notifyListeners();
   }
 
+  Future<void> _refreshClubNamesFromCatalog() async {
+    final names = await ClubOpsSync.catalogNames(_myClubs.map((c) => c.id));
+    var changed = false;
+    for (final entry in names.entries) {
+      final next = ClubOpsSync.newerCatalogName(
+        localName: _myClubs
+                .where((c) => c.id == entry.key)
+                .map((c) => c.name)
+                .firstOrNull ??
+            '',
+        catalogName: entry.value,
+      );
+      if (next == null) continue;
+      void rename(List<Club> list) {
+        final i = list.indexWhere((c) => c.id == entry.key);
+        if (i < 0) return;
+        list[i] = list[i].copyWith(name: next);
+      }
+
+      rename(_myClubs);
+      rename(_allClubs);
+      _clubInfoOverrides.remove(entry.key);
+      changed = true;
+    }
+    if (changed) notifyListeners();
+  }
+
   Future<void> _pullCloudOpsForMyClubs() async {
     final authUserId = _persistAuthUserId;
     if (authUserId == null) return;
@@ -717,6 +744,7 @@ class ClubProvider extends ChangeNotifier with WidgetsBindingObserver {
       for (final club in List<Club>.from(_myClubs)) {
         await _hydrateRosterFromServer(club.id);
       }
+      await _refreshClubNamesFromCatalog();
       _purgeHongGilDongFromRealClubs();
       _scrubUndersizedScheduleCapacities();
       _syncAllNextRounds();
