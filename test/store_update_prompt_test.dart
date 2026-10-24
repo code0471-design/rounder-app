@@ -103,6 +103,27 @@ void main() {
     );
   });
 
+  test('깔린 빌드 버전이 있으면 그 버전으로 안다', () {
+    final fromPackage = storeInstalledIdentity(
+      packageVersion: '1.0.4',
+      packageBuild: '227',
+    );
+    expect(fromPackage.version, '1.0.4');
+    expect(fromPackage.build, 227);
+    expect(
+      storeUpdateNeeded(
+        installedVersion: fromPackage.version,
+        installedBuild: fromPackage.build,
+        storeVersion: '1.0.4',
+        remoteBuild: 999,
+      ),
+      isFalse,
+    );
+    final fallback = storeInstalledIdentity(packageVersion: '', packageBuild: '');
+    expect(fallback.version, kStoreUpdateInstalledVersion);
+    expect(fallback.build, kStoreUpdateInstalledBuild);
+  });
+
   test('컴파일 버전은 pubspec version 과 같다', () {
     final line = File('pubspec.yaml')
         .readAsLinesSync()
@@ -138,6 +159,8 @@ void main() {
     expect(src.contains('InviteLinks.playStore'), isTrue);
     expect(src.contains('FirestorePaths.metaStoreVersion'), isTrue);
     expect(src.contains('_readRemoteBuild'), isTrue);
+    expect(src.contains('PackageInfo.fromPlatform'), isTrue);
+    expect(src.contains('storeInstalledIdentity'), isTrue);
     expect(src.contains('SetOptions(merge: true)'), isFalse,
         reason: '지금 깔린 빌드를 최신으로 쓰면 스토어 업데이트가 있어도 안내가 안 뜬다');
     expect(src.contains('club_ops_sync'), isFalse);

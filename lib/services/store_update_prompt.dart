@@ -6,6 +6,7 @@ import 'package:firebase_core/firebase_core.dart';
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:http/http.dart' as http;
+import 'package:package_info_plus/package_info_plus.dart';
 import 'package:url_launcher/url_launcher.dart';
 
 import '../config/invite_links.dart';
@@ -14,11 +15,11 @@ import '../core/firebase/firestore_paths.dart';
 import '../navigation/app_navigator.dart';
 import '../theme/app_theme.dart';
 
-/// pubspec `version:` 의 name. +build 와 짝이다.
+/// 패키지 버전을 못 읽을 때만 쓰는 값. 안내 판단은 깔린 빌드의 버전을 본다.
 const kStoreUpdateInstalledVersion = '1.0.5';
 
-/// pubspec `version:` 의 +build 와 같아야 한다.
-const kStoreUpdateInstalledBuild = 229;
+/// 패키지 빌드 번호를 못 읽을 때만 쓰는 값.
+const kStoreUpdateInstalledBuild = 230;
 
 const _androidBuildKey = 'androidBuild';
 const _iosBuildKey = 'iosBuild';
@@ -56,6 +57,22 @@ bool storeVersionNameIsNewer({
 }) {
   if (installed.trim().isEmpty || store.trim().isEmpty) return false;
   return compareStoreVersionNames(installed, store) < 0;
+}
+
+/// 스토어와 비교할 이 폰의 버전. 빌드에 박힌 버전이 있으면 그 값을 쓴다.
+({String version, int build}) storeInstalledIdentity({
+  String? packageVersion,
+  String? packageBuild,
+}) {
+  final version = (packageVersion ?? '').trim();
+  final build = int.tryParse((packageBuild ?? '').trim()) ?? 0;
+  if (version.isNotEmpty && build > 0) {
+    return (version: version, build: build);
+  }
+  return (
+    version: kStoreUpdateInstalledVersion,
+    build: kStoreUpdateInstalledBuild,
+  );
 }
 
 /// 스토어 버전 이름을 읽었으면 그 이름만 본다.
@@ -191,12 +208,26 @@ abstract final class StoreUpdatePrompt {
     }
     final knownStore = storeName != null && storeName.trim().isNotEmpty;
     final remoteBuild = knownStore ? null : await _readRemoteBuild();
+    final installed = await _readInstalledIdentity();
     return storeUpdateNeeded(
-      installedVersion: kStoreUpdateInstalledVersion,
-      installedBuild: kStoreUpdateInstalledBuild,
+      installedVersion: installed.version,
+      installedBuild: installed.build,
       storeVersion: storeName,
       remoteBuild: remoteBuild,
     );
+  }
+
+  static Future<({String version, int build})> _readInstalledIdentity() async {
+    try {
+      final info = await PackageInfo.fromPlatform();
+      return storeInstalledIdentity(
+        packageVersion: info.version,
+        packageBuild: info.buildNumber,
+      );
+    } catch (e) {
+      debugPrint('[StoreUpdate] package version skip: $e');
+      return storeInstalledIdentity();
+    }
   }
 
   static Future<String?> _fetchStoreVersionName() async {
