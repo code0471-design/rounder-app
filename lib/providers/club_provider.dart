@@ -4617,11 +4617,13 @@ class ClubProvider extends ChangeNotifier with WidgetsBindingObserver {
       return true;
     }).toList();
 
+    // 납부 기록에는 모임 id가 없다. 회비 설정의 모임에 삭제 기록을 남긴다.
+    final setting = _duesSettings.where((d) => d.id == duesSettingId).firstOrNull;
+    final settingClub = setting?.clubId?.trim() ?? '';
+    final clubId = settingClub.isNotEmpty ? settingClub : selectedClub.id;
+
     // 연결된 수입 거래도 함께 삭제 (dues 소스만)
     for (final p in payments) {
-      final clubId = (p.clubId != null && p.clubId!.trim().isNotEmpty)
-          ? p.clubId!.trim()
-          : selectedClub.id;
       ClubOpsSync.markDuesPaymentRemoved(p.id, clubId: clubId);
       _transactions.removeWhere((t) =>
           t.source == TxSource.dues && t.duesPaymentId == p.id);
@@ -4643,7 +4645,6 @@ class ClubProvider extends ChangeNotifier with WidgetsBindingObserver {
     );
     _persistImmediately();
     notifyListeners();
-    final setting = _duesSettings.where((d) => d.id == duesSettingId).firstOrNull;
     if (setting != null) unawaited(syncDuesD1Reminders(setting));
   }
 

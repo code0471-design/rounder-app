@@ -471,4 +471,16 @@ void main() {
         isTrue,
         reason: '수입 제목에 몇 월 회비인지 남아야 한다');
   });
+
+  test('납부 취소는 회비 설정의 모임에 삭제 기록을 남긴다', () {
+    final record = File('lib/providers/club_provider.dart').readAsStringSync();
+    final start = record.indexOf('void cancelPayment(');
+    final end = record.indexOf('신규 모임 온보딩', start);
+    expect(start, greaterThan(0));
+    expect(end, greaterThan(start));
+    final body = record.substring(start, end);
+    expect(body.contains('p.clubId'), isFalse);
+    expect(body.contains('markDuesPaymentRemoved'), isTrue);
+    expect(body.contains('setting?.clubId'), isTrue);
+  });
 }
