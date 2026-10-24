@@ -129,3 +129,74 @@ test("발송 다음 날이 납부일이다", () => {
     day: 25,
   });
 });
+
+test("연회비는 납부 기준일 전날만, 그해에 이미 낸 사람은 빠진다", () => {
+  const annual = {
+    id: "year-2026",
+    type: "annual",
+    isActive: true,
+    year: 2026,
+    dueDate: "2026-10-28T00:00:00.000",
+    amount: 300000,
+    createdAt: "2026-01-01T00:00:00.000",
+  };
+  const members = [
+    { id: `m_${ALADDIN}_${ROYCE}`, name: "안경헌", memberType: "정회원", status: "활성", phone: "01045110471" },
+  ];
+  const onDay = recipientsForClub({
+    id: ALADDIN,
+    name: "7080 골프모임",
+    members,
+    settings: [annual],
+    payments: [],
+  }, { year: 2026, month: 10, day: 28 });
+  assert.equal(onDay.length, 1);
+  assert.equal(onDay[0].dueText, "2026.10.28");
+  assert.equal(onDay[0].amount, "300000");
+
+  const otherDay = recipientsForClub({
+    id: ALADDIN,
+    name: "7080 골프모임",
+    members,
+    settings: [annual],
+    payments: [],
+  }, { year: 2026, month: 10, day: 25 });
+  assert.equal(otherDay.length, 0);
+
+  const paidEarlier = recipientsForClub({
+    id: ALADDIN,
+    name: "7080 골프모임",
+    members,
+    settings: [annual],
+    payments: [{
+      duesSettingId: "year-2026",
+      memberId: ROYCE,
+      paidAt: "2026-03-02T00:00:00.000",
+    }],
+  }, { year: 2026, month: 10, day: 28 });
+  assert.equal(paidEarlier.length, 0);
+});
+
+test("같은 날이라도 월회비와 연회비는 각각 한 통", () => {
+  const people = recipientsForClub({
+    id: ALADDIN,
+    name: "7080 골프모임",
+    members: [
+      { id: `m_${ALADDIN}_${ROYCE}`, name: "안경헌", memberType: "정회원", status: "활성", phone: "01045110471" },
+    ],
+    settings: [
+      monthly("ds", 28),
+      {
+        id: "year-2026",
+        type: "annual",
+        isActive: true,
+        year: 2026,
+        dueDate: "2026-10-28T00:00:00.000",
+        amount: 300000,
+        createdAt: "2026-01-01T00:00:00.000",
+      },
+    ],
+    payments: [],
+  }, { year: 2026, month: 10, day: 28 });
+  assert.deepEqual(people.map((p) => p.settingId), ["ds", "year-2026"]);
+});

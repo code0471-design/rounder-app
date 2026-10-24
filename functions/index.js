@@ -988,10 +988,11 @@ async function sendRosterDuesReminders() {
       payments: body.duesPayments,
     }, tomorrow);
     for (const person of people) {
-      const onceOk = await claimAlimtalkOnce(`dues|${club.id}`, sendOn, person.phone);
+      const onceId = `dues|${club.id}|${person.settingId || ""}`;
+      const onceOk = await claimAlimtalkOnce(onceId, sendOn, person.phone);
       if (onceOk !== true) continue;
       if (pushTpl.enabled && person.userId) {
-        const pushOnce = await claimAlimtalkOnce(`dues-push|${club.id}`, sendOn, person.phone);
+        const pushOnce = await claimAlimtalkOnce(`dues-push|${club.id}|${person.settingId || ""}`, sendOn, person.phone);
         if (pushOnce === true) {
           await inboxPush(
             person.userId,
@@ -1013,7 +1014,7 @@ async function sendRosterDuesReminders() {
         },
       });
       if (!sent.ok) {
-        await releaseAlimtalkOnce(`dues|${club.id}`, sendOn, person.phone);
+        await releaseAlimtalkOnce(onceId, sendOn, person.phone);
         console.log("dues remind pending", club.id, person.phone, sent.reason);
       }
     }

@@ -115,13 +115,16 @@ function sameMember(clubId, memberId, paymentMemberId) {
   return ka === b || kb === a || (ka && ka === kb);
 }
 
-function hasPaid(payments, clubId, member, settingId, due) {
+function hasPaid(payments, clubId, member, setting, due) {
+  const settingId = setting && setting.id;
+  const yearOnly = setting && setting.type !== "monthly";
   for (const payment of payments || []) {
     if (!payment || String(payment.duesSettingId || "") !== String(settingId)) continue;
     if (!sameMember(clubId, member.id, payment.memberId)) continue;
     const paid = calendarFrom(payment.paidAt);
     if (!paid) continue;
-    if (paid.year === due.year && paid.month === due.month) return true;
+    if (paid.year !== due.year) continue;
+    if (yearOnly || paid.month === due.month) return true;
   }
   return false;
 }
@@ -165,11 +168,12 @@ function recipientsForClub(club, tomorrow) {
     for (const member of members) {
       if (!isRegular(member)) continue;
       if (isArenaLeftover(club.id, member)) continue;
-      if (hasPaid(payments, club.id, member, setting.id, due)) continue;
+      if (hasPaid(payments, club.id, member, setting, due)) continue;
       const phone = canonicalPhone(member.phone);
       if (phone.length < 10) continue;
-      if (seen.has(phone)) continue;
-      seen.add(phone);
+      const slot = setting.type === "monthly" ? `monthly|${phone}` : `${setting.id}|${phone}`;
+      if (seen.has(slot)) continue;
+      seen.add(slot);
       out.push({
         phone,
         userId: pushUserId(club, member),
