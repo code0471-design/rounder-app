@@ -805,6 +805,204 @@ void main() {
     );
   });
 
+  test('취소한 납부만 원격에서 되살리지 않고 다른 납부·잔고는 유지한다', () {
+    ClubOpsSync.resetDuesPaymentTombstones();
+    ClubOpsSync.markDuesPaymentRemoved('pay_cancel', clubId: 'c_test');
+    final paidAt = DateTime(2026, 3, 1);
+    final local = ClubDataBundle(
+      selectedClubIndex: 0,
+      freshClubIds: {'c_test'},
+      myClubs: [
+        Club(
+          id: 'c_test',
+          name: '테스트',
+          myRole: '총무',
+          memberCount: 2,
+          region: '서울',
+          industry: 'IT',
+          teamCount: 4,
+        ),
+      ],
+      allClubs: const [],
+      joinRequests: const [],
+      members: const [],
+      activities: const [],
+      announcements: const [],
+      appNotifications: const [],
+      duesSettings: [
+        DuesSetting(
+          id: 'ds_club_1',
+          type: DuesType.monthly,
+          amount: 50000,
+          title: '2026년 월회비',
+          createdAt: DateTime(2026, 1, 1),
+          clubId: 'c_test',
+        ),
+      ],
+      duesPayments: [
+        DuesPayment(
+          id: 'pay_keep',
+          memberId: 'm_keep',
+          memberName: '이정원',
+          duesSettingId: 'ds_club_1',
+          amount: 30000,
+          paidAt: paidAt,
+          recordedBy: '총무',
+        ),
+        DuesPayment(
+          id: 'pay_from_other_phone',
+          memberId: 'm_other',
+          memberName: '양우석',
+          duesSettingId: 'ds_club_1',
+          amount: 10000,
+          paidAt: paidAt,
+          recordedBy: '총무',
+        ),
+      ],
+      paymentRequests: const [],
+      transactions: [
+        Transaction(
+          id: 'tx_keep',
+          type: TxType.income,
+          category: '회비',
+          amount: 30000,
+          title: '이정원 월회비',
+          date: paidAt,
+          recordedBy: '총무',
+          source: TxSource.dues,
+          duesPaymentId: 'pay_keep',
+          clubId: 'c_test',
+        ),
+        Transaction(
+          id: 'tx_other',
+          type: TxType.income,
+          category: '회비',
+          amount: 10000,
+          title: '양우석 월회비',
+          date: paidAt,
+          recordedBy: '총무',
+          source: TxSource.dues,
+          duesPaymentId: 'pay_from_other_phone',
+          clubId: 'c_test',
+        ),
+        Transaction(
+          id: 'tx_manual',
+          type: TxType.expense,
+          category: '기타',
+          amount: 5000,
+          title: '간식',
+          date: paidAt,
+          recordedBy: '총무',
+          source: TxSource.manual,
+          clubId: 'c_test',
+        ),
+      ],
+      schedules: const [],
+      photos: const [],
+      groupAssignments: const {},
+      adApplications: const [],
+      adNotifications: const [],
+      sponsorApplications: const [],
+      pointEvents: const {},
+      awardRecords: const [],
+      thankYouMessages: const [],
+      waitingList: const [],
+      alimtalkSettings: const {},
+    );
+
+    Map<String, dynamic> payment(String id, String memberId, int amount) => {
+          'id': id,
+          'memberId': memberId,
+          'memberName': memberId,
+          'duesSettingId': 'ds_club_1',
+          'amount': amount,
+          'paidAt': paidAt.toIso8601String(),
+          'recordedBy': '총무',
+        };
+    Map<String, dynamic> tx(
+      String id,
+      String paymentId,
+      int amount,
+      String source,
+    ) =>
+        {
+          'id': id,
+          'type': amount < 0 ? 'expense' : 'income',
+          'amount': amount.abs(),
+          'category': '회비',
+          'title': id,
+          'date': paidAt.toIso8601String(),
+          'recordedBy': '총무',
+          'source': source,
+          'duesPaymentId': paymentId,
+          'clubId': 'c_test',
+        };
+
+    final remote = <String, dynamic>{
+      'clubId': 'c_test',
+      'schedules': <dynamic>[],
+      'announcements': <dynamic>[],
+      'members': <dynamic>[],
+      'activities': <dynamic>[],
+      'duesSettings': [
+        {
+          'id': 'ds_club_1',
+          'type': 'monthly',
+          'amount': 50000,
+          'title': '2026년 월회비',
+          'createdAt': DateTime(2026, 1, 1).toIso8601String(),
+          'isActive': true,
+          'clubId': 'c_test',
+          'amountHistory': <dynamic>[],
+        },
+      ],
+      'duesPayments': [
+        payment('pay_cancel', 'm_cancel', 50000),
+        payment('pay_keep', 'm_keep', 30000),
+        payment('pay_new', 'm_new', 20000),
+      ],
+      'paymentRequests': <dynamic>[],
+      'transactions': [
+        tx('tx_cancel', 'pay_cancel', 50000, 'dues'),
+        tx('tx_keep', 'pay_keep', 30000, 'dues'),
+        tx('tx_new', 'pay_new', 20000, 'dues'),
+      ],
+      'photos': <dynamic>[],
+      'groupAssignments': <String, dynamic>{},
+      'waitingList': <dynamic>[],
+      'alimtalkSettings': <String, dynamic>{},
+      'adApplications': <dynamic>[],
+      'adNotifications': <dynamic>[],
+      'sponsorApplications': <dynamic>[],
+      'awardRecords': <dynamic>[],
+      'thankYouMessages': <dynamic>[],
+      'pointEvents': <String, dynamic>{},
+      'removedDuesPaymentIds': <String>['pay_from_other_phone'],
+    };
+
+    final merged = ClubOpsSync.applyRemoteSlice(local, 'c_test', remote);
+    expect(merged.duesPayments.any((p) => p.id == 'pay_cancel'), isFalse);
+    expect(merged.transactions.any((t) => t.id == 'tx_cancel'), isFalse);
+    expect(merged.duesPayments.any((p) => p.id == 'pay_keep'), isTrue);
+    expect(merged.transactions.any((t) => t.id == 'tx_keep'), isTrue);
+    expect(merged.duesPayments.any((p) => p.id == 'pay_from_other_phone'), isFalse);
+    expect(merged.transactions.any((t) => t.id == 'tx_other'), isFalse);
+    expect(merged.transactions.any((t) => t.id == 'tx_other'), isFalse);
+    expect(merged.duesPayments.any((p) => p.id == 'pay_new'), isTrue);
+    expect(merged.transactions.any((t) => t.id == 'tx_new'), isTrue);
+    expect(merged.transactions.any((t) => t.id == 'tx_manual'), isTrue);
+    expect(
+      merged.transactions
+          .where((t) => t.clubId == 'c_test')
+          .fold<int>(
+            0,
+            (s, t) => s + (t.type == TxType.income ? t.amount : -t.amount),
+          ),
+      30000 + 20000 - 5000,
+    );
+    ClubOpsSync.resetDuesPaymentTombstones();
+  });
+
   test('원격 홍길동 회원·납부·거래는 merge에서 삭제한다', () {
     ClubOpsSync.resetMemberTombstones();
     final local = ClubDataBundle(

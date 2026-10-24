@@ -4619,6 +4619,10 @@ class ClubProvider extends ChangeNotifier with WidgetsBindingObserver {
 
     // 연결된 수입 거래도 함께 삭제 (dues 소스만)
     for (final p in payments) {
+      final clubId = (p.clubId != null && p.clubId!.trim().isNotEmpty)
+          ? p.clubId!.trim()
+          : selectedClub.id;
+      ClubOpsSync.markDuesPaymentRemoved(p.id, clubId: clubId);
       _transactions.removeWhere((t) =>
           t.source == TxSource.dues && t.duesPaymentId == p.id);
     }

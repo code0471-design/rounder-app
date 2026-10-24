@@ -77,12 +77,25 @@ class ClubOpsSync {
       if (existing.exists && existing.data() != null) {
         final remote = Map<String, dynamic>.from(existing.data()!);
         await _attachOverflowDocs(clubId, remote);
+        adoptRemoteRemovedDues(clubId, remote);
+        adoptRemoteRemovedPayments(clubId, remote);
         final localPayments = slice['duesPayments'] as List? ?? const [];
         final remotePayments = remote['duesPayments'] as List? ?? const [];
-        if (localPayments.isEmpty && remotePayments.isNotEmpty) {
+        final removedPayments = removedDuesPaymentIdsForClub(clubId);
+        if (localPayments.isEmpty &&
+            remotePayments.isNotEmpty &&
+            removedPayments.isEmpty) {
           slice['duesPayments'] = remotePayments;
+        } else {
+          slice['duesPayments'] = withoutRemovedDuesPayments(
+            localPayments.isEmpty ? remotePayments : localPayments,
+            clubId,
+          );
         }
-        adoptRemoteRemovedDues(clubId, remote);
+        slice['transactions'] = withoutRemovedDuesPaymentTransactions(
+          slice['transactions'] as List?,
+          clubId,
+        );
         final localSettings = withoutRemovedDuesSettings(
           slice['duesSettings'] as List?,
           clubId,
@@ -239,8 +252,13 @@ class ClubOpsSync {
         }
         final localTx = slice['transactions'] as List? ?? const [];
         final remoteTx = remote['transactions'] as List? ?? const [];
-        if (localTx.isEmpty && remoteTx.isNotEmpty) {
+        if (localTx.isEmpty && remoteTx.isNotEmpty && removedPayments.isEmpty) {
           slice['transactions'] = remoteTx;
+        } else if (removedPayments.isNotEmpty) {
+          slice['transactions'] = withoutRemovedDuesPaymentTransactions(
+            localTx.isEmpty ? remoteTx : localTx,
+            clubId,
+          );
         }
         // 포인트는 merge:false 로 덮으면 원격에만 있는 회원(다른 기기에서
         // 방금 적립한 사람)의 이력이 사라진다. 이벤트 단위로 합친다.
@@ -284,6 +302,7 @@ class ClubOpsSync {
       await _pushOverflowDocs(clubId, schYears, ledYears, previousYears);
 
       slice['removedDuesSettingIds'] = removedDuesSettingIdsForClub(clubId);
+      slice['removedDuesPaymentIds'] = removedDuesPaymentIdsForClub(clubId);
       slice['updatedAt'] = FieldValue.serverTimestamp();
       await _db
           .doc(FirestorePaths.clubOpsBundle(clubId))
@@ -1025,7 +1044,8 @@ class ClubOpsSync {
   /// 회비 삭제는 메모리에만 있으면 앱을 다시 켤 때 사라진다.
   /// 그러면 서버에 남은 예전 회비가 활성 목록으로 되살아난다.
   static Future<void> ensureDuesTombstonesLoaded() {
-    return _duesTombstoneLoad ??= _loadDuesTombstones();
+    return _duesTombstoneLoad ??=
+        _loadDuesTombstones().then((_) => _loadPaymentTombstones());
   }
 
   static Future<void> _loadDuesTombstones() async {
@@ -1101,6 +1121,102 @@ class ClubOpsSync {
   static void resetDuesSettingTombstones() {
     _removedDuesSettingIds.clear();
     _duesTombstoneLoad = Future<void>.value();
+  }
+
+  static final Set<String> _removedDuesPaymentIds = {};
+  static const _kRemovedPaymentPrefs = 'club_ops_removed_dues_payments';
+
+  /// 납부 한 건을 취소한 기록. 없으면 서버에 남은 납부가 1초 뒤 다시 붙는다.
+  static void markDuesPaymentRemoved(String paymentId, {required String clubId}) {
+    if (paymentId.isEmpty || clubId.isEmpty) return;
+    _removedDuesPaymentIds.add(duesTombstoneKey(clubId, paymentId));
+    unawaited(_persistPaymentTombstones());
+  }
+
+  static Future<void> _loadPaymentTombstones() async {
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      final list = prefs.getStringList(_kRemovedPaymentPrefs) ?? const <String>[];
+      _removedDuesPaymentIds.addAll(list);
+    } catch (_) {
+      debugPrint('[ClubOpsSync] payment tombstone load skip');
+    }
+  }
+
+  static Future<void> _persistPaymentTombstones() async {
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      await prefs.setStringList(
+        _kRemovedPaymentPrefs,
+        _removedDuesPaymentIds.toList(),
+      );
+    } catch (_) {
+      debugPrint('[ClubOpsSync] payment tombstone save skip');
+    }
+  }
+
+  static void adoptRemoteRemovedPayments(
+    String clubId,
+    Map<String, dynamic> remote,
+  ) {
+    final raw = remote['removedDuesPaymentIds'];
+    if (raw is! List) return;
+    var changed = false;
+    for (final id in raw) {
+      final paymentId = '$id'.trim();
+      if (paymentId.isEmpty) continue;
+      if (_removedDuesPaymentIds.add(duesTombstoneKey(clubId, paymentId))) {
+        changed = true;
+      }
+    }
+    if (changed) unawaited(_persistPaymentTombstones());
+  }
+
+  @visibleForTesting
+  static List<String> removedDuesPaymentIdsForClub(String clubId) {
+    final prefix = '$clubId|';
+    final ids = <String>[
+      for (final key in _removedDuesPaymentIds)
+        if (key.startsWith(prefix)) key.substring(prefix.length),
+    ]..sort();
+    return ids;
+  }
+
+  static bool isDuesPaymentRemoved(String paymentId, {required String clubId}) {
+    return paymentId.isNotEmpty &&
+        clubId.isNotEmpty &&
+        _removedDuesPaymentIds.contains(duesTombstoneKey(clubId, paymentId));
+  }
+
+  @visibleForTesting
+  static void resetDuesPaymentTombstones() {
+    _removedDuesPaymentIds.clear();
+  }
+
+  @visibleForTesting
+  static List<dynamic> withoutRemovedDuesPayments(List? list, String clubId) {
+    final removed = removedDuesPaymentIdsForClub(clubId).toSet();
+    if (removed.isEmpty) return List<dynamic>.from(list ?? const []);
+    return [
+      for (final e in list ?? const [])
+        if (e is! Map || !removed.contains('${e['id'] ?? ''}')) e,
+    ];
+  }
+
+  @visibleForTesting
+  static List<dynamic> withoutRemovedDuesPaymentTransactions(
+    List? list,
+    String clubId,
+  ) {
+    final removed = removedDuesPaymentIdsForClub(clubId).toSet();
+    if (removed.isEmpty) return List<dynamic>.from(list ?? const []);
+    return [
+      for (final e in list ?? const [])
+        if (!(e is Map &&
+            '${e['source'] ?? ''}' == 'dues' &&
+            removed.contains('${e['duesPaymentId'] ?? ''}')))
+          e,
+    ];
   }
 
   static final Set<String> _removedWaitingIds = {};
@@ -1593,10 +1709,13 @@ class ClubOpsSync {
     final duesSettingIds =
         duesSettings.map((d) => d['id'] as String?).whereType<String>().toSet();
 
-    final duesPayments = (full['duesPayments'] as List? ?? []).where((p) {
-      if (p is! Map) return false;
-      return duesSettingIds.contains(p['duesSettingId']);
-    }).toList();
+    final duesPayments = withoutRemovedDuesPayments(
+      (full['duesPayments'] as List? ?? []).where((p) {
+        if (p is! Map) return false;
+        return duesSettingIds.contains(p['duesSettingId']);
+      }).toList(),
+      clubId,
+    );
 
     final awardRecords = (full['awardRecords'] as List? ?? []).where((a) {
       if (a is! Map) return false;
@@ -1627,7 +1746,10 @@ class ClubOpsSync {
       'paymentRequests':
           (full['paymentRequests'] as List? ?? []).where(clubField).toList(),
       'transactions': DemoFinanceStrip.dropGhostTransactions(
-        (full['transactions'] as List? ?? []).where(clubField).toList(),
+        withoutRemovedDuesPaymentTransactions(
+          (full['transactions'] as List? ?? []).where(clubField).toList(),
+          clubId,
+        ),
       ),
       'photos': (full['photos'] as List? ?? []).where(clubField).toList(),
       'groupAssignments': groupAssignments,
@@ -1657,6 +1779,7 @@ class ClubOpsSync {
     Map<String, dynamic> remote,
   ) {
     adoptRemoteRemovedDues(clubId, remote);
+    adoptRemoteRemovedPayments(clubId, remote);
     final encoded = ClubDataCodec.encode(local);
 
     List<dynamic> replaceClubList(List? localList, List? remoteList) {
@@ -1739,6 +1862,7 @@ class ClubOpsSync {
       );
     }
     _dropFinanceForRemovedDues(encoded, clubId);
+    _dropFinanceForRemovedPayments(encoded, clubId);
 
     encoded['awardRecords'] = collapseAwardRecords(
       rewriteLeftoverAwardWinnerNames(
@@ -2563,6 +2687,23 @@ class ClubOpsSync {
             paymentIds.contains('${e['duesPaymentId'] ?? ''}')))
           e,
     ];
+  }
+
+  /// 취소한 납부와 그 수입만 뺀다. 다른 납부·다른 거래는 둔다.
+  static void _dropFinanceForRemovedPayments(
+    Map<String, dynamic> encoded,
+    String clubId,
+  ) {
+    final removed = removedDuesPaymentIdsForClub(clubId).toSet();
+    if (removed.isEmpty) return;
+    encoded['duesPayments'] = withoutRemovedDuesPayments(
+      encoded['duesPayments'] as List?,
+      clubId,
+    );
+    encoded['transactions'] = withoutRemovedDuesPaymentTransactions(
+      encoded['transactions'] as List?,
+      clubId,
+    );
   }
 
   static List<dynamic> _mergeDuesSettings(
