@@ -120,7 +120,9 @@
       var play =
         "https://play.google.com/store/apps/details?id=com.golfrounder.golf" +
         (qs ? "&referrer=" + encodeURIComponent(qs) : "");
-      var appStore = "https://apps.apple.com/kr/app/rounder/id6800716470";
+      var appStoreWeb = "https://apps.apple.com/kr/app/rounder/id6800716470";
+      // 카톡 인앱에서는 https 스토어 주소가 웹으로 남는다. 아이폰은 앱스토어 앱으로 연다.
+      var appStoreApp = "itms-apps://apps.apple.com/app/id6800716470";
       var intent =
         "intent://invite" +
         (qs ? "?" + qs : "") +
@@ -140,18 +142,21 @@
 
       var ua = navigator.userAgent || "";
       var android = /android/i.test(ua);
+      var ios = /iPhone|iPad|iPod/i.test(ua);
       var btn = document.getElementById("join-app");
-      btn.href = android ? intent : deep;
+      btn.href = android ? intent : (ios ? appStoreApp : appStoreWeb);
 
       // 버튼을 눌렀을 때만 앱/스토어로 보낸다.
       // visibilitychange / pageshow 로 자동 실행하면 카톡 인앱 브라우저가
       // 다시 보일 때마다 ROUND ER가 앞으로 튀어나온다.
+      // 보내는 폰이 안드로이드든 아이폰이든 링크는 같다. 받는 폰만 본다.
       btn.addEventListener("click", function (e) {
         if (android) return;
         e.preventDefault();
         window.location.href = deep;
+        var store = ios ? appStoreApp : appStoreWeb;
         setTimeout(function () {
-          if (!document.hidden) window.location.href = appStore;
+          if (!document.hidden) window.location.href = store;
         }, 1600);
       });
     })();

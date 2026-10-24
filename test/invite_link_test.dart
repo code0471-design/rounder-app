@@ -88,7 +88,9 @@ void main() {
   test('아이폰 초대는 플레이스토어가 아니라 앱스토어로 보낸다', () {
     final html = File('website/invite.html').readAsStringSync();
     expect(html.contains('apps.apple.com/kr/app/rounder/id6800716470'), isTrue);
-    expect(html.contains('window.location.href = appStore'), isTrue);
+    expect(html.contains('itms-apps://apps.apple.com/app/id6800716470'), isTrue);
+    expect(html.contains('iPhone|iPad|iPod'), isTrue);
+    expect(html.contains('window.location.href = store'), isTrue);
     expect(html.contains('window.location.href = play'), isFalse);
     expect(InviteLinks.appStore, contains('apps.apple.com'));
   });
