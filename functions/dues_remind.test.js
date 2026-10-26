@@ -2,7 +2,7 @@
 
 const test = require("node:test");
 const assert = require("node:assert/strict");
-const { recipientsForClub, addDays, scheduledGroupSearchStart } = require("./dues_remind");
+const { recipientsForClub, addDays, scheduledGroupSearchStart, ledgerYearsToRead, reminderPayments } = require("./dues_remind");
 
 const ARENA = "c_1786973797931";
 const VOLCANO = "c_1790768750847";
@@ -207,4 +207,33 @@ test("같은 날이라도 월회비와 연회비는 각각 한 통", () => {
     payments: [],
   }, { year: 2026, month: 10, day: 28 });
   assert.deepEqual(people.map((p) => p.settingId), ["ds", "year-2026"]);
+});
+
+test("번들이 비어도 연도 장부의 10월 납부는 미납이 아니다", () => {
+  const due = { year: 2026, month: 10, day: 28 };
+  const payments = reminderPayments({
+    bundlePayments: [],
+    ledgerDocs: [{
+      duesPayments: [
+        { id: "lee-oct", memberId: `m_${ARENA}_google_lee`, duesSettingId: "ds1", amount: 50000, paidAt: "2026-10-24T00:00:00.000" },
+        { id: "jang-oct", memberId: `m_${ARENA}_${JANG}`, duesSettingId: "ds1", amount: 50000, paidAt: "2026-10-24T00:00:00.000" },
+        { id: "ahn-sep", memberId: `m_creator_${ARENA}`, duesSettingId: "ds1", amount: 50000, paidAt: "2026-09-20T00:00:00.000" },
+        { id: "cancelled", memberId: `m_creator_${ARENA}`, duesSettingId: "ds1", amount: 50000, paidAt: "2026-10-01T00:00:00.000" },
+      ],
+    }],
+    removedIds: ["cancelled"],
+  });
+  const people = recipientsForClub({
+    id: ARENA,
+    name: "아레나 골프회",
+    members: [
+      { id: `m_${ARENA}_google_lee`, name: "이정원", memberType: "정회원", status: "활성", phone: "01092874073" },
+      { id: `m_${ARENA}_${JANG}`, name: "장창현", memberType: "정회원", status: "활성", phone: "01040620830" },
+      { id: `m_creator_${ARENA}`, name: "안경헌", memberType: "정회원", status: "활성", phone: "01045110471" },
+    ],
+    settings: [monthly("ds1", 28)],
+    payments,
+  }, due);
+  assert.deepEqual(people.map((p) => p.phone), ["01045110471"]);
+  assert.deepEqual(ledgerYearsToRead({ led: [2026] }, { year: 2026 }, due), [2026]);
 });

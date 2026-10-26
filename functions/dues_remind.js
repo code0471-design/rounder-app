@@ -152,6 +152,42 @@ function scheduledGroupSearchStart(nowMs) {
   return new Date(nowMs - SCHEDULED_GROUP_LOOKBACK_DAYS * 24 * 3600 * 1000);
 }
 
+/// 번들 본문의 duesPayments 는 비어 있다. 납부는 연도 장부 led_YYYY 에 있다.
+function ledgerYearsToRead(overflowYears, today, tomorrow) {
+  const years = new Set();
+  const led = overflowYears && overflowYears.led;
+  if (Array.isArray(led)) {
+    for (const year of led) {
+      const n = Number(year);
+      if (Number.isFinite(n)) years.add(n);
+    }
+  }
+  if (today && Number.isFinite(today.year)) years.add(today.year);
+  if (tomorrow && Number.isFinite(tomorrow.year)) years.add(tomorrow.year);
+  return [...years];
+}
+
+function reminderPayments({ bundlePayments, ledgerDocs, removedIds }) {
+  const removed = new Set((removedIds || []).map((id) => String(id)));
+  const out = [];
+  const seen = new Set();
+  function add(list) {
+    if (!Array.isArray(list)) return;
+    for (const payment of list) {
+      if (!payment || typeof payment !== "object") continue;
+      const id = String(payment.id || "");
+      if (id && removed.has(id)) continue;
+      const key = id || JSON.stringify([payment.memberId, payment.duesSettingId, payment.paidAt, payment.amount]);
+      if (seen.has(key)) continue;
+      seen.add(key);
+      out.push(payment);
+    }
+  }
+  add(bundlePayments);
+  for (const doc of ledgerDocs || []) add(doc && doc.duesPayments);
+  return out;
+}
+
 function recipientsForClub(club, tomorrow) {
   const settings = (Array.isArray(club.settings) ? club.settings : [])
     .slice()
@@ -192,5 +228,7 @@ module.exports = {
   ymd,
   canonicalPhone,
   recipientsForClub,
+  ledgerYearsToRead,
+  reminderPayments,
   scheduledGroupSearchStart,
 };

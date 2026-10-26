@@ -14,7 +14,7 @@ const {
   joinPushPayload,
   joinResultPayload,
 } = require("./join_notify");
-const { seoulParts, addDays, recipientsForClub, scheduledGroupSearchStart } = require("./dues_remind");
+const { seoulParts, addDays, recipientsForClub, ledgerYearsToRead, reminderPayments, scheduledGroupSearchStart } = require("./dues_remind");
 
 const D1_TEMPLATE = "KA01TP260819170856743YpkKVjb5WfS";
 const DUES_TEMPLATE = "KA01TP260819171813223rmS1ByutYaw";
@@ -983,13 +983,22 @@ async function sendRosterDuesReminders() {
     if (!name) continue;
     const bundle = await club.ref.collection("ops").doc("bundle").get();
     const body = bundle.data() || {};
+    const ledgerDocs = [];
+    for (const year of ledgerYearsToRead(body.overflowYears, today, tomorrow)) {
+      const led = await club.ref.collection("ops").doc(`led_${year}`).get();
+      if (led.exists) ledgerDocs.push(led.data() || {});
+    }
     const people = recipientsForClub({
       id: club.id,
       name,
       creatorId: String(data.creatorId || data.creator_id || data.host_user_id || "").trim(),
       members: body.members,
       settings: body.duesSettings,
-      payments: body.duesPayments,
+      payments: reminderPayments({
+        bundlePayments: body.duesPayments,
+        ledgerDocs,
+        removedIds: body.removedDuesPaymentIds,
+      }),
     }, tomorrow);
     for (const person of people) {
       const onceId = `dues|${club.id}|${person.settingId || ""}`;
