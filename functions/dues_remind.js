@@ -1,8 +1,5 @@
 "use strict";
 
-const ARENA_CLUB_ID = "c_1786973797931";
-const JANG_USER_ID = "kakao_5049673364";
-
 function pad(n) {
   return String(n).padStart(2, "0");
 }
@@ -147,13 +144,6 @@ function isRegular(member) {
   return member && member.status === "활성" && member.memberType === "정회원";
 }
 
-function isArenaLeftover(clubId, member) {
-  if (clubId !== ARENA_CLUB_ID) return false;
-  const name = String((member && member.name) || "").trim();
-  const id = String((member && member.id) || "");
-  return name === "장창현" || id.includes(JANG_USER_ID);
-}
-
 const SCHEDULED_GROUP_LOOKBACK_DAYS = 400;
 
 /// 솔라피 예약은 만든 날이 아니라 예약일에 나간다.
@@ -175,7 +165,6 @@ function recipientsForClub(club, tomorrow) {
     if (!due) continue;
     for (const member of members) {
       if (!isRegular(member)) continue;
-      if (isArenaLeftover(club.id, member)) continue;
       if (hasPaid(payments, club.id, member, setting, due)) continue;
       const phone = canonicalPhone(member.phone);
       if (phone.length < 10) continue;
@@ -198,7 +187,6 @@ function recipientsForClub(club, tomorrow) {
 }
 
 module.exports = {
-  ARENA_CLUB_ID,
   seoulParts,
   addDays,
   ymd,

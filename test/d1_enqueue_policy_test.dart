@@ -19,27 +19,16 @@ void main() {
     );
   });
 
-  test('장창현은 알라딘만 받고 아레나 대기열에서는 막는다', () {
+  test('아레나 명단의 장창현은 회비 안내를 받는다', () {
     const jang = 'kakao_5049673364';
     const arena = 'c_1786973797931';
     expect(
       D1EnqueuePolicy.isBlockedRecipient(
         name: '장창현',
-        userId: jang,
+        userId: 'm_${arena}_$jang',
         clubId: arena,
       ),
-      isTrue,
-      reason: '아레나 회원이 아닌데 D-1이 나갔다',
-    );
-    expect(
-      D1EnqueuePolicy.isBlockedRecipient(
-        name: '장창현',
-        userId: 'm_creator_$arena',
-        clubId: arena,
-        creatorUserId: jang,
-      ),
-      isTrue,
-      reason: '방장 자리에 남은 장창현 이름도 아레나 회비 알림톡을 받으면 안 된다',
+      isFalse,
     );
     expect(
       D1EnqueuePolicy.isBlockedRecipient(
@@ -49,7 +38,6 @@ void main() {
         creatorUserId: jang,
       ),
       isFalse,
-      reason: '알라딘 방장 본인 일정은 나가야 한다',
     );
   });
 

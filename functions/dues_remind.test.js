@@ -84,7 +84,7 @@ test("이미 낸 사람과 납부일이 아닌 모임은 빠진다", () => {
   assert.equal(creator[0].userId, ROYCE);
 });
 
-test("장창현은 볼케이노 회원이면 받고, 아레나 명단 찌꺼기면 안 받는다", () => {
+test("아레나 명단의 장창현도 미납 정회원이면 받는다", () => {
   const volcano = recipientsForClub({
     id: VOLCANO,
     name: "볼케이노~~",
@@ -106,7 +106,7 @@ test("장창현은 볼케이노 회원이면 받고, 아레나 명단 찌꺼기�
     settings: [monthly("ds1", 25)],
     payments: [],
   }, tomorrow);
-  assert.deepEqual(arena.map((p) => p.name), ["안경헌"]);
+  assert.deepEqual(arena.map((p) => p.name), ["장창현", "안경헌"]);
 });
 
 test("명단에 없는 이글 회원은 만들지 않는다", () => {
