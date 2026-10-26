@@ -154,6 +154,14 @@ function isArenaLeftover(clubId, member) {
   return name === "장창현" || id.includes(JANG_USER_ID);
 }
 
+const SCHEDULED_GROUP_LOOKBACK_DAYS = 400;
+
+/// 솔라피 예약은 만든 날이 아니라 예약일에 나간다.
+/// 최근 며칠만 보면 몇 달 전 회비 예약이 납부일 전날에 그대로 발송된다.
+function scheduledGroupSearchStart(nowMs) {
+  return new Date(nowMs - SCHEDULED_GROUP_LOOKBACK_DAYS * 24 * 3600 * 1000);
+}
+
 function recipientsForClub(club, tomorrow) {
   const settings = (Array.isArray(club.settings) ? club.settings : [])
     .slice()
@@ -196,4 +204,5 @@ module.exports = {
   ymd,
   canonicalPhone,
   recipientsForClub,
+  scheduledGroupSearchStart,
 };

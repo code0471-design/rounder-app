@@ -14,7 +14,7 @@ const {
   joinPushPayload,
   joinResultPayload,
 } = require("./join_notify");
-const { seoulParts, addDays, recipientsForClub } = require("./dues_remind");
+const { seoulParts, addDays, recipientsForClub, scheduledGroupSearchStart } = require("./dues_remind");
 
 const D1_TEMPLATE = "KA01TP260819170856743YpkKVjb5WfS";
 const DUES_TEMPLATE = "KA01TP260819171813223rmS1ByutYaw";
@@ -607,11 +607,11 @@ async function releaseAlimtalkOnce(scheduleId, sendOn, phone) {
 
 async function listScheduledGroups() {
   const now = Date.now();
-  const start = new Date(now - 3 * 24 * 3600 * 1000).toISOString();
+  const start = scheduledGroupSearchStart(now).toISOString();
   const end = new Date(now + 120 * 24 * 3600 * 1000).toISOString();
   const groups = [];
   let startKey = "";
-  for (let page = 0; page < 5; page += 1) {
+  for (let page = 0; page < 20; page += 1) {
     const q = new URLSearchParams({ startDate: start, endDate: end, limit: "100" });
     if (startKey) q.set("startKey", startKey);
     const body = await solapiJson("GET", `/messages/v4/groups?${q.toString()}`);
@@ -648,7 +648,10 @@ async function scheduledGroupTarget(groupId) {
     const p = canonicalPhone(m && m.to);
     if (p.length < 10) return null;
     if (!phone) phone = p;
-    if (phone !== p) return null;
+    if (phone !== p) {
+      if (template === DUES_TEMPLATE) continue;
+      return null;
+    }
   }
     const vars =
       (msgs[0] && msgs[0].kakaoOptions && msgs[0].kakaoOptions.variables) ||

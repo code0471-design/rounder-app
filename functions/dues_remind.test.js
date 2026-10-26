@@ -2,7 +2,7 @@
 
 const test = require("node:test");
 const assert = require("node:assert/strict");
-const { recipientsForClub, addDays } = require("./dues_remind");
+const { recipientsForClub, addDays, scheduledGroupSearchStart } = require("./dues_remind");
 
 const ARENA = "c_1786973797931";
 const VOLCANO = "c_1790768750847";
@@ -175,6 +175,14 @@ test("연회비는 납부 기준일 전날만, 그해에 이미 낸 사람은 �
     }],
   }, { year: 2026, month: 10, day: 28 });
   assert.equal(paidEarlier.length, 0);
+});
+
+test("몇 달 전 회비 예약도 취소 범위 안에 있다", () => {
+  const now = Date.parse("2026-10-26T01:00:00Z");
+  const created = Date.parse("2026-09-24T01:39:02Z");
+  assert.ok(scheduledGroupSearchStart(now).getTime() <= created);
+  const recentOnly = now - 3 * 24 * 3600 * 1000;
+  assert.ok(recentOnly > created);
 });
 
 test("같은 날이라도 월회비와 연회비는 각각 한 통", () => {
