@@ -969,7 +969,8 @@ async function sendUnscheduledD1Alimtalk() {
 }
 
 async function sendRosterDuesReminders() {
-  if (seoulHour() !== 10 || seoulMinute() > 20) return;
+  // 발송 시각은 10시다. 10시 작업이 몇 분 늦어도 그 한 번이고, 10시 15분에는 다시 보내지 않는다.
+  if (seoulHour() !== 10 || seoulMinute() >= 5) return;
   if (!(await hqAlimtalkEnabled("atk_dues_request"))) return;
   const today = seoulParts(new Date());
   const tomorrow = addDays(today, 1);
@@ -1083,7 +1084,6 @@ exports.flushD1Alimtalk = onSchedule(
   async () => {
     await collapseUpcomingQueueDupes();
     await dedupeScheduledAlimtalk();
-    await sendRosterDuesReminders();
     await flushDueD1Alimtalk();
   }
 );
