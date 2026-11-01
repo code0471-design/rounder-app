@@ -38,6 +38,15 @@ abstract final class FirestorePaths {
   static String clubOpsScheduleYear(String clubId, int year) =>
       '${clubDoc(clubId)}/$ops/$opsSchedulePrefix$year';
 
+  /// 일정 1개 = 문서 1개. 연도 목록을 통째로 바꾸지 않는다.
+  static const scheduleDocs = 'schedules';
+
+  static String clubSchedules(String clubId) =>
+      '${clubDoc(clubId)}/$scheduleDocs';
+
+  static String clubScheduleDoc(String clubId, String scheduleId) =>
+      '${clubSchedules(clubId)}/$scheduleId';
+
   static String clubOpsLedgerYear(String clubId, int year) =>
       '${clubDoc(clubId)}/$ops/$opsLedgerPrefix$year';
 

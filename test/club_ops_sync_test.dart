@@ -2860,4 +2860,144 @@ void main() {
       reason: '총무가 회비를 지운 삭제는 사이드카 실패여도 남겨야 한다',
     );
   });
+
+  test('바뀐 일정만 문서 하나로 올리고 연도 목록은 그대로 둔다', () {
+    ClubOpsSync.resetScheduleWriteState();
+    final stored = {
+      'id': 'sched_old',
+      'clubId': 'c1',
+      'title': '기존',
+      'roundDate': '2026-10-12',
+      'responses': [
+        {
+          'memberId': 'm2',
+          'response': '참석',
+          'respondedAt': '2026-10-01T00:00:00.000',
+        },
+      ],
+      'waitingList': <dynamic>[],
+    };
+    ClubOpsSync.rememberSchedules([stored]);
+    expect(ClubOpsSync.schedulesToWrite([stored]), isEmpty);
+
+    final waitingOnly = {
+      ...stored,
+      'waitingList': [
+        {'id': 'w1', 'memberId': 'm9'},
+      ],
+    };
+    expect(
+      ClubOpsSync.schedulesToWrite([waitingOnly]),
+      isEmpty,
+      reason: '대기 명단만 바뀐 일정을 새 문서로 만들지 않는다',
+    );
+
+    final created = {
+      'id': 'sched_new',
+      'clubId': 'c1',
+      'title': '11월 첫 라운딩',
+      'roundDate': '2026-11-13',
+      'responses': <dynamic>[],
+    };
+    final changed = {
+      ...stored,
+      'responses': [
+        {
+          'memberId': 'm2',
+          'response': '불참',
+          'respondedAt': '2026-11-01T01:00:00.000',
+        },
+      ],
+    };
+    final toWrite = ClubOpsSync.schedulesToWrite([stored, created, changed]);
+    expect(toWrite.map((e) => e['id']), ['sched_new', 'sched_old']);
+
+    final year = ClubOpsSync.scheduleYearFieldsWithoutSchedules({
+      'year': 2026,
+      'schedules': [stored, created],
+      'groupAssignments': {
+        'sched_old': {'isFinalized': true},
+      },
+      'waitingList': <dynamic>[],
+    });
+    expect(year.containsKey('schedules'), isFalse);
+    expect(year['groupAssignments'], isNotEmpty);
+
+    final merged = ClubOpsSync.mergeYearAndScheduleDocs(
+      yearRows: [
+        stored,
+        {
+          'id': 'sched_new',
+          'title': '빠진 목록',
+          'responses': [
+            {
+              'memberId': 'royce',
+              'response': '불참',
+              'respondedAt': '2026-11-01T10:00:00.000Z',
+            },
+          ],
+        },
+      ],
+      docRows: [
+        {
+          'id': 'sched_new',
+          'title': '11월 첫 라운딩',
+          'responses': [
+            {
+              'memberId': 'royce',
+              'response': '참석',
+              'respondedAt': '2026-11-01T11:00:00.000Z',
+            },
+          ],
+        },
+      ],
+    );
+    expect(merged.any((e) => e['id'] == 'sched_old'), isTrue);
+    final fresh = merged.cast<Map>().firstWhere((e) => e['id'] == 'sched_new');
+    expect(fresh['title'], '11월 첫 라운딩');
+    expect(fresh['responses'], [
+      {
+        'memberId': 'royce',
+        'response': '참석',
+        'respondedAt': '2026-11-01T11:00:00.000Z',
+      },
+    ]);
+    ClubOpsSync.resetScheduleWriteState();
+  });
+
+  test('일정 문서의 참석 자리는 그 문서만 바꾼다', () {
+    final schedule = {
+      'id': 'sched_new',
+      'responses': <dynamic>[],
+      'waitingList': [
+        {'memberId': 'm1', 'id': 'w1'},
+      ],
+    };
+    expect(
+      ClubOpsSync.applySeatClaim(
+        schedule: schedule,
+        memberId: 'm1',
+        memberName: '안경헌',
+        capacity: 1,
+      ),
+      isTrue,
+    );
+    expect(schedule['responses'], isA<List>().having((r) => r.length, 'len', 1));
+    expect((schedule['waitingList'] as List), isEmpty);
+
+    final full = {
+      'responses': [
+        {'memberId': 'm2', 'response': '참석'},
+      ],
+    };
+    expect(
+      ClubOpsSync.applySeatClaim(
+        schedule: full,
+        memberId: 'm1',
+        memberName: '안경헌',
+        capacity: 1,
+      ),
+      isFalse,
+    );
+  });
 }

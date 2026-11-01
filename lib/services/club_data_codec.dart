@@ -619,6 +619,9 @@ class ClubDataCodec {
         clubId: j['clubId'] as String?,
       );
 
+  static List<Map<String, dynamic>> encodeSchedules(List<RoundSchedule> list) =>
+      list.map(_encodeSchedule).toList();
+
   // ── RoundSchedule ──
   static Map<String, dynamic> _encodeSchedule(RoundSchedule s) => {
         'id': s.id,

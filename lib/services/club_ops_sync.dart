@@ -31,6 +31,11 @@ class ClubOpsSync {
       _clubSidecarSubs = {};
   static final Map<String, Map<String, dynamic>> _watchedBundle = {};
   static final Map<String, String> _sidecarSig = {};
+  static final Map<String, StreamSubscription<QuerySnapshot<Map<String, dynamic>>>>
+      _scheduleColSubs = {};
+  static final Map<String, List<Map<String, dynamic>>> _scheduleDocRows = {};
+  static final Map<String, String> _scheduleCanon = {};
+  static final Set<String> _dirtyScheduleIds = {};
   static StreamSubscription<DocumentSnapshot>? _userSub;
 
   static bool get _enabled =>
@@ -174,6 +179,12 @@ class ClubOpsSync {
           slice['roundScores'] = remoteScores;
         }
 
+        // 바뀐 일정만 문서 하나로 저장한다. 연도 목록은 여기서 건드리지 않는다.
+        await _pushChangedScheduleDocs(
+          clubId,
+          slice['schedules'] as List? ?? const [],
+        );
+
         // 연도 문서를 못 읽었는데 빈 목록으로 올리면 sch_YYYY 가 지워진다.
         // 새 폰에 일정이 없다고 서버 일정을 지우지 않는다.
         if (overflowPayloadMissing(
@@ -299,6 +310,10 @@ class ClubOpsSync {
         );
       }
 
+      await _pushChangedScheduleDocs(
+        clubId,
+        slice['schedules'] as List? ?? const [],
+      );
       await _pushOverflowDocs(clubId, schYears, ledYears, previousYears);
 
       slice['removedDuesSettingIds'] = removedDuesSettingIdsForClub(clubId);
@@ -491,6 +506,56 @@ class ClubOpsSync {
     ];
   }
 
+  /// 일정 문서 하나의 참석 자리. 이미 참석이면 true, 정원 초과면 false.
+  @visibleForTesting
+  static bool applySeatClaim({
+    required Map<String, dynamic> schedule,
+    required String memberId,
+    required String memberName,
+    required int capacity,
+  }) {
+    final responses = [
+      for (final r in (schedule['responses'] as List? ?? const []))
+        if (r is Map) Map<String, dynamic>.from(r),
+    ];
+    final already = responses.any(
+      (r) => r['memberId'] == memberId && r['response'] == '참석',
+    );
+    if (!already) {
+      final others = AttendanceSeat.attendingCount(
+        responses,
+        excludingMemberId: memberId,
+      );
+      if (!AttendanceSeat.canClaim(
+        attendingOthers: others,
+        capacity: capacity,
+      )) {
+        return false;
+      }
+      final now = DateTime.now().toIso8601String();
+      final row = <String, dynamic>{
+        'memberId': memberId,
+        'memberName': memberName,
+        'response': '참석',
+        'memo': null,
+        'companionMemberIds': const <String>[],
+        'respondedAt': now,
+      };
+      final ei = responses.indexWhere((r) => r['memberId'] == memberId);
+      if (ei >= 0) {
+        responses[ei] = {...responses[ei], ...row};
+      } else {
+        responses.add(row);
+      }
+      schedule['responses'] = responses;
+    }
+    schedule['waitingList'] = [
+      for (final w in (schedule['waitingList'] as List? ?? const []))
+        if (w is Map && '${w['memberId']}' != memberId) w,
+    ];
+    return true;
+  }
+
   /// 서버 정원으로만 참석을 받는다. 자리가 없으면 false.
   /// Firestore가 꺼져 있거나 일정이 아직 없으면 null(로컬 판단).
   static Future<bool?> claimScheduleSeat({
@@ -508,10 +573,25 @@ class ClubOpsSync {
       return null;
     }
     try {
+      final docRef =
+          _db.doc(FirestorePaths.clubScheduleDoc(clubId, scheduleId));
       final yearRef =
           _db.doc(FirestorePaths.clubOpsScheduleYear(clubId, year));
       final bundleRef = _db.doc(FirestorePaths.clubOpsBundle(clubId));
       return await _db.runTransaction((tx) async {
+        final docSnap = await tx.get(docRef);
+        if (docSnap.exists && docSnap.data() != null) {
+          final schedule = Map<String, dynamic>.from(docSnap.data()!);
+          final claimed = applySeatClaim(
+            schedule: schedule,
+            memberId: memberId,
+            memberName: memberName,
+            capacity: capacity,
+          );
+          if (!claimed) return false;
+          tx.set(docRef, schedule);
+          return true;
+        }
         final yearSnap = await tx.get(yearRef);
         final bundleSnap = await tx.get(bundleRef);
         final yearData = yearSnap.exists && yearSnap.data() != null
@@ -919,6 +999,30 @@ class ClubOpsSync {
   ) {
     if (!_enabled || clubId.isEmpty) return;
     stopWatchClub(clubId);
+    _scheduleColSubs[clubId] = _db
+        .collection(FirestorePaths.clubSchedules(clubId))
+        .snapshots()
+        .listen((snap) {
+      final docs = <Map<String, dynamic>>[
+        for (final d in snap.docs) Map<String, dynamic>.from(d.data()),
+      ];
+      _scheduleDocRows[clubId] = docs;
+      final existing = _watchedBundle[clubId];
+      if (existing == null) return;
+      final base = Map<String, dynamic>.from(existing);
+      final index = base['overflowYears'];
+      final years =
+          index is Map ? ClubOpsOverflow.yearsOf(index['sch']) : const <int>[];
+      if (!base.containsKey('schedules') && years.isNotEmpty) return;
+      base['schedules'] = mergeYearAndScheduleDocs(
+        yearRows: base['schedules'] as List? ?? const [],
+        docRows: docs,
+      );
+      _watchedBundle[clubId] = base;
+      onData(base);
+    }, onError: (e) {
+      debugPrint('[ClubOpsSync] schedule doc watch error ($clubId): $e');
+    });
     _clubSubs[clubId] = _db
         .doc(FirestorePaths.clubOpsBundle(clubId))
         .snapshots()
@@ -964,6 +1068,13 @@ class ClubOpsSync {
             _watchedBundle[clubId] ?? remote,
           );
           ClubOpsOverflow.mergeSidecarIntoRemote(merged, snap.data()!);
+          final docs = _scheduleDocRows[clubId];
+          if (docs != null && docs.isNotEmpty) {
+            merged['schedules'] = mergeYearAndScheduleDocs(
+              yearRows: merged['schedules'] as List? ?? const [],
+              docRows: docs,
+            );
+          }
           _watchedBundle[clubId] = merged;
           onData(merged);
         }, onError: (e) {
@@ -976,10 +1087,12 @@ class ClubOpsSync {
 
   static void stopWatchClub(String clubId) {
     unawaited(_clubSubs.remove(clubId)?.cancel());
+    unawaited(_scheduleColSubs.remove(clubId)?.cancel());
     for (final s in _clubSidecarSubs.remove(clubId) ?? const []) {
       unawaited(s.cancel());
     }
     _watchedBundle.remove(clubId);
+    _scheduleDocRows.remove(clubId);
     _sidecarSig.remove(clubId);
   }
 
@@ -2891,6 +3004,193 @@ class ClubOpsSync {
     }
   }
 
+  /// 서버에 이미 있는 일정은 다시 올리지 않는다. 바뀐 일정만 돌려준다.
+  @visibleForTesting
+  static void rememberSchedules(List<dynamic> rows) {
+    for (final raw in rows) {
+      if (raw is! Map) continue;
+      final id = '${raw['id'] ?? ''}'.trim();
+      if (id.isEmpty) continue;
+      if (_dirtyScheduleIds.contains(id)) continue;
+      _scheduleCanon[id] = scheduleWriteCanon(raw);
+    }
+  }
+
+  /// 저장 전에 호출한다. 아직 서버 문서가 아닌 변경만 더티로 남긴다.
+  @visibleForTesting
+  static List<Map<String, dynamic>> noteScheduleEdits(List<dynamic> rows) =>
+      schedulesToWrite(rows);
+
+  @visibleForTesting
+  static List<Map<String, dynamic>> schedulesToWrite(List<dynamic> rows) {
+    final out = <Map<String, dynamic>>[];
+    for (final raw in rows) {
+      if (raw is! Map) continue;
+      final m = Map<String, dynamic>.from(raw);
+      final id = '${m['id'] ?? ''}'.trim();
+      if (id.isEmpty) continue;
+      final canon = scheduleWriteCanon(m);
+      if (_scheduleCanon[id] == canon) continue;
+      _dirtyScheduleIds.add(id);
+      out.add(m);
+    }
+    return out;
+  }
+
+  @visibleForTesting
+  static void ackScheduleWritten(Map<String, dynamic> row) {
+    final id = '${row['id'] ?? ''}'.trim();
+    if (id.isEmpty) return;
+    _scheduleCanon[id] = scheduleWriteCanon(row);
+    _dirtyScheduleIds.remove(id);
+  }
+
+  @visibleForTesting
+  static void resetScheduleWriteState() {
+    _scheduleCanon.clear();
+    _dirtyScheduleIds.clear();
+  }
+
+  /// 대기 명단은 연도 문서에 그대로 둔다. 그것만 달라진 일정을 새 문서로 만들지 않는다.
+  @visibleForTesting
+  static String scheduleWriteCanon(Map<dynamic, dynamic> raw) {
+    final m = <String, dynamic>{};
+    raw.forEach((k, v) {
+      final key = '$k';
+      if (key == 'waitingList') return;
+      m[key] = v;
+    });
+    final responses = m['responses'];
+    if (responses is List) {
+      final copy = [...responses];
+      copy.sort((a, b) {
+        final am = a is Map ? '${a['memberId'] ?? ''}' : '';
+        final bm = b is Map ? '${b['memberId'] ?? ''}' : '';
+        return am.compareTo(bm);
+      });
+      m['responses'] = copy;
+    }
+    return jsonEncode(_sortJson(m));
+  }
+
+  static Object? _sortJson(Object? value) {
+    if (value is Map) {
+      final keys = value.keys.map((k) => '$k').toList()..sort();
+      return {for (final k in keys) k: _sortJson(value[k])};
+    }
+    if (value is List) {
+      return [for (final e in value) _sortJson(e)];
+    }
+    return value;
+  }
+
+  /// 연도 문서에는 조편성·대기·시상·점수만 남긴다. 일정 배열은 넣지 않는다.
+  @visibleForTesting
+  static Map<String, dynamic> scheduleYearFieldsWithoutSchedules(
+    Map<String, dynamic> payload,
+  ) {
+    final out = Map<String, dynamic>.from(payload);
+    out.remove('schedules');
+    return out;
+  }
+
+  /// 예전 연도 목록과 일정 문서를 합친다. 문서가 있으면 그 필드가 이긴다.
+  /// 응답은 시각이 늦은 쪽을 남긴다. 한쪽에만 있는 일정은 지우지 않는다.
+  @visibleForTesting
+  static List<dynamic> mergeYearAndScheduleDocs({
+    required List<dynamic> yearRows,
+    required List<dynamic> docRows,
+  }) {
+    return mergeScheduleRows(
+      local: docRows,
+      remote: yearRows,
+      localWins: true,
+    );
+  }
+
+  static Future<void> _pushChangedScheduleDocs(
+    String clubId,
+    List<dynamic> rows,
+  ) async {
+    final changed = schedulesToWrite(rows);
+    for (final row in changed) {
+      if ('${row['clubId'] ?? ''}' != clubId) continue;
+      try {
+        final wrote = await _writeOneSchedule(clubId, row);
+        if (wrote) ackScheduleWritten(row);
+      } catch (e) {
+        debugPrint('[ClubOpsSync] schedule doc push skip: $e');
+      }
+    }
+  }
+
+  /// 이 일정 문서만 저장한다. 읽기에 실패하면 쓰지 않는다.
+  static Future<bool> _writeOneSchedule(
+    String clubId,
+    Map<String, dynamic> local,
+  ) async {
+    final id = '${local['id'] ?? ''}'.trim();
+    if (id.isEmpty || '${local['clubId'] ?? ''}' != clubId) return false;
+    final ref = _db.doc(FirestorePaths.clubScheduleDoc(clubId, id));
+    var payload = Map<String, dynamic>.from(local);
+    try {
+      final snap = await ref.get();
+      if (snap.exists && snap.data() != null) {
+        payload = _mergeOneSchedule(
+          local: payload,
+          remote: Map<String, dynamic>.from(snap.data()!),
+          localWins: true,
+        );
+      }
+    } catch (e) {
+      debugPrint('[ClubOpsSync] schedule doc read skip: $e');
+      return false;
+    }
+    try {
+      final year = ClubOpsOverflow.yearFromSchedule(payload);
+      final yearSnap =
+          await _db.doc(FirestorePaths.clubOpsScheduleYear(clubId, year)).get();
+      final rows = yearSnap.data()?['schedules'];
+      if (rows is List) {
+        for (final raw in rows) {
+          if (raw is! Map || '${raw['id']}' != id) continue;
+          payload = _mergeOneSchedule(
+            local: payload,
+            remote: Map<String, dynamic>.from(raw),
+            localWins: true,
+          );
+          break;
+        }
+      }
+    } catch (e) {
+      debugPrint('[ClubOpsSync] schedule legacy read skip: $e');
+      return false;
+    }
+    await ref.set(payload);
+    return true;
+  }
+
+  static Future<void> _mergeScheduleDocsInto(
+    String clubId,
+    Map<String, dynamic> remote,
+  ) async {
+    try {
+      final snap =
+          await _db.collection(FirestorePaths.clubSchedules(clubId)).get();
+      final docs = <Map<String, dynamic>>[
+        for (final d in snap.docs) Map<String, dynamic>.from(d.data()),
+      ];
+      _scheduleDocRows[clubId] = docs;
+      if (docs.isEmpty) return;
+      remote['schedules'] = mergeYearAndScheduleDocs(
+        yearRows: remote['schedules'] as List? ?? const [],
+        docRows: docs,
+      );
+    } catch (e) {
+      debugPrint('[ClubOpsSync] schedule docs read skip: $e');
+    }
+  }
+
   /// 연도 일정 저장 전에 서버에 있는 참석을 합친다.
   /// 참석이 빈 저장이 참석·불참 응답을 덮지 않게 한다.
   @visibleForTesting
@@ -2936,14 +3236,17 @@ class ClubOpsSync {
           );
         }
       } catch (e) {
+        // 연도 문서를 못 읽으면 쓰지 않는다. 못 읽은 목록으로 기존 일정을 지우지 않기 위해서다.
         debugPrint('[ClubOpsSync] sch year merge skip: $e');
+        continue;
       }
+      final kept = scheduleYearFieldsWithoutSchedules(payload);
       await _db
           .doc(FirestorePaths.clubOpsScheduleYear(clubId, entry.key))
           .set({
-        ...payload,
+        ...kept,
         'updatedAt': FieldValue.serverTimestamp(),
-      }, SetOptions(merge: false));
+      }, SetOptions(merge: true));
     }
     for (final entry in ledYears.entries) {
       await _db.doc(FirestorePaths.clubOpsLedgerYear(clubId, entry.key)).set({
@@ -2952,14 +3255,7 @@ class ClubOpsSync {
       }, SetOptions(merge: false));
     }
 
-    final keepSch = schYears.keys.toSet();
     final keepLed = ledYears.keys.toSet();
-    for (final year in ClubOpsOverflow.yearsOf(previousYears['sch'])) {
-      if (keepSch.contains(year)) continue;
-      try {
-        await _db.doc(FirestorePaths.clubOpsScheduleYear(clubId, year)).delete();
-      } catch (_) {}
-    }
     for (final year in ClubOpsOverflow.yearsOf(previousYears['led'])) {
       if (keepLed.contains(year)) continue;
       try {
@@ -3011,11 +3307,10 @@ class ClubOpsSync {
     Map<String, dynamic> remote,
   ) async {
     final index = remote['overflowYears'];
-    if (index is! Map) return;
-
-    final schYears = ClubOpsOverflow.yearsOf(index['sch']);
-    final ledYears = ClubOpsOverflow.yearsOf(index['led']);
-    if (schYears.isEmpty && ledYears.isEmpty) return;
+    final schYears =
+        index is Map ? ClubOpsOverflow.yearsOf(index['sch']) : const <int>[];
+    final ledYears =
+        index is Map ? ClubOpsOverflow.yearsOf(index['led']) : const <int>[];
 
     try {
       var schLoaded = 0;
@@ -3039,6 +3334,8 @@ class ClubOpsSync {
         for (final key in ClubOpsOverflow.scheduleKeys) {
           remote.remove(key);
         }
+      } else {
+        await _mergeScheduleDocsInto(clubId, remote);
       }
       if (ledYears.isNotEmpty && ledLoaded == 0) {
         for (final key in ClubOpsOverflow.ledgerKeys) {

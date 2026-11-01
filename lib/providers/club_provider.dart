@@ -2943,6 +2943,11 @@ class ClubProvider extends ChangeNotifier with WidgetsBindingObserver {
     _stampOrphanDuesClubIds();
     _stampOrphanTransactionClubIds();
     final bundle = _exportBundle();
+    if (!_applyingCloudOps && !_suppressPersist) {
+      ClubOpsSync.noteScheduleEdits(
+        ClubDataCodec.encodeSchedules(bundle.schedules),
+      );
+    }
     await ClubPersistence.save(authUserId, bundle);
     if (_applyingCloudOps) {
       _persistQueuedDuringApply = true;
@@ -3104,6 +3109,9 @@ class ClubProvider extends ChangeNotifier with WidgetsBindingObserver {
   }
 
   void _importBundle(ClubDataBundle b) {
+    ClubOpsSync.noteScheduleEdits(
+      ClubDataCodec.encodeSchedules(_schedules),
+    );
     final previousMembers = List<Member>.from(_members);
     final keepSelectedId = _selectedClubIdOrNull();
     final keepImages = <String, String>{
@@ -3256,6 +3264,9 @@ class ClubProvider extends ChangeNotifier with WidgetsBindingObserver {
     for (final clubId in clubIds) {
       _syncJoinedRoster(clubId);
     }
+    ClubOpsSync.rememberSchedules(
+      ClubDataCodec.encodeSchedules(_schedules),
+    );
   }
 
   // ── 내가 속한 모임 선택 인덱스 ─────────────────────────
