@@ -97,6 +97,7 @@ class ClubProvider extends ChangeNotifier with WidgetsBindingObserver {
     unawaited(HqPushCatalog.load());
     unawaited(HqAlimtalkCatalog.load());
     _syncAllNextRounds();
+    _watchMyClubCatalogs();
     unawaited(_enqueueAllUpcomingD1());
     unawaited(syncAllDuesD1Reminders());
     notifyListeners();
@@ -287,8 +288,21 @@ class ClubProvider extends ChangeNotifier with WidgetsBindingObserver {
       final idx = _myClubs.indexWhere((c) => c.id == legacy.id);
       if (idx >= 0) {
         final existing = _myClubs[idx];
-        // 설정에서 고친 이름·소개·사진·지역·업종·팀수는 서버 옛값으로 덮지 않는다.
         _myClubs[idx] = existing.copyWith(
+          name: legacy.name.trim().isNotEmpty ? legacy.name : existing.name,
+          description: legacy.description.trim().isNotEmpty
+              ? legacy.description
+              : existing.description,
+          imageUrl: (legacy.imageUrl ?? '').trim().isNotEmpty
+              ? legacy.imageUrl
+              : existing.imageUrl,
+          region: legacy.region.trim().isNotEmpty
+              ? legacy.region
+              : existing.region,
+          industry: legacy.industry.trim().isNotEmpty
+              ? legacy.industry
+              : existing.industry,
+          teamCount: legacy.teamCount > 0 ? legacy.teamCount : existing.teamCount,
           myRole: existing.myRole.trim().isNotEmpty
               ? existing.myRole
               : legacy.myRole,
@@ -317,6 +331,21 @@ class ClubProvider extends ChangeNotifier with WidgetsBindingObserver {
       } else {
         final existing = _allClubs[idx];
         _allClubs[idx] = existing.copyWith(
+          name: legacy.name.trim().isNotEmpty ? legacy.name : existing.name,
+          description: legacy.description.trim().isNotEmpty
+              ? legacy.description
+              : existing.description,
+          imageUrl: (legacy.imageUrl ?? '').trim().isNotEmpty
+              ? legacy.imageUrl
+              : existing.imageUrl,
+          region: legacy.region.trim().isNotEmpty
+              ? legacy.region
+              : existing.region,
+          industry: legacy.industry.trim().isNotEmpty
+              ? legacy.industry
+              : existing.industry,
+          teamCount:
+              legacy.teamCount > 0 ? legacy.teamCount : existing.teamCount,
           myRole: existing.myRole,
           memberCount: legacy.memberCount,
           nextRoundDate: existing.nextRoundDate,
@@ -369,7 +398,8 @@ class ClubProvider extends ChangeNotifier with WidgetsBindingObserver {
     _applyClubInfoOverrides();
     _suppressPersist = false;
     notifyListeners();
-    // bootstrap 후 스테이징 ops 동기화
+    _watchMyClubCatalogs();
+    // bootstrap 후 운영 데이터 동기화
     unawaited(_pullCloudOpsForMyClubs().then((_) => _watchSelectedClubOps()));
   }
 
@@ -440,6 +470,7 @@ class ClubProvider extends ChangeNotifier with WidgetsBindingObserver {
     String? photoUrl,
   }) async {
     _persistAuthUserId = authUserId;
+    ClubOpsSync.stopCatalogWatches();
     _serverClubsAligned = false;
     _membershipGateReady = false;
     _confirmedClubIds.clear();
@@ -707,6 +738,40 @@ class ClubProvider extends ChangeNotifier with WidgetsBindingObserver {
     if (changed) notifyListeners();
   }
 
+  /// 내 모임 문서를 구독한다. 이름·소개·사진이 저장되면 이 화면이 바로 바뀐다.
+  void _watchMyClubCatalogs() {
+    if (_isDemoSession) return;
+    if (!AppDependencies.instance.isInitialized ||
+        AppDependencies.instance.isOfflineMockMode) {
+      return;
+    }
+    ClubOpsSync.watchClubCatalogs(
+      _myClubs.map((c) => c.id),
+      _applyLiveClubCatalog,
+    );
+  }
+
+  void _applyLiveClubCatalog(String clubId, Map<String, dynamic> data) {
+    var changed = false;
+    void apply(List<Club> list) {
+      final i = list.indexWhere((c) => c.id == clubId);
+      if (i < 0) return;
+      final next = ClubOpsSync.liveClubFromCatalog(list[i], data);
+      if (next == null) return;
+      list[i] = next;
+      changed = true;
+    }
+
+    apply(_myClubs);
+    apply(_allClubs);
+    if (!changed) return;
+    _clubInfoOverrides.remove(clubId);
+    notifyListeners();
+    if (!_suppressPersist && !_applyingCloudOps) {
+      unawaited(_persistNow());
+    }
+  }
+
   Future<void> _pullCloudOpsForMyClubs() async {
     final authUserId = _persistAuthUserId;
     if (authUserId == null) return;
@@ -767,6 +832,7 @@ class ClubProvider extends ChangeNotifier with WidgetsBindingObserver {
   }
 
   void _watchSelectedClubOps() {
+    _watchMyClubCatalogs();
     if (_myClubs.isEmpty) return;
     if (!AppDependencies.instance.isInitialized ||
         AppDependencies.instance.isOfflineMockMode) {
@@ -1089,6 +1155,7 @@ class ClubProvider extends ChangeNotifier with WidgetsBindingObserver {
     // 복구 성공 여부와 관계없이 동기화·저장 (멤버십 별칭 보정 포함)
     _syncMyClubsToMockStore();
     if (recovered) _persistImmediately();
+    _watchMyClubCatalogs();
     notifyListeners();
   }
 
@@ -1513,6 +1580,17 @@ class ClubProvider extends ChangeNotifier with WidgetsBindingObserver {
         local == null
             ? c
             : local.copyWith(
+                name: c.name.trim().isNotEmpty ? c.name : local.name,
+                description: c.description.trim().isNotEmpty
+                    ? c.description
+                    : local.description,
+                imageUrl: (c.imageUrl ?? '').trim().isNotEmpty
+                    ? c.imageUrl
+                    : local.imageUrl,
+                region: c.region.trim().isNotEmpty ? c.region : local.region,
+                industry:
+                    c.industry.trim().isNotEmpty ? c.industry : local.industry,
+                teamCount: c.teamCount > 0 ? c.teamCount : local.teamCount,
                 myRole: c.myRole.trim().isNotEmpty ? c.myRole : local.myRole,
                 creatorId: c.creatorId.trim().isNotEmpty
                     ? c.creatorId

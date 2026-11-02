@@ -69,10 +69,11 @@ void main() {
     expect(dash.contains('for (final c in legacyProvider.myClubs)'), isTrue);
     expect(dash.contains('existing.coalesceDisplayFields(c)'), isTrue);
     expect(provider.contains('byId.putIfAbsent(c.id, () => c)'), isTrue);
+    expect(provider.contains('_watchMyClubCatalogs'), isTrue);
     expect(
-      provider.contains('설정에서 고친 이름'),
+      provider.contains('legacy.name.trim().isNotEmpty ? legacy.name'),
       isTrue,
-      reason: '설정에서 고친 이름·소개는 서버 옛값으로 덮지 않는다',
+      reason: '서버에 저장된 모임 이름은 폰에 있던 이름을 바꾼다',
     );
   });
 

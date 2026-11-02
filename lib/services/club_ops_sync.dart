@@ -36,6 +36,8 @@ class ClubOpsSync {
   static final Map<String, List<Map<String, dynamic>>> _scheduleDocRows = {};
   static final Map<String, String> _scheduleCanon = {};
   static final Set<String> _dirtyScheduleIds = {};
+  static final Map<String, StreamSubscription<DocumentSnapshot>> _catalogSubs =
+      {};
   static StreamSubscription<DocumentSnapshot>? _userSub;
 
   static bool get _enabled =>
@@ -1120,8 +1122,87 @@ class ClubOpsSync {
     for (final id in _clubSubs.keys.toList()) {
       stopWatchClub(id);
     }
+    stopCatalogWatches();
     unawaited(_userSub?.cancel());
     _userSub = null;
+  }
+
+  /// 모임 문서의 이름·소개·사진을 구독한다. 저장되면 켜 둔 폰이 바로 받는다.
+  static void watchClubCatalogs(
+    Iterable<String> clubIds,
+    void Function(String clubId, Map<String, dynamic> data) onData,
+  ) {
+    if (!_enabled) return;
+    final want = clubIds.map((e) => e.trim()).where((e) => e.isNotEmpty).toSet();
+    for (final id in _catalogSubs.keys.toList()) {
+      if (want.contains(id)) continue;
+      unawaited(_catalogSubs.remove(id)?.cancel());
+    }
+    for (final id in want) {
+      if (_catalogSubs.containsKey(id)) continue;
+      _catalogSubs[id] = _db.doc('${FirestorePaths.clubs}/$id').snapshots().listen(
+        (snap) {
+          if (!snap.exists || snap.data() == null) return;
+          onData(id, Map<String, dynamic>.from(snap.data()!));
+        },
+        onError: (e) {
+          debugPrint('[ClubOpsSync] catalog watch $id: $e');
+        },
+      );
+    }
+  }
+
+  static void stopCatalogWatches() {
+    for (final sub in _catalogSubs.values) {
+      unawaited(sub.cancel());
+    }
+    _catalogSubs.clear();
+  }
+
+  /// 서버 모임 문서가 바뀌면 폰에 들고 있던 이름·소개·사진을 그 값으로 바꾼다.
+  /// 달라진 것이 없으면 null.
+  @visibleForTesting
+  static Club? liveClubFromCatalog(Club club, Map<String, dynamic> data) {
+    final name = '${data['name'] ?? ''}'.trim();
+    if (name.length < 2) return null;
+    final description = data.containsKey('description')
+        ? '${data['description'] ?? ''}'
+        : club.description;
+    var image = club.imageUrl;
+    if (data.containsKey('image_url') || data.containsKey('imageUrl')) {
+      final raw = '${data['image_url'] ?? data['imageUrl'] ?? ''}'.trim();
+      if (raw.isNotEmpty) image = raw;
+    }
+    final regionRaw = '${data['region'] ?? ''}'.trim();
+    final region = data.containsKey('region') && regionRaw.isNotEmpty
+        ? regionRaw
+        : club.region;
+    final industryRaw = '${data['industry'] ?? ''}'.trim();
+    final industry = data.containsKey('industry') && industryRaw.isNotEmpty
+        ? industryRaw
+        : club.industry;
+    var team = club.teamCount;
+    final teamRaw = data['team_count'] ?? data['teamCount'];
+    if (teamRaw != null) {
+      final parsed = teamRaw is num ? teamRaw.toInt() : int.tryParse('$teamRaw');
+      if (parsed != null && parsed > 0) team = parsed;
+    }
+    if (name == club.name &&
+        description == club.description &&
+        image == club.imageUrl &&
+        region == club.region &&
+        industry == club.industry &&
+        team == club.teamCount) {
+      return null;
+    }
+    return club.copyWith(
+      name: name,
+      description: description,
+      imageUrl: image,
+      region: region,
+      industry: industry,
+      teamCount: team,
+    );
   }
 
   // ── helpers ─────────────────────────────────────────────

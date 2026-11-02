@@ -3024,4 +3024,35 @@ void main() {
       isFalse,
     );
   });
+
+  test('서버에 저장된 모임 이름은 켜 둔 폰의 이름을 바로 바꾼다', () {
+    final club = Club(
+      id: 'c_1789270673471',
+      name: '알라딘 정기월례회',
+      myRole: '회장',
+      memberCount: 4,
+      description: '예전 소개',
+      teamCount: 4,
+    );
+    final next = ClubOpsSync.liveClubFromCatalog(club, {
+      'name': '7080 골프모임',
+      'description': '즐골 합시다~',
+      'team_count': 4,
+    });
+    expect(next, isNotNull);
+    expect(next!.name, '7080 골프모임');
+    expect(next.description, '즐골 합시다~');
+    expect(
+      ClubOpsSync.liveClubFromCatalog(next, {
+        'name': '7080 골프모임',
+        'description': '즐골 합시다~',
+        'team_count': 4,
+      }),
+      isNull,
+    );
+    expect(
+      ClubOpsSync.liveClubFromCatalog(club, {'name': ''}),
+      isNull,
+    );
+  });
 }
