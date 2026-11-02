@@ -95,6 +95,17 @@ class ClubDataCodec {
     return DateTime(d.year, d.month, d.day);
   }
 
+  /// 공지·회비·장부·조편성만. 사진이 든 전체 번들을 다시 만들지 않는다.
+  static Map<String, dynamic> encodeLiveRecords(ClubDataBundle b) => {
+        'announcements': b.announcements.map(_encodeAnnouncement).toList(),
+        'duesSettings': b.duesSettings.map(_encodeDuesSetting).toList(),
+        'duesPayments': b.duesPayments.map(_encodeDuesPayment).toList(),
+        'transactions': b.transactions.map(_encodeTransaction).toList(),
+        'groupAssignments': b.groupAssignments.map(
+          (k, v) => MapEntry(k, _encodeGroupAssignment(v)),
+        ),
+      };
+
   static Map<String, dynamic> encode(ClubDataBundle b) => {
         'version': currentVersion,
         'selectedClubIndex': b.selectedClubIndex,

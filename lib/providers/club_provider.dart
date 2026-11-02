@@ -3022,9 +3022,11 @@ class ClubProvider extends ChangeNotifier with WidgetsBindingObserver {
     _stampOrphanTransactionClubIds();
     final bundle = _exportBundle();
     if (!_applyingCloudOps && !_suppressPersist) {
+      final live = ClubDataCodec.encodeLiveRecords(bundle);
       ClubOpsSync.noteScheduleEdits(
         ClubDataCodec.encodeSchedules(bundle.schedules),
       );
+      ClubOpsSync.noteBundleRecordEdits(live);
     }
     await ClubPersistence.save(authUserId, bundle);
     if (_applyingCloudOps) {
@@ -3187,9 +3189,11 @@ class ClubProvider extends ChangeNotifier with WidgetsBindingObserver {
   }
 
   void _importBundle(ClubDataBundle b) {
+    final beforeLive = ClubDataCodec.encodeLiveRecords(_exportBundle());
     ClubOpsSync.noteScheduleEdits(
       ClubDataCodec.encodeSchedules(_schedules),
     );
+    ClubOpsSync.noteBundleRecordEdits(beforeLive);
     final previousMembers = List<Member>.from(_members);
     final keepSelectedId = _selectedClubIdOrNull();
     final keepImages = <String, String>{
@@ -3344,6 +3348,9 @@ class ClubProvider extends ChangeNotifier with WidgetsBindingObserver {
     }
     ClubOpsSync.rememberSchedules(
       ClubDataCodec.encodeSchedules(_schedules),
+    );
+    ClubOpsSync.rememberBundleRecords(
+      ClubDataCodec.encodeLiveRecords(_exportBundle()),
     );
   }
 

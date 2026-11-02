@@ -3025,6 +3025,68 @@ void main() {
     );
   });
 
+  test('바뀐 회비·장부만 문서가 되고 빈 목록은 기존 항목을 지우지 않는다', () {
+    ClubOpsSync.resetRecordWriteState();
+    const payment = {
+      'id': 'dp1',
+      'clubId': 'c1',
+      'amount': 10000,
+    };
+    const transaction = {
+      'id': 'tx1',
+      'clubId': 'c1',
+      'amount': 10000,
+    };
+    ClubOpsSync.rememberRecords('duesPayments', [payment]);
+    ClubOpsSync.rememberRecords('transactions', [transaction]);
+    expect(ClubOpsSync.recordsToWrite('duesPayments', [payment]), isEmpty);
+    expect(ClubOpsSync.recordsToWrite('transactions', [transaction]), isEmpty);
+    expect(ClubOpsSync.recordsToWrite('duesPayments', const []), isEmpty);
+    expect(ClubOpsSync.recordsToWrite('transactions', const []), isEmpty);
+
+    final changed = ClubOpsSync.recordsToWrite('duesPayments', [
+      {'id': 'dp1', 'clubId': 'c1', 'amount': 20000},
+    ]);
+    expect(changed, hasLength(1));
+    expect(changed.first['amount'], 20000);
+
+    final merged = ClubOpsSync.mergeBundleAndRecordDocs(
+      bundleRows: [
+        {'id': 'dp1', 'amount': 10000},
+        {'id': 'dp_old', 'amount': 5000},
+        {'id': 'tx1', 'amount': 10000},
+      ],
+      docRows: [
+        {'id': 'dp1', 'amount': 20000},
+      ],
+    );
+    expect(
+      merged.whereType<Map>().firstWhere((e) => e['id'] == 'dp1')['amount'],
+      20000,
+    );
+    expect(
+      merged.whereType<Map>().any((e) => e['id'] == 'dp_old'),
+      isTrue,
+    );
+    expect(
+      ClubOpsSync.mergeBundleAndRecordDocs(
+        bundleRows: [transaction],
+        docRows: const [],
+      ).length,
+      1,
+    );
+
+    final groups = ClubOpsSync.mergeGroupAssignmentDocs(
+      bundle: {
+        'sched1': {'scheduleId': 'sched1', 'teamCount': 2},
+      },
+      docs: [
+        {'id': 'sched1', 'scheduleId': 'sched1', 'teamCount': 4},
+      ],
+    );
+    expect(groups['sched1']['teamCount'], 4);
+  });
+
   test('서버에 저장된 모임 이름은 켜 둔 폰의 이름을 바로 바꾼다', () {
     final club = Club(
       id: 'c_1789270673471',

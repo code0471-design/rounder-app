@@ -73,6 +73,23 @@ abstract final class FirestorePaths {
   static String clubTransactions(String clubId) =>
       '${clubDoc(clubId)}/$transactions';
 
+  static const announcements = 'announcements';
+  static const groupAssignments = 'group_assignments';
+
+  static String clubAnnouncements(String clubId) =>
+      '${clubDoc(clubId)}/$announcements';
+
+  static String clubGroupAssignments(String clubId) =>
+      '${clubDoc(clubId)}/$groupAssignments';
+
+  /// 원클럽처럼 바뀐 항목 하나 = 문서 하나.
+  static String clubRecordDoc(
+    String clubId,
+    String collection,
+    String recordId,
+  ) =>
+      '${clubDoc(clubId)}/$collection/$recordId';
+
   static String clubJoinRequests(String clubId) =>
       '${clubDoc(clubId)}/$joinRequests';
 

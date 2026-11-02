@@ -38,6 +38,12 @@ class ClubOpsSync {
   static final Set<String> _dirtyScheduleIds = {};
   static final Map<String, StreamSubscription<DocumentSnapshot>> _catalogSubs =
       {};
+  static final Map<String, List<StreamSubscription<QuerySnapshot<Map<String, dynamic>>>>>
+      _recordColSubs = {};
+  static final Map<String, Map<String, List<Map<String, dynamic>>>>
+      _recordDocRows = {};
+  static final Map<String, String> _recordCanon = {};
+  static final Set<String> _dirtyRecordIds = {};
   static StreamSubscription<DocumentSnapshot>? _userSub;
 
   static bool get _enabled =>
@@ -186,6 +192,8 @@ class ClubOpsSync {
           clubId,
           slice['schedules'] as List? ?? const [],
         );
+        // 공지·회비·장부·조편성도 바뀐 건만 문서 하나로 저장한다.
+        await _pushChangedOneRecords(clubId, slice);
 
         // 연도 문서를 못 읽었는데 빈 목록으로 올리면 sch_YYYY 가 지워진다.
         // 새 폰에 일정이 없다고 서버 일정을 지우지 않는다.
@@ -1045,6 +1053,7 @@ class ClubOpsSync {
     }, onError: (e) {
       debugPrint('[ClubOpsSync] schedule doc watch error ($clubId): $e');
     });
+    _watchOneRecordCollections(clubId, onData);
     _clubSubs[clubId] = _db
         .doc(FirestorePaths.clubOpsBundle(clubId))
         .snapshots()
@@ -1116,6 +1125,10 @@ class ClubOpsSync {
     _watchedBundle.remove(clubId);
     _scheduleDocRows.remove(clubId);
     _sidecarSig.remove(clubId);
+    for (final sub in _recordColSubs.remove(clubId) ?? const []) {
+      unawaited(sub.cancel());
+    }
+    _recordDocRows.remove(clubId);
   }
 
   static void stopAllWatches() {
@@ -3271,6 +3284,251 @@ class ClubOpsSync {
     return true;
   }
 
+  /// 번들 필드 → 그 항목만 모으는 하위 컬렉션. 원클럽의 문서 하나와 같다.
+  static const Map<String, String> oneRecordCollections = {
+    'announcements': 'announcements',
+    'duesSettings': 'dues_settings',
+    'duesPayments': 'dues_payments',
+    'transactions': 'transactions',
+    'groupAssignments': 'group_assignments',
+  };
+
+  static String _recordKey(String field, String id) => '$field|$id';
+
+  @visibleForTesting
+  static void resetRecordWriteState() {
+    _recordCanon.clear();
+    _dirtyRecordIds.clear();
+  }
+
+  @visibleForTesting
+  static List<Map<String, dynamic>> groupAssignmentDocs(Object? raw) {
+    if (raw is! Map) return const [];
+    final out = <Map<String, dynamic>>[];
+    raw.forEach((key, value) {
+      if (value is! Map) return;
+      final id = '$key'.trim();
+      if (id.isEmpty) return;
+      final row = Map<String, dynamic>.from(value);
+      row['id'] = id;
+      if ('${row['scheduleId'] ?? ''}'.trim().isEmpty) row['scheduleId'] = id;
+      out.add(row);
+    });
+    return out;
+  }
+
+  static String _recordCanonOf(Map<dynamic, dynamic> raw) {
+    final m = <String, dynamic>{};
+    raw.forEach((k, v) => m['$k'] = v);
+    final keys = m.keys.toList()..sort();
+    return jsonEncode({for (final k in keys) k: m[k]});
+  }
+
+  @visibleForTesting
+  static void rememberRecords(String field, List<dynamic> rows) {
+    for (final raw in rows) {
+      if (raw is! Map) continue;
+      final id = '${raw['id'] ?? ''}'.trim();
+      if (id.isEmpty) continue;
+      final key = _recordKey(field, id);
+      if (_dirtyRecordIds.contains(key)) continue;
+      _recordCanon[key] = _recordCanonOf(raw);
+    }
+  }
+
+  @visibleForTesting
+  static List<Map<String, dynamic>> recordsToWrite(
+    String field,
+    List<dynamic> rows,
+  ) {
+    final out = <Map<String, dynamic>>[];
+    for (final raw in rows) {
+      if (raw is! Map) continue;
+      final row = Map<String, dynamic>.from(raw);
+      final id = '${row['id'] ?? ''}'.trim();
+      if (id.isEmpty) continue;
+      final key = _recordKey(field, id);
+      final canon = _recordCanonOf(row);
+      if (_recordCanon[key] == canon) continue;
+      _dirtyRecordIds.add(key);
+      out.add(row);
+    }
+    return out;
+  }
+
+  static void _ackRecord(String field, Map<String, dynamic> row) {
+    final id = '${row['id'] ?? ''}'.trim();
+    if (id.isEmpty) return;
+    final key = _recordKey(field, id);
+    _recordCanon[key] = _recordCanonOf(row);
+    _dirtyRecordIds.remove(key);
+  }
+
+  static void noteBundleRecordEdits(Map<String, dynamic> encoded) {
+    for (final field in oneRecordCollections.keys) {
+      if (field == 'groupAssignments') {
+        recordsToWrite(field, groupAssignmentDocs(encoded[field]));
+      } else {
+        recordsToWrite(field, encoded[field] as List? ?? const []);
+      }
+    }
+  }
+
+  static void rememberBundleRecords(Map<String, dynamic> encoded) {
+    for (final field in oneRecordCollections.keys) {
+      if (field == 'groupAssignments') {
+        rememberRecords(field, groupAssignmentDocs(encoded[field]));
+      } else {
+        rememberRecords(field, encoded[field] as List? ?? const []);
+      }
+    }
+  }
+
+  /// 문서가 있으면 그 항목이 이긴다. 문서가 없는 기존 항목은 남긴다.
+  /// 빈 문서 목록은 번들을 지우지 않는다.
+  @visibleForTesting
+  static List<dynamic> mergeBundleAndRecordDocs({
+    required List<dynamic> bundleRows,
+    required List<dynamic> docRows,
+  }) {
+    if (docRows.isEmpty) return List<dynamic>.from(bundleRows);
+    return mergeRowsById(
+      local: docRows,
+      remote: bundleRows,
+      localWins: true,
+    );
+  }
+
+  @visibleForTesting
+  static Map<String, dynamic> mergeGroupAssignmentDocs({
+    required Object? bundle,
+    required List<dynamic> docs,
+  }) {
+    final fromDocs = <String, dynamic>{};
+    for (final raw in docs) {
+      if (raw is! Map) continue;
+      final id = '${raw['id'] ?? raw['scheduleId'] ?? ''}'.trim();
+      if (id.isEmpty) continue;
+      fromDocs[id] = Map<String, dynamic>.from(raw);
+    }
+    return mergeMaps(local: fromDocs, remote: bundle, localWins: true);
+  }
+
+  static Future<void> _pushChangedOneRecords(
+    String clubId,
+    Map<String, dynamic> slice,
+  ) async {
+    for (final field in oneRecordCollections.keys) {
+      final rows = field == 'groupAssignments'
+          ? groupAssignmentDocs(slice[field])
+          : (slice[field] as List? ?? const <dynamic>[]);
+      final changed = recordsToWrite(field, rows);
+      final collection = oneRecordCollections[field]!;
+      for (final row in changed) {
+        final id = '${row['id'] ?? ''}'.trim();
+        final rowClub = '${row['clubId'] ?? ''}'.trim();
+        if (id.isEmpty) continue;
+        if (rowClub.isNotEmpty && rowClub != clubId) continue;
+        try {
+          final ref = _db.doc(FirestorePaths.clubRecordDoc(clubId, collection, id));
+          var payload = Map<String, dynamic>.from(row);
+          final snap = await ref.get();
+          if (snap.exists && snap.data() != null) {
+            final merged = mergeRowsById(
+              local: [payload],
+              remote: [Map<String, dynamic>.from(snap.data()!)],
+              localWins: true,
+            );
+            if (merged.isNotEmpty && merged.first is Map) {
+              payload = Map<String, dynamic>.from(merged.first as Map);
+            }
+          }
+          await ref.set(payload);
+          _ackRecord(field, payload);
+        } catch (e) {
+          debugPrint('[ClubOpsSync] record doc push skip $field/$id: $e');
+        }
+      }
+    }
+  }
+
+  static void _watchOneRecordCollections(
+    String clubId,
+    void Function(Map<String, dynamic> remote) onData,
+  ) {
+    final subs = <StreamSubscription<QuerySnapshot<Map<String, dynamic>>>>[];
+    for (final entry in oneRecordCollections.entries) {
+      final field = entry.key;
+      final collection = entry.value;
+      subs.add(
+        _db
+            .collection('${FirestorePaths.clubDoc(clubId)}/$collection')
+            .snapshots()
+            .listen((snap) {
+          final docs = <Map<String, dynamic>>[
+            for (final d in snap.docs)
+              Map<String, dynamic>.from(d.data())..putIfAbsent('id', () => d.id),
+          ];
+          final byField = _recordDocRows.putIfAbsent(clubId, () => {});
+          byField[field] = docs;
+          final existing = _watchedBundle[clubId];
+          if (existing == null || !existing.containsKey(field)) return;
+          final base = Map<String, dynamic>.from(existing);
+          if (field == 'groupAssignments') {
+            base[field] = mergeGroupAssignmentDocs(
+              bundle: base[field],
+              docs: docs,
+            );
+          } else {
+            base[field] = mergeBundleAndRecordDocs(
+              bundleRows: base[field] as List? ?? const [],
+              docRows: docs,
+            );
+          }
+          _watchedBundle[clubId] = base;
+          onData(base);
+        }, onError: (e) {
+          debugPrint('[ClubOpsSync] record watch $field ($clubId): $e');
+        }),
+      );
+    }
+    _recordColSubs[clubId] = subs;
+  }
+
+  static Future<void> _mergeRecordDocsInto(
+    String clubId,
+    Map<String, dynamic> remote,
+  ) async {
+    for (final entry in oneRecordCollections.entries) {
+      final field = entry.key;
+      if (!remote.containsKey(field)) continue;
+      try {
+        final snap = await _db
+            .collection('${FirestorePaths.clubDoc(clubId)}/${entry.value}')
+            .get();
+        final docs = <Map<String, dynamic>>[
+          for (final d in snap.docs)
+            Map<String, dynamic>.from(d.data())..putIfAbsent('id', () => d.id),
+        ];
+        _recordDocRows.putIfAbsent(clubId, () => {})[field] = docs;
+        if (docs.isEmpty) continue;
+        if (field == 'groupAssignments') {
+          remote[field] = mergeGroupAssignmentDocs(
+            bundle: remote[field],
+            docs: docs,
+          );
+        } else {
+          remote[field] = mergeBundleAndRecordDocs(
+            bundleRows: remote[field] as List? ?? const [],
+            docRows: docs,
+          );
+        }
+      } catch (e) {
+        debugPrint('[ClubOpsSync] record docs read skip $field: $e');
+      }
+    }
+  }
+
   static Future<void> _mergeScheduleDocsInto(
     String clubId,
     Map<String, dynamic> remote,
@@ -3443,6 +3701,7 @@ class ClubOpsSync {
           remote.remove(key);
         }
       }
+      await _mergeRecordDocsInto(clubId, remote);
     } catch (e) {
       debugPrint('[ClubOpsSync] overflow attach fail club=$clubId: $e');
       ClubOpsOverflow.markOverflowUnavailable(remote);
