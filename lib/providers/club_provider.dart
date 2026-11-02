@@ -8659,9 +8659,10 @@ class ClubProvider extends ChangeNotifier with WidgetsBindingObserver {
       if (!_iAmClubCreator(club)) continue;
       if (club.name.trim().isEmpty) continue;
       final cover = (club.imageUrl ?? '').trim();
+      // 이름은 모임 정보 화면에서 저장할 때만 쓴다.
+      // 여기서 다시 쓰면 이미 바꾼 이름이 예전 이름으로 돌아간다.
       await _pushClubCatalogToServer(
         club.id,
-        name: club.name,
         description: club.description,
         imageUrl: cover.isEmpty ? null : club.imageUrl,
         teamCount: club.teamCount,

@@ -1,3 +1,5 @@
+import 'dart:io';
+
 import 'package:flutter_test/flutter_test.dart';
 import 'package:golf_rounder/di/app_dependencies.dart';
 import 'package:golf_rounder/domain/services/club_name_policy.dart';
@@ -91,5 +93,15 @@ void main() {
       isFalse,
     );
     expect(clubs.selectedClub.name, '알라딘 정기월례회');
+  });
+
+  test('앱에 들어올 때 저장된 모임 이름을 다시 쓰지 않는다', () {
+    final src = File('lib/providers/club_provider.dart').readAsStringSync();
+    final start = src.indexOf('Future<void> _pushOwnedClubCatalog()');
+    final end = src.indexOf('Actions — Join Request', start);
+    expect(start, greaterThan(0));
+    expect(end, greaterThan(start));
+    final body = src.substring(start, end);
+    expect(body.contains('name:'), isFalse);
   });
 }
