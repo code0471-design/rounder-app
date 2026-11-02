@@ -449,7 +449,27 @@ class ClubOpsSync {
       local['responses'],
       remote['responses'],
     );
+    out['reviewMemo'] = keepScheduleReviewMemo(
+      local: local['reviewMemo'],
+      remote: remote['reviewMemo'],
+      localWins: localWins,
+    );
     return out;
+  }
+
+  /// 후기가 없는 폰이 참석만 저장해도 이미 있는 후기를 지우지 않는다.
+  /// 양쪽에 글이 있으면 저장하는 쪽을 남긴다.
+  @visibleForTesting
+  static String keepScheduleReviewMemo({
+    required Object? local,
+    required Object? remote,
+    required bool localWins,
+  }) {
+    final localText = '${local ?? ''}'.trim();
+    final remoteText = '${remote ?? ''}'.trim();
+    if (localText.isEmpty) return remoteText;
+    if (remoteText.isEmpty || localWins) return localText;
+    return remoteText;
   }
 
   @visibleForTesting

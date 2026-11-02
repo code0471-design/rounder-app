@@ -2965,6 +2965,30 @@ void main() {
     ClubOpsSync.resetScheduleWriteState();
   });
 
+  test('빈 후기 메모는 이미 있는 후기를 지우지 않는다', () {
+    final kept = ClubOpsSync.mergeScheduleRows(
+      local: [
+        {'id': 's1', 'reviewMemo': '', 'responses': <dynamic>[]},
+      ],
+      remote: [
+        {'id': 's1', 'reviewMemo': '화이팅', 'responses': <dynamic>[]},
+      ],
+      localWins: true,
+    );
+    expect(kept.single['reviewMemo'], '화이팅');
+
+    final edited = ClubOpsSync.mergeScheduleRows(
+      local: [
+        {'id': 's1', 'reviewMemo': '수정한 후기', 'responses': <dynamic>[]},
+      ],
+      remote: [
+        {'id': 's1', 'reviewMemo': '화이팅', 'responses': <dynamic>[]},
+      ],
+      localWins: true,
+    );
+    expect(edited.single['reviewMemo'], '수정한 후기');
+  });
+
   test('일정 문서의 참석 자리는 그 문서만 바꾼다', () {
     final schedule = {
       'id': 'sched_new',

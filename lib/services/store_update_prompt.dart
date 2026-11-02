@@ -16,10 +16,10 @@ import '../navigation/app_navigator.dart';
 import '../theme/app_theme.dart';
 
 /// 패키지 버전을 못 읽을 때만 쓰는 값. 안내 판단은 깔린 빌드의 버전을 본다.
-const kStoreUpdateInstalledVersion = '1.0.5';
+const kStoreUpdateInstalledVersion = '1.0.7';
 
 /// 패키지 빌드 번호를 못 읽을 때만 쓰는 값.
-const kStoreUpdateInstalledBuild = 230;
+const kStoreUpdateInstalledBuild = 232;
 
 const _androidBuildKey = 'androidBuild';
 const _iosBuildKey = 'iosBuild';
