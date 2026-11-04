@@ -89,6 +89,12 @@ class AuthProvider extends ChangeNotifier {
   static bool isPhoneMissing(String? phone) =>
       (phone ?? '').replaceAll(RegExp(r'[^0-9]'), '').length < 10;
 
+  /// 번호가 확인되기 전에는 가입 회원으로 서버에 올리지 않는다.
+  /// 카카오 로그인만으로 이름 없는 계정이 어드민에 생기면 안 된다.
+  @visibleForTesting
+  static bool shouldPublishSignedUpAccount(String? phone) =>
+      !isPhoneMissing(phone);
+
   static String phoneDigitsOf(String? phone) =>
       (phone ?? '').replaceAll(RegExp(r'[^0-9]'), '');
 
@@ -1122,6 +1128,10 @@ class AuthProvider extends ChangeNotifier {
             ),
           );
         }
+        return;
+      }
+      if (!shouldPublishSignedUpAccount(user.phone)) {
+        // 인증 전 카카오 계정을 가입 회원으로 만들지 않는다.
         return;
       }
       // 빈 phone으로 기존 번호를 지우지 않음 (소셜 재로그인 시 본사 연락처 유실 방지)

@@ -27,4 +27,11 @@ void main() {
     );
     expect(AuthProvider.isLeftoverEnglishDisplayName('이정원'), isFalse);
   });
+
+  test('번호 없는 카카오 계정은 가입 회원으로 올리지 않는다', () {
+    expect(AuthProvider.shouldPublishSignedUpAccount(null), isFalse);
+    expect(AuthProvider.shouldPublishSignedUpAccount(''), isFalse);
+    expect(AuthProvider.shouldPublishSignedUpAccount('회원'), isFalse);
+    expect(AuthProvider.shouldPublishSignedUpAccount('010-1234-5678'), isTrue);
+  });
 }
