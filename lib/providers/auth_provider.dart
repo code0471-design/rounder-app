@@ -95,6 +95,11 @@ class AuthProvider extends ChangeNotifier {
   static bool shouldPublishSignedUpAccount(String? phone) =>
       !isPhoneMissing(phone);
 
+  /// 가입일은 계정이 처음 만들어질 때만 찍는다. 로그인할 때마다 덮지 않는다.
+  @visibleForTesting
+  static bool shouldStampAccountCreatedAt(Object? existingCreatedAt) =>
+      existingCreatedAt == null;
+
   static String phoneDigitsOf(String? phone) =>
       (phone ?? '').replaceAll(RegExp(r'[^0-9]'), '');
 
@@ -1136,11 +1141,23 @@ class AuthProvider extends ChangeNotifier {
       }
       // 빈 phone으로 기존 번호를 지우지 않음 (소셜 재로그인 시 본사 연락처 유실 방지)
     final displayName = user.name.trim();
+    final userRef = FirebaseFirestore.instance
+        .collection(FirestorePaths.users)
+        .doc(user.id);
+    var stampCreated = false;
+    try {
+      final existing = await userRef.get();
+      stampCreated = shouldStampAccountCreatedAt(
+        existing.data()?['created_at'],
+      );
+    } catch (e) {
+      debugPrint('[AuthProvider] created_at read skip: $e');
+    }
     final data = <String, dynamic>{
       'name': displayName,
       'nickname': displayName,
-      'created_at': FieldValue.serverTimestamp(),
       'updated_at': FieldValue.serverTimestamp(),
+      if (stampCreated) 'created_at': FieldValue.serverTimestamp(),
     };
     if (user.gender != null && user.gender!.trim().isNotEmpty) {
       data['gender'] = user.gender!.trim();
@@ -1161,10 +1178,7 @@ class AuthProvider extends ChangeNotifier {
     if (user.profileImageUrl != null && user.profileImageUrl!.isNotEmpty) {
       data['profile_image_url'] = user.profileImageUrl;
     }
-      await FirebaseFirestore.instance
-          .collection(FirestorePaths.users)
-          .doc(user.id)
-          .set(data, SetOptions(merge: true));
+      await userRef.set(data, SetOptions(merge: true));
     } catch (e) {
       debugPrint('[AuthProvider] persist platform user failed: $e');
       rethrow;

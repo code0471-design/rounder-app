@@ -34,4 +34,12 @@ void main() {
     expect(AuthProvider.shouldPublishSignedUpAccount('회원'), isFalse);
     expect(AuthProvider.shouldPublishSignedUpAccount('010-1234-5678'), isTrue);
   });
+
+  test('이미 있는 가입일은 로그인할 때 다시 찍지 않는다', () {
+    expect(AuthProvider.shouldStampAccountCreatedAt(null), isTrue);
+    expect(
+      AuthProvider.shouldStampAccountCreatedAt('2026-09-01T00:00:00.000Z'),
+      isFalse,
+    );
+  });
 }
